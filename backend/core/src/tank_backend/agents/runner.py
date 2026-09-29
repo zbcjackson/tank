@@ -119,7 +119,9 @@ class AgentRunner:
             raise ValueError(
                 f"Subagent extension '{agent_def.extension}' is missing or has wrong type"
             )
-        return frozenset(manifest.permissions)
+        return frozenset(manifest.permissions) | (
+            {"network"} if agent_def.model is not None else set()
+        )
 
     def _uses_desktop(self, agent_def: AgentDefinition) -> bool:
         if agent_def.grounding is not None:
@@ -331,15 +333,24 @@ class AgentRunner:
                       if self._app_config is not None else {})
             from .subagent import SubAgent
 
-            plugin = self._registry.instantiate(agent_def.extension, dict(config))
-            if not isinstance(plugin, SubAgent):
-                raise TypeError("Subagent factory must return SubAgent")
-            task = next((m.get("content", "") for m in reversed(messages)
-                         if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
-            agent = SubAgentAdapter(agent_def.name, plugin, SubAgentRequest(
-                task=task, context=system_prompt, task_id=task_id or agent_id,
-                task_input=task_input,
-            ), context)
+            try:
+                if agent_def.model is not None:
+                    profiles = self._app_config.llm_profiles if self._app_config is not None else {}
+                    if agent_def.model not in profiles:
+                        raise ValueError("subagent model profile is not configured")
+                    context.runtime.configure_model(task_id or agent_id, profiles[agent_def.model])
+                plugin = self._registry.instantiate(agent_def.extension, dict(config))
+                if not isinstance(plugin, SubAgent):
+                    raise TypeError("Subagent factory must return SubAgent")
+                task = next((m.get("content", "") for m in reversed(messages)
+                             if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
+                agent = SubAgentAdapter(agent_def.name, plugin, SubAgentRequest(
+                    task=task, context=system_prompt, task_id=task_id or agent_id,
+                    task_input=task_input,
+                ), context)
+            except BaseException:
+                await join_on_cancel(context.runtime.aclose())
+                raise
         elif agent_def.engine:
             # B2 factory branch: plugin agent engine (e.g. agent-n2).
             # toolset/model are meaningless for engine agents — ignored.

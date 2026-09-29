@@ -12,6 +12,8 @@ from .subagent import SubAgentCleanupError, SubAgentStopped
 from .task_resources import TaskResources, consume_exception
 
 if TYPE_CHECKING:
+    from ..llm.profile import LLMProfile
+    from ..llm.task_model import TaskModel
     from .subagent import SubAgentContext
 
 Input = TypeVar("Input")
@@ -50,6 +52,7 @@ class TaskRuntime:
         cleanup_timeout: float = 5.0,
     ) -> None:
         self._context = context
+        self._model: TaskModel | None = None
         self._task_id: str | None = None
         self._operations: dict[str, object] = {}
         self._records: list[ExecutionRecord] = []
@@ -62,6 +65,21 @@ class TaskRuntime:
         self._resources = TaskResources(cleanup_timeout / 2)
         self._cleanup_timeout = cleanup_timeout
         self._inflight: set[asyncio.Task[object]] = set()
+
+    @property
+    def model(self) -> TaskModel | None:
+        return self._model
+
+    def configure_model(self, task_id: str, profile: LLMProfile) -> None:
+        """Host assembly before plugin creation; allocates no HTTP resources."""
+        from ..llm.task_model import TaskModel
+
+        self.bind(task_id)
+        if self._model is not None:
+            raise ValueError("task model is already configured")
+        model = TaskModel(task_id, self._context, profile)
+        self.own("task-model", model.aclose)
+        self._model = model
 
     @property
     def records(self) -> tuple[ExecutionRecord, ...]:

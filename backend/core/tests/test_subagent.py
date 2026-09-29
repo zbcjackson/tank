@@ -1036,3 +1036,105 @@ def test_usage_ledger_rejects_invalid_known_counts_without_turning_them_into_est
         })
     assert ledger.total_tokens == 0
     assert not ledger.call_ids
+
+
+async def test_runner_assembles_governed_text_model(stack, monkeypatch):
+    from dataclasses import replace
+
+    import httpx
+
+    from tank_backend.agents.subagent import SubAgentAuthorization
+    from tank_backend.llm.profile import LLMProfile
+
+    _, runner, _, definition, _ = stack
+    sent, closed = [], []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            sent.append(request)
+            return httpx.Response(200, json={
+                "id": "reply", "object": "chat.completion", "created": 1, "model": "test",
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": "ready"},
+                             "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10},
+            })
+
+        async def aclose(self):
+            closed.append(True)
+
+    class TextAgent(SubAgent):
+        async def run(self, request, context):
+            self.context = context
+            assert context.runtime.model is not None
+            text = await context.runtime.model.complete([{"role": "user", "content": request.task}])
+            yield AgentOutput(AgentOutputType.DONE, text, {"stop_reason": "final_answer"})
+
+    plugin = TextAgent()
+    monkeypatch.setitem(sys.modules, "_subagent_test", SimpleNamespace(create=lambda cfg: plugin))
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    runner._app_config.llm_profiles["advisor"] = LLMProfile(
+        "advisor", "host-secret", "test", "https://offline.invalid/v1", max_tokens=20,
+    )
+    definition = replace(definition, model="advisor")
+    outputs = [out async for out in runner.run_agent(
+        definition, [{"role": "user", "content": "inspect text"}], task_id="bound-task",
+        authorization=SubAgentAuthorization(frozenset({"network"})),
+    )]
+    assert len(sent) == 1
+    assert sent[0].headers["authorization"] == "Bearer host-secret"
+    assert json.loads(sent[0].content)["max_tokens"] == 20
+    assert outputs[-1].content == "ready"
+    assert outputs[-1].metadata["total_tokens"] == 10
+    assert closed == [True] and plugin.closed
+    assert "host-secret" not in repr(outputs)
+    assert plugin.context.runtime.model is not None
+    with pytest.raises(SubAgentStopped):
+        await plugin.context.runtime.model.complete([{"role": "user", "content": "late"}])
+    assert len(sent) == 1
+
+
+def test_extension_model_adds_network_to_approval(stack):
+    from dataclasses import replace
+
+    _, runner, _, definition, _ = stack
+    assert runner.extension_permissions(definition) == frozenset()
+    assert runner.extension_permissions(replace(definition, model="advisor")) == {"network"}
+
+
+@pytest.mark.parametrize(
+    "invalid", ["missing", "http", "query", "headers", "body", "tokens", "grant"],
+)
+async def test_runner_rejects_model_before_plugin_factory(stack, monkeypatch, invalid):
+    from dataclasses import replace
+
+    import httpx
+
+    from tank_backend.agents.subagent import SubAgentAuthorization
+    from tank_backend.llm.profile import LLMProfile
+
+    _, runner, _, definition, _ = stack
+    created = []
+    monkeypatch.setitem(sys.modules, "_subagent_test", SimpleNamespace(
+        create=lambda cfg: created.append("plugin"),
+    ))
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda: created.append("http"))
+    profile = LLMProfile("advisor", "secret", "test", "https://offline.invalid/v1")
+    changes = {
+        "http": {"base_url": "http://offline.invalid/v1"},
+        "query": {"base_url": "https://offline.invalid/v1?secret=hidden"},
+        "headers": {"extra_headers": {"X-Secret": "hidden"}},
+        "body": {"extra_body": {"reasoning": True}},
+        "tokens": {"max_tokens": 0},
+    }
+    runner._app_config.llm_profiles["default"] = profile
+    if invalid != "missing":
+        runner._app_config.llm_profiles["advisor"] = replace(profile, **changes.get(invalid, {}))
+    definition = replace(definition, model="advisor")
+    with pytest.raises((ValueError, SubAgentStopped)):
+        _ = [out async for out in runner.run_agent(
+            definition, [{"role": "user", "content": "task"}],
+            authorization=SubAgentAuthorization(
+                frozenset() if invalid == "grant" else frozenset({"network"}),
+            ),
+        )]
+    assert created == []
