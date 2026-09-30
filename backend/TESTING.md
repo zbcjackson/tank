@@ -944,3 +944,20 @@ The [S1 acceptance](benchmarks/computer_use/reports/20260930-s1-observation/READ
 archives a local Vision run against frozen synthetic PNGs, without desktop input or
 model network requests. Run `uv run --no-sync python -m benchmarks.computer_use.s1_acceptance`
 from backend after installing the optional plugin `vision` extra on macOS.
+
+## S2 managed Chromium acceptance
+
+`plugins/agent-computer-use/tests/test_dom.py` runs real ephemeral Chromium against
+controlled loopback pages through the existing Controller/TaskRuntime and Runner.
+It covers Chinese fill/click/readback, stale/replaced/navigation references,
+duplicates, disabled/covered controls, bounded observations, explicit iframe scope,
+task stops/quotas, lost replies and cleanup during pending input/driver creation.
+`test_plugin.py` also rejects missing optional dependencies without launching a browser.
+
+Install the plugin `browser` extra and Chromium, then require the acceptance:
+`TANK_REQUIRE_CHROMIUM=1 uv run --no-sync pytest plugins/agent-computer-use/tests/test_dom.py -q`.
+The manual Backend CI workflow has a dedicated job that installs both and forbids
+skips. Ordinary pytest may skip if they are missing; that is not S2 acceptance.
+The managed-Chromium scenario in the existing chat.feature requires the same setup.
+See the [plugin instructions](plugins/agent-computer-use/README.md#s2-managed-chromium)
+for configuration, supported DOM semantics and the limits of page-fact verification.

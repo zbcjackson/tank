@@ -629,9 +629,9 @@ AX 独立分支）均不支持切换默认，详见
 逐里程碑事实核验和有界只读协调。Advisor 仅补未绑定输入或选择当前候选；
 未知派发不会重放，结果保留观察绑定回执及核验来源，取消证据随通用清理链路保留。
 
-当前默认工厂没有真实通道，返回 `stopped / observation_unavailable`；私有配置暂为空，
-未知配置项拒绝。离线测试注入 fake UI/选择器/Advisor，不代表已接入 Jev、LLM 或真实
-AX/OCR/DOM，也不证明 PDF 产物或不覆盖约束。通道须提供可信语义事实，后续实现具体
+当前空配置工厂没有真实通道，返回 `stopped / observation_unavailable`；未知配置项拒绝。
+S2 的显式 `browser` 配置见下文。离线测试注入 fake UI/选择器/Advisor，不代表已接入
+Jev、LLM，也不证明 PDF 产物或不覆盖约束。通道须提供可信语义事实，后续实现具体
 身份、完成条件与派发边界。自然语言目标生成、通用恢复及 Jev/Advisor 领域适配仍待实现；
 生产 A 与现有实验 transport 拒绝条件不变。
 
@@ -747,3 +747,26 @@ Vision 为可选惰性依赖，固定 revision 3 / accurate / 中英 / 关闭语
 两种观察源经 Controller 的 TaskOperation 读取，撤权/关闭后不得新增原生读取。
 [合成样本验收与限制](../../backend/benchmarks/computer_use/reports/20260930-s1-observation/README.md)
 记录逐例输出；实机应用 AX、动作派发/效果、Jev/Advisor 与恢复不在本次证据内。
+
+### S2 管理的 Chromium 通道（2026-09-30）
+
+插件显式 `browser` 配置装配惰性的 Playwright 通道；空配置与生产 A 不变。
+extension 声明 desktop/network 权限，真实 Runner 复用通用审批、配额和清理。
+首次获准观察创建 headless Chromium 和非持久 context，限定配置的 origin 与固定 page，
+不附着用户浏览器、不用 URL/窗口标题选页；关闭 service worker、WebSocket 和下载。
+有 iframe 时须显式选择唯一具名叶子 frame；无法确认范围、frame 被替换或连接丢失时停止。
+
+单一 locator engine 用实际 DOM 对象身份贯通观察、点击/填写和读回；重渲染替代节点
+不会继承旧引用。快照绑定任务、观察、代次及真实 page/frame，导航和状态改变拒绝旧动作。
+button/link 支持 click，原生或 contenteditable textbox 支持 fill；节点/文字上限及
+open shadow root 标记范围不完整。语义命名仅覆盖 aria-labelledby/aria-label/原生 label/
+控件文本子集，不宣称完整可访问性树。唯一 `role:label` 的当前值/文本形成事实，
+宿主按目标谓词核验，不能据页面“成功”文字推断外部持久化或真实文件产物。
+
+所有动作保留 Playwright actionability 检查，fill 同样先做 trial click 防止穿透遮挡；
+异步预检后再次检查原任务授权、取消、deadline 和预算。待执行原生命令期间停止会关闭
+任务拥有的浏览器，避免仅取消 Python await 后命令继续运行；不宣称跨浏览器原子性。
+回包丢失后只做有限读回，未知效果不重放。资源创建与关闭同步，清理失败沿核心路径报告。
+真实本地浏览器测试及配置见
+[插件说明](../../backend/plugins/agent-computer-use/README.md#s2-managed-chromium)。
+这不代表 AX 实机动作、Jev/Advisor、同进程恢复或生产采用已验收。

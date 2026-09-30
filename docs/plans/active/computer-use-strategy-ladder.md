@@ -1307,6 +1307,19 @@ docs check、diff check 通过。未变化文件复用此前类型检查证据�
 - **退出条件**：真实本地浏览器集成通过；默认 backend 无 extras 可启动；
   权限/取消/预算在派发前生效，不访问用户日常 profile。
 
+#### S2 实施步骤（2026-09-30，进行中）
+
+基线 `26bd91b4`。复用现有 Controller / TaskRuntime，不增加核心的浏览器分支。
+
+1. 增加惰性可选 Chromium 通道：独立临时 context、固定 page/frame、文本观察、
+   身份绑定 locator、点击/填写与页面事实读回；工厂仅显式配置时装配。
+2. **Tests**：逐项先红后绿验证真实本地页面闭环、重复文本、重渲染、导航、iframe、
+   遮挡/禁用、同 URL 不同页签、断连，以及权限/取消/预算和资源关闭。
+   无 extras 的普通运行可显式 skip；专用 Chromium job 必须实际运行、不得 skip。
+3. 更新使用/测试说明和本计划验收证据；完整计划继续 active。
+4. **最终验证**：执行 §10 的完整 Verification Checklist 中全部适用项，然后按仓库
+   要求进行至多三轮 review-and-refactor，核对最终 diff、测试证据与提交。
+
 ### S3：Jev 动作决策与校准
 
 - 接入一个显式 Jev provider；hosted 或本地择一，不同时要求两个部署形态。
@@ -1564,3 +1577,37 @@ core/插件/benchmark lint、CLI lint、修复文件 pyright、开发服务日�
 
 协调者已核对修复 diff、最终验证证据与评审记录，S1 按本节离线/合成范围完成。
 S2–S6 继续 active；默认工厂、实机输入/效果、Jev/Advisor 与恢复不因 S1 完成而启用。
+
+
+### S2 实施与验收记录（2026-09-30，验证/评审中）
+
+- 基线 `26bd91b4`；新增插件内部 `channels/dom.py`，没有核心 Runner 的浏览器特判。
+  显式 browser 配置、Playwright 1.58.0 可选 extra、临时 headless Chromium/context；
+  extension 声明 desktop/network，空配置仍不可用，生产 A 与默认配置不改。
+- 单一身份 locator engine 绑定实际 page/frame/DOM 对象；固定 origin，不按 URL/标题
+  附着页签，具名叶子 frame 以外的歧义范围拒绝；重渲染替代元素不能继承旧引用。
+  中文 fill/button click 与唯一 role:label 页面事实构成真实读回闭环。
+- 明确边界：仅有限 DOM 语义，不支持 shadow DOM、用户 profile/登录态或任意页面
+  可访问性算法；页面事实不证明外部持久化。原生命令派发后仍可能竞态，保留 unknown
+  并只读协调，不能将浏览器回包错误解释为没有副作用。
+- **Tests**：闭环工厂与真实 Runner、旧引用、导航、重复/截断、遮挡/禁用、同 URL 页签、
+  iframe、读取/动作额度、取消/撤权/deadline/token budget、丢回包读回、资源关闭均覆盖。
+  新增边界先红后绿修复具名 frame 初始加载、嵌套 frame 拒绝、待执行 CDP 命令停止、
+  驱动创建/关闭竞态与空用户名携带密码 URL 的拒绝。普通测试可显式 skip；专用
+  `TANK_REQUIRE_CHROMIUM=1` 验收不允许缺依赖/浏览器时跳过。
+- 新增手动 Backend CI 的 Chromium job，复用现有 chat.feature 增加真实浏览器合同场景。
+  Cucumber 调用隔离进程的 Runner/停止验收，不宣称代理操作经 chat WebSocket 传输。
+  本地执行真实 Chromium，未访问个人浏览器、未调用付费模型；远端 CI 未触发。
+- 无 extra 启动：禁用 Playwright 导入，默认空 AppConfig 与隔离临时数据库启动后，
+  `/api/health` 返回 200；另有插件缺依赖拒绝测试。空配置无 LLM profile 的启动警告
+  不表示浏览器依赖失败。锁文件仅增加 browser extra，保留既有依赖版本。
+- 最终步骤：§10 全部适用 Verification Checklist 和至多三轮 review-and-refactor
+  完成后补最终结果。协议及生成物未改，协议同步检查不适用。
+
+评审前冻结代码的验证：后端全量 **5572 passed / 1 skipped / 21 warnings**
+（`/tmp/tank-s2-stable-backend.log`），其中 S2 的 27 项真实 Chromium 测试实际运行、
+零 skip；E2E **21 场景 / 83 步**（`/tmp/tank-s2-stable-e2e.log`）。web lint、
+`tsc -b --noEmit`、backend core/插件 lint、所有改动 Python 文件 pyright、CLI lint、
+E2E TypeScript、开发服务日志、docs/diff check 均通过。`uv lock --check --offline`
+及 browser extra 安装命令的 `--locked --dry-run --offline` 检查通过，未改变现有环境。
+中间 E2E 曾与新配置用例的 TDD 红灯编辑重叠，最终冻结版本已完整重跑通过。

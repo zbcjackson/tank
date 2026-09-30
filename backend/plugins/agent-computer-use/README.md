@@ -1,12 +1,12 @@
-# Computer Use host loop — S0 and S1 adapters
+# Computer Use host loop — S0–S2 adapters
 
 This opt-in `type: subagent` plugin uses the existing Runner/Adapter lifecycle.
 It does not change the production computer-use agent or grounding modes.
 The default factory currently has **no live channel or model transport**: a valid
 goal returns `stopped / observation_unavailable`, with zero desktop/model calls.
-Unknown private configuration keys are rejected. Do not enable it expecting a
-working desktop agent; S1 provides injectable AX/OCR observations, while live execution,
-DOM and Jev/Advisor domain wiring remain later stages.
+Unknown private configuration keys are rejected. S1 provides injectable AX/OCR
+observations; S2 adds explicitly configured managed Chromium. Native desktop
+execution and Jev/Advisor domain wiring remain later stages.
 
 The constructor accepts separate observation, action, selector and Advisor
 implementations. Tests inject semantic fake UI boundaries through the actual
@@ -98,3 +98,65 @@ check task authority at their native boundary; they do not create a live executo
 The [S1 acceptance](../../benchmarks/computer_use/reports/20260930-s1-observation/README.md)
 contains frozen synthetic fixtures, native Vision outputs and limitations. The
 factory remains unavailable until live channel/execution wiring is explicitly added.
+
+## S2 managed Chromium
+
+Install from `backend/`:
+
+```bash
+uv sync --all-packages --all-groups --extra browser
+uv run --no-sync playwright install chromium
+TANK_REQUIRE_CHROMIUM=1 uv run --no-sync pytest plugins/agent-computer-use/tests/test_dom.py -q
+```
+
+Configure the existing extension explicitly (no model profile is needed):
+
+```yaml
+subagents:
+  agent-computer-use:agent:
+    config:
+      browser:
+        scope: managed-page
+        url: http://127.0.0.1:8080/form
+        # frame_name: editor  # optional unique leaf frame
+```
+
+The extension declares desktop and network permissions; the same task approval
+covers them. The factory only validates configuration and creates inert adapters.
+The first admitted observation starts one headless Chromium with a fresh,
+non-persistent context. It never attaches to a user profile or existing browser.
+HTTP(S) resources/navigation are confined to the configured origin and bound
+page; other pages are never selected by URL/title. Service workers, WebSockets
+and downloads are disabled. This is a trusted adapter, not a hostile-page sandbox.
+
+One task-bound page and one frame supply bounded semantic observations. A named
+frame must match exactly once and have no child frames. Without `frame_name`,
+only a frame-free main page is accepted. Replacement/detachment requires a new
+task; navigation invalidates old references. A task-local selector engine retains
+actual element identities, so locators do not silently select replacement nodes.
+The same locator engine serves observation, dispatch and readback; native handles
+never leave the channel.
+
+Supported action templates are button/link click and editable textbox fill.
+Names use aria-labelledby, aria-label, native labels or element text. This is a
+bounded subset of DOM semantics, not a full accessible-name implementation.
+Visible unique `role:label` observations produce facts with the current input
+value or text content, e.g. `textbox:Name = 小明` and `status:Result = 小明`.
+Goals must use these page predicates; a page message alone does not prove external
+persistence or file creation. Duplicate keys supply no fact. DOM/node/text caps
+and open shadow roots make the scope incomplete; shadow DOM is not supported.
+
+Click and fill require a successful non-forced trial click plus fresh identity,
+state and task checks. Native input has a short timeout; while a command is
+pending, task authority is monitored and stopping closes the owned browser.
+There is still a browser/host race after any check: uncertain effects remain
+unknown and are never replayed. Readback may confirm an effect even if its reply
+was lost. Runtime quotas remain shared across observations and actions.
+
+Ordinary pytest explicitly skips browser tests when the optional dependency or
+Chromium executable is absent. `TANK_REQUIRE_CHROMIUM=1` makes either absence a
+failure; the dedicated manual Backend CI job uses it. The existing chat.feature
+also has a real Chromium contract scenario and requires this extra/browser for
+`cd test && pnpm test`. It exercises Runner/config/results and stop boundaries
+in an isolated process, not browser-agent transport through the chat WebSocket.
+No paid model call or personal browser input is part of S2 acceptance.
