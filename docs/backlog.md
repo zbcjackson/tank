@@ -30,6 +30,7 @@ live 新实验预算按该计划 §8 逐批授权执行。
 
 | 项目 | 触发条件 | 背景/前置 | 来源 |
 |---|---|---|---|
+| 多浏览器可见启动与现有会话接管 | **需求已确认**（2026-09-30 用户要求，允许后续实现）；待后续排期，确定逐浏览器接入及会话身份方案后立项 | 分别支持启动可见浏览器和接管用户正在使用的浏览器，授权范围内复用页签/登录态；不局限于 Headless Chromium。评估 Chrome、Edge、Firefox、Safari 等的实际支持范围与接入方式；验收身份绑定、用户操作冲突、撤权/取消、断连及清理所有权，原有浏览器仅解除附着。尚未实现，不改变已完成的 S2 与当前 S3–S6 范围 | [策略阶梯计划 §9](plans/active/computer-use-strategy-ladder.md#9-还需依据实际执行调整的点)；2026-09-30 用户后续需求 |
 | 旧 DesktopExecutor 动作 hooks / guardrails | SDK 迁移后仍保留旧 N2，且需要对旧 executor 提供逐动作策略或 hooks | 现有旧插件绕过 ToolManager 管线；若旧路径已退役则删除此条，不为退役实现扩建控制层 | [computer-use-improvement-and-n2-plan.md](plans/done/computer-use-improvement-and-n2-plan.md) B4 / §18 |
 | 客户端 token 携带（web/cli/device 连接时发 `?token=`） | 远程部署启动 | P0-2 只落地了服务端校验，三端客户端从未实现携带；需与 token 分发方式一并设计 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) P0-2 |
 | 认证 token 分发方式定案 | 远程部署设计时 | 配置文件 vs 首次配对流程，计划 §11.2 未决问题 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) §11 |
