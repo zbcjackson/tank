@@ -1327,3 +1327,191 @@ async def test_legacy_success_cannot_hide_an_unknown_native_effect(stack, monkey
     )
     assert result.status == "unknown"
     assert result.task_result["reason"] == "effect_unknown"
+
+
+@pytest.mark.parametrize("caller", ["text", "computer_use", "n2_sdk", "n2", "llm"])
+@pytest.mark.parametrize("outcome", ["ok", "revoked", "audit_failure"])
+async def test_retained_callers_share_governance(stack, monkeypatch, caller, outcome):
+    """One acceptance contract over real Runner/SDK paths; only HTTP and OS are fake."""
+    import base64
+    import io
+    from pathlib import Path
+    from unittest.mock import AsyncMock
+
+    import agent_computer_use
+    import agent_n2_sdk
+    import httpx
+    from agent_computer_use.agent import ComputerUseSubAgent
+    from agent_computer_use.contracts import AdvisorResult, DispatchReceipt, Element, Fact, Snapshot
+    from agent_computer_use.controller import ComputerUseController
+    from agent_n2_sdk.agent import N2SdkSubAgent
+    from agent_n2_sdk.config import N2SdkConfig
+    from agent_n2_sdk.environment import GuardedComputer
+    from openai import AsyncOpenAI
+    from PIL import Image
+    from yutori.navigator.macos.types import CancellationLatch
+
+    from tank_backend.agents import runner as runner_module
+    from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentContext
+    from tank_backend.computer import executor as executor_module
+    from tank_backend.computer.executor import DesktopExecutor, Screenshot
+    from tank_backend.llm.llm import LLM
+    from tank_backend.llm.profile import LLMProfile
+    from tank_backend.plugin.manifest import read_manifest_from_yaml
+
+    _, runner, _, _, _ = stack
+    contexts, sent, audit_records, closed, actions = [], [], [], [], []
+    grant = SubAgentAuthorization(frozenset({"desktop", "network", "filesystem", "shell"}))
+    original_context = SubAgentContext
+
+    def context_factory(*args, **kwargs):
+        ctx = original_context(*args, **kwargs)
+        contexts.append(ctx)
+        return ctx
+
+    monkeypatch.setattr(runner_module, "SubAgentContext", context_factory)
+
+    async def audit(record):
+        audit_records.append(record)
+        if outcome == "audit_failure" and record.category == "model":
+            raise OSError("required audit unavailable")
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            # Evidence must exist before the external boundary, not be added afterwards.
+            assert any(r.category == "model" and r.phase == "dispatch" for r in audit_records)
+            sent.append(request)
+            body = json.loads(request.content)
+            usage = {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10}
+            if outcome == "revoked":
+                grant.revoke()
+            if body.get("stream"):
+                chunk = {"id": "reply", "object": "chat.completion.chunk", "created": 1,
+                         "model": "n2", "usage": usage,
+                         "choices": [{"index": 0, "delta": {"content": "ready"},
+                                      "finish_reason": "stop"}]}
+                return httpx.Response(200, headers={"content-type": "text/event-stream"},
+                                      content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n")
+            return httpx.Response(200, json={
+                "id": "reply", "object": "chat.completion", "created": 1, "model": "n2",
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": "ready"},
+                             "finish_reason": "stop"}], "usage": usage,
+            })
+
+        async def aclose(self):
+            closed.append(self)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    profile = LLMProfile("shared", "host-secret", "n2", "https://offline.invalid/v1", max_tokens=20)
+    runner._app_config.llm_profiles.update(shared=profile, **{"agent-n2": profile})
+    client = AsyncOpenAI(api_key="host-secret", base_url=profile.base_url,
+                         http_client=httpx.AsyncClient(transport=HTTP()))
+    runner._llm = LLM(api_key="host-secret", model="n2", base_url=profile.base_url,
+                      max_tokens=20, client=client)
+    runner._tool_manager.get_openai_tools.return_value = []
+    for name in ("agent-computer-use", "agent-n2-sdk", "agent-n2"):
+        manifest = read_manifest_from_yaml(
+            Path(__file__).parents[2] / "plugins" / name / "plugin.yaml",
+        )
+        runner._registry.register(manifest.plugin_name, manifest.extensions[0])
+
+    class TextAgent(SubAgent):
+        async def run(self, request, context):
+            assert context.runtime.model is not None
+            text = await context.runtime.model.complete([{"role": "user", "content": request.task}])
+            yield AgentOutput(AgentOutputType.DONE, text, {"stop_reason": "final_answer"})
+
+    class World:
+        observations = 0
+
+        async def observe(self, scope, ctx):
+            self.observations += 1
+            return Snapshot(str(self.observations), scope, len(actions),
+                            (Element("field", "textbox", "Name", ("fill",)),),
+                            facts=(Fact(key="name", value="ready"),) if actions else ())
+
+        async def is_current(self, binding, action, ctx):
+            return binding.generation == len(actions)
+
+        async def dispatch(self, binding, action, ctx):
+            actions.append(action)
+            return DispatchReceipt(action.id, "sent")
+
+    class Advisor:
+        async def assist(self, request, goal, snapshot, action_set, ctx):
+            assert ctx.runtime.model is not None
+            value = await ctx.runtime.model.complete([{"role": "user", "content": request.task}])
+            return AdvisorResult(
+                action_set.binding, "inputs", inputs=(Fact(key="name", value=value),),
+            )
+
+    image = io.BytesIO()
+    Image.new("RGB", (10, 10)).save(image, "PNG")
+    computer = SimpleNamespace(
+        cancellation=CancellationLatch(), get_dimensions=AsyncMock(return_value=(10, 10)),
+        screenshot=AsyncMock(return_value=base64.b64encode(image.getvalue()).decode()),
+        __aenter__=AsyncMock(), aclose=AsyncMock(),
+    )
+    computer.__aenter__.return_value = computer
+    monkeypatch.setattr(agent_n2_sdk, "create_subagent", lambda config: N2SdkSubAgent(
+        N2SdkConfig.from_dict(config), computer_factory=lambda ctx: GuardedComputer(computer, ctx),
+    ))
+    desktop = MagicMock(spec=DesktopExecutor)
+    desktop.screenshot = AsyncMock(return_value=Screenshot(image.getvalue(), 10, 10))
+    desktop.aclose = AsyncMock()
+    monkeypatch.setattr(executor_module, "create_desktop_executor", lambda *, context:
+                        executor_module._TaskDesktopExecutor(desktop, context))
+    world = World()
+    monkeypatch.setattr(agent_computer_use, "create_subagent", lambda config:
+                        ComputerUseSubAgent(ComputerUseController(world, world, advisor=Advisor())))
+    monkeypatch.setitem(
+        sys.modules, "_subagent_test", SimpleNamespace(create=lambda cfg: TextAgent()),
+    )
+    task_input = None
+    if caller == "n2":
+        definition = AgentDefinition("shared", "", "", engine="agent-n2:agent")
+    elif caller == "llm":
+        definition = AgentDefinition("shared", "", "")
+    else:
+        extension = {"text": "fake:agent", "computer_use": "agent-computer-use:agent",
+                     "n2_sdk": "agent-n2-sdk:agent"}[caller]
+        definition = AgentDefinition("shared", "", "", extension=extension, model="shared")
+        if caller == "computer_use":
+            task_input = {
+                "schema_version": 1, "objective": "Fill name", "scope": "document", "inputs": [],
+                "milestones": [{"id": "name", "operation": "fill", "role": "textbox",
+                                "label": "Name", "input_key": "name",
+                                "postcondition": {"key": "name", "value": "ready"}}],
+                "completion": [{"key": "name", "value": "ready"}],
+            }
+    try:
+        outputs = [item async for item in runner.run_agent(
+            definition, [{"role": "user", "content": "Fill name"}], task_id="shared-task",
+            authorization=grant, audit=audit, task_input=task_input,
+        )]
+        assert len(contexts) == 1
+        ctx = contexts[0]
+        assert ctx.authorization is grant and ctx.runtime.task_id == "shared-task"
+        assert len(sent) == (0 if outcome == "audit_failure" else 1)
+        model_records = [r for r in audit_records if r.category == "model"]
+        assert len({r.call_id for r in model_records}) == 1
+        assert all(r.task_id == "shared-task" for r in audit_records)
+        if outcome == "ok":
+            assert ctx.budget.total_tokens == 10 and len(ctx.budget.call_ids) == 1
+            assert model_records[-1].status == "returned"
+            assert model_records[-1].call_id in ctx.budget.call_ids
+            assert not any(o.metadata.get("status") == "error" for o in outputs)
+            assert len(actions) == (1 if caller == "computer_use" else 0)
+        else:
+            assert actions == []
+            assert not any(o.type == AgentOutputType.DONE
+                           and o.metadata.get("stop_reason") == "final_answer" for o in outputs)
+        assert "host-secret" not in repr(audit_records) + repr(outputs)
+        with pytest.raises(SubAgentStopped, match="runtime_closed"):
+            ctx.check()
+        # Closing the task must not close the borrowed main LLM connection pool.
+        assert not client.is_closed()
+        if caller != "llm":
+            assert len(closed) == 1
+    finally:
+        await client.close()
