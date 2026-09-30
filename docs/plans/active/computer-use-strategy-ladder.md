@@ -1546,3 +1546,18 @@ completed/cleanup=confirmed，并拒绝失败分支返回 completed TaskResult�
   已在允许环境完整重跑；新增用例各自的 TDD 红灯也已修复。
 - 实现提交：AX `ad8b6ac2`；Vision `c6388f43`。review-and-refactor 结果在收尾后
   补录；通过前不将 S1 标为完成。
+
+S1 review-and-refactor 第 1 轮发现 R1：原生 AX 标题、enabled、动作名或可写性
+读取失败被降为空值，可能隐藏同名候选并错误报告完整范围。现对语义读取的实际
+错误标记不完整，保留 unsupported/no-value 的合法缺省；4 个 CannotComplete
+回归先红后绿，定向 AX/插件测试 112 passed。此修复不启用原生输入通道。
+同轮 R2：AX 读取排入线程后若观察源关闭，原生边界原先仍会读取一次。现补关闭复查，
+排队期间关闭的回归先红后绿；最终 AX/插件定向 113 passed。
+修复提交分别为 `9b87f0e3`、`5e24c9e1`。稳定代码 `5e24c9e1` 的最终全量后端
+5540 passed / 1 skipped / 21 warnings（`/tmp/tank-s1-review-final-backend.log`），
+E2E 20 场景 / 79 步（`/tmp/tank-s1-review-final-e2e.log`）。web lint/tsc、backend
+core/插件/benchmark lint、CLI lint、修复文件 pyright、开发服务日志、docs/diff check
+均通过；未变化 Python 文件复用评审前类型检查，协议检查仍不适用。
+第 2 轮复核 R1/R2 修复、回归与最终验证证据，无新增或遗留可操作问题，停止评审；
+该轮为评审者对自己修复的自检，非额外独立验收。归档 manifest 与 14 PNG hash
+一致。没有新实机 AX、输入/恢复或付费模型验收；此前原生 Vision 报告的适用边界不变。
