@@ -4,5 +4,8 @@ description: Official N2ComputerAgent for a trusted macOS desktop; Linux unsuppo
 extensions:
   - name: agent
     type: subagent
+    runtime_api: 1
+    needs: [task_model]
+    model_inputs: [text, image]
     factory: agent_n2_sdk:create_subagent
     permissions: [desktop, shell, filesystem, network]

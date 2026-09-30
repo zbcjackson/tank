@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 from typing import Any
 
 import pytest
+import httpx
 from PIL import Image
 from yutori.navigator.macos.types import CancellationLatch
 from yutori.navigator.macos.computer import MacOSComputer
@@ -24,6 +25,7 @@ from tank_backend.agents.subagent import (
 from agent_n2_sdk.agent import N2SdkSubAgent
 from agent_n2_sdk.config import N2SdkConfig
 from agent_n2_sdk.environment import GuardedComputer
+from agent_n2_sdk.model import N2ModelClient
 
 
 class Computer:
@@ -98,11 +100,26 @@ def context(limit=100):
     )
 
 
+def governed_client(completions, config, ctx):
+    class Transport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            response = await completions.create(**json.loads(request.content))
+            return httpx.Response(200, json={
+                "id": "test", "model": "n2", "created": 1, "object": "chat.completion",
+                **response,
+            })
+
+        async def aclose(self):
+            await completions.aclose()
+
+    return N2ModelClient(config, ctx, inner=Transport())
+
+
 def agent(computer, completions, **config):
     return N2SdkSubAgent(
         N2SdkConfig(api_key="test", screenshot_delay=0, **config),
         computer_factory=lambda ctx: GuardedComputer(computer, ctx),
-        client_factory=lambda cfg: completions,
+        client_factory=lambda cfg, ctx: governed_client(completions, cfg, ctx),
     )
 
 
@@ -365,6 +382,7 @@ async def test_authorization_revoked_blocks_next_primitive():
     from tank_backend.agents.subagent import SubAgentStopped
 
     computer, ctx = Computer(), context()
+    ctx.runtime.bind("task-id")
     guarded = GuardedComputer(computer, ctx)
     await guarded.click(1, 2)
     ctx.authorization.revoke()
@@ -470,13 +488,16 @@ async def test_compaction_and_actor_share_unique_ledger():
 
     ctx = context()
     queue = asyncio.Queue()
-    metered = MeteredCompletions(Completions([reply(), reply()]), ctx, queue)
+    ctx.runtime.bind("compaction")
+    client = governed_client(Completions([reply(), reply()]), N2SdkConfig(api_key="test"), ctx)
+    metered = MeteredCompletions(client, ctx, queue)
     sdk = N2ComputerAgent(
         computer=Computer(), completions=metered, compactor=Compactor()
     )
     _ = [frame async for frame in sdk.run("task")]
     assert ctx.budget.total_tokens == 14 and len(ctx.budget.call_ids) == 2
     assert queue.qsize() == 2
+    await client.aclose()
 
 
 async def test_backpressure_consumer_close_does_not_leave_sdk_loop():
@@ -586,3 +607,132 @@ async def test_benchmark_create_and_observer_use_sdk_without_executor(
     assert result.primitives == 1 and result.model_turns == 2
     assert "secret-do-not-report" not in json.dumps(driver.describe())
     assert driver.describe()["display"] == {"width": 100, "height": 100}
+
+
+async def test_sdk_keeps_the_original_task_runtime_when_applying_its_timeout():
+    ctx = context()
+    ctx.runtime.bind("task-id")
+    plugin = agent(Computer(), Completions([reply()]), timeout_s=1)
+    await collect(plugin, ctx)
+    assert plugin.computer.context is ctx
+    assert plugin.computer.context.runtime is ctx.runtime
+
+
+async def test_sdk_native_calls_use_original_runtime_audit():
+    records = []
+
+    async def audit(record):
+        records.append(record)
+
+    from dataclasses import replace
+
+    ctx = replace(context(), audit=audit)
+    ctx.runtime.bind("task-id")
+    computer = Computer()
+    guarded = GuardedComputer(computer, ctx)
+    await guarded.click(1, 2)
+    assert [record.status for record in records] == ["not_sent", "unknown", "returned"]
+    assert all(record.task_id == "task-id" for record in records)
+    assert computer.actions == [(1, 2, {"button": "left", "modifier": None})]
+
+
+async def test_zero_task_model_allowance_sends_no_sdk_http():
+    from dataclasses import replace
+
+    class Denied:
+        blocked = False
+
+        def check(self):
+            if self.blocked:
+                raise SubAgentStopped("budget")
+
+        def reserve(self, call_id, request):
+            self.blocked = True
+            raise SubAgentStopped("budget")
+
+        def settle(self, call_id, inputs, outputs):
+            pytest.fail("no HTTP was sent")
+
+        def release_unsent(self, call_id):
+            pass
+
+    client = Completions([])
+    ctx = replace(context(), model_policy=Denied())
+    outputs = await collect(agent(Computer(), client), ctx)
+    assert outputs[-1].metadata["stop_reason"] == "budget"
+    assert client.calls == [] and ctx.budget.call_count == 0
+
+
+async def test_file_write_rechecks_revocation_at_the_sdk_native_boundary(tmp_path):
+    from agent_n2_sdk.environment import create_task_computer
+
+    ctx = context()
+    computer = create_task_computer(
+        ctx, transport=AsyncMock(), owns_transport=True, allow_local_shell=True,
+    )
+    target = tmp_path / "blocked"
+    ctx.authorization.revoke()
+    with pytest.raises(SubAgentStopped, match="authorization"):
+        await computer.write_file(str(target), "must not be written")
+    assert not target.exists()
+    await computer.aclose()
+
+
+async def test_stopped_sdk_cleanup_does_not_complete_an_emulated_click():
+    from agent_n2_sdk.environment import create_task_computer
+
+    ctx = context()
+    computer = create_task_computer(
+        ctx, transport=AsyncMock(), owns_transport=True, allow_local_shell=True,
+    )
+    computer.click = AsyncMock()
+    await computer.left_mouse_down(10, 20)
+    ctx.authorization.revoke()
+    await computer.release_held_mouse_button()
+    computer.click.assert_not_awaited()
+    await computer.aclose()
+
+
+async def test_concurrent_completion_events_keep_their_own_core_call_ids():
+    from dataclasses import replace
+
+    from agent_n2_sdk.callbacks import MeteredCompletions
+
+    entered, respond, auditing, finish_audit = (asyncio.Event() for _ in range(4))
+    count = 0
+
+    async def audit(record):
+        if record.phase == "finished" and not auditing.is_set():
+            auditing.set()
+            await finish_audit.wait()
+
+    client = Completions([])
+
+    async def create(**kwargs):
+        nonlocal count
+        count += 1
+        if count == 2:
+            entered.set()
+        await respond.wait()
+        return reply()
+
+    client.create = create
+    ctx = replace(context(), audit=audit)
+    ctx.runtime.bind("parallel")
+    governed = governed_client(client, N2SdkConfig(api_key="test"), ctx)
+    queue = asyncio.Queue()
+    metered = MeteredCompletions(governed, ctx, queue)
+    requests = [asyncio.create_task(metered.create(messages=[{"role": "user", "content": "go"}]))
+                for _ in range(2)]
+    await entered.wait()
+    respond.set()
+    await auditing.wait()
+    await asyncio.sleep(0)
+    finish_audit.set()
+    try:
+        await asyncio.gather(*requests)
+        events = [queue.get_nowait() for _ in range(2)]
+        assert len({event.metadata["call_id"] for event in events}) == 2
+        assert {event.metadata["call_id"] for event in events} == ctx.budget.call_ids
+    finally:
+        await governed.aclose()

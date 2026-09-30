@@ -15,6 +15,9 @@ from unittest.mock import MagicMock
 from PIL import Image
 from yutori.navigator.macos.types import CancellationLatch
 
+import httpx
+from agent_n2_sdk.model import N2ModelClient
+
 from agent_n2_sdk.agent import N2SdkSubAgent
 from agent_n2_sdk.config import N2SdkConfig
 from agent_n2_sdk.environment import GuardedComputer
@@ -109,11 +112,22 @@ async def dispatch(outcome: str, directory: Path) -> dict[str, Any]:
     computer, client = Computer(), Client(outcome)
     instances = []
 
+    class Transport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+            response = await client.create(**json.loads(request.content))
+            return httpx.Response(200, json={
+                "id": "fixture", "model": "n2", "object": "chat.completion", "created": 1,
+                **response,
+            })
+
+        async def aclose(self) -> None:
+            await client.aclose()
+
     def create(_config: dict[str, Any]) -> N2SdkSubAgent:
         plugin = N2SdkSubAgent(
             N2SdkConfig(api_key="fake", screenshot_delay=0),
             computer_factory=lambda ctx: GuardedComputer(computer, ctx),
-            client_factory=lambda cfg: client,
+            client_factory=lambda cfg, ctx: N2ModelClient(cfg, ctx, inner=Transport()),
         )
         instances.append(plugin)
         return plugin

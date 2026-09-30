@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import AsyncGenerator, Callable
-from dataclasses import replace
 from typing import Any
 
 from tank_backend.agents.base import AgentOutput, AgentOutputType
@@ -13,19 +12,21 @@ from tank_backend.agents.subagent import (
     SubAgent,
     SubAgentCapabilities,
     SubAgentContext,
+    SubAgentModel,
     SubAgentRequest,
     SubAgentStopped,
 )
-from yutori import AsyncYutoriClient
 from yutori.navigator.n2 import N2ComputerAgent
+from yutori.navigator.n2_compaction import N2InlineCompactor
 
 from .callbacks import Callbacks, MeteredCompletions
 from .config import N2SdkConfig
 from .environment import create_computer
+from .model import N2ModelClient
 
 
-def create_client(config: N2SdkConfig) -> AsyncYutoriClient:
-    return AsyncYutoriClient(api_key=config.api_key, base_url=config.base_url)
+def create_client(config: N2SdkConfig, context: SubAgentContext) -> N2ModelClient:
+    return N2ModelClient(config, context)
 
 
 async def close_resource(resource: Any) -> None:
@@ -43,10 +44,14 @@ class N2SdkSubAgent(SubAgent):
         config: N2SdkConfig,
         *,
         computer_factory: Callable[[SubAgentContext], Any] = create_computer,
-        client_factory: Callable[[N2SdkConfig], Any] = create_client,
+        client_factory: Callable[[N2SdkConfig, SubAgentContext], Any] = create_client,
     ) -> None:
         super().__init__(cleanup_timeout=config.cleanup_timeout_s)
         self.config = config
+        self.model_spec = SubAgentModel(
+            config.credential_ref or "n2", config.model, config.base_url,
+            frozenset({"text", "image"}),
+        )
         self.computer_factory, self.client_factory = computer_factory, client_factory
         self.computer: Any = None
         self.client: Any = None
@@ -69,7 +74,9 @@ class N2SdkSubAgent(SubAgent):
         deadline = min(
             context.deadline or float("inf"), time.monotonic() + self.config.timeout_s
         )
-        context = replace(context, deadline=deadline)
+        context.runtime.bind(request.task_id)
+        context.runtime.restrict_deadline(deadline)
+        context.runtime.restrict_operations(actions=self.config.max_steps * 20)
         queue: asyncio.Queue[AgentOutput | None] = asyncio.Queue(maxsize=64)
         callbacks = Callbacks(queue, context)
 
@@ -80,7 +87,7 @@ class N2SdkSubAgent(SubAgent):
                 context.observe("sdk_start", sdk_version="0.9.29")
                 await self.computer.__aenter__()
                 context.check()
-                self.client = self.client_factory(self.config)
+                self.client = self.client_factory(self.config, context)
                 completions = (
                     self.client.chat.completions
                     if hasattr(self.client, "chat")
@@ -92,6 +99,7 @@ class N2SdkSubAgent(SubAgent):
                     computer=self.computer,
                     completions=metered,
                     callbacks=[callbacks],
+                    compactor=N2InlineCompactor(max_attempts=1),
                     instructions=request.context or None,
                     model=self.config.model,
                     tool_set=self.config.tool_set,

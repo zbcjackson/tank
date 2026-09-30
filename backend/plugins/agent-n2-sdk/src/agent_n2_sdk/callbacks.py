@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import re
-import time
-import uuid
 from typing import Any
 
 from tank_backend.agents.base import AgentOutput, AgentOutputType
@@ -24,60 +22,35 @@ class MeteredCompletions:
         self.next_call_type = "compaction"
 
     async def create(self, messages: Any, *, model: str = "n2", **kwargs: Any) -> Any:
+        """Project core call records into legacy SDK events without owning accounting."""
         kwargs.update(messages=messages, model=model)
-        self.context.check("network")
         call_type, self.next_call_type = self.next_call_type, "compaction"
-        call_id = uuid.uuid4().hex
-        started = time.monotonic()
-        self.context.observe(
-            "api_start",
-            call_id=call_id,
-            model=kwargs.get("model"),
-            retry_scope="logical_call",
-            call_type=call_type,
-        )
+        previous = self.inner.last_record
         try:
-            response = await self.inner.create(**kwargs)
-        except BaseException as exc:
-            self.context.budget.record_unknown(call_id)
-            self.context.observe(
-                "api_end",
-                call_id=call_id,
-                elapsed_s=time.monotonic() - started,
-                usage="unknown",
-                error=type(exc).__name__,
-            )
+            return await self.inner.create(**kwargs)
+        except Exception:
+            self.context.check("network")
             raise
-        data = response if isinstance(response, dict) else response.model_dump()
-        usage = data.get("usage") or {}
-        prompt, completion = usage.get("prompt_tokens"), usage.get("completion_tokens")
-        elapsed = time.monotonic() - started
-        if (
-            type(prompt) is not int
-            or type(completion) is not int
-            or prompt < 0
-            or completion < 0
-        ):
-            self.context.budget.record_unknown(call_id)
-            self.context.observe(
-                "api_end", call_id=call_id, elapsed_s=elapsed, usage="unknown"
-            )
-            raise SubAgentStopped("budget", "response missing trustworthy usage")
-        self.context.budget.record(call_id, prompt, completion)
-        metadata = {
-            "call_id": call_id,
-            "prompt_tokens": prompt,
-            "completion_tokens": completion,
-            "total_tokens": prompt + completion,
-            "elapsed_s": elapsed,
-            "retry_scope": "logical_call",
-            "streaming": False,
-            "call_type": call_type,
-        }
-        self.context.observe("api_end", **metadata)
-        await self.queue.put(AgentOutput(AgentOutputType.USAGE, metadata=metadata))
-        self.context.check("network")
-        return response
+        finally:
+            record = self.inner.last_record
+            if record is not None and record is not previous and record.status != "not_sent":
+                metadata = {
+                    "call_id": record.call_id,
+                    "elapsed_s": record.elapsed_ms / 1000,
+                    "retry_scope": "http_attempt",
+                    "streaming": False,
+                    "call_type": call_type,
+                }
+                if record.prompt_tokens is None or record.completion_tokens is None:
+                    metadata["usage"] = "unknown"
+                else:
+                    metadata.update(
+                        prompt_tokens=record.prompt_tokens,
+                        completion_tokens=record.completion_tokens,
+                        total_tokens=record.prompt_tokens + record.completion_tokens,
+                    )
+                    await self.queue.put(AgentOutput(AgentOutputType.USAGE, metadata=metadata))
+                self.context.observe("api_end", **metadata)
 
 
 class Callbacks:

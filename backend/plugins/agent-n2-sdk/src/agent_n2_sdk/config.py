@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from typing import Any
+
+from tank_backend.llm.model_transport import ChatCompletionsRoute
 
 
 @dataclass(frozen=True)
 class N2SdkConfig:
-    api_key: str
+    api_key: str = field(default="", repr=False)
+    credential_ref: str | None = None
     base_url: str = "https://api.yutori.com/v1"
     model: str = "n2"
     tool_set: str = "computer_use_tools-20260830"
@@ -21,7 +24,7 @@ class N2SdkConfig:
     cleanup_timeout_s: float = 8
 
     def __post_init__(self) -> None:
-        if (
+        if self.credential_ref is None and (
             not isinstance(self.api_key, str)
             or not self.api_key.strip()
             or "${" in self.api_key
@@ -55,6 +58,9 @@ class N2SdkConfig:
             raise ValueError("base_url must use https")
         if not isinstance(self.model, str) or not self.model:
             raise ValueError("model is required")
+        ChatCompletionsRoute(
+            self.base_url.rstrip("/") + "/chat/completions", self.model, "n2",
+        )
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> N2SdkConfig:
