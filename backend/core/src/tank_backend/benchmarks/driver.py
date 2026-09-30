@@ -690,7 +690,8 @@ class SubAgentDriver:
             run_kwargs: dict[str, Any] = {}
             if self._input_cleanup is not None:
                 run_kwargs.update(desktop_cleanup=self._input_cleanup, observer=Observer())
-            if self._agent_def.extension:
+            if (self._agent_def.extension or (self._agent_def.engine
+                    and self._runner.uses_task_runtime(self._agent_def))):
                 permissions = self._runner.extension_permissions(self._agent_def)
                 run_kwargs.update(authorization=SubAgentAuthorization(permissions),
                                   deadline=time.monotonic() + timeout_s, observer=Observer(),
@@ -763,7 +764,9 @@ class SubAgentDriver:
             stopped_reason = f"{type(exc).__name__}: {exc}"
             terminal["stop_reason"] = "error"
 
-        if self._agent_def.extension and terminal.get("cleanup") != "unconfirmed":
+        if ((self._agent_def.extension or (self._agent_def.engine
+                and self._runner.uses_task_runtime(self._agent_def)))
+                and terminal.get("cleanup") != "unconfirmed"):
             terminal["cleanup"] = "confirmed"
         if timed_out:
             terminal["stop_reason"] = "timeout"

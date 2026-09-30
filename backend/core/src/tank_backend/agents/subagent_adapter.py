@@ -37,6 +37,7 @@ class SubAgentAdapter(Agent):
         try:
             outputs = self.plugin.run(self.request, self.context)
             async for output in outputs:
+                self.context.runtime.record_output(output)
                 if terminal is not None:
                     raise SubAgentStopped("error", "events after DONE")
                 if output.type == AgentOutputType.DONE:
@@ -47,6 +48,14 @@ class SubAgentAdapter(Agent):
                             raise SubAgentStopped("error", "task result disagrees with stop_reason")
                 else:
                     yield output
+        except SubAgentStopped as exc:
+            if exc.reason != "output_limit":
+                raise
+            result = TaskResult(
+                status="partial", reason="output_limit",
+                summary="Output limit reached; partial output was retained.",
+            )
+            terminal = result.to_output()
         except asyncio.CancelledError:
             cancelled = True
             self.context.cancel.set()
@@ -89,12 +98,33 @@ class SubAgentAdapter(Agent):
                 raise SubAgentCleanupError(
                     f"subagent cleanup unconfirmed: {exc}", result,
                 ) from exc
+        if self.context.runtime.has_unknown_effect:
+            if result is None:
+                result = TaskResult(
+                    status="unknown", reason="effect_unknown",
+                    summary="Task ended with an unconfirmed action effect.",
+                    details={"calls": [
+                        {"call_id": item.call_id, "operation": item.operation,
+                         "status": item.status}
+                        for item in self.context.runtime.records
+                    ]},
+                )
+            elif result.status != "unknown":
+                result = result.model_copy(update={
+                    "status": "unknown", "reason": "effect_unknown",
+                    "summary": "Unconfirmed action effect. " + result.summary,
+                })
+            terminal = result.to_output()
         if cancelled:
             if result is not None:
                 result = result.with_cleanup("confirmed")
             raise SubAgentCancelled(result)
         if self.context.runtime.audit_failed:
-            raise SubAgentStopped("audit_failed")
+            if result is not None:
+                result = result.with_cleanup("confirmed").model_copy(update={
+                    "status": "unknown", "reason": "audit_failed",
+                })
+            raise SubAgentStopped("audit_failed", task_result=result)
         if terminal is None:
             raise SubAgentStopped("error", "plugin ended without DONE")
         reason = terminal.metadata.get("stop_reason")

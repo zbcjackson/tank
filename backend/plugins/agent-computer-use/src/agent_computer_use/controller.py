@@ -188,6 +188,10 @@ class ComputerUseController:
         try:
             context.check("desktop")
             context.runtime.bind(request.task_id)
+            context.runtime.restrict_operations(
+                actions=min(32, context.max_steps) if context.max_steps is not None else 32,
+                observations=64,
+            )
             self.register_operations(context)
             if request.task_input is None:
                 return self.result("needs_input", "goal_contract_required")

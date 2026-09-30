@@ -26,6 +26,18 @@ class TaskResources:
             raise ValueError("invalid resource registration")
         self._releases[name] = release
 
+    def acquire(
+        self, name: str, create: Callable[[], Result], release: Callable[[Result], Awaitable[None]],
+    ) -> Result:
+        """Create and register a synchronous resource with no intervening await boundary."""
+        if self._closing is not None:
+            raise SubAgentStopped("runtime_closed")
+        if not name or len(name) > 128 or name in self._releases or len(self._releases) >= 32:
+            raise ValueError("invalid resource registration")
+        resource = create()
+        self._releases[name] = lambda: release(resource)
+        return resource
+
     async def aclose(self) -> None:
         if self._closing is None:
             self._closing = asyncio.create_task(self._close())

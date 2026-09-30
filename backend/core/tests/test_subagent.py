@@ -1277,3 +1277,53 @@ async def test_supervisor_persists_model_intent_before_http_and_usage_after(
     assert records[-1].prompt_tokens == 7 and records[-1].completion_tokens == 3
     assert before_http == records[:2]
     assert "private" not in repr(records)
+
+
+async def test_output_quota_retains_partial_output_and_closes_the_task():
+    from tank_backend.agents.base import AgentState
+    from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentContext, SubAgentRequest
+    from tank_backend.agents.subagent_adapter import SubAgentAdapter
+
+    class Chatty(SubAgent):
+        async def run(self, request, context):
+            yield AgentOutput(AgentOutputType.TOKEN, "kept")
+            yield AgentOutput(AgentOutputType.TOKEN, "overflow")
+            pytest.fail("producer must be stopped at the output boundary")
+
+    plugin = Chatty()
+    ctx = SubAgentContext(
+        SubAgentAuthorization(), SubAgentBudget(), asyncio.Event(), max_output_events=1,
+    )
+    adapter = SubAgentAdapter("chatty", plugin, SubAgentRequest("task", "", "quota"), ctx)
+    outputs = [output async for output in adapter.run(AgentState())]
+    assert outputs[0].content == "kept" and len(outputs) == 2
+    assert outputs[-1].metadata["task_result"]["status"] == "partial"
+    assert outputs[-1].metadata["task_result"]["reason"] == "output_limit"
+    assert plugin.closed
+
+
+async def test_legacy_success_cannot_hide_an_unknown_native_effect(stack, monkeypatch):
+    from contextlib import suppress
+
+    from tank_backend.agents.subagent import SubAgentAuthorization
+    from tank_backend.agents.task_runtime import TaskOperation
+
+    fake, _, supervisor, definition, _ = stack
+
+    async def run(request, context):
+        async def failed(value):
+            raise OSError("acknowledgement lost")
+
+        operation = TaskOperation("write", frozenset({"filesystem"}), "action", failed)
+        context.runtime.register(operation)
+        with suppress(OSError):
+            await context.runtime.execute(operation, None)
+        yield AgentOutput(AgentOutputType.DONE, "done", {"stop_reason": "final_answer"})
+
+    monkeypatch.setattr(fake, "run", run)
+    result = await supervisor.run_foreground(
+        agent_def=definition, prompt="task",
+        authorization=SubAgentAuthorization(frozenset({"filesystem"})),
+    )
+    assert result.status == "unknown"
+    assert result.task_result["reason"] == "effect_unknown"

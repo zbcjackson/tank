@@ -11,6 +11,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 MANIFEST_FILENAME = "plugin.yaml"
+TASK_RUNTIME_API_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,23 @@ class ExtensionManifest:
     # DesktopExecutor in its factory config; one that doesn't, doesn't.
     needs: tuple[str, ...] = ()
     permissions: tuple[str, ...] = ()
+    runtime_api: int | None = None
+    model_inputs: tuple[str, ...] = ("text",)
+
+    def __post_init__(self) -> None:
+        if (not isinstance(self.model_inputs, tuple) or "text" not in self.model_inputs
+                or not set(self.model_inputs) <= {"text", "image"}):
+            raise ValueError("unsupported model input categories")
+        if self.runtime_api is not None and (
+            type(self.runtime_api) is not int or self.runtime_api < 1
+            or self.type not in {"agent", "subagent"}
+        ):
+            raise ValueError("runtime API must be a positive integer on an agent extension")
+
+    def check_runtime_api(self) -> None:
+        """Version compatibility only; transport compliance is validated separately."""
+        if self.runtime_api not in (None, TASK_RUNTIME_API_VERSION):
+            raise ValueError(f"unsupported task runtime API: {self.runtime_api}")
 
 
 @dataclass(frozen=True)
@@ -61,6 +79,8 @@ def read_manifest_from_yaml(path: Path) -> PluginManifest:
             factory=ext["factory"],
             needs=tuple(ext.get("needs", ())),
             permissions=_parse_permissions(ext.get("permissions", [])),
+            runtime_api=ext.get("runtime_api"),
+            model_inputs=tuple(ext.get("model_inputs", ["text"])),
         )
         for ext in data.get("extensions", [])
     ]

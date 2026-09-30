@@ -44,7 +44,7 @@ async def test_operation_allowlist_limits_and_task_binding() -> None:
 
     context = SubAgentContext(
         SubAgentAuthorization(frozenset({"filesystem"})), SubAgentBudget(), asyncio.Event(),
-        max_steps=1,
+        max_actions=1,
     )
     runtime = context.runtime
     runtime.bind("task")
@@ -289,6 +289,7 @@ async def test_read_quota_is_shared_and_bounded() -> None:
     second = TaskOperation("second", frozenset({"filesystem"}), "read", read)
     runtime.register(first)
     runtime.register(second)
+    runtime.restrict_operations(observations=64)
     for index in range(64):
         await runtime.execute(first if index % 2 else second, index)
     with pytest.raises(SubAgentStopped, match="observation_limit"):
@@ -351,3 +352,33 @@ async def test_cancelled_required_audit_stops_later_business_calls() -> None:
     with pytest.raises(SubAgentStopped, match="audit_failed"):
         context.check()
     await runtime.aclose()
+
+
+
+def test_deadline_restriction_never_extends_or_replaces_runtime():
+    context = SubAgentContext(SubAgentAuthorization(), SubAgentBudget(), asyncio.Event())
+    runtime = context.runtime
+    runtime.restrict_deadline(100)
+    runtime.restrict_deadline(200)
+    assert context.deadline == 100
+    runtime.restrict_deadline(50)
+    assert context.deadline == 50 and context.runtime is runtime
+    with pytest.raises(ValueError, match="finite"):
+        runtime.restrict_deadline(float("nan"))
+
+
+async def test_native_policy_uses_the_existing_file_policy_without_overriding_denial(tmp_path):
+    from tank_backend.agents.approval import ToolApprovalPolicy
+    from tank_backend.config.models import FileAccessConfig
+    from tank_backend.policy.file_access import FileAccessPolicy
+    from tank_backend.policy.verdict import AccessLevel, AlwaysApproveResolver
+
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"filesystem"})), SubAgentBudget(), asyncio.Event(),
+        execution_policy=ToolApprovalPolicy(file_policy=FileAccessPolicy(
+            FileAccessConfig(default_write=AccessLevel.DENY),
+        )),
+        approval_resolver=AlwaysApproveResolver(),
+    )
+    with pytest.raises(SubAgentStopped, match="policy_denied"):
+        await context.runtime.authorize("file_write", {"path": str(tmp_path / "file")})

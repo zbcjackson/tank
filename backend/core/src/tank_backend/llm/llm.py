@@ -602,7 +602,8 @@ class LLM:
             # The kwargs are ONLY legal on a Langfuse-patched client —
             # the raw OpenAI SDK rejects ``name`` with a TypeError, so
             # gate on the tracing actually being registered.
-            if trace_metadata and is_tracing_registered():
+            if (trace_metadata and is_tracing_registered()
+                    and getattr(self.client, "task_governed", False) is not True):
                 if "trace_name" in trace_metadata:
                     api_kwargs["name"] = trace_metadata["trace_name"]
                 if "metadata" in trace_metadata:
@@ -1141,7 +1142,8 @@ class LLM:
             api_kwargs["extra_body"] = self.extra_body
         if tools is not None:
             api_kwargs["tools"] = tools
-        if trace_metadata and is_tracing_registered():
+        if (trace_metadata and is_tracing_registered()
+                    and getattr(self.client, "task_governed", False) is not True):
             if "trace_name" in trace_metadata:
                 api_kwargs["name"] = trace_metadata["trace_name"]
             if "metadata" in trace_metadata:

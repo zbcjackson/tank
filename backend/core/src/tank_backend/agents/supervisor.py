@@ -407,10 +407,13 @@ class WorkerSupervisor:
         if allowed_categories:
             # Optional so narrow test fakes (and older callers) keep working.
             run_kwargs["allowed_categories"] = allowed_categories
+        task_runtime = bool(agent_def.extension) or (
+            bool(agent_def.engine) and self._runner.uses_task_runtime(agent_def)
+        )
         terminal = False
         stop_reason: str | None = None
         task_result: TaskResult | None = None
-        if agent_def.extension:
+        if task_runtime:
             async def audit(record: ExecutionRecord) -> None:
                 if record.task_id != run.task_id:
                     raise ValueError("audit belongs to another task")
@@ -427,7 +430,7 @@ class WorkerSupervisor:
             background=False,
             **run_kwargs,
         ):
-            if event.type == AgentOutputType.DONE and agent_def.extension:
+            if event.type == AgentOutputType.DONE and task_runtime:
                 if "task_result" in event.metadata:
                     task_result = TaskResult.model_validate(event.metadata["task_result"])
                     if (task_result.cleanup != "confirmed"
@@ -463,7 +466,7 @@ class WorkerSupervisor:
                     question=ask_user_question,
                     messages=messages + turn_messages,
                 )
-        if agent_def.extension and not terminal:
+        if task_runtime and not terminal:
             if stop_reason is not None:
                 raise SubAgentStopped(stop_reason)
             raise SubAgentStopped("error", "extension ended without final_answer")

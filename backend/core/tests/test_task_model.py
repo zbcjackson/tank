@@ -218,3 +218,29 @@ async def test_shared_completion_preserves_task_request_and_single_accounting(
     finally:
         await context.runtime.aclose()
     assert len(requests) == 2 and released == [True]
+
+
+async def test_governed_client_does_not_export_payload_through_global_sdk_wrappers(
+    model_stack, monkeypatch,
+):
+    from functools import wraps
+
+    from openai.resources.chat.completions import AsyncCompletions
+
+    traced = []
+    original = AsyncCompletions.create
+
+    @wraps(original)
+    async def external_tracing(self, *args, **kwargs):
+        traced.append(kwargs)
+        return await original(self, *args, **kwargs)
+
+    monkeypatch.setattr(AsyncCompletions, "create", external_tracing)
+    context, _, _, requests, _ = model_stack
+    assert context.runtime.model is not None
+    try:
+        response = await context.runtime.model.complete([{"role": "user", "content": "private"}])
+        assert response == "ready"
+    finally:
+        await context.runtime.aclose()
+    assert len(requests) == 1 and traced == []

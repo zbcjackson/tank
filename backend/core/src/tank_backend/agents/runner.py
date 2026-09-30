@@ -37,6 +37,7 @@ from .task_observer import TaskObserver
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
+    from ..llm.model_transport import ModelCallPolicy
     from ..llm.profile import LLMProfile
     from ..pipeline.bus import Bus
     from ..tools.manager import ToolManager
@@ -116,14 +117,25 @@ class AgentRunner:
     def extension_permissions(self, agent_def: AgentDefinition) -> frozenset[str]:
         if self._registry is None:
             raise RuntimeError("Subagent requires an ExtensionRegistry")
-        manifest = self._registry.get_manifest(agent_def.extension)
-        if manifest is None or manifest.type != "subagent":
+        reference = agent_def.extension or agent_def.engine
+        manifest = self._registry.get_manifest(reference)
+        expected = "subagent" if agent_def.extension else "agent"
+        if manifest is None or manifest.type != expected:
             raise ValueError(
                 f"Subagent extension '{agent_def.extension}' is missing or has wrong type"
             )
+        manifest.check_runtime_api()
         return frozenset(manifest.permissions) | (
             {"network"} if agent_def.model is not None else set()
         )
+
+    def uses_task_runtime(self, agent_def: AgentDefinition) -> bool:
+        if agent_def.extension:
+            return True
+        if not agent_def.engine:
+            return False
+        manifest = self._registry.get_manifest(agent_def.engine) if self._registry else None
+        return manifest is not None and "task_runtime" in manifest.needs
 
     def _uses_desktop(self, agent_def: AgentDefinition) -> bool:
         if agent_def.grounding is not None:
@@ -148,7 +160,9 @@ class AgentRunner:
         authorization: SubAgentAuthorization | None = None,
         deadline: float | None = None, observer: SubAgentObserver | None = None,
         max_steps: int | None = None,
+        max_actions: int | None = None, max_observations: int | None = None,
         audit: Callable[[ExecutionRecord], Awaitable[None]] | None = None,
+        model_policy: ModelCallPolicy | None = None,
         desktop_cleanup: DesktopCleanup | None = None,
         task_input: dict[str, JsonValue] | None = None,
     ) -> AsyncIterator[AgentOutput]:
@@ -166,7 +180,7 @@ class AgentRunner:
                 asyncio.Event(), deadline, observer, max_steps,
             )
             context.check("desktop")
-        if agent_def.extension:
+        if self.uses_task_runtime(agent_def):
             deadline = deadline if deadline is not None else time.monotonic() + 600
             permissions = self.extension_permissions(agent_def)
             authorization = authorization or SubAgentAuthorization()
@@ -176,7 +190,9 @@ class AgentRunner:
                 authorization, SubAgentBudget(limit=(
                     agent_def.token_budget if token_budget is None else token_budget
                 )), asyncio.Event(), deadline, TaskObserver(self._bus, observer), max_steps,
-                audit=audit,
+                audit=audit, model_policy=model_policy,
+                execution_policy=self._approval_policy, approval_resolver=self._resolver,
+                max_actions=max_actions, max_observations=max_observations,
             )
             context.check()
         outputs = self._run_agent(
@@ -337,15 +353,40 @@ class AgentRunner:
                       if self._app_config is not None else {})
             from .subagent import SubAgent
 
+            manifest = self._registry.get_manifest(agent_def.extension)
+            needs_model = manifest is not None and "task_model" in manifest.needs
+            factory_config = dict(config)
+            legacy_key = None
+            profiles = self._app_config.llm_profiles if self._app_config is not None else {}
+            if needs_model:
+                legacy_key = factory_config.pop("api_key", None)
+                reference = agent_def.model or factory_config.pop(
+                    "llm_profile", factory_config.get("credential_ref", agent_def.extension),
+                )
+                factory_config["credential_ref"] = reference
+                if reference in profiles:
+                    factory_config.setdefault("model", profiles[reference].model)
+                    factory_config.setdefault("base_url", profiles[reference].base_url)
+            plugin = None
             try:
-                if agent_def.model is not None:
-                    profiles = self._app_config.llm_profiles if self._app_config is not None else {}
+                if agent_def.model is not None and not needs_model:
                     if agent_def.model not in profiles:
                         raise ValueError("subagent model profile is not configured")
                     context.runtime.configure_model(task_id or agent_id, profiles[agent_def.model])
-                plugin = self._registry.instantiate(agent_def.extension, dict(config))
+                plugin = self._registry.instantiate(agent_def.extension, factory_config)
                 if not isinstance(plugin, SubAgent):
                     raise TypeError("Subagent factory must return SubAgent")
+                if needs_model:
+                    from ..llm.task_model import resolve_plugin_profile
+
+                    if (plugin.model_spec is None or manifest is None or not
+                            plugin.model_spec.input_modalities <= set(manifest.model_inputs)):
+                        raise ValueError("subagent must declare an approved model binding")
+                    profile = resolve_plugin_profile(plugin.model_spec, profiles, legacy_key)
+                    context.runtime.configure_model(
+                        task_id or agent_id, profile,
+                        input_modalities=plugin.model_spec.input_modalities,
+                    )
                 task = next((m.get("content", "") for m in reversed(messages)
                              if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
                 agent = SubAgentAdapter(agent_def.name, plugin, SubAgentRequest(
@@ -353,12 +394,24 @@ class AgentRunner:
                     task_input=task_input,
                 ), context)
             except BaseException:
-                await join_on_cancel(context.runtime.aclose())
+                try:
+                    await join_on_cancel(context.runtime.aclose())
+                finally:
+                    if isinstance(plugin, SubAgent):
+                        await join_on_cancel(plugin.aclose())
                 raise
         elif agent_def.engine:
             # B2 factory branch: plugin agent engine (e.g. agent-n2).
             # toolset/model are meaningless for engine agents — ignored.
-            agent = self._create_engine_agent(agent_def, system_prompt)
+            try:
+                agent = (self._create_engine_agent(agent_def, system_prompt) if context is None
+                         else self._create_engine_agent(
+                             agent_def, system_prompt, context=context, task_id=task_id or agent_id,
+                         ))
+            except BaseException:
+                if context is not None:
+                    await join_on_cancel(context.runtime.aclose())
+                raise
         else:
             # Resolve LLM: use agent-specific model profile if declared
             if agent_def.model and self._app_config is not None:
@@ -492,6 +545,13 @@ class AgentRunner:
             },
         )
 
+        if agent_def.engine and context is not None and self.uses_task_runtime(agent_def):
+            from .engine_subagent import EngineSubAgent
+
+            agent = SubAgentAdapter(agent_def.name, EngineSubAgent(agent, state), SubAgentRequest(
+                task="", context=system_prompt, task_id=task_id or agent_id,
+            ), context)
+
         logger.info(
             "AgentRunner: starting '%s' (id=%s, depth=%d, token_budget=%d, bg=%s)",
             agent_def.name, agent_id, depth, effective_budget, background,
@@ -527,8 +587,10 @@ class AgentRunner:
                 content=f"\n[Agent '{agent_def.name}' stopped: {e}]",
                 metadata={"stop_reason": e.reason},
             )
+            if e.task_result is not None:
+                yield e.task_result.to_output()
         except Exception as e:
-            if agent_def.extension:
+            if self.uses_task_runtime(agent_def):
                 raise
             logger.error(
                 "Agent '%s' (id=%s) error: %s",
@@ -587,6 +649,7 @@ class AgentRunner:
 
     def _create_engine_agent(
         self, agent_def: AgentDefinition, system_prompt: str,
+        *, context: SubAgentContext | None = None, task_id: str | None = None,
     ) -> Any:
         """Instantiate a plugin agent engine via the ExtensionRegistry.
 
@@ -611,6 +674,8 @@ class AgentRunner:
         from ..computer.executor import create_desktop_executor
 
         manifest = self._registry.get_manifest(engine)
+        if manifest is not None:
+            manifest.check_runtime_api()
         needs = getattr(manifest, "needs", ()) or ()
 
         engine_config: dict[str, Any] = {}
@@ -629,16 +694,34 @@ class AgentRunner:
                     "Engine '%s': LLM profile '%s' not found; no fallback", engine, profile_name,
                 )
 
+        if "task_runtime" in needs:
+            assert manifest is not None
+            if context is None or task_id is None:
+                raise ValueError("engine requires an original task runtime")
+            context.runtime.bind(task_id)
+            if "task_model" in needs:
+                if llm_profile is None:
+                    raise ValueError("engine model profile is not configured")
+                from dataclasses import replace
+
+                context.runtime.configure_model(
+                    task_id, llm_profile, input_modalities=frozenset(manifest.model_inputs),
+                )
+                llm_profile = replace(llm_profile, api_key="host-managed")
+
         config: dict[str, Any] = {
             **engine_config,
             "system_prompt": system_prompt,
             "desktop_executor": (
-                create_desktop_executor()
+                (create_desktop_executor(context=context) if "task_runtime" in needs
+                 else create_desktop_executor())
                 if "desktop_executor" in needs
                 else None
             ),
             "llm_profile": llm_profile,
         }
+        if "task_runtime" in needs:
+            config["task_context"] = context
         return self._registry.instantiate(engine, config)
 
     def _build_sub_agent_prompt(

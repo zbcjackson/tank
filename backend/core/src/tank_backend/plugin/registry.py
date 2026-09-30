@@ -93,6 +93,8 @@ class ExtensionRegistry:
                 f"Available: {self.all_names()}"
             )
 
+        manifest.check_runtime_api()
+
         # Parse "module:callable" with default
         module_path, _, callable_name = manifest.factory.rpartition(":")
         if not module_path:

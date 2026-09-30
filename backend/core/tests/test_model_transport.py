@@ -839,3 +839,57 @@ async def test_transport_close_waits_for_terminal_audit(rejected):
     assert persisted[-1].phase == "finished"
     assert persisted[-1].prompt_tokens == (None if rejected else 10)
     assert context.budget.total_tokens == (0 if rejected else 15)
+
+
+async def test_declared_image_tool_route_uses_the_same_governed_http_boundary():
+    import base64
+
+    from tank_backend.llm.model_transport import ChatCompletionsRoute
+
+    sent = []
+
+    async def provider(request):
+        sent.append(request)
+        return httpx.Response(200, json=completion())
+
+    route = ChatCompletionsRoute(
+        "https://model.test/v1/chat/completions", "test-model", "test-key",
+        allow_images=True, allow_tools=True, require_max_tokens=False,
+        extra_parameters={"tool_set": "pinned-tools"},
+    )
+    ctx, transport, client, _ = governed(provider, routes=(route,), policy=None)
+    async with client:
+        await client.chat.completions.create(
+            model="test-model", messages=[{"role": "user", "content": [
+                {"type": "text", "text": "inspect"},
+                {"type": "image_url", "image_url": {
+                    "url": "data:image/png;base64," + base64.b64encode(b"fixture").decode(),
+                }},
+            ]}], extra_body={"tool_set": "pinned-tools"},
+        )
+    assert len(sent) == 1 and ctx.budget.total_tokens == 15
+    assert transport.records[-1].status == "returned"
+
+
+@pytest.mark.parametrize("image", ["https://foreign.test/image.png", "data:audio/wav;base64,YQ=="])
+async def test_image_route_rejects_foreign_urls_and_other_data_categories(image):
+    from tank_backend.llm.model_transport import ChatCompletionsRoute
+
+    sent = []
+
+    async def provider(request):
+        sent.append(request)
+        return httpx.Response(200, json=completion())
+
+    route = ChatCompletionsRoute(
+        "https://model.test/v1/chat/completions", "test-model", "test-key", allow_images=True,
+    )
+    _, _, client, _ = governed(provider, routes=(route,), policy=None)
+    async with client:
+        with pytest.raises(APIConnectionError):
+            await client.chat.completions.create(
+                model="test-model", max_tokens=20, messages=[{"role": "user", "content": [
+                    {"type": "image_url", "image_url": {"url": image}},
+                ]}],
+            )
+    assert sent == []

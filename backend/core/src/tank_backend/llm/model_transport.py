@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import copy
 import json
 import math
 import time
 from collections import deque
 from contextlib import suppress
-from dataclasses import asdict, dataclass
+from contextvars import ContextVar
+from dataclasses import asdict, dataclass, field
 from typing import Literal, Protocol, TypedDict
 from uuid import uuid4
 
@@ -45,6 +48,15 @@ class ModelCallRecord:
     elapsed_ms: float
 
 
+_completed_call: ContextVar[ModelCallRecord | None] = ContextVar("task_model_call", default=None)
+
+
+def get_model_call(task_id: str) -> ModelCallRecord | None:
+    """Return this coroutine's completed call, never another concurrent request's record."""
+    record = _completed_call.get()
+    return record if record is not None and record.task_id == task_id else None
+
+
 @dataclass
 class _CallState:
     started: float
@@ -61,6 +73,11 @@ class ChatCompletionsRoute:
     credential_ref: str
     max_output_tokens: int | None = None
     max_upload_bytes: int = 65536
+    allow_images: bool = False
+    allow_tools: bool = False
+    require_max_tokens: bool = True
+    extra_parameters: dict[str, object] = field(default_factory=dict)
+    extra_types: dict[str, type] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         url = httpx.URL(self.url)
@@ -73,17 +90,35 @@ class ChatCompletionsRoute:
             or type(self.max_upload_bytes) is not int or self.max_upload_bytes <= 0
         ):
             raise ValueError("model route requires an exact HTTPS endpoint and bounded upload")
+        if (set(self.extra_parameters) | set(self.extra_types)) & {
+            "model", "messages", "max_tokens", "max_completion_tokens", "stream", "temperature",
+        }:
+            raise ValueError("provider parameters cannot override core model fields")
+        object.__setattr__(self, "extra_parameters", copy.deepcopy(self.extra_parameters))
+        object.__setattr__(self, "extra_types", dict(self.extra_types))
 
     def validate(self, request: httpx.Request) -> None:
         if request.method != "POST" or len(request.content) > self.max_upload_bytes:
             raise ValueError("model request method or upload size rejected")
         data = json_object(request.content)
-        maximum = data.get("max_tokens")
+        maximum = data.get("max_tokens", data.get("max_completion_tokens"))
         if (
             data.get("model") != self.model or data.get("stream", False) is not False
-            or type(maximum) is not int or maximum <= 0
-            or (self.max_output_tokens is not None and maximum > self.max_output_tokens)
-            or set(data) - {"model", "messages", "max_tokens", "stream", "temperature"}
+            or ("max_tokens" in data and "max_completion_tokens" in data)
+            or (maximum is None and self.require_max_tokens)
+            or (maximum is not None and (type(maximum) is not int or maximum <= 0))
+            or (self.max_output_tokens is not None and isinstance(maximum, int)
+                and maximum > self.max_output_tokens)
+            or set(data) - (
+                {"model", "messages", "max_tokens", "max_completion_tokens",
+                 "stream", "temperature"}
+                | set(self.extra_parameters) | set(self.extra_types)
+                | ({"tools", "tool_choice", "parallel_tool_calls"} if self.allow_tools else set())
+            )
+            or any(key in data and data[key] != value
+                   for key, value in self.extra_parameters.items())
+            or any(key in data and type(data[key]) is not expected
+                   for key, expected in self.extra_types.items())
         ):
             raise ValueError("model request outside approved protocol")
         temperature = data.get("temperature", 1)
@@ -96,13 +131,44 @@ class ChatCompletionsRoute:
         if not isinstance(messages, list) or not messages:
             raise ValueError("model request requires messages")
         for message in messages:
+            fields = {"role", "content"}
+            roles = {"system", "user", "assistant", "developer"}
+            if self.allow_tools:
+                fields |= {"tool_calls", "tool_call_id", "name", "reasoning", "reasoning_content"}
+                roles.add("tool")
             if (
-                not isinstance(message, dict)
-                or set(message) - {"role", "content"}
-                or message.get("role") not in {"system", "user", "assistant", "developer"}
-                or not isinstance(message.get("content"), str)
+                not isinstance(message, dict) or set(message) - fields
+                or message.get("role") not in roles
             ):
+                raise ValueError("message outside approved protocol")
+            content = message.get("content")
+            if content is None and self.allow_tools and message.get("tool_calls"):
+                continue
+            if isinstance(content, str):
+                continue
+            if not self.allow_images or not isinstance(content, list) or not content:
                 raise ValueError("only text messages are approved for this route")
+            for part in content:
+                if not isinstance(part, dict):
+                    raise ValueError("invalid content part")
+                if part.get("type") == "text" and set(part) == {"type", "text"}:
+                    if not isinstance(part["text"], str):
+                        raise ValueError("text content must be a string")
+                    continue
+                if part.get("type") != "image_url" or set(part) != {"type", "image_url"}:
+                    raise ValueError("unapproved content category")
+                value = part["image_url"]
+                if not isinstance(value, dict) or set(value) - {"url", "detail"}:
+                    raise ValueError("invalid image content")
+                url = value.get("url")
+                if not isinstance(url, str):
+                    raise ValueError("image must be an inline data URL")
+                prefix, separator, encoded = url.partition(",")
+                if not separator or prefix not in {
+                    "data:image/png;base64", "data:image/jpeg;base64", "data:image/webp;base64",
+                } or not encoded:
+                    raise ValueError("only approved inline images may be uploaded")
+                base64.b64decode(encoded, validate=True)
 
 
 class TaskModelTransport(httpx.AsyncBaseTransport):
@@ -130,7 +196,10 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         self._routes = routes
         self._credentials = dict(credentials)
         self._inner = inner
-        self._policy = policy
+        if (policy is not None and context.model_policy is not None
+                and context.model_policy is not policy):
+            raise ValueError("model policy differs from the task policy")
+        self._policy = context.model_policy if context.model_policy is not None else policy
         self._closed = False
         self._closing: asyncio.Task[None] | None = None
         self._inflight: set[asyncio.Task[httpx.Response]] = set()
@@ -187,6 +256,7 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                     completion_tokens=record.completion_tokens, elapsed_ms=record.elapsed_ms,
                 ))
         finally:
+            _completed_call.set(record)
             self._context.observe("model_call", phase="finished", **asdict(record))
 
     async def _request(

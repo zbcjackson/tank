@@ -18,6 +18,9 @@ from ..core.token_usage import TokenUsageLedger
 from .base import AgentOutput
 
 if TYPE_CHECKING:
+    from ..llm.model_transport import ModelCallPolicy
+    from ..policy.verdict import ApprovalResolver
+    from .approval import ToolApprovalPolicy
     from .task_result import TaskResult
     from .task_runtime import ExecutionRecord, TaskRuntime
 
@@ -58,8 +61,10 @@ class SubAgentStopped(RuntimeError):
     """A controlled, incomplete termination."""
 
     def __init__(
-        self, reason: str, detail: str = "", metadata: dict[str, Any] | None = None
+        self, reason: str, detail: str = "", metadata: dict[str, Any] | None = None,
+        *, task_result: TaskResult | None = None,
     ) -> None:
+        self.task_result = task_result
         self.reason = reason
         self.metadata = metadata or {}
         super().__init__(f"{reason}: {detail}" if detail else reason)
@@ -144,10 +149,22 @@ class SubAgentContext:
     observer: SubAgentObserver | None = None
     max_steps: int | None = None
     audit: Callable[[ExecutionRecord], Awaitable[None]] | None = None
+    model_policy: ModelCallPolicy | None = None
+    execution_policy: ToolApprovalPolicy | None = None
+    approval_resolver: ApprovalResolver | None = None
+    max_actions: int | None = None
+    max_observations: int | None = None
+    max_output_bytes: int = 4 * 1024 * 1024
+    max_output_events: int = 4096
     runtime: TaskRuntime = field(init=False, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         from .task_runtime import TaskRuntime
+
+        for value in (self.max_actions, self.max_observations,
+                      self.max_output_bytes, self.max_output_events):
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValueError("task limits must be nonnegative integers")
 
         object.__setattr__(self, "runtime", TaskRuntime(self, audit=self.audit))
 
@@ -159,6 +176,8 @@ class SubAgentContext:
         if self.deadline is not None and time.monotonic() >= self.deadline:
             raise TimeoutError("subagent deadline exceeded")
         self.budget.check()
+        if self.model_policy is not None:
+            self.model_policy.check()
 
     def observe(self, kind: str, **metadata: Any) -> None:
         if self.observer is not None:
@@ -168,8 +187,28 @@ class SubAgentContext:
                 logging.getLogger(__name__).warning("Subagent observer failed for %s", kind)
 
 
+@dataclass(frozen=True)
+class SubAgentModel:
+    """Credential-free provider declaration returned by a trusted plugin factory."""
+
+    profile: str
+    model: str
+    base_url: str
+    input_modalities: frozenset[str] = frozenset({"text"})
+
+    def __post_init__(self) -> None:
+        if (
+            not all(isinstance(value, str) and value for value in (
+                self.profile, self.model, self.base_url,
+            )) or "text" not in self.input_modalities
+            or not self.input_modalities <= {"text", "image"}
+        ):
+            raise ValueError("unsupported task model declaration")
+
+
 class SubAgent(ABC):
     capabilities = SubAgentCapabilities()
+    model_spec: SubAgentModel | None = None
 
     def __init__(self, *, cleanup_timeout: float = 5.0) -> None:
         from .task_resources import TaskResources

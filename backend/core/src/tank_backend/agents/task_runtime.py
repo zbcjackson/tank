@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import math
+from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, replace
-from typing import TYPE_CHECKING, Generic, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 from uuid import uuid4
 
+from ..plugin.manifest import TASK_RUNTIME_API_VERSION
+from ..policy.verdict import AccessLevel, PolicyVerdict
 from .subagent import SubAgentCleanupError, SubAgentStopped
 from .task_resources import TaskResources, consume_exception
 
 if TYPE_CHECKING:
     from ..llm.profile import LLMProfile
     from ..llm.task_model import TaskModel
+    from .base import AgentOutput
     from .subagent import SubAgentContext
 
 Input = TypeVar("Input")
@@ -51,6 +57,8 @@ class ExecutionRecord:
 class TaskRuntime:
     """Uses the original context for authority and cumulative accounting."""
 
+    api_version = TASK_RUNTIME_API_VERSION
+
     def __init__(
         self, context: SubAgentContext,
         *, audit: Callable[[ExecutionRecord], Awaitable[None]] | None = None,
@@ -60,12 +68,15 @@ class TaskRuntime:
         self._model: TaskModel | None = None
         self._task_id: str | None = None
         self._operations: dict[str, object] = {}
-        self._records: list[ExecutionRecord] = []
+        self._records: deque[ExecutionRecord] = deque(maxlen=128)
         self._counts = {"read": 0, "action": 0}
         self._audit = audit
         self._audit_failed = False
         self._audit_lock = asyncio.Lock()
         self._unknown_effect = False
+        self._stop_reason: str | None = None
+        self._output_bytes = 0
+        self._output_events = 0
         self._closed = False
         self._closing: asyncio.Task[None] | None = None
         self._resources = TaskResources(cleanup_timeout / 2)
@@ -73,17 +84,106 @@ class TaskRuntime:
         self._inflight: set[asyncio.Task[object]] = set()
 
     @property
+    def has_unknown_effect(self) -> bool:
+        return self._unknown_effect
+
+    def record_output(self, output: AgentOutput) -> None:
+        if self._closed:
+            raise SubAgentStopped("runtime_closed")
+        if self._stop_reason is not None:
+            raise SubAgentStopped(self._stop_reason)
+        try:
+            encoded = json.dumps({
+                "type": output.type.name, "content": output.content,
+                "metadata": output.metadata, "target_agent": output.target_agent,
+            }, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        except (TypeError, ValueError, UnicodeError):
+            self._stop_reason = "invalid_output"
+            raise SubAgentStopped("invalid_output") from None
+        if (self._output_events >= self._context.max_output_events
+                or self._output_bytes + len(encoded) > self._context.max_output_bytes):
+            self._stop_reason = "output_limit"
+            raise SubAgentStopped("output_limit")
+        self._output_events += 1
+        self._output_bytes += len(encoded)
+
+    @property
+    def task_id(self) -> str:
+        if self._task_id is None:
+            raise ValueError("task runtime is not bound")
+        return self._task_id
+
+    def _policy_verdict(self, tool_name: str, arguments: dict[str, Any]) -> PolicyVerdict:
+        from .approval import ToolApprovalPolicy
+
+        policy = self._context.execution_policy or ToolApprovalPolicy()
+        permission = {
+            "command": "shell", "file": "filesystem", "web": "network", "computer": "desktop",
+        }.get(policy.category_for(tool_name))
+        if permission is None:
+            raise SubAgentStopped("policy_unknown_effect")
+        self._context.check(permission)
+        return policy.evaluate(tool_name, arguments)
+
+    async def authorize(self, tool_name: str, arguments: dict[str, Any]) -> None:
+        """Reuse deterministic host policies without a hidden classifier model request."""
+        verdict = self._policy_verdict(tool_name, arguments)
+        level = verdict.level
+        if level == AccessLevel.REQUIRE_APPROVAL:
+            resolver = self._context.approval_resolver
+            # A host task grant satisfies soft approval; a resolver may narrow it.
+            # Hard DENY is never sent to the resolver or overridden by the grant.
+            level = (await resolver.resolve(verdict, tool_name, arguments)
+                     if resolver is not None else AccessLevel.ALLOW)
+        if level != AccessLevel.ALLOW:
+            raise SubAgentStopped("policy_denied")
+        self._context.check()
+
+    def check_policy_now(self, tool_name: str, arguments: dict[str, Any]) -> None:
+        """Final synchronous check after an adapter's awaited authorization."""
+        if self._policy_verdict(tool_name, arguments).level == AccessLevel.DENY:
+            raise SubAgentStopped("policy_denied")
+
+    def restrict_operations(
+        self, *, actions: int | None = None, observations: int | None = None,
+    ) -> None:
+        """Apply host/domain ceilings in native-operation units; never widen an existing ceiling."""
+        self.check_open()
+        for name, limit in (("max_actions", actions), ("max_observations", observations)):
+            if limit is None:
+                continue
+            if type(limit) is not int or limit < 0:
+                raise ValueError("operation limit must be a nonnegative integer")
+            current = getattr(self._context, name)
+            object.__setattr__(
+                self._context, name, min(current, limit) if current is not None else limit,
+            )
+
+    def restrict_deadline(self, deadline: float) -> None:
+        """Tighten the original task deadline without replacing its runtime or grants."""
+        self.check_open()
+        if isinstance(deadline, bool) or not math.isfinite(deadline):
+            raise ValueError("task deadline must be finite")
+        current = self._context.deadline
+        object.__setattr__(
+            self._context, "deadline", min(current, deadline) if current is not None else deadline,
+        )
+
+    @property
     def model(self) -> TaskModel | None:
         return self._model
 
-    def configure_model(self, task_id: str, profile: LLMProfile) -> None:
+    def configure_model(
+        self, task_id: str, profile: LLMProfile,
+        *, input_modalities: frozenset[str] = frozenset({"text"}),
+    ) -> None:
         """Host assembly before plugin creation; allocates no HTTP resources."""
         from ..llm.task_model import TaskModel
 
         self.bind(task_id)
         if self._model is not None:
             raise ValueError("task model is already configured")
-        model = TaskModel(task_id, self._context, profile)
+        model = TaskModel(task_id, self._context, profile, input_modalities=input_modalities)
         self.own("task-model", model.aclose)
         self._model = model
 
@@ -142,18 +242,17 @@ class TaskRuntime:
         self._check(operation)
         if operation.kind == "action" and self._unknown_effect:
             raise SubAgentStopped("effect_unknown")
-        limit = 64 if operation.kind == "read" else min(
-            32, self._context.max_steps if self._context.max_steps is not None else 32,
-        )
-        if self._counts[operation.kind] >= limit:
+        limit = (self._context.max_observations if operation.kind == "read"
+                 else self._context.max_actions)
+        if limit is not None and self._counts[operation.kind] >= limit:
             reason = "observation_limit" if operation.kind == "read" else "action_limit"
             raise SubAgentStopped(reason)
         self._counts[operation.kind] += 1
-        index = len(self._records)
         record = ExecutionRecord(
             self._task_id, uuid4().hex, operation.name, "not_sent", phase="prepared",
         )
         self._records.append(record)
+        index = len(self._records) - 1
         await self._emit(record)
         self._check(operation)
         if operation.preflight is not None:
@@ -202,6 +301,8 @@ class TaskRuntime:
             raise SubAgentStopped("runtime_closed")
         if self._audit_failed:
             raise SubAgentStopped("audit_failed")
+        if self._stop_reason is not None:
+            raise SubAgentStopped(self._stop_reason)
 
     def own(self, name: str, release: Callable[[], Awaitable[None]]) -> None:
         """Register task-owned cleanup (or detach only for a borrowed resource).
