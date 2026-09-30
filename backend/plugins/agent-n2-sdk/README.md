@@ -23,8 +23,9 @@ includes `../agents`. The existing directory loader already discovers
 
 Set `YUTORI_API_KEY` in `backend/core/.env` or the server's environment. The main
 `core/config.yaml` contains the separate `subagents` entry. The example file is
-for reference, not automatically merged. No additional LLM profile is required
-for this plugin. For a test dispatch explicitly request **n2_sdk**:
+for reference, not automatically merged. Prefer a named host LLM profile via
+`credential_ref` (see the example). The former inline `api_key` configuration is
+still accepted by the host and removed before invoking the plugin factory. For a test dispatch explicitly request **n2_sdk**:
 
 ```json
 {"subagent_type":"n2_sdk","prompt":"用 GUI 打开计算器，计算 7×8，确认显示 56。","run_in_background":true}
@@ -32,8 +33,9 @@ for this plugin. For a test dispatch explicitly request **n2_sdk**:
 
 The user approves the whole desktop/shell/filesystem/network scope before any
 environment starts. These grants authorize trusted code on a dedicated desktop;
-they are not a sandbox or directory/network isolation. Existing Tank tool
-allowlists and LLM profiles do not constrain tools inside this SDK. Use OS/VM
+they are not a sandbox or directory/network isolation. Registered SDK primitives reuse host file/command policies and task capabilities;
+hard denials cannot be overridden by the task grant. The SDK retains its own tool
+vocabulary, not Tank's advertised LLM tool list. Use OS/VM
 isolation when such limits are required. Model calls upload desktop screenshots.
 
 ## Platform and capability boundary
@@ -116,12 +118,15 @@ not direct main-session tools or separate benchmark processes.
 ## Accounting and outcomes
 
 Every returned API response, including compaction and SDK format/length retries,
-is counted once by the completions wrapper. SDK usage callbacks never add tokens
+is counted once by TaskModelTransport in the original task ledger. The
+completions wrapper projects the same call ID; SDK usage callbacks never add tokens
 again. The ledger works without an observer. Each request and adapter primitive
 checks authorization, cancellation, budget and deadline. A response can exceed
 the token threshold; no subsequent action is started. Missing usage stops the
 run, while an interrupted request records unknown usage instead of known zero.
-Client-internal transport retries are reported as one logical call.
+SDK/client and inline-compactor HTTP retries are disabled. Explicit format recovery
+attempts each pass host admission and receive a separate call ID. Actor and
+compaction requests share the host transport, capture hooks and ledger.
 
 SDK `max_steps` limits model turns. Benchmark `max_steps` separately limits begun
 tool calls in the start callback. Batch primitive count is a diagnostic. Only

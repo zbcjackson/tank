@@ -131,7 +131,10 @@ received evidence as unknown and quarantines the desktop. Extension agents canno
 resume through the legacy chat-history path, which would reset task authority
 and budgets.
 `n2_sdk` uses the pinned official SDK/MacOSComputer in the new agent-n2-sdk plugin;
-old `n2`, agent engines and DesktopExecutor remain supported. Linux SDK adapters,
+old `n2` and DesktopExecutor remain supported through the same TaskRuntime.
+Runtime API 1 is checked before factory creation. Runner binds task LLMs and both
+N2 model paths to TaskModelTransport for shared HTTP admission, usage and audit;
+SDK native operations and the legacy executor use registered TaskOperations. Linux SDK adapters,
 physical cancellation acceptance and pause/resume are pending. See
 [SDK plugin](plugins/agent-n2-sdk/README.md) for configuration and platform limits.
 

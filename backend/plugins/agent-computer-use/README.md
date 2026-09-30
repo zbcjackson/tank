@@ -5,7 +5,7 @@ It does not change the production computer-use agent or grounding modes.
 The default factory currently has **no live channel or model transport**: a valid
 goal returns `stopped / observation_unavailable`, with zero desktop/model calls.
 Unknown private configuration keys are rejected. Do not enable it expecting a
-working desktop agent; real AX/OCR/DOM and HTTP budget wiring are later batches.
+working desktop agent; real AX/OCR/DOM and Jev/Advisor domain adapters are later stages.
 
 The constructor accepts separate observation, action, selector and Advisor
 implementations. Tests inject semantic fake UI boundaries through the actual
@@ -57,10 +57,10 @@ boundary. Sent/unknown effects are journaled before awaiting a reply, verified
 with reads, and never automatically retried. Partial/unknown/needs_input/stopped
 remain distinct. Reusing a controller is rejected; generic resume is not implemented.
 
-Selector/Advisor are offline injection seams only. No implementation here opens
-HTTP, so this does **not** establish model budget reservation, SDK serialization,
-usage settlement or paid experiment admission. Existing benchmark rejection of
-unwired extension transports remains in place.
+Selector/Advisor remain injection seams. The cross-caller acceptance suite runs
+an Advisor fixture through the host TaskModel and real SDK with fake HTTP, sharing
+authority, accounting and audit. This establishes the S0 core connection, not a
+live Advisor/Jev implementation. Unwired benchmark transports remain rejected.
 
 ## Tests
 

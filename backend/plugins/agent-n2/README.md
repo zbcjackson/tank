@@ -6,14 +6,14 @@ use the injected DesktopExecutor. Wire details follow the
 
 Install from the backend workspace with `uv sync --package agent-n2` (or the
 normal plugin installation flow). Merge `config.example.yaml` into the backend
-configuration and set `YUTORI_API_KEY`. The factory resolves the configured
+configuration and set `YUTORI_API_KEY`. The host resolves the configured
 `llm_profile`; omitting it selects a profile named `agent-n2`.
 Engine profiles are resolved by exact name, without falling back to the default
 chat model. N2 requires `model: n2`; a missing profile or a different model fails
 before screenshots or API calls. Do not omit the `agent_engines` mapping when
 your profile is named `n2`.
-The bundled `n2` definition uses background dispatch and a 300k
-token budget. Dispatch through the existing `agent` tool and approve the task.
+The bundled `n2` definition uses background dispatch and records usage by default;
+explicit user token budgets remain supported. Dispatch through the existing `agent` tool and approve the task.
 Screenshots of the entire desktop are sent to Yutori.
 
 ### macOS troubleshooting
@@ -97,3 +97,13 @@ implemented; the existing engine and DesktopExecutor remain available.
 Further grounding and task-quality work is tracked in the
 [effectiveness improvement plan](../../../docs/plans/active/computer-use-adaptation-and-grounding.md),
 which links existing reports and requires new N2 comparisons only when needed.
+
+
+## Task runtime compatibility
+
+The manifest declares runtime API 1, task_model and task_runtime. Runner keeps
+one original task context through EngineSubAgent; the factory receives a sanitized
+profile and a governed DesktopExecutor. Model HTTP uses the host TaskModelTransport
+with implicit SDK retries disabled. Native reads/actions reuse host authorization,
+file/command policies, audit and cleanup. Direct real-client runs require this host
+binding; test-only injected clients do not establish runtime governance.

@@ -1,4 +1,4 @@
-> 状态：进行中（2026-09-29：S0 前七批基础切片已通过回归与评审；第七批完成 Supervisor extension 受控出口的必需持久审计；legacy 出口迁移、G1/G2 完整接线、真实通道与恢复仍待实现）。
+> 状态：进行中（2026-09-30：S0 验收通过，G1/G2 核心治理、兼容迁移及跨调用方离线证据齐备；S1–S6 及真实通道/恢复仍待验收）。
 > 完整目标设计尚未实现、尚未实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
 
 # 计划：Computer Use 子代理的宿主循环与策略阶梯（S0–S6）
@@ -303,9 +303,9 @@ Jev 的领域 payload 与协议解析首期可放在同一小模块；HTTP 发�
 不引入隔离 worker、RPC、容器或 Python monkey-patch。将来明确接入不可信插件时另立计划，
 不能把当前命令执行沙箱或 manifest permissions 宣称为插件隔离。
 
-当前只有通用输入/结果、任务授权、token 累计、停止、桌面锁与清理监督等部分接线；
-LLMAgent 内的执行白名单/审批链、SDK 模型调用包装和 benchmark 预留捕获仍分散。
-以下是必须实施的收敛，不是当前已具备的能力；S0 前两批仍按原记录计验收。
+本节最初记录的接线缺口已由 S0 分批实现；现行出口清单见
+[现行设计](../../design/computer-use.md#s0-保留调用方与出口清单2026-09-30)。
+以下仍包含 S4/S6 的恢复及真实通道目标；不能将 S0 核心接线验收视为全阶段完成。
 
 核心拥有公共规则、状态和机制；插件只提供领域策略、协议解析、原生适配和效果证据。
 复用现有 ToolApprovalPolicy、审批执行器、AllowlistExecutor、SubAgentAdapter、WorkerStore
@@ -830,7 +830,7 @@ S3 hosted 回放和 S4–S5 live pilot 在材料、数据目的地、模型版�
 沿用串行执行、零自动重试、独立评分与归档纪律；它不为常规已授权可逆动作新增确认弹窗。
 本次修订不执行桌面实验或付费请求。
 
-### S0：目标契约与宿主循环骨架
+### S0：目标契约与宿主循环骨架（2026-09-30 已完成）
 
 - 冻结 GoalContract、Snapshot、ActionSet、AdvisorResult、结果/回执、预算与资源契约；
   用 PDF 导出、明确输入、陌生弹窗、未知效果等 fixture 演示目标粒度和退出条件。
@@ -1235,22 +1235,22 @@ docs check 和 diff check 全部通过。内存库不具备文件重开持久性
 评审时提交曾受 1Password 签名代理阻塞；2026-09-30 按原签名设置重试成功。
 存储/迁移提交 `8556ed10`，运行时审计接线提交 `80759ae2`；未绕过签名。
 
-#### S0 收敛清单（2026-09-30，实施中）
+#### S0 收敛清单（2026-09-30，已完成）
 
 本轮以 S0 退出条件为终点，不再以单个基础批次代替 G1/G2 验收。
 
-- [ ] 工厂前校验核心运行时 API 版本与能力声明；不兼容版本零资源创建。
-- [ ] 统一模型协议适配与实际 HTTP 准入，覆盖所保留调用方的主请求和辅助请求；
+- [x] 工厂前校验核心运行时 API 版本与能力声明；不兼容版本零资源创建。
+- [x] 统一模型协议适配与实际 HTTP 准入，覆盖所保留调用方的主请求和辅助请求；
   共享任务身份、账本、审计、取消与关闭，禁用隐式重试及未声明目的地。
-- [ ] 原生/工具执行复用公共授权与现有文件、命令、网络政策；读取也门控，
+- [x] 原生/工具执行复用公共授权与现有文件、命令、网络政策；读取也门控，
   释放仅限本任务持有资源；资源/事件/输出边界有公共回归。
-- [ ] Computer Use、非 GUI fake、N2 SDK、旧 N2 和 LLMAgent 的出口逐项迁移或明确
+- [x] Computer Use、非 GUI fake、N2 SDK、旧 N2 和 LLMAgent 的出口逐项迁移或明确
   禁用；未迁移入口不能以默认关闭之外的隐式旁路继续冒充已治理能力。
-- [ ] 实验入口按可验证的能力接线准入；所有启用模型请求受共享配额与 HTTP 捕获，
+- [x] 实验入口按可验证的能力接线准入；所有启用模型请求受共享配额与 HTTP 捕获，
   零额度、辅助调用、未知用量和取消边界通过真实 SDK/fake HTTP 测试。
-- [ ] **Tests**：核心公共治理套件覆盖保留的各调用方，同一授权/用量/审计断言；
+- [x] **Tests**：核心公共治理套件覆盖保留的各调用方，同一授权/用量/审计断言；
   离线领域用例验证规则零模型、多步 Jev、一次 Advisor 后恢复以及所有终态。
-- [ ] 最终执行 §10 完整 Verification Checklist 全部适用项与最多三轮
+- [x] 最终执行 §10 完整 Verification Checklist 全部适用项与最多三轮
   review-and-refactor；逐项记录证据后才标记 S0 完成，S1–S6 保持各自未完成状态。
 
 本轮兼容迁移与流式治理评审（2026-09-30，基线 `2769eb92`）：已保留 N2/N2 SDK
@@ -1456,3 +1456,42 @@ docs check、diff check 通过。未变化文件复用此前类型检查证据�
 10. `python3 scripts/check_protocol_sync.py`；改动协议或生成产物时必须执行。
 
 仅改 `docs/` 的修订按仓库例外只执行第 9 项；另做 diff 空白/链接/图像可读性检查。
+
+
+### S0 收尾验收证据（2026-09-30）
+
+实现基线 `f2d61d8f`。本次不增加提供方/模型维度统计，不改变生产默认或启用真实通道。
+
+- G1 版本/能力准入：`test_plugin_manifest.py`、`test_subagent.py` 覆盖工厂前拒绝，
+  `test_task_model.py` 覆盖凭据引用/任务绑定及零资源创建；model_transport 覆盖实际发送。
+- G1 执行/资源/事件：`test_task_runtime.py` 覆盖注册句柄、异步预检后复查、动作/观察
+  配额、必需审计、未知效果及有界清理；`test_subagent.py` 覆盖输出限额与清理结果。
+- G2 保留入口：仓库实际 agent/subagent 插件只有 Computer Use、n2_sdk、n2；加上
+  Runner LLMAgent 和非 GUI fixture，由新增 `test_retained_callers_share_governance`
+  共用五路径 × 正常/响应时撤权/审计失败的 15 项真实 Runner/SDK 验收。
+  旧 N2 工厂的运行时 Protocol 静态查找拒绝受控动态代理，已先红后绿修正为完整方法面校验。
+- G2 辅助出口：N2 SDK compaction/格式恢复使用同一 client；其 test_agent 覆盖唯一账本、
+  零额度及取消，test_environment 覆盖 driver/文件边界；旧 n2 使用受控 executor。
+  `test_request_budget.py`、`test_comparison_freeze.py`、SDK/旧 n2 benchmark 用例
+  覆盖 planner/locator 和 SDK 路径的准入/捕获。核心不导入 benchmarks。
+- 领域退出条件：`agent-computer-use/tests/test_ladder.py` 覆盖规则零模型、多步 fake Jev、
+  一次 Advisor 后回到规则、旧回复零派发、未知效果不重放和各终态；新增公共验收
+  将 Advisor fixture 接到真实 SDK/fake HTTP。默认工厂无真实通道并明确返回不可用。
+- Tests：新增公共套件沿用现有 test_subagent 文件；生产行为变更仅修复 N2 工厂能力检查。
+- 最终步骤：执行 §10 全部适用 Verification Checklist，完成有界 review-and-refactor；
+  最终结果记录于此后才勾选最后一项。S4-G3、实机效果/恢复和审计数据库保留策略不在此验收内。
+
+
+收尾评审前验证：后端全量 5505 passed / 1 skipped / 21 warnings；E2E 20 场景 / 79 步；
+web lint、`tsc -b --noEmit`、backend core/旧 N2 lint、CLI lint、改动 Python 文件
+pyright、开发服务日志、docs check 与 diff check 均通过。协议及生成物未改，协议同步
+检查不适用。完整日志为 `/tmp/tank-s0-close-full.log` 和 `/tmp/tank-s0-close-e2e.log`。
+
+收尾 review-and-refactor 第 1 轮确认一个验收断言缺口：仅断言无 error 不能证明正常
+路径完成。评审补强五路径正常分支的唯一 DONE、插件成功原因及 Computer Use
+completed/cleanup=confirmed，并拒绝失败分支返回 completed TaskResult。
+15 项公共验收再次通过，测试 pyright 和 backend/旧 N2 lint 通过。
+生产源码未改变，复用上述全量 5505 passed 与 E2E/静态检查证据；仅新增断言的公共
+测试已完整重跑。第 2 轮为评审者对断言及结论的自检，无遗留可操作问题，结束评审。
+最终 docs check、diff check 通过。S0 按 §2.6 和本节离线退出条件完成；整个计划仍
+保留 active，S1–S6、真实 AX/OCR/DOM/Jev/Advisor、同进程恢复和生产默认切换均未验收。

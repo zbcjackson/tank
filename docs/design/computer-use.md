@@ -640,8 +640,8 @@ AX/OCR/DOM，也不证明 PDF 产物或不覆盖约束。通道须提供可信�
 Extension agent 显式声明 `model: <llm profile name>` 时，Runner 将 `network` 纳入
 原任务审批范围，并向 `context.runtime.model` 装配一个任务绑定的文本服务。
 未声明时为 None，不创建模型资源；未知 profile 不回退 default。配置只引用宿主
-profile 名称，插件工厂不接收密钥。当前拒绝非 HTTPS、额外 headers/body、非法输出
-上限与 temperature；不支持图像、工具或流式协议。
+profile 名称，插件工厂不接收密钥。结构化文本入口拒绝非 HTTPS、额外 headers/body、
+非法输出上限与 temperature；兼容客户端通过宿主声明的独立 route 支持图像、工具和流式。
 
 插件调用 `await context.runtime.model.complete(messages)` 获得完整文本；宿主持有
 真实 SDK/HTTP 客户端，关闭 SDK 隐式重试和重定向，使用既有 TaskModelTransport
@@ -651,8 +651,8 @@ profile 名称，插件工厂不接收密钥。当前拒绝非 HTTPS、额外 he
 
 客户端首次调用时创建，runtime 登记统一清理；关闭等待在飞 HTTP 收尾，结束后
 拒绝新调用。此入口已由通用 fake SubAgent + 真实 Runner/SDK + fake HTTP 验证，
-并不表示 Computer Use 已接通真实 Advisor/Jev 或 N2/LLMAgent 已迁移到公共服务。
-多模型/其它协议、模型事件持久审计及 G1/G2 其余治理仍在活动计划中。
+Computer Use 的 Advisor fixture 已通过该服务与真实 SDK/fake HTTP 联测；默认工厂
+仍无真实 Advisor/Jev。N2、N2 SDK 和 Runner 的 LLMAgent 已通过公共 transport 接入。
 
 文本请求构造与 SDK 调用复用 `LLM.complete_response(retry=False)`。TaskModel 仅保留
 受控客户端装配、任务检查及严格文本回复校验，不维护第二套补全请求实现。
@@ -678,13 +678,13 @@ Runner 自动将 extension 的 model_call 事件经核心 TaskObserver 转发到
 可恢复投递；控制/生命周期消息保留原 post 语义。它限制的是新增模型遥测的排队，
 不是整个 Bus 的全局容量。自定义 observer 仍遵循现有同步回调契约；异常由 context
 隔离，不声称能抢占阻塞回调。事件和日志不含凭据、目的地、请求或响应正文。
-普通遥测允许丢失，不能代替必需持久审计；G1 的持久化审计、全局事件治理与 G2
-调用方迁移仍待后续完成。
+普通遥测允许丢失，不能代替下述必需持久审计。Adapter 对插件输出设置字节/事件上限；
+不把模型遥测的有界队列宣称为整个应用 Bus 的全局硬配额。
 
 
 ### S0 Supervisor 的必需持久审计（2026-09-29）
 
-WorkerSupervisor 为 extension 任务装配数据库审计回调，复用 TaskRuntime 的审计
+WorkerSupervisor 为 extension 和已迁移的 engine 任务装配数据库审计回调，复用 TaskRuntime 的审计
 失败锁定机制；原生操作和受控模型都写入统一数据库的 worker_audit_events 表。
 每行保存任务/调用身份、类别、阶段、状态与可用的用量/耗时，按追加顺序保留；
 不保存端点、凭据或请求/响应正文。WorkerStore.audit_records 提供按任务分页读取。
@@ -704,4 +704,29 @@ Adapter 也拒绝将其当作成功任务。
 审计，包括准入拒绝后的未发送记录。Supervisor 保留 audit_failed 终止原因。
 内存 SQLite 在同一 Database 实例内共享跨线程连接并串行化事务；它仅用于临时数据，
 不具备文件数据库的重开持久性。文件库保持原连接池行为。
-跨进程恢复、审计保留/容量策略、其它 legacy 出口和 G2/G3 尚未完成。
+跨进程恢复、审计数据库保留/容量策略不在 S0 骨架验收内；同进程恢复及真实通道
+的统一接入仍按 S4-G3 验收。
+
+
+### S0 保留调用方与出口清单（2026-09-30）
+
+- Computer Use：观察、派发经 TaskOperation；测试 Advisor 借用 TaskModel。
+  规则零模型、多步 fake Jev、一次 Advisor 后恢复、旧回复/未知效果等均离线验收。
+  默认工厂仍拒绝真实通道配置，不创建 AX/OCR/DOM/Jev 资源。
+- 非 GUI fixture：同一 SubAgent/Runner/TaskModel 服务，无 Computer Use 领域依赖。
+- `n2_sdk`：actor、compaction、格式恢复共享 N2ModelClient → TaskModelTransport；
+  SDK/compactor 隐式 HTTP 重试关闭。GuardedComputer 注册原生操作，CheckedTransport
+  门控 driver 初始化/RPC，文件和 shell 在最终边界复查；清理只释放本任务会话/输入。
+- `n2`：EngineSubAgent 保留原 AgentState；模型使用 TaskModelTransport，桌面、文件、
+  shell 使用受控 DesktopExecutor。工厂校验完整可调用能力面，兼容动态受控代理。
+- Runner 的 LLMAgent：planner、locator、fallback 和审批 classifier 绑定原 context；
+  流式/非流式共享 transport，旧 usage 投影按 call_id 去重；保留现有工具政策与提示。
+  主会话直接使用的 ChatAgent 不因此变成受管 SubAgent，其原审批/账本契约保持不变。
+- 实验入口：BenchmarkTaskPolicy 注入请求准入、费用策略和 HTTP 捕获，覆盖上述模型
+  客户端；没有已声明模型能力的 extension 仍拒绝启用请求限额。凭据不进入审计/遥测。
+
+公共验收为 `core/tests/test_subagent.py::test_retained_callers_share_governance`：
+五条真实 Runner/SDK 路径共用授权、唯一用量、发送前审计、审计失败零发送、响应时撤权、
+任务关闭后拒绝调用及借用连接所有权断言。HTTP 与 OS 被替换，无付费或真实桌面调用。
+领域证据与 SDK 辅助出口回归分别在 `agent-computer-use/tests`、`agent-n2-sdk/tests`、
+`agent-n2/tests`；核心限额、撤权/取消/迟到完成及资源回收在 task_runtime/model_transport 测试。

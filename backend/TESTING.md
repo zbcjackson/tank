@@ -912,3 +912,21 @@ aggregation. The full suite (5116 passed / 1 skipped on 2026-09-25, including
 legacy N2 and SDK regressions) is the deterministic transform/protocol/
 cancel/budget/cleanup evidence cited by the
 [closeout report](benchmarks/computer_use/reports/20260925-m8-closeout/README.md).
+
+
+## S0 shared task governance acceptance
+
+`core/tests/test_subagent.py::test_retained_callers_share_governance` runs the
+same assertions through real Runner paths for a non-GUI SubAgent, Computer Use
+with an injected Advisor, N2 SDK, legacy N2 and LLMAgent. Only HTTP/native OS
+boundaries are replaced. It verifies one context/call identity, usage counted once,
+required audit before HTTP, zero sends on audit failure, revoked response handling,
+closed task refusal and borrowed client ownership. Legacy N2 uses the actual
+TaskDesktopExecutor proxy and factory, catching runtime Protocol/static-lookup
+incompatibilities that a directly injected executor would hide.
+
+Run from backend: `uv run pytest core/tests/test_subagent.py -k retained_callers -q`.
+Domain loop fixtures remain in `plugins/agent-computer-use/tests`; SDK compaction,
+format recovery, driver/file boundaries and zero request allowance remain in
+`plugins/agent-n2-sdk/tests`. This is offline S0 acceptance, not live-channel or
+resume acceptance for S1–S4.

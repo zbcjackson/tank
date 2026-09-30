@@ -344,7 +344,8 @@ on_confirmation callback; rejection invalidates it. Re-entry also checks that
 the manifest permission scope is unchanged. Supervisor passes the explicit grant
 and task deadline into Runner. SubAgent
 plugins are trusted Python code; these approvals are not a sandbox or substitutes
-for OS file/network isolation, and SDK tools do not inherit Tank tool policies.
+for OS file/network isolation. SDK native adapters reuse the host file/command
+policies; hard denials remain effective even with an approved task grant.
 
 SubAgentAdapter defers DONE until producer/environment/client cleanup completes.
 It binds `context.runtime` to the original task ID and closes its business gate
@@ -372,7 +373,9 @@ checks original authority, cancellation, deadline and read/action quotas before
 and after asynchronous preflight, retains bounded call records, and never replays
 an operation with an unknown effect. `returned` means the adapter returned, not
 that its business postcondition succeeded. Computer Use's offline observation and
-dispatch paths use this entry; legacy SDK/LLMAgent execution migration is pending.
+dispatch paths, N2 SDK primitives and the legacy N2 desktop executor use this
+entry. LLMAgent retains AllowlistExecutor/ApprovalGateExecutor and rechecks the
+same task context after asynchronous approval.
 
 Core `TaskResources` handles idempotent reverse-order release, bounded waits and
 continuation after failures. Borrowed leases must register detach callbacks; shared
@@ -381,9 +384,10 @@ then releases registered resources even after authorization/deadline expiry. An
 uncooperative callback produces unconfirmed cleanup, not a claim of OS termination.
 An optional host audit callback is required when configured: failure or cancellation
 latches the runtime closed to subsequent business calls. Ordinary observer failures
-are logged without changing execution. Durable audit storage, asynchronous telemetry
-queues, atomic native resource creation/registration, and model factory assembly are
-not provided by this slice; existing unwired extension benchmark refusal remains.
+are logged without changing execution. Supervisor injects required WorkerStore audit for managed extension/engine tasks.
+TaskResources.acquire validates capacity before synchronous creation/registration.
+Ordinary model telemetry uses bounded Bus publication; required audit failures
+stop business calls. Unwired benchmark transports remain rejected.
 
 Legacy `stop_reason=final_answer` still completes. Plugins can instead return
 `TaskResult.to_output()`: a versioned result with completed / partial / unknown /
@@ -419,7 +423,7 @@ Runner override disables the definition's limit. These compatibility limits are
 checked after responses, not prepaid hard cost ceilings. Context window/compaction
 budgets and request `max_tokens` are separate capacity constraints.
 
-The opt-in TaskModelTransport records into the supplied context and takes no
+TaskModelTransport records into the supplied context and takes no
 prices, cumulative limits, trial or batch arguments. Optional ModelCallPolicy
 hooks allow the benchmark-owned BenchmarkModelPolicy to reserve/settle against
 `benchmarks.spend_ledger.SpendLedger`; the experiment owns trial/batch/journal
@@ -427,7 +431,20 @@ lifecycle and transport close does not close a batch. Core never imports benchma
 implementations. Default accounting does not latch a token stop on unknown usage;
 the failed request still fails protocol validation and its usage remains unknown.
 The strict benchmark policy retains unknown reservations and refuses further sends.
-This transport is still not wired into production Runner/plugin construction.
+Runner binds ordinary task LLMs (including locator/classifier clients), legacy N2
+and N2 SDK to this transport. TaskOpenAI retains SDK serialization without global
+payload tracing or implicit retries. Text TaskModel.complete reuses
+LLM.complete_response(retry=False); approved compatibility routes also accept
+inline images, tool messages and SSE. Streaming checks stop state between delivered
+SSE lines, preventing buffered SDK frames from bypassing cancellation. Partial
+responses without validated usage remain unknown; close and settlement occur once.
+Host profile references resolve credentials before plugin execution. API version 1
+is checked before factory/resource creation. Existing n2_sdk api_key configuration
+is accepted by the host for compatibility but removed from factory configuration.
+Task clients close with the runtime; a bound ordinary LLM borrows its host pool.
+BenchmarkTaskPolicy supplies request limits, spend admission and raw HTTP capture,
+using the same call_id; no production module imports benchmarks. Model records
+currently aggregate per task/call, without provider/model dimensions.
 
 Observer events support API timing and screenshot traces without participating
 in execution.

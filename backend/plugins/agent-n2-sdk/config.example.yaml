@@ -1,9 +1,13 @@
+llm:
+  n2:
+    api_key: ${YUTORI_API_KEY}
+    base_url: https://api.yutori.com/v1
+    model: n2
+
 subagents:
   "agent-n2-sdk:agent":
     config:
-      api_key: ${YUTORI_API_KEY}
-      base_url: https://api.yutori.com/v1
-      model: n2
+      credential_ref: n2
       tool_set: computer_use_tools-20260830
       reasoning_effort: medium
       max_steps: 100
