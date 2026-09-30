@@ -5,6 +5,9 @@ description = "Host-driven computer-use subagent for Tank"
 requires-python = ">=3.10"
 dependencies = ["tank-backend"]
 
+[project.optional-dependencies]
+vision = ["pyobjc-framework-Vision==12.2; sys_platform == 'darwin'"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
