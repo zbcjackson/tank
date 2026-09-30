@@ -753,3 +753,27 @@ def test_ax_truncated_text_is_not_complete_evidence(monkeypatch) -> None:
     monkeypatch.setattr(computer_ax, "_load_ax", lambda: make_api(_App(42, [window])))
     _, truncated = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
     assert truncated, "Clipped text cannot establish an exact full-label match"
+
+
+@pytest.mark.parametrize("failed_read", ["AXTitle", "AXEnabled", "actions", "settable"])
+def test_ax_failed_semantic_reads_are_incomplete(monkeypatch, failed_read: str) -> None:
+    quartz = MagicMock()
+    quartz.CGWindowListCopyWindowInfo.return_value = [WINDOW]
+    monkeypatch.setattr(macos, "_load_quartz", lambda: quartz)
+    hidden = button("Save", 30, 10)
+    window = _Element({"AXRole": "AXWindow", "AXPosition": (0, 0), "AXSize": (100, 80)},
+                      [button("Save", 10, 10), hidden])
+    api = make_api(_App(42, [window]))
+    copy = api["AXUIElementCopyAttributeValue"]
+    actions = api["AXUIElementCopyActionNames"]
+    settable = api["AXUIElementIsAttributeSettable"]
+    api["AXUIElementCopyAttributeValue"] = lambda element, name, out: (
+        (-25204, None) if element is hidden and name == failed_read else copy(element, name, out))
+    api["AXUIElementCopyActionNames"] = lambda element, out: (
+        (-25204, None) if element is hidden and failed_read == "actions" else actions(element, out))
+    api["AXUIElementIsAttributeSettable"] = lambda element, name, out: (
+        (-25204, False) if element is hidden and failed_read == "settable"
+        else settable(element, name, out))
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: api)
+    _, truncated = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
+    assert truncated, "Native read failure must not hide ambiguity in a complete scope"

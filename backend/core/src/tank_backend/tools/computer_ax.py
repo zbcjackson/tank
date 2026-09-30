@@ -321,6 +321,18 @@ def ax_window_candidates(
     truncated = False
     queue: deque[tuple[Any, int, tuple[tuple[str, str], ...]]] = deque(
         [(window_element, 0, ())])
+    def read(function: str, *args: Any) -> Any:
+        nonlocal truncated
+        err, value = api[function](*args, None)
+        # Unsupported/no-value is a legitimate absent attribute or capability.
+        # Other failures can hide a duplicate target and invalidate uniqueness.
+        if err not in (0, -25205, -25212):
+            truncated = True
+        return value if err == 0 else None
+
+    def attribute(element: Any, name: str) -> Any:
+        return read("AXUIElementCopyAttributeValue", element, name)
+
     visited = 0
     while queue:
         if len(candidates) >= MAX_ELEMENTS or visited >= MAX_NODES:
@@ -328,9 +340,9 @@ def ax_window_candidates(
             break
         element, depth, ancestors = queue.popleft()
         visited += 1
-        role = _string(_attr(api, element, "AXRole"))
-        actions = _actions(api, element)
-        text = {key: _string(_attr(api, element, key))
+        role = _string(attribute(element, "AXRole"))
+        actions = _strings(read("AXUIElementCopyActionNames", element))
+        text = {key: _string(attribute(element, key))
                 for key in ("AXTitle", "AXValue", "AXDescription", "AXIdentifier")}
         if not role or any(len(" ".join(value.split())) > 80 for value in text.values()):
             truncated = True
@@ -342,13 +354,13 @@ def ax_window_candidates(
                 description=_clean(text["AXDescription"]),
                 identifier=_clean(text["AXIdentifier"]),
                 actions=actions,
-                enabled=_flag(_attr(api, element, "AXEnabled")),
+                enabled=_flag(attribute(element, "AXEnabled")),
                 frame=convert(api, element, screen_height),
                 element=AXElementRef(element, flip=flip, screen_height=screen_height),
                 ancestors=ancestors,
-                focused=_flag(_attr(api, element, "AXFocused")),
+                focused=_flag(attribute(element, "AXFocused")),
                 pid=pid, window_id=window_id,
-                value_settable=_value_settable(api, element),
+                value_settable=bool(read("AXUIElementIsAttributeSettable", element, "AXValue")),
             ))
         err, children = api["AXUIElementCopyAttributeValue"](element, "AXChildren", None)
         # Unsupported/no-value means a leaf; other failures hide part of the tree.
