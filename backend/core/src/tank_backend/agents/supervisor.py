@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from ..pipeline.bus import Bus
     from .definition import AgentDefinition
     from .runner import AgentRunner
+    from .task_runtime import ExecutionRecord
 
 logger = logging.getLogger(__name__)
 
@@ -407,9 +408,17 @@ class WorkerSupervisor:
             # Optional so narrow test fakes (and older callers) keep working.
             run_kwargs["allowed_categories"] = allowed_categories
         terminal = False
+        stop_reason: str | None = None
         task_result: TaskResult | None = None
         if agent_def.extension:
-            run_kwargs.update(task_id=run.task_id, authorization=authorization, deadline=deadline)
+            async def audit(record: ExecutionRecord) -> None:
+                if record.task_id != run.task_id:
+                    raise ValueError("audit belongs to another task")
+                await asyncio.to_thread(self._store.append_audit, record)
+
+            run_kwargs.update(
+                task_id=run.task_id, authorization=authorization, deadline=deadline, audit=audit,
+            )
             run_kwargs["task_input"] = run.task_input
         async for event in self._runner.run_agent(
             agent_def=agent_def,
@@ -429,6 +438,9 @@ class WorkerSupervisor:
                 terminal = True
             if event.type == AgentOutputType.TOKEN:
                 output_chunks.append(event.content)
+                reason = event.metadata.get("stop_reason")
+                if isinstance(reason, str):
+                    stop_reason = reason
             elif event.type in (
                 AgentOutputType.TOOL_CALLING,
                 AgentOutputType.TOOL_EXECUTING,
@@ -452,6 +464,8 @@ class WorkerSupervisor:
                     messages=messages + turn_messages,
                 )
         if agent_def.extension and not terminal:
+            if stop_reason is not None:
+                raise SubAgentStopped(stop_reason)
             raise SubAgentStopped("error", "extension ended without final_answer")
         return task_result
 

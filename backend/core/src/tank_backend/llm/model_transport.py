@@ -15,6 +15,7 @@ from uuid import uuid4
 import httpx
 
 from ..agents.subagent import SubAgentContext, SubAgentStopped
+from ..agents.task_runtime import ExecutionRecord
 
 
 class ModelCallPolicy(Protocol):
@@ -46,6 +47,8 @@ class ModelCallRecord:
 
 @dataclass
 class _CallState:
+    started: float
+    finished: bool = False
     sent: bool = False
     inputs: int | None = None
     outputs: int | None = None
@@ -119,6 +122,7 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
             raise ValueError("task and unique model routes are required")
         if any(not credentials.get(route.credential_ref) for route in routes):
             raise ValueError("model route credential reference is unresolved")
+        context.runtime.bind(task_id)
         self._context = context
         self._task_id = task_id
         self._sent_requests = 0
@@ -129,7 +133,8 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         self._policy = policy
         self._closed = False
         self._closing: asyncio.Task[None] | None = None
-        self._inflight: dict[asyncio.Task[httpx.Response], asyncio.Event] = {}
+        self._inflight: set[asyncio.Task[httpx.Response]] = set()
+        self._settling: set[asyncio.Event] = set()
 
     def snapshot(self) -> ModelSnapshot:
         return {
@@ -148,20 +153,40 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         if self._closed:
             raise SubAgentStopped("transport_closed")
         call_id = uuid4().hex
-        started = time.monotonic()
-        state = _CallState()
-        self._context.observe("model_call", task_id=self._task_id, call_id=call_id, phase="started")
+        state = _CallState(started=time.monotonic())
+        settled = asyncio.Event()
+        self._settling.add(settled)
         try:
+            self._context.observe(
+                "model_call", task_id=self._task_id, call_id=call_id, phase="started",
+            )
             return await self._request(request, call_id, state)
         finally:
-            record = ModelCallRecord(
-                self._task_id, call_id,
-                "not_sent" if not state.sent else (
-                    "returned" if state.inputs is not None else "unknown"
-                ),
-                state.inputs, state.outputs, (time.monotonic() - started) * 1000,
-            )
-            self._records.append(record)
+            try:
+                if not state.finished:
+                    await self._finish(call_id, state)
+            finally:
+                settled.set()
+                self._settling.discard(settled)
+
+    async def _finish(self, call_id: str, state: _CallState) -> None:
+        state.finished = True
+        record = ModelCallRecord(
+            self._task_id, call_id,
+            "not_sent" if not state.sent else (
+                "returned" if state.inputs is not None else "unknown"
+            ),
+            state.inputs, state.outputs, (time.monotonic() - state.started) * 1000,
+        )
+        self._records.append(record)
+        try:
+            if not self._context.runtime.audit_failed:
+                await self._context.runtime.write_audit(ExecutionRecord(
+                    record.task_id, record.call_id, "chat_completions", record.status,
+                    category="model", phase="finished", prompt_tokens=record.prompt_tokens,
+                    completion_tokens=record.completion_tokens, elapsed_ms=record.elapsed_ms,
+                ))
+        finally:
             self._context.observe("model_call", phase="finished", **asdict(record))
 
     async def _request(
@@ -181,7 +206,16 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
 
         async def receive() -> httpx.Response:
             async with asyncio.timeout_at(self._context.deadline):
-                # Task scheduling is an await boundary: recheck immediately before sending.
+                await self._context.runtime.write_audit(ExecutionRecord(
+                    self._task_id, call_id, "chat_completions", "not_sent",
+                    category="model", phase="prepared",
+                ))
+                self._context.check("network")
+                await self._context.runtime.write_audit(ExecutionRecord(
+                    self._task_id, call_id, "chat_completions", "unknown",
+                    category="model", phase="dispatch",
+                ))
+                # Audit writes are await boundaries: recheck immediately before sending.
                 self._context.check("network")
                 if self._closed:
                     raise SubAgentStopped("transport_closed")
@@ -205,8 +239,7 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
 
         operation = asyncio.create_task(receive())
         cancelled = asyncio.create_task(self._context.cancel.wait())
-        settled = asyncio.Event()
-        self._inflight[operation] = settled
+        self._inflight.add(operation)
         try:
             try:
                 done, _ = await asyncio.wait(
@@ -243,8 +276,10 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                     await asyncio.shield(cleanup)
                 except asyncio.CancelledError:
                     interrupted = True
-            settled.set()
-            self._inflight.pop(operation, None)
+            try:
+                await self._finish(call_id, state)
+            finally:
+                self._inflight.discard(operation)
             if interrupted:
                 raise asyncio.CancelledError
         self._context.check("network")
@@ -271,13 +306,14 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         await asyncio.shield(self._closing)
 
     async def _close(self) -> None:
-        inflight = tuple(self._inflight.items())
-        for operation, _ in inflight:
+        inflight = tuple(self._inflight)
+        settling = tuple(self._settling)
+        for operation in inflight:
             if not operation.cancelling():
                 operation.cancel()
         try:
             async with asyncio.timeout(5):
-                await asyncio.gather(*(settled.wait() for _, settled in inflight))
+                await asyncio.gather(*(settled.wait() for settled in settling))
                 await self._inner.aclose()
         finally:
             self._credentials.clear()

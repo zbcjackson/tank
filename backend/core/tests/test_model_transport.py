@@ -760,3 +760,82 @@ async def test_observer_revocation_at_start_prevents_send():
         with pytest.raises(APIConnectionError):
             await ask(client)
     assert sent == [] and transport.records[0].status == "not_sent"
+
+
+@pytest.mark.parametrize("stop", ["revoke", "cancel", "timeout"])
+async def test_pending_required_model_audit_never_allows_late_http(stop):
+    entered, finish = asyncio.Event(), asyncio.Event()
+    records, sent = [], []
+
+    async def audit(record):
+        if record.phase == "dispatch":
+            entered.set()
+            await finish.wait()
+        records.append(record)
+
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        audit=audit,
+    )
+
+    async def provider(request):
+        sent.append(request)
+        return httpx.Response(200, json=completion())
+
+    _, transport, client, ledger = governed(provider, context=context)
+    async with client:
+        pending = asyncio.create_task(ask(client))
+        await entered.wait()
+        if stop == "revoke":
+            context.authorization.revoke()
+            finish.set()
+        elif stop == "cancel":
+            context.cancel.set()
+        with pytest.raises((APIConnectionError, asyncio.CancelledError)):
+            await pending
+        finish.set()
+        assert sent == []
+        assert context.budget.call_count == 0
+        assert ledger.snapshot()["batch"]["reserved_tokens"] == 0
+        assert transport.records[-1].status == "not_sent"
+        if stop == "revoke":
+            assert records[-1].phase == "finished" and records[-1].status == "not_sent"
+        else:
+            assert context.runtime.audit_failed
+
+
+@pytest.mark.parametrize("rejected", [False, True])
+async def test_transport_close_waits_for_terminal_audit(rejected):
+    entered, finish = asyncio.Event(), asyncio.Event()
+    persisted = []
+
+    async def audit(record):
+        if record.phase == "finished":
+            entered.set()
+            await finish.wait()
+        persisted.append(record)
+
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        audit=audit,
+    )
+
+    async def provider(request):
+        return httpx.Response(200, json=completion())
+
+    _, transport, client, _ = governed(
+        provider, context=context, request_limit=0 if rejected else 4,
+    )
+    pending = asyncio.create_task(ask(client))
+    await entered.wait()
+    closing = asyncio.create_task(transport.aclose())
+    done, _ = await asyncio.wait({closing}, timeout=0.03)
+    assert not done
+    finish.set()
+    with pytest.raises(APIConnectionError):
+        await pending
+    await closing
+    await client.close()
+    assert persisted[-1].phase == "finished"
+    assert persisted[-1].prompt_tokens == (None if rejected else 10)
+    assert context.budget.total_tokens == (0 if rejected else 15)

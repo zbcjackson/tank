@@ -93,6 +93,8 @@ class SubAgentAdapter(Agent):
             if result is not None:
                 result = result.with_cleanup("confirmed")
             raise SubAgentCancelled(result)
+        if self.context.runtime.audit_failed:
+            raise SubAgentStopped("audit_failed")
         if terminal is None:
             raise SubAgentStopped("error", "plugin ended without DONE")
         reason = terminal.metadata.get("stop_reason")

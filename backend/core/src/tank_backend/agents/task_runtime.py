@@ -41,6 +41,11 @@ class ExecutionRecord:
     call_id: str
     operation: str
     status: Literal["not_sent", "unknown", "returned"]
+    category: Literal["execution", "model"] = "execution"
+    phase: Literal["prepared", "dispatch", "finished"] = "finished"
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    elapsed_ms: float | None = None
 
 
 class TaskRuntime:
@@ -59,6 +64,7 @@ class TaskRuntime:
         self._counts = {"read": 0, "action": 0}
         self._audit = audit
         self._audit_failed = False
+        self._audit_lock = asyncio.Lock()
         self._unknown_effect = False
         self._closed = False
         self._closing: asyncio.Task[None] | None = None
@@ -144,36 +150,51 @@ class TaskRuntime:
             raise SubAgentStopped(reason)
         self._counts[operation.kind] += 1
         index = len(self._records)
-        record = ExecutionRecord(self._task_id, uuid4().hex, operation.name, "not_sent")
+        record = ExecutionRecord(
+            self._task_id, uuid4().hex, operation.name, "not_sent", phase="prepared",
+        )
         self._records.append(record)
         await self._emit(record)
         self._check(operation)
         if operation.preflight is not None:
             await operation.preflight(value)
-        await self._emit(replace(record, status="unknown"))
+        await self._emit(replace(record, status="unknown", phase="dispatch"))
         self._check(operation)
-        self._records[index] = replace(record, status="unknown")
+        self._records[index] = replace(record, status="unknown", phase="dispatch")
         try:
             result = await operation.invoke(value)
         except BaseException:
             if operation.kind == "action":
                 self._unknown_effect = True
             raise
-        self._records[index] = replace(record, status="returned")
+        self._records[index] = replace(record, status="returned", phase="finished")
         await self._emit(self._records[index])
         self._check(operation)
         return result
 
+    @property
+    def audit_failed(self) -> bool:
+        return self._audit_failed
+
+    async def write_audit(self, record: ExecutionRecord) -> None:
+        """Commit mandatory evidence, including terminal records during shutdown."""
+        if self._audit is None:
+            return
+        try:
+            async with asyncio.timeout(2.0):
+                async with self._audit_lock:
+                    if self._audit_failed or record.task_id != self._task_id:
+                        raise ValueError("invalid task audit state")
+                    await self._audit(record)
+        except asyncio.CancelledError:
+            self._audit_failed = True
+            raise
+        except Exception:
+            self._audit_failed = True
+            raise SubAgentStopped("audit_failed") from None
+
     async def _emit(self, record: ExecutionRecord) -> None:
-        if self._audit is not None:
-            try:
-                await self._audit(record)
-            except asyncio.CancelledError:
-                self._audit_failed = True
-                raise
-            except Exception as exc:
-                self._audit_failed = True
-                raise SubAgentStopped("audit_failed") from exc
+        await self.write_audit(record)
         self._context.observe("task_execution", **asdict(record))
 
     def check_open(self) -> None:

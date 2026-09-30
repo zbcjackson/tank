@@ -190,7 +190,7 @@ async def test_base_cleanup_survives_caller_cancellation():
 
 
 @pytest.fixture
-def stack(tmp_path, monkeypatch):
+def stack(tmp_path, monkeypatch, request):
     fake = FakeSubAgent()
     monkeypatch.setitem(sys.modules, "_subagent_test", SimpleNamespace(create=lambda cfg: fake))
     registry = ExtensionRegistry()
@@ -207,7 +207,7 @@ def stack(tmp_path, monkeypatch):
         app_config=AppConfig(),
         desktop_resource=DesktopResource(),
     )
-    db = Database(f"sqlite+pysqlite:///{tmp_path}/db")
+    db = Database(getattr(request, "param", None) or f"sqlite+pysqlite:///{tmp_path}/db")
     Base.metadata.create_all(db.engine)
     store = WorkerStore(db)
     supervisor = WorkerSupervisor(runner, store)
@@ -1173,3 +1173,107 @@ async def test_runner_rejects_model_before_plugin_factory(stack, monkeypatch, in
             ),
         )]
     assert created == []
+
+
+@pytest.mark.parametrize("stack", [None, "sqlite+pysqlite:///:memory:"], indirect=True)
+async def test_supervisor_persists_native_audit_before_dispatch(stack, monkeypatch):
+    from tank_backend.agents.subagent import SubAgentAuthorization
+    from tank_backend.agents.task_runtime import TaskOperation
+
+    fake, _, supervisor, definition, store = stack
+    sent = []
+
+    async def run(request, context):
+        async def invoke(value):
+            records = store.audit_records(request.task_id)
+            assert [record.status for record in records] == ["not_sent", "unknown"]
+            sent.append(value)
+            return value
+
+        operation = TaskOperation("inspect", frozenset({"filesystem"}), "read", invoke)
+        context.runtime.register(operation)
+        await context.runtime.execute(operation, "document")
+        yield AgentOutput(AgentOutputType.DONE, "done", {"stop_reason": "final_answer"})
+
+    monkeypatch.setattr(fake, "run", run)
+    result = await supervisor.run_foreground(
+        agent_def=definition, prompt="task",
+        authorization=SubAgentAuthorization(frozenset({"filesystem"})),
+    )
+    assert result.status == "completed" and sent == ["document"]
+    assert [record.status for record in store.audit_records(result.task_id)] == [
+        "not_sent", "unknown", "returned",
+    ]
+
+
+@pytest.mark.parametrize("fail_phase", [None, "prepared", "dispatch", "finished"])
+async def test_supervisor_persists_model_intent_before_http_and_usage_after(
+    stack, monkeypatch, fail_phase,
+):
+    from dataclasses import replace
+
+    import httpx
+
+    from tank_backend.agents.subagent import SubAgentAuthorization
+    from tank_backend.llm.profile import LLMProfile
+
+    fake, runner, supervisor, definition, store = stack
+    before_http, errors = [], []
+    append = store.append_audit
+
+    def append_or_fail(record):
+        if record.phase == fail_phase:
+            raise OSError("private-database-path")
+        append(record)
+
+    monkeypatch.setattr(store, "append_audit", append_or_fail)
+
+    async def provider(request):
+        records = store.audit_records(fake.request.task_id)
+        before_http.extend(records)
+        assert [record.status for record in records] == ["not_sent", "unknown"]
+        return httpx.Response(200, json={
+            "id": "reply", "object": "chat.completion", "created": 1, "model": "test",
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": "ready"},
+                         "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10},
+        })
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda: httpx.MockTransport(provider))
+    runner._app_config.llm_profiles["advisor"] = LLMProfile(
+        "advisor", "private-secret", "test", "https://offline.invalid/v1", max_tokens=20,
+    )
+
+    async def run(request, context):
+        fake.request, fake.context = request, context
+        assert context.runtime.model is not None
+        for _ in range(2 if fail_phase else 1):
+            try:
+                await context.runtime.model.complete(
+                    [{"role": "user", "content": "private-prompt"}],
+                )
+            except SubAgentStopped as exc:
+                errors.append(exc.reason)
+        yield AgentOutput(AgentOutputType.DONE, "done", {"stop_reason": "final_answer"})
+
+    monkeypatch.setattr(fake, "run", run)
+    result = await supervisor.run_foreground(
+        agent_def=replace(definition, model="advisor"), prompt="task",
+        authorization=SubAgentAuthorization(frozenset({"network"})),
+    )
+    records = store.audit_records(result.task_id)
+    if fail_phase:
+        assert result.status == "failed"
+        assert result.error is not None and "audit_failed" in result.error
+        assert errors == ["audit_failed", "audit_failed"]
+        assert fake.context.budget.total_tokens == (10 if fail_phase == "finished" else 0)
+        assert len(before_http) == (2 if fail_phase == "finished" else 0)
+        assert "private" not in str(result)
+        return
+    assert result.status == "completed"
+    assert [record.phase for record in records] == ["prepared", "dispatch", "finished"]
+    assert len({record.call_id for record in records}) == 1
+    assert records[-1].call_id in fake.context.budget.call_ids
+    assert records[-1].prompt_tokens == 7 and records[-1].completion_tokens == 3
+    assert before_http == records[:2]
+    assert "private" not in repr(records)

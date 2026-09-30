@@ -13,7 +13,7 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import AsyncGenerator, AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from ..tools.computer_native import join_on_cancel
@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from ..pipeline.bus import Bus
     from ..tools.manager import ToolManager
     from .approval import PendingToolCallStore, ToolApprovalPolicy
+    from .task_runtime import ExecutionRecord
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,7 @@ class AgentRunner:
         authorization: SubAgentAuthorization | None = None,
         deadline: float | None = None, observer: SubAgentObserver | None = None,
         max_steps: int | None = None,
+        audit: Callable[[ExecutionRecord], Awaitable[None]] | None = None,
         desktop_cleanup: DesktopCleanup | None = None,
         task_input: dict[str, JsonValue] | None = None,
     ) -> AsyncIterator[AgentOutput]:
@@ -174,6 +176,7 @@ class AgentRunner:
                 authorization, SubAgentBudget(limit=(
                     agent_def.token_budget if token_budget is None else token_budget
                 )), asyncio.Event(), deadline, TaskObserver(self._bus, observer), max_steps,
+                audit=audit,
             )
             context.check()
         outputs = self._run_agent(
