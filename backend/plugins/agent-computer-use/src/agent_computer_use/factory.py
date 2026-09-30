@@ -1,4 +1,4 @@
-"""Offline S0 factory: real channel/model wiring is deliberately not advertised."""
+"""Explicit plugin assembly; construction never starts browser or model work."""
 
 from uuid import uuid4
 
@@ -27,6 +27,11 @@ class UnavailableChannel:
 
 def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
     if config:
-        raise ValueError("S0 computer-use has no configurable live channels or providers yet")
+        if set(config) != {"browser"} or not isinstance(config["browser"], dict):
+            raise ValueError("Only an explicit browser configuration is supported")
+        from .channels.dom import BrowserConfig, ManagedChromiumChannel
+
+        browser = ManagedChromiumChannel(BrowserConfig.model_validate(config["browser"]))
+        return ComputerUseSubAgent(ComputerUseController(browser, browser), resources=(browser,))
     channel = UnavailableChannel()
     return ComputerUseSubAgent(ComputerUseController(channel, channel))

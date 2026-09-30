@@ -70,3 +70,8 @@ Feature: Chat mode
       | contract |
       | loop     |
       | plugin   |
+
+  @managed-chromium
+  Scenario: Managed Chromium preserves task configuration, results and stop
+    When the isolated managed Chromium contract is exercised
+    Then the managed Chromium contract passes without model calls or personal browser access

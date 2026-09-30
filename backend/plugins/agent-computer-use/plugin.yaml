@@ -1,9 +1,9 @@
 name: agent-computer-use
 display_name: Computer Use Host Loop
-description: S0 offline host loop; live channels and model transports are not wired yet.
+description: Host loop with opt-in managed Chromium; no live model transport.
 extensions:
   - name: agent
     type: subagent
     runtime_api: 1
     factory: agent_computer_use:create_subagent
-    permissions: [desktop]
+    permissions: [desktop, network]

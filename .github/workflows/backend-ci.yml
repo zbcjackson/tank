@@ -15,6 +15,26 @@ on:
   #     - ".github/workflows/backend-ci.yml"
 
 jobs:
+  managed-chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.13'
+      - name: Install workspace and browser extra
+        working-directory: backend
+        run: uv sync --locked --all-packages --all-groups --extra browser
+      - name: Install Chromium
+        working-directory: backend
+        run: uv run --no-sync playwright install --with-deps chromium
+      - name: Require real Chromium acceptance
+        working-directory: backend
+        env:
+          TANK_REQUIRE_CHROMIUM: '1'
+        run: uv run --no-sync pytest plugins/agent-computer-use/tests/test_dom.py -q
+
   docker-smoke:
     # Install smoke (s2s analog): build the service image, start it in a
     # clean container, and require /api/health to answer.

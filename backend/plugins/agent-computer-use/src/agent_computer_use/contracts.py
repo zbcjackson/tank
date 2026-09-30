@@ -75,7 +75,7 @@ class Element:
     actions: tuple[Operation, ...]
     enabled: bool = True
     kind: Literal["control", "text_region"] = "control"
-    source: Literal["ax", "ocr", "fixture"] = "fixture"
+    source: Literal["ax", "ocr", "dom", "fixture"] = "fixture"
     value: str = ""
     focused: bool | None = None
     ancestors: tuple[tuple[str, str], ...] = ()

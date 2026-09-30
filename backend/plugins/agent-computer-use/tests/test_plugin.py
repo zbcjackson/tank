@@ -25,6 +25,47 @@ from tank_backend.plugin.registry import ExtensionRegistry
 from .test_ladder import ExportWorld, export_goal
 
 
+@pytest.mark.parametrize("browser", [
+    {"scope": "page", "url": "file:///private/data"},
+    {"scope": "page", "url": "http://:password@example.test"},
+    {"scope": "page", "url": "https://user:password@example.test"},
+    {"scope": "page", "url": "http://localhost", "profile": "/personal/browser"},
+])
+def test_browser_config_rejected_before_resource_creation(browser):
+    with pytest.raises(ValueError):
+        create_subagent({"browser": browser})
+
+
+async def test_factory_without_browser_extra(monkeypatch):
+    import builtins
+    from tank_backend.agents.subagent import SubAgentRequest
+    from .test_ladder import context
+
+    real_import = builtins.__import__
+
+    def without_browser(name, *args, **kwargs):
+        if name == "playwright" or name.startswith("playwright."):
+            raise ModuleNotFoundError("browser extra not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_browser)
+    offline = create_subagent({})
+    browser = create_subagent({"browser": {"scope": "window", "url": "http://127.0.0.1:1"}})
+    ctx = context()
+    ctx.authorization.permissions = frozenset({"desktop", "network"})
+    try:
+        outputs = [output async for output in browser.run(
+            SubAgentRequest("Export", "", "task", {
+                **export_goal().model_dump(mode="json"), "scope": "window",
+            }), ctx)]
+        assert outputs[-1].metadata["task_result"]["reason"] == "browser_dependency_unavailable"
+        assert browser.controller.receipts == []
+    finally:
+        await offline.aclose()
+        await browser.aclose()
+        await ctx.runtime.aclose()
+
+
 @pytest.mark.parametrize("started", [False, True])
 async def test_plugin_close_only_releases_its_resources(started):
     from agent_computer_use.controller import ComputerUseController
