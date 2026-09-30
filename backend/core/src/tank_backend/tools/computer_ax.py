@@ -18,8 +18,10 @@ import importlib
 import json
 import os
 import uuid
+from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass
+from itertools import islice
 from typing import Any, Literal
 
 from openai.types.chat import ChatCompletion
@@ -56,6 +58,7 @@ advertised.
 MAX_ELEMENTS = 500
 MAX_DEPTH = 12
 MAX_CHILDREN = 64
+MAX_NODES = 2000
 
 _ADDRESSABLE_ROLES = frozenset({
     "AXButton", "AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXMenuButton",
@@ -88,6 +91,11 @@ class AXCandidate:
     enabled: bool | None
     frame: tuple[int, int, int, int] | None
     element: AXElementRef
+    ancestors: tuple[tuple[str, str], ...] = ()
+    focused: bool | None = None
+    pid: int | None = None
+    window_id: int | None = None
+    value_settable: bool = False
 
 
 @dataclass(frozen=True)
@@ -119,12 +127,15 @@ def _load_ax() -> dict[str, Any]:
         ("AXUIElementCreateApplication", b"@i"),
         ("AXUIElementCopyAttributeValue", b"i@@o^@"),
         ("AXUIElementPerformAction", b"i@@"),
+        ("AXUIElementCopyActionNames", b"i@o^@"),
+        ("AXUIElementIsAttributeSettable", b"i@@o^Z"),
         # CGPoint and CGSize share the two-CGDouble layout, so one struct
         # signature decodes both attribute kinds (type passed per call).
         ("AXValueGetValue", b"B@io^{CGPoint=dd}"),
     ])
     missing = {"AXUIElementCreateApplication", "AXUIElementCopyAttributeValue",
-               "AXUIElementPerformAction", "AXValueGetValue"} - functions.keys()
+               "AXUIElementPerformAction", "AXUIElementCopyActionNames",
+               "AXUIElementIsAttributeSettable", "AXValueGetValue"} - functions.keys()
     if missing:
         raise RuntimeError(f"AX functions unavailable: {sorted(missing)}")
     _AX_FUNCTIONS.update(functions)
@@ -154,6 +165,16 @@ def _strings(value: object) -> tuple[str, ...]:
     if not isinstance(value, Iterable) or isinstance(value, (str, bytes)):
         return ()
     return tuple(item for item in value if isinstance(item, str))
+
+
+def _actions(api: dict[str, Any], element: Any) -> tuple[str, ...]:
+    err, value = api["AXUIElementCopyActionNames"](element, None)
+    return _strings(value) if err == 0 else ()
+
+
+def _value_settable(api: dict[str, Any], element: Any) -> bool:
+    err, value = api["AXUIElementIsAttributeSettable"](element, "AXValue", None)
+    return err == 0 and bool(value)
 
 
 def _flag(value: object) -> bool | None:
@@ -281,50 +302,69 @@ def ax_window_candidates(
     err, ax_windows = api["AXUIElementCopyAttributeValue"](app, "AXWindows", None)
     if err != 0 or ax_windows is None:
         raise RuntimeError(f"AX: cannot list windows (error {err})")
-    window_element = None
-    flip = False
+    matches = []
     for candidate_window in ax_windows:
         direct = _top_left_frame(api, candidate_window, screen_height)
         if direct is not None and _frames_close(direct, bounds):
-            window_element, flip = candidate_window, False
-            break
+            matches.append((candidate_window, False))
+            continue
         flipped = _flipped_frame(api, candidate_window, screen_height)
         if flipped is not None and _frames_close(flipped, bounds):
-            window_element, flip = candidate_window, True
-            break
-    if window_element is None:
+            matches.append((candidate_window, True))
+    if not matches:
         raise RuntimeError("AX: bound window not found in the accessibility tree")
+    if len(matches) != 1:
+        raise ValueError("AX: ambiguous window geometry binding")
+    window_element, flip = matches[0]
     convert = _flipped_frame if flip else _top_left_frame
     candidates: list[AXCandidate] = []
     truncated = False
-    queue: list[tuple[Any, int]] = [(window_element, 0)]
+    queue: deque[tuple[Any, int, tuple[tuple[str, str], ...]]] = deque(
+        [(window_element, 0, ())])
+    visited = 0
     while queue:
-        if len(candidates) >= MAX_ELEMENTS:
+        if len(candidates) >= MAX_ELEMENTS or visited >= MAX_NODES:
             truncated = True
             break
-        element, depth = queue.pop(0)
+        element, depth, ancestors = queue.popleft()
+        visited += 1
         role = _string(_attr(api, element, "AXRole"))
-        actions = _strings(_attr(api, element, "AXActions"))
+        actions = _actions(api, element)
+        text = {key: _string(_attr(api, element, key))
+                for key in ("AXTitle", "AXValue", "AXDescription", "AXIdentifier")}
+        if not role or any(len(" ".join(value.split())) > 80 for value in text.values()):
+            truncated = True
         if role and (role in _ADDRESSABLE_ROLES or "AXPress" in actions):
             candidates.append(AXCandidate(
                 index=len(candidates) + 1, role=role,
-                title=_clean(_attr(api, element, "AXTitle")),
-                value=_clean(_attr(api, element, "AXValue")),
-                description=_clean(_attr(api, element, "AXDescription")),
-                identifier=_clean(_attr(api, element, "AXIdentifier")),
+                title=_clean(text["AXTitle"]),
+                value=_clean(text["AXValue"]),
+                description=_clean(text["AXDescription"]),
+                identifier=_clean(text["AXIdentifier"]),
                 actions=actions,
                 enabled=_flag(_attr(api, element, "AXEnabled")),
                 frame=convert(api, element, screen_height),
                 element=AXElementRef(element, flip=flip, screen_height=screen_height),
+                ancestors=ancestors,
+                focused=_flag(_attr(api, element, "AXFocused")),
+                pid=pid, window_id=window_id,
+                value_settable=_value_settable(api, element),
             ))
-        if depth < MAX_DEPTH:
-            children = _attr(api, element, "AXChildren")
-            if children is not None:
-                try:
-                    child_list = list(children)[:MAX_CHILDREN]
-                except TypeError:
-                    child_list = []
-                queue.extend((child, depth + 1) for child in child_list)
+        err, children = api["AXUIElementCopyAttributeValue"](element, "AXChildren", None)
+        # Unsupported/no-value means a leaf; other failures hide part of the tree.
+        if err not in (0, -25205, -25212):
+            truncated = True
+        if children is not None:
+            try:
+                child_list = list(islice(iter(children), MAX_CHILDREN + 1))
+            except TypeError:
+                truncated = True
+                continue
+            if len(child_list) > MAX_CHILDREN or (child_list and depth >= MAX_DEPTH):
+                truncated = True
+            if depth < MAX_DEPTH:
+                lineage = (*ancestors, (role, _clean(text["AXTitle"])))
+                queue.extend((child, depth + 1, lineage) for child in child_list[:MAX_CHILDREN])
     return candidates, truncated
 
 
@@ -341,10 +381,12 @@ def ax_refresh_candidate(ref: AXElementRef) -> AXCandidate | None:
         value=_clean(_attr(api, ref.native, "AXValue")),
         description=_clean(_attr(api, ref.native, "AXDescription")),
         identifier=_clean(_attr(api, ref.native, "AXIdentifier")),
-        actions=_strings(_attr(api, ref.native, "AXActions")),
+        actions=_actions(api, ref.native),
         enabled=_flag(_attr(api, ref.native, "AXEnabled")),
         frame=convert(api, ref.native, ref.screen_height),
         element=ref,
+        focused=_flag(_attr(api, ref.native, "AXFocused")),
+        value_settable=_value_settable(api, ref.native),
     )
 
 

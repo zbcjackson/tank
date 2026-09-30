@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -75,6 +75,11 @@ class Element:
     actions: tuple[Operation, ...]
     enabled: bool = True
     kind: Literal["control", "text_region"] = "control"
+    source: Literal["ax", "ocr", "fixture"] = "fixture"
+    value: str = ""
+    focused: bool | None = None
+    ancestors: tuple[tuple[str, str], ...] = ()
+    bounds: tuple[float, float, float, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -118,6 +123,8 @@ class ActionSet:
     binding: Binding
     actions: tuple[Action, ...]
     reason: str
+    total_candidates: int = 0
+    truncated: bool = False
 
 
 @dataclass(frozen=True)
@@ -140,3 +147,8 @@ class AdvisorResult:
     kind: Literal["inputs", "candidate", "need_observation", "needs_user_input", "unable"]
     inputs: tuple[Fact, ...] = ()
     candidate_id: str | None = None
+
+
+def snapshot_text(snapshot: Snapshot) -> str:
+    """Current semantic view only; native handles and image bytes have no fields here."""
+    return json.dumps(asdict(snapshot), ensure_ascii=False, allow_nan=False)

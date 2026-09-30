@@ -119,6 +119,9 @@ def make_api(app: _App, *, windows_error: int = 0) -> dict[str, Any]:
 
     return {"AXUIElementCreateApplication": create_app,
             "AXUIElementCopyAttributeValue": copy_attr,
+            "AXUIElementIsAttributeSettable": lambda element, name, out: (0, False),
+            "AXUIElementCopyActionNames": lambda element, out: (
+                0, element.attrs.get("AXActions", ())),
             "AXUIElementPerformAction": perform}
 
 
@@ -349,7 +352,7 @@ def test_ax_window_candidates_caps_and_truncates(monkeypatch) -> None:
                        [deep])
     monkeypatch.setattr(computer_ax, "_load_ax", lambda: make_api(_App(42, [window2])))
     candidates, truncated = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
-    assert candidates == [] and truncated is False
+    assert candidates == [] and truncated is True
 
 
 # ------------------------------------------------------- session flows
@@ -686,3 +689,67 @@ async def test_ax_screenshot_schema_hides_window_id(desktop, monkeypatch) -> Non
     await call(session, "screenshot")
     assert session.state.observation is not None
     assert session.state.observation.window_id == 7
+
+
+@pytest.mark.parametrize("cap", ["children", "depth", "nodes"])
+def test_ax_hidden_subtrees_are_incomplete(monkeypatch, cap: str) -> None:
+    quartz = MagicMock()
+    quartz.CGWindowListCopyWindowInfo.return_value = [WINDOW]
+    monkeypatch.setattr(macos, "_load_quartz", lambda: quartz)
+    group = _Element({"AXRole": "AXGroup"}, [button("Save", 10, 10)])
+    window = _Element({"AXRole": "AXWindow", "AXPosition": (0, 0), "AXSize": (100, 80)},
+                      [group, button("Save", 30, 10)])
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: make_api(_App(42, [window])))
+    monkeypatch.setattr(computer_ax, {"children": "MAX_CHILDREN", "depth": "MAX_DEPTH",
+                                     "nodes": "MAX_NODES"}[cap], 1, raising=False)
+    _, truncated = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
+    assert truncated, "A hidden duplicate must never appear uniquely actionable"
+
+
+def test_ax_preserves_ancestor_focus_scope_and_native_actions(monkeypatch) -> None:
+    quartz = MagicMock()
+    quartz.CGWindowListCopyWindowInfo.return_value = [WINDOW]
+    monkeypatch.setattr(macos, "_load_quartz", lambda: quartz)
+    target = button("Save", 10, 10)
+    target.attrs["AXFocused"] = True
+    group = _Element({"AXRole": "AXGroup", "AXTitle": "Export"}, [target])
+    window = _Element({"AXRole": "AXWindow", "AXPosition": (0, 0), "AXSize": (100, 80)},
+                      [group])
+    api = make_api(_App(42, [window]))
+    api["AXUIElementCopyActionNames"] = lambda element, out: (0, ["AXPress"])
+    target.attrs["AXActions"] = None  # Action names are a function, not an AX attribute.
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: api)
+    candidates, truncated = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
+    target_candidate = next(item for item in candidates if item.title == "Save")
+    assert not truncated
+    assert target_candidate.actions == ("AXPress",)
+    assert target_candidate.focused is True
+    assert target_candidate.ancestors == (("AXWindow", ""), ("AXGroup", "Export"))
+    assert (target_candidate.pid, target_candidate.window_id) == (42, 7)
+    target.attrs["AXValue"] = "changed"
+    target.attrs["AXFocused"] = False
+    refreshed = computer_ax.ax_refresh_candidate(target_candidate.element)
+    assert refreshed is not None
+    assert refreshed.value == "changed" and refreshed.focused is False
+
+
+def test_ax_rejects_ambiguous_window_binding(monkeypatch) -> None:
+    quartz = MagicMock()
+    quartz.CGWindowListCopyWindowInfo.return_value = [WINDOW]
+    monkeypatch.setattr(macos, "_load_quartz", lambda: quartz)
+    windows = [_Element({"AXRole": "AXWindow", "AXPosition": (0, 0), "AXSize": (100, 80)},
+                        [button(label, 10, 10)]) for label in ("Save", "Delete")]
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: make_api(_App(42, windows)))
+    with pytest.raises(ValueError, match="ambiguous"):
+        computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
+
+
+def test_ax_truncated_text_is_not_complete_evidence(monkeypatch) -> None:
+    quartz = MagicMock()
+    quartz.CGWindowListCopyWindowInfo.return_value = [WINDOW]
+    monkeypatch.setattr(macos, "_load_quartz", lambda: quartz)
+    window = _Element({"AXRole": "AXWindow", "AXPosition": (0, 0), "AXSize": (100, 80)},
+                      [button("A" * 81, 10, 10)])
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: make_api(_App(42, [window])))
+    _, truncated = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
+    assert truncated, "Clipped text cannot establish an exact full-label match"

@@ -47,12 +47,14 @@ class ActionBuilder:
             return ActionSet(binding, (), "ambiguous_target")
         if not selected:
             return ActionSet(binding, (), "no_viable_actions")
-        if len(selected) > 32:
-            return ActionSet(binding, (), "candidate_limit")
+        total = len(selected)
+        selected = sorted(selected, key=lambda element: (element.label, element.ref))[:32]
         return ActionSet(
             binding,
             tuple(
                 Action(uuid4().hex, element.ref, milestone.operation, value) for element in selected
             ),
             "rules_unique" if len(exact) == 1 else "jev_eligible",
+            total_candidates=total,
+            truncated=total > len(selected),
         )

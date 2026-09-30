@@ -525,3 +525,24 @@ async def test_result_binds_receipts_and_verification_to_observations() -> None:
     assert isinstance(evidence, list) and isinstance(evidence[0], dict)
     assert evidence[0]["observation_id"] == "obs-2"
     assert evidence[0]["milestone"] == "name"
+
+
+def test_shortlist_checks_whole_scope_before_limiting() -> None:
+    goal = export_goal()
+    elements = tuple(Element(f"field-{i}", "textbox", f"Name {i:02}", ("fill",))
+                     for i in range(40))
+    snapshot = Snapshot("obs", "document", 1, elements)
+    actions = ActionBuilder().build("goal", 1, goal, goal.milestones[0], snapshot)
+    assert actions.reason == "jev_eligible"
+    assert len(actions.actions) == 32
+    assert actions.total_candidates == 40 and actions.truncated
+    duplicate = replace(elements[-1], ref="duplicate", label=elements[0].label)
+    rejected = ActionBuilder().build("goal", 1, goal, goal.milestones[0],
+                                    replace(snapshot, elements=(*elements, duplicate)))
+    assert rejected.reason == "ambiguous_target" and not rejected.actions
+    exact = replace(elements[-1], label="File name")
+    matched = ActionBuilder().build("goal", 1, goal, goal.milestones[0],
+                                   replace(snapshot, elements=(*elements[:-1], exact)))
+    assert matched.reason == "rules_unique"
+    assert matched.actions[0].target_ref == exact.ref
+    assert not matched.truncated

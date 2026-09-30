@@ -1,0 +1,346 @@
+{
+  "revision": 1,
+  "source": "synthetic; no desktop capture",
+  "font_sha256": "9ff3ce9439fe285cdabb46f9ceb46b1ac58f1ca07e6f4a764e8286db621a0af9",
+  "thresholds": {
+    "ocr_recall": 0.95,
+    "ocr_false_matches": 0,
+    "center_inside": true,
+    "ax_coverage": 1,
+    "wrong_actions": 0
+  },
+  "cases": [
+    {
+      "id": "calibration-chinese",
+      "split": "calibration",
+      "family": "form-menu",
+      "category": "chinese",
+      "image": "calibration-chinese.png",
+      "sha256": "9bf54c141f667a35e68f3f7c7c5496f616f520b317cb696eb94ba6bc745b4717",
+      "texts": [
+        {
+          "text": "保存报告",
+          "bounds": [
+            40,
+            51,
+            144,
+            76
+          ]
+        }
+      ],
+      "target": "保存报告",
+      "ax_labels": [
+        "保存报告"
+      ],
+      "ax_text_child": false
+    },
+    {
+      "id": "calibration-small",
+      "split": "calibration",
+      "family": "form-menu",
+      "category": "small",
+      "image": "calibration-small.png",
+      "sha256": "372fd4f846f94f56c6cbb75aa72449e45513a7f53f6c7d2f4d97d59af00a26a1",
+      "texts": [
+        {
+          "text": "Export PDF",
+          "bounds": [
+            40,
+            49,
+            99,
+            60
+          ]
+        }
+      ],
+      "target": "Export PDF",
+      "ax_labels": [
+        "Export PDF"
+      ],
+      "ax_text_child": false
+    },
+    {
+      "id": "calibration-digit",
+      "split": "calibration",
+      "family": "form-menu",
+      "category": "digit",
+      "image": "calibration-digit.png",
+      "sha256": "b2c37db8fddd134fc1b282864a45e6cd234a67af9c190714deaf5889fa17a468",
+      "texts": [
+        {
+          "text": "7",
+          "bounds": [
+            40,
+            54,
+            54,
+            73
+          ]
+        }
+      ],
+      "target": "7",
+      "ax_labels": [
+        "7"
+      ],
+      "ax_text_child": false
+    },
+    {
+      "id": "calibration-duplicate",
+      "split": "calibration",
+      "family": "form-menu",
+      "category": "duplicate",
+      "image": "calibration-duplicate.png",
+      "sha256": "539f6beebd8831d500eb4e9b36a6963c979cc43ea51f7c23b036145bea69bb50",
+      "texts": [
+        {
+          "text": "保存",
+          "bounds": [
+            40,
+            51,
+            92,
+            76
+          ]
+        },
+        {
+          "text": "保存",
+          "bounds": [
+            40,
+            136,
+            92,
+            161
+          ]
+        }
+      ],
+      "target": "保存",
+      "ax_labels": [
+        "保存",
+        "保存"
+      ],
+      "ax_text_child": false
+    },
+    {
+      "id": "calibration-parent-child",
+      "split": "calibration",
+      "family": "form-menu",
+      "category": "parent-child",
+      "image": "calibration-parent-child.png",
+      "sha256": "12dbf31c8caf537ca4bd51c0924e6cb128f14c16ddb3e388ec8769ff135afc67",
+      "texts": [
+        {
+          "text": "Export",
+          "bounds": [
+            40,
+            54,
+            118,
+            79
+          ]
+        }
+      ],
+      "target": "Export",
+      "ax_labels": [
+        "Export"
+      ],
+      "ax_text_child": true
+    },
+    {
+      "id": "calibration-icon",
+      "split": "calibration",
+      "family": "form-menu",
+      "category": "icon",
+      "image": "calibration-icon.png",
+      "sha256": "445bf2c9c4ee089c64a015a616c1ad279a5f693c799f889cb488e493e6fe85b6",
+      "texts": [],
+      "target": "Search",
+      "ax_labels": [
+        "Search"
+      ],
+      "ax_text_child": false
+    },
+    {
+      "id": "calibration-absent",
+      "split": "calibration",
+      "family": "form-menu",
+      "category": "absent",
+      "image": "calibration-absent.png",
+      "sha256": "a184eb5855a9c8e29b13c8f243487d68a5926ab7b9c78af0fde3e72d7c457e74",
+      "texts": [
+        {
+          "text": "Cancel",
+          "bounds": [
+            40,
+            54,
+            123,
+            74
+          ]
+        }
+      ],
+      "target": "Missing",
+      "ax_labels": [],
+      "ax_text_child": false
+    },
+    {
+      "id": "holdout-chinese",
+      "split": "holdout",
+      "family": "toolbar-panel",
+      "category": "chinese",
+      "image": "holdout-chinese.png",
+      "sha256": "3ee67109a2d62964a4681dc903c74b51216fcf293356234d8650d857fdda8fd9",
+      "texts": [
+        {
+          "text": "保存报告",
+          "bounds": [
+            320,
+            96,
+            424,
+            121
+          ]
+        }
+      ],
+      "target": "保存报告",
+      "ax_labels": [
+        "保存报告"
+      ],
+      "ax_text_child": false
+    },
+    {
+      "id": "holdout-small",
+      "split": "holdout",
+      "family": "toolbar-panel",
+      "category": "small",
+      "image": "holdout-small.png",
+      "sha256": "d1af2c474d2b8561e31b0646f60e54976e9cd59d9beff41052e3ef7ad135d30a",
+      "texts": [
+        {
+          "text": "Export PDF",
+          "bounds": [
+            320,
+            94,
+            379,
+            105
+          ]
+        }
+      ],
+      "target": "Export PDF",
+      "ax_labels": [
+        "Export PDF"
+      ],
+      "ax_text_child": false
+    },
+    {
+      "id": "holdout-digit",
+      "split": "holdout",
+      "family": "toolbar-panel",
+      "category": "digit",
+      "image": "holdout-digit.png",
+      "sha256": "bbd3dd8bd3acfe6b7f98cd95e534058deddf02e8e58b0a9b39c59578e5b27f18",
+      "texts": [
+        {
+          "text": "7",
+          "bounds": [
+            320,
+            99,
+            334,
+            118
+          ]
+        }
+      ],
+      "target": "7",
+      "ax_labels": [
+        "7"
+      ],
+      "ax_text_child": false
+    },
+    {
+      "id": "holdout-duplicate",
+      "split": "holdout",
+      "family": "toolbar-panel",
+      "category": "duplicate",
+      "image": "holdout-duplicate.png",
+      "sha256": "3d01995c79c0514307797b903017b37c0eeced848326839a2be51873ee6b08fb",
+      "texts": [
+        {
+          "text": "保存",
+          "bounds": [
+            320,
+            96,
+            372,
+            121
+          ]
+        },
+        {
+          "text": "保存",
+          "bounds": [
+            490,
+            236,
+            542,
+            261
+          ]
+        }
+      ],
+      "target": "保存",
+      "ax_labels": [
+        "保存",
+        "保存"
+      ],
+      "ax_text_child": false
+    },
+    {
+      "id": "holdout-parent-child",
+      "split": "holdout",
+      "family": "toolbar-panel",
+      "category": "parent-child",
+      "image": "holdout-parent-child.png",
+      "sha256": "24d0896610f4ba18ae26db872b196a81a2e550ebcd13707915020c1597a749ac",
+      "texts": [
+        {
+          "text": "Export",
+          "bounds": [
+            320,
+            99,
+            398,
+            124
+          ]
+        }
+      ],
+      "target": "Export",
+      "ax_labels": [
+        "Export"
+      ],
+      "ax_text_child": true
+    },
+    {
+      "id": "holdout-icon",
+      "split": "holdout",
+      "family": "toolbar-panel",
+      "category": "icon",
+      "image": "holdout-icon.png",
+      "sha256": "100c39fa02742c09c9c4a3f3835f83df86734ef4598cb1804e48a2da3d1732b4",
+      "texts": [],
+      "target": "Search",
+      "ax_labels": [
+        "Search"
+      ],
+      "ax_text_child": false
+    },
+    {
+      "id": "holdout-absent",
+      "split": "holdout",
+      "family": "toolbar-panel",
+      "category": "absent",
+      "image": "holdout-absent.png",
+      "sha256": "e99d72d59adeb132653b02647cdaf5dbd928aca18ff19644f4f7ff9a80749e86",
+      "texts": [
+        {
+          "text": "Cancel",
+          "bounds": [
+            320,
+            99,
+            403,
+            119
+          ]
+        }
+      ],
+      "target": "Missing",
+      "ax_labels": [],
+      "ax_text_child": false
+    }
+  ]
+}
