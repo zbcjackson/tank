@@ -87,6 +87,11 @@ class TaskRuntime:
     def has_unknown_effect(self) -> bool:
         return self._unknown_effect
 
+    def stop(self, reason: str) -> None:
+        """Latch a host failure; cleanup and mandatory terminal auditing remain available."""
+        if self._stop_reason is None:
+            self._stop_reason = reason
+
     def record_output(self, output: AgentOutput) -> None:
         if self._closed:
             raise SubAgentStopped("runtime_closed")

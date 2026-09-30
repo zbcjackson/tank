@@ -147,7 +147,8 @@ class LocateSession:
             response = await self.adapter.request(self.llms[backend], observation, png, target)
         except BaseException:
             self._clear_locations()
-            self.context.budget.record_unknown(call_id)
+            if getattr(self.llms[backend], "manages_task_usage", False) is not True:
+                self.context.budget.record_unknown(call_id)
             raise
         finally:
             grounding_call_id.reset(token)
@@ -155,12 +156,13 @@ class LocateSession:
                         response_model=response.model, response_id=response.id,
                         finish_reason=response.choices[0].finish_reason
                         if len(response.choices) == 1 else None)
-        if response.usage is None:
-            self.context.budget.record_unknown(call_id)
-        else:
-            self.context.budget.record(
-                call_id, response.usage.prompt_tokens, response.usage.completion_tokens
-            )
+        if getattr(self.llms[backend], "manages_task_usage", False) is not True:
+            if response.usage is None:
+                self.context.budget.record_unknown(call_id)
+            else:
+                self.context.budget.record(
+                    call_id, response.usage.prompt_tokens, response.usage.completion_tokens
+                )
         self.context.observe(
             "grounding_usage",
             call_id=call_id,

@@ -14,10 +14,13 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..policy.verdict import AccessLevel, PolicyVerdict
 from ..tools.base import ToolResult
+
+if TYPE_CHECKING:
+    from .subagent import SubAgentContext
 
 logger = logging.getLogger(__name__)
 
@@ -427,7 +430,9 @@ class ApprovalGateExecutor:
         session_id: str,
         bus: Any,
         current_msg_id_fn: Callable[[], str],
+        *, task_context: SubAgentContext | None = None,
     ) -> None:
+        self._task_context = task_context
         self._tool_manager = tool_manager
         self._policy = approval_policy
         self._resolver = resolver
@@ -440,6 +445,8 @@ class ApprovalGateExecutor:
         """Execute tool, block it, or delegate to resolver."""
         import json
 
+        if self._task_context is not None:
+            self._task_context.check()
         tool_name = tool_call.function.name
 
         try:
@@ -448,6 +455,8 @@ class ApprovalGateExecutor:
             tool_args = {}
 
         verdict = await self._policy.evaluate_async(tool_name, tool_args)
+        if self._task_context is not None:
+            self._task_context.check()
 
         # ALLOW → execute immediately
         if verdict.level == AccessLevel.ALLOW:
@@ -463,6 +472,8 @@ class ApprovalGateExecutor:
 
         # REQUIRE_APPROVAL → ask resolver
         resolved = await self._resolver.resolve(verdict, tool_name, tool_args)
+        if self._task_context is not None:
+            self._task_context.check()
 
         if resolved == AccessLevel.ALLOW:
             return await self._tool_manager.execute_openai_tool_call(tool_call)

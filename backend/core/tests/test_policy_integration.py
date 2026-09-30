@@ -38,6 +38,7 @@ from tank_backend.policy.verdict import (
     AlwaysApproveResolver,
     AlwaysDenyResolver,
 )
+from tank_backend.tools.base import ToolResult
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -109,6 +110,7 @@ class TestGateFileToolIntegration:
         })
         result = await gate.execute_openai_tool_call(tc)
 
+        assert isinstance(result, ToolResult)
         assert "APPROVAL REQUIRED" in result.content
         pending = store.get_oldest_pending()
         assert pending is not None
@@ -128,6 +130,7 @@ class TestGateFileToolIntegration:
         })
         result = await gate.execute_openai_tool_call(tc)
 
+        assert isinstance(result, ToolResult)
         assert "BLOCKED" in result.content
         assert store.get_oldest_pending() is None
 
@@ -160,6 +163,7 @@ class TestGateFileToolIntegration:
         tc = _make_tool_call("file_delete", {"path": "/tmp/test.txt"})
         result = await gate.execute_openai_tool_call(tc)
 
+        assert isinstance(result, ToolResult)
         assert "APPROVAL REQUIRED" in result.content
         assert store.get_oldest_pending() is not None
 
@@ -186,6 +190,7 @@ class TestGateNetworkToolIntegration:
         })
         result = await gate.execute_openai_tool_call(tc)
 
+        assert isinstance(result, ToolResult)
         assert "BLOCKED" in result.content
         assert store.get_oldest_pending() is None
 
@@ -205,6 +210,7 @@ class TestGateNetworkToolIntegration:
         })
         result = await gate.execute_openai_tool_call(tc)
 
+        assert isinstance(result, ToolResult)
         assert "APPROVAL REQUIRED" in result.content
         assert store.get_oldest_pending() is not None
 
@@ -256,6 +262,7 @@ class TestResolversWithFileTools:
         })
         result = await gate.execute_openai_tool_call(tc)
 
+        assert isinstance(result, ToolResult)
         assert "DENIED" in result.content
         assert store.get_oldest_pending() is None
 
@@ -268,6 +275,7 @@ class TestResolversWithFileTools:
         })
         result = await gate.execute_openai_tool_call(tc)
 
+        assert isinstance(result, ToolResult)
         assert "APPROVAL REQUIRED" in result.content
         assert store.get_oldest_pending() is not None
 
@@ -295,6 +303,7 @@ class TestResolversWithFileTools:
         })
         result = await gate.execute_openai_tool_call(tc)
 
+        assert isinstance(result, ToolResult)
         assert "BLOCKED" in result.content
 
 
@@ -492,3 +501,44 @@ class TestToolApprovalPolicyRouting:
     def test_web_tool_without_url_allows(self):
         v = self._full_policy().evaluate("web_fetch", {})
         assert v.level == AccessLevel.ALLOW
+
+
+async def test_task_authority_is_rechecked_after_an_async_tool_approval():
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from tank_backend.agents.approval import (
+        ApprovalGateExecutor,
+        PendingToolCallStore,
+        ToolApprovalPolicy,
+    )
+    from tank_backend.agents.subagent import (
+        SubAgentAuthorization,
+        SubAgentBudget,
+        SubAgentContext,
+        SubAgentStopped,
+    )
+    from tank_backend.pipeline.bus import Bus
+    from tank_backend.policy.verdict import AccessLevel
+
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"shell"})), SubAgentBudget(), asyncio.Event(),
+    )
+    manager = SimpleNamespace(execute_openai_tool_call=AsyncMock())
+
+    class Resolver:
+        async def resolve(self, *args):
+            ctx.authorization.revoke()
+            return AccessLevel.ALLOW
+
+    gate = ApprovalGateExecutor(
+        manager, ToolApprovalPolicy(), Resolver(), PendingToolCallStore(), "task", Bus(),
+        lambda: "", task_context=ctx,
+    )
+    call = SimpleNamespace(id="call", function=SimpleNamespace(
+        name="run_command", arguments='{"command":"echo hello"}',
+    ))
+    with pytest.raises(SubAgentStopped, match="authorization"):
+        await gate.execute_openai_tool_call(call)
+    manager.execute_openai_tool_call.assert_not_awaited()

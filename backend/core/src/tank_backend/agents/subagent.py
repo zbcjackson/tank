@@ -18,7 +18,7 @@ from ..core.token_usage import TokenUsageLedger
 from .base import AgentOutput
 
 if TYPE_CHECKING:
-    from ..llm.model_transport import ModelCallPolicy
+    from ..llm.model_transport import ModelCallPolicy, ModelCapture
     from ..policy.verdict import ApprovalResolver
     from .approval import ToolApprovalPolicy
     from .task_result import TaskResult
@@ -150,6 +150,7 @@ class SubAgentContext:
     max_steps: int | None = None
     audit: Callable[[ExecutionRecord], Awaitable[None]] | None = None
     model_policy: ModelCallPolicy | None = None
+    model_capture: ModelCapture | None = None
     execution_policy: ToolApprovalPolicy | None = None
     approval_resolver: ApprovalResolver | None = None
     max_actions: int | None = None

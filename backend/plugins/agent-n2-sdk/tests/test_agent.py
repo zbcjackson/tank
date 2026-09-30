@@ -561,14 +561,16 @@ async def test_cancel_during_environment_action_drains_producer(action):
     computer.aclose.assert_awaited_once()
 
 
+@pytest.mark.parametrize("request_allowance", [None, 0, 2])
 async def test_benchmark_create_and_observer_use_sdk_without_executor(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, request_allowance,
 ):
     from pathlib import Path
     import yaml
     import agent_n2_sdk
     from tank_backend.benchmarks.driver import SubAgentDriver
     from tank_backend.benchmarks.trace import TraceSink
+    from tank_backend.benchmarks.request_budget import RequestLimits
 
     computer = Computer()
     actions = [{"name": "left_click", "arguments": {"coordinates": [500, 500]}}]
@@ -597,10 +599,22 @@ async def test_benchmark_create_and_observer_use_sdk_without_executor(
             }
         )
     )
-    driver = SubAgentDriver.create("n2_sdk", config)
+    driver = SubAgentDriver.create(
+        "n2_sdk", config, request_limits=(
+            RequestLimits(request_allowance, 0, request_allowance)
+            if request_allowance is not None else None
+        ),
+    )
     trace = TraceSink(tmp_path / "trial")
     result = await driver.run("task", trace, timeout_s=10, max_steps=10)
     trace.close()
+    events = [json.loads(line) for line in (tmp_path / "trial/trace.jsonl").read_text().splitlines()]
+    captured = [event for event in events if event["kind"] == "http_request"]
+    if request_allowance == 0:
+        assert result.stop_reason == "request_limit"
+        assert client.calls == [] and result.tokens == 0 and captured == []
+        return
+    assert len(captured) == 2
     assert result.stop_reason == "final_answer" and result.cleanup == "confirmed"
     assert result.tokens == 14 and result.llm_calls == 2 and result.screenshots == 1
     assert result.llm_ttft_s is None and result.llm_rtt_s > 0

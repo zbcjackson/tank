@@ -170,7 +170,10 @@ async def test_generated_config_reaches_real_driver_and_sdk(
                  "delta": {"content": "done"}, "finish_reason": "stop"}],
                  "usage": {"prompt_tokens": 400000 if record_only else 2, "completion_tokens": 3,
                            "total_tokens": 400003 if record_only else 5}}
-        return httpx.Response(200, content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n")
+        return httpx.Response(
+            200, headers={"content-type": "text/event-stream"},
+            content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n",
+        )
 
     def client_factory(**kwargs):
         client = AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(
@@ -604,7 +607,7 @@ async def test_record_only_enforced_agent_budget_stops_planner_loop(
                   "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
                   "usage": {"prompt_tokens": 190000, "completion_tokens": 10000,
                             "total_tokens": 200000}}
-        return httpx.Response(200, content="".join(
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content="".join(
             f"data: {json.dumps(chunk)}\n\n" for chunk in (call, finish)) + "data: [DONE]\n\n")
 
     def client_factory(**kwargs):
@@ -687,7 +690,7 @@ async def test_record_only_enforced_agent_budget_stops_grounded_context(
                   "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
                   "usage": {"prompt_tokens": 190000, "completion_tokens": 10000,
                             "total_tokens": 200000}}
-        return httpx.Response(200, content="".join(
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content="".join(
             f"data: {json.dumps(chunk)}\n\n" for chunk in (call, finish)) + "data: [DONE]\n\n")
 
     def client_factory(**kwargs):

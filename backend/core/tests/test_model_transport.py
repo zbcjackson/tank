@@ -893,3 +893,254 @@ async def test_image_route_rejects_foreign_urls_and_other_data_categories(image)
                 ]}],
             )
     assert sent == []
+
+
+async def test_required_capture_sees_the_admitted_request_and_raw_response():
+    events = []
+
+    class Capture:
+        async def request(self, call_id, request):
+            events.append(("request", call_id))
+
+        async def response(self, call_id, response):
+            assert response.request.url.host == "model.test"
+            events.append(("response", call_id))
+
+    async def provider(request):
+        assert events[0][0] == "request"
+        return httpx.Response(200, json=completion())
+
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        model_capture=Capture(),
+    )
+    _, transport, client, _ = governed(provider, context=ctx)
+    async with client:
+        await ask(client)
+    record = transport.records[0]
+    assert events == [("request", record.call_id), ("response", record.call_id)]
+
+
+@pytest.mark.parametrize("phase", ["request", "response"])
+async def test_capture_failure_stops_later_calls_without_losing_known_usage(phase):
+    sent = []
+
+    class Capture:
+        async def request(self, call_id, request):
+            if phase == "request":
+                raise OSError("capture unavailable")
+
+        async def response(self, call_id, response):
+            if phase == "response":
+                raise OSError("capture unavailable")
+
+    async def provider(request):
+        sent.append(request)
+        return httpx.Response(200, json=completion())
+
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        model_capture=Capture(),
+    )
+    _, transport, client, ledger = governed(provider, context=ctx)
+    async with client:
+        for _ in range(2):
+            with pytest.raises(APIConnectionError):
+                await ask(client)
+    assert len(sent) == (1 if phase == "response" else 0)
+    assert ctx.budget.total_tokens == (15 if phase == "response" else 0)
+    assert ledger.snapshot()["batch"]["reserved_tokens"] == 0
+    assert transport.records[0].status == ("returned" if phase == "response" else "not_sent")
+
+
+async def test_governed_stream_keeps_first_token_latency_and_settles_before_done():
+    import json
+
+    from tank_backend.llm.model_transport import ChatCompletionsRoute
+
+    release = asyncio.Event()
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield (
+                b'data: {"id":"s","object":"chat.completion.chunk","created":1,'
+                b'"model":"test-model","choices":[{"index":0,'
+                b'"delta":{"content":"first"},"finish_reason":null}]}\n\n'
+            )
+            await release.wait()
+            yield ("data: " + json.dumps({
+                "id": "s", "object": "chat.completion.chunk", "created": 1, "model": "test-model",
+                "choices": [],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            }) + "\n\ndata: [DONE]\n\n").encode()
+
+    async def provider(request):
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=Stream())
+
+    route = ChatCompletionsRoute(
+        "https://model.test/v1/chat/completions", "test-model", "test-key", allow_stream=True,
+    )
+    context, transport, client, _ = governed(provider, routes=(route,), policy=None)
+    async with client:
+        stream = await client.chat.completions.create(
+            model="test-model", messages=[{"role": "user", "content": "hello"}],
+            max_tokens=20, stream=True,
+        )
+        first = await anext(stream)
+        assert first.choices[0].delta.content == "first" and context.budget.total_tokens == 0
+        release.set()
+        _ = [chunk async for chunk in stream]
+        assert context.budget.total_tokens == 15
+        assert transport.records[-1].status == "returned"
+
+
+@pytest.mark.parametrize("stop", ["cancel", "close", "deadline"])
+async def test_governed_stream_stop_records_unknown_and_blocks_late_chunks(stop):
+    from tank_backend.llm.model_transport import ChatCompletionsRoute
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield (
+                b'data: {"id":"s","object":"chat.completion.chunk","created":1,'
+                b'"model":"test-model","choices":[{"index":0,'
+                b'"delta":{"content":"first"},"finish_reason":null}]}\n\n'
+            )
+            await asyncio.Event().wait()
+
+    async def provider(request):
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=Stream())
+
+    route = ChatCompletionsRoute(
+        "https://model.test/v1/chat/completions", "test-model", "test-key", allow_stream=True,
+    )
+    context, transport, client, _ = governed(provider, routes=(route,), policy=None)
+    stream = await client.chat.completions.create(
+        model="test-model", messages=[{"role": "user", "content": "hello"}],
+        max_tokens=20, stream=True,
+    )
+    await anext(stream)
+    if stop == "cancel":
+        context.cancel.set()
+    elif stop == "close":
+        await transport.aclose()
+    else:
+        context.runtime.restrict_deadline(asyncio.get_running_loop().time() - 1)
+    try:
+        with pytest.raises((asyncio.CancelledError, SubAgentStopped, TimeoutError)):
+            await anext(stream)
+    finally:
+        await stream.close()
+        await client.close()
+    assert len(context.budget.unknown_calls) == 1
+    assert transport.records[-1].status == "unknown"
+
+
+async def test_governed_stream_cancellation_wins_over_ready_chunk():
+    from tank_backend.llm.model_transport import ChatCompletionsRoute
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            context.cancel.set()
+            yield (
+                b'data: {"id":"s","object":"chat.completion.chunk","created":1,'
+                b'"model":"test-model","choices":[{"index":0,'
+                b'"delta":{"content":"late"},"finish_reason":null}]}\n\n'
+            )
+
+    async def provider(request):
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=Stream())
+
+    route = ChatCompletionsRoute(
+        "https://model.test/v1/chat/completions", "test-model", "test-key", allow_stream=True,
+    )
+    context, transport, client, _ = governed(provider, routes=(route,), policy=None)
+    async with client:
+        stream = await client.chat.completions.create(
+            model="test-model", messages=[{"role": "user", "content": "hello"}],
+            max_tokens=20, stream=True,
+        )
+        with pytest.raises(asyncio.CancelledError):
+            await anext(stream)
+        await stream.close()
+        await stream.close()
+    assert len(context.budget.unknown_calls) == 1
+    assert len(transport.records) == 1
+    assert transport.records[0].status == "unknown"
+
+
+@pytest.mark.parametrize("stop", [None, "cancel", "close"])
+async def test_governed_stream_checks_between_sdk_buffered_chunks(stop):
+    from tank_backend.llm.model_transport import ChatCompletionsRoute
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            frame = (
+                b'data: {"id":"s","object":"chat.completion.chunk","created":1,'
+                b'"model":"test-model","choices":[{"index":0,'
+                b'"delta":{"content":"text"},"finish_reason":null}]}\n\n'
+            )
+            yield frame + frame
+            await asyncio.Event().wait()
+
+    async def provider(request):
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=Stream())
+
+    route = ChatCompletionsRoute(
+        "https://model.test/v1/chat/completions", "test-model", "test-key", allow_stream=True,
+    )
+    context, transport, client, _ = governed(provider, routes=(route,), policy=None)
+    async with client:
+        stream = await client.chat.completions.create(
+            model="test-model", messages=[{"role": "user", "content": "hello"}],
+            max_tokens=20, stream=True,
+        )
+        first = await anext(stream)
+        assert first.choices[0].delta.content == "text"
+        if stop == "cancel":
+            context.cancel.set()
+        elif stop == "close":
+            await transport.aclose()
+        try:
+            if stop is None:
+                second = await anext(stream)
+                assert second.choices[0].delta.content == "text"
+            else:
+                with pytest.raises((asyncio.CancelledError, SubAgentStopped)):
+                    await anext(stream)
+        finally:
+            await stream.close()
+    assert len(transport.records) == 1
+
+
+async def test_governed_stream_close_during_header_handoff_releases_response():
+    from tank_backend.llm.model_transport import ChatCompletionsRoute
+
+    released = []
+    closing = []
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b"data: [DONE]\n\n"
+
+        async def aclose(self):
+            released.append(True)
+
+    async def provider(request):
+        closing.append(asyncio.create_task(transport.aclose()))
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=Stream())
+
+    route = ChatCompletionsRoute(
+        "https://model.test/v1/chat/completions", "test-model", "test-key", allow_stream=True,
+    )
+    _, transport, client, _ = governed(provider, routes=(route,), policy=None)
+    try:
+        with pytest.raises(APIConnectionError):
+            await client.chat.completions.create(
+                model="test-model", messages=[{"role": "user", "content": "hello"}],
+                max_tokens=20, stream=True,
+            )
+    finally:
+        await asyncio.wait_for(asyncio.gather(*closing), timeout=0.2)
+        await client.close()
+    assert released == [True]
+    assert len(transport.records) == 1

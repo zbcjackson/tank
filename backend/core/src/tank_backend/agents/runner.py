@@ -37,7 +37,7 @@ from .task_observer import TaskObserver
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
-    from ..llm.model_transport import ModelCallPolicy
+    from ..llm.model_transport import ModelCallPolicy, ModelCapture
     from ..llm.profile import LLMProfile
     from ..pipeline.bus import Bus
     from ..tools.manager import ToolManager
@@ -163,6 +163,7 @@ class AgentRunner:
         max_actions: int | None = None, max_observations: int | None = None,
         audit: Callable[[ExecutionRecord], Awaitable[None]] | None = None,
         model_policy: ModelCallPolicy | None = None,
+        model_capture: ModelCapture | None = None,
         desktop_cleanup: DesktopCleanup | None = None,
         task_input: dict[str, JsonValue] | None = None,
     ) -> AsyncIterator[AgentOutput]:
@@ -173,11 +174,12 @@ class AgentRunner:
         if agent_def.grounding is not None:
             deadline = deadline if deadline is not None else time.monotonic() + 600
             context = SubAgentContext(
-                authorization or SubAgentAuthorization(frozenset({"desktop"})),
+                authorization or SubAgentAuthorization(frozenset({"desktop", "network"})),
                 SubAgentBudget(limit=(
                     agent_def.token_budget if token_budget is None else token_budget
                 )),
                 asyncio.Event(), deadline, observer, max_steps,
+                audit=audit, model_policy=model_policy, model_capture=model_capture,
             )
             context.check("desktop")
         if self.uses_task_runtime(agent_def):
@@ -190,16 +192,32 @@ class AgentRunner:
                 authorization, SubAgentBudget(limit=(
                     agent_def.token_budget if token_budget is None else token_budget
                 )), asyncio.Event(), deadline, TaskObserver(self._bus, observer), max_steps,
-                audit=audit, model_policy=model_policy,
+                audit=audit, model_policy=model_policy, model_capture=model_capture,
                 execution_policy=self._approval_policy, approval_resolver=self._resolver,
                 max_actions=max_actions, max_observations=max_observations,
             )
             context.check()
+        if context is None and not agent_def.engine:
+            context = SubAgentContext(
+                authorization or SubAgentAuthorization(frozenset({"network"})),
+                SubAgentBudget(
+                    limit=agent_def.token_budget if token_budget is None else token_budget,
+                ),
+                asyncio.Event(), deadline, observer, max_steps,
+                audit=audit, model_policy=model_policy, model_capture=model_capture,
+            )
         outputs = self._run_agent(
             agent_def, messages, parent_agent_id, background, token_budget,
             allowed_categories, context=context, task_id=task_id, task_input=task_input,
         )
         uses_desktop = self._uses_desktop(agent_def) or desktop_cleanup is not None
+
+        async def close_outputs() -> None:
+            try:
+                await join_on_cancel(outputs.aclose())
+            finally:
+                if context is not None and not self.uses_task_runtime(agent_def):
+                    await join_on_cancel(context.runtime.aclose())
 
         async def clean_inputs() -> None:
             assert desktop_cleanup is not None
@@ -228,7 +246,7 @@ class AgentRunner:
                                 yield output
                     finally:
                         try:
-                            await join_on_cancel(outputs.aclose())
+                            await close_outputs()
                         finally:
                             if started:
                                 await join_on_cancel(clean_inputs())
@@ -237,7 +255,7 @@ class AgentRunner:
                     async for output in outputs:
                         yield output
                 finally:
-                    await outputs.aclose()
+                    await close_outputs()
         except SubAgentCleanupError as exc:
             if uses_desktop:
                 self._desktop_resource.quarantine(str(exc))
@@ -343,6 +361,11 @@ class AgentRunner:
         system_prompt = self._build_sub_agent_prompt(agent_def, context_messages, available_tools)
         owned_grounders: list[LLM] = []
 
+        def task_llm(value: LLM) -> LLM:
+            if context is not None and callable(getattr(type(value), "bind_task", None)):
+                return value.bind_task(context, task_id or agent_id)
+            return value
+
         if agent_def.extension:
             if context is None:
                 raise RuntimeError("Subagent runtime context missing")
@@ -418,11 +441,11 @@ class AgentRunner:
                 agent_llm = self._llm_factory(
                     self._app_config.get_llm_profile(agent_def.model)
                 )
-                if agent_def.grounding is not None:
-                    owned_grounders.append(agent_llm)
+                owned_grounders.append(agent_llm)
             else:
                 agent_llm = self._llm
 
+            agent_llm = task_llm(agent_llm)
             tool_manager = self._tool_manager
             if agent_def.grounding is not None:
                 from dataclasses import replace
@@ -450,6 +473,7 @@ class AgentRunner:
                         assert self._app_config is not None
                         llms[key] = self._llm_factory(self._app_config.llm_profiles[profile])
                         owned_grounders.append(llms[key])
+                        llms[key] = task_llm(llms[key])
                 from ..tools.computer_ax import AX_PROMPT, AXSession
                 from ..tools.computer_integrated import (
                     IntegratedSession,
@@ -512,8 +536,13 @@ class AgentRunner:
                 )
 
             approval_policy: Any = self._approval_policy
+            classifier = getattr(approval_policy, "_llm", None)
+            if (context is not None and classifier is not None
+                    and callable(getattr(type(classifier), "bind_task", None))):
+                approval_policy = copy.copy(approval_policy)
+                approval_policy._llm = task_llm(classifier)
             if agent_def.grounding is not None:
-                approval_policy = copy.copy(self._approval_policy)
+                approval_policy = copy.copy(approval_policy)
                 approval_policy._tool_metadata = tool_manager.tool_metadata
             if allowed_categories and approval_policy is not None:
                 from .approval import ScopedPolicy
@@ -606,6 +635,8 @@ class AgentRunner:
             close = getattr(outputs, "aclose", None)
             if close is not None:
                 await close()
+            if context is not None and not self.uses_task_runtime(agent_def):
+                await join_on_cancel(context.runtime.aclose())
             for grounder in owned_grounders:
                 await grounder.client.close()
             elapsed = time.monotonic() - start

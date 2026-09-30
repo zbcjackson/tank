@@ -148,6 +148,7 @@ class LLMAgent(Agent):
                 session_id=self._session_id,
                 bus=self._bus,
                 current_msg_id_fn=self._current_msg_id_fn,
+                task_context=self._task_context,
             )
 
         # Execute only what was advertised (see AllowlistExecutor).

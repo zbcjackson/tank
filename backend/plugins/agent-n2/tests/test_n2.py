@@ -345,3 +345,42 @@ async def test_missing_n2_profile_fails_without_using_default(executor, monkeypa
     client_factory.assert_not_called()
     executor.screenshot.assert_not_awaited()
     assert not any(t.active for t in runner._active_agents.values())
+
+
+@pytest.mark.parametrize("allowance", [0, 1])
+async def test_legacy_engine_benchmark_uses_governed_admission_and_capture(
+    executor, profile, tmp_path, monkeypatch, allowance,
+):
+    import json
+    from pathlib import Path
+
+    import yaml
+
+    from tank_backend.benchmarks.driver import SubAgentDriver
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.trace import TraceSink
+
+    requests, closed = model_http(monkeypatch, completion(content="Done"))
+    monkeypatch.setattr(
+        "tank_backend.computer.executor.create_desktop_executor", lambda **kwargs: executor,
+    )
+    config = tmp_path / "config.yaml"
+    config.write_text(yaml.safe_dump({
+        "llm": {
+            "default": {"api_key": "fixture-main-key", "model": "fixture", "base_url": "https://fixture.invalid/v1"},
+            "n2": {"api_key": profile.api_key, "model": profile.model, "base_url": profile.base_url},
+        },
+        "agents": {"dirs": [str(Path(__file__).resolve().parents[3] / "agents")]},
+        "skills": {"enabled": False, "dirs": []},
+        "agent_engines": {"agent-n2:agent": {"llm_profile": "n2", "max_steps": 2}},
+    }))
+    driver = SubAgentDriver.create("n2", config, request_limits=RequestLimits(allowance, 0, allowance))
+    trace = TraceSink(tmp_path / "trace")
+    result = await driver.run("task", trace, timeout_s=10, max_steps=10)
+    trace.close()
+    events = [json.loads(line) for line in (tmp_path / "trace/trace.jsonl").read_text().splitlines()]
+    captured = [event for event in events if event["kind"] == "http_request"]
+    assert len(requests) == len(captured) == allowance
+    assert result.tokens == 20 * allowance
+    assert result.stop_reason == ("final_answer" if allowance else "request_limit")
+    assert result.cleanup == "confirmed" and closed == [True]

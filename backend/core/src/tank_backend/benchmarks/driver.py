@@ -34,6 +34,7 @@ from ..agents.subagent import (
     SubAgentAuthorization,
     SubAgentCleanupError,
     SubAgentStopped,
+    validate_task_input,
 )
 from ..config.app_config import AppConfig, find_config_yaml
 from ..core.content import ImageBlock
@@ -128,6 +129,9 @@ class CountingLLM:
         # Optional per-call hook (index, ttft_s, total_s) — the driver
         # wires this to TraceSink so latency lands in trace.jsonl.
         self.on_call: Callable[[int, float | None, float], None] | None = None
+
+    def bind_task(self, context: Any, task_id: str) -> CountingLLM:
+        return CountingLLM(self._inner.bind_task(context, task_id), counter=self._counter)
 
     def reset(self) -> None:
         self.prompt_tokens = 0
@@ -366,10 +370,11 @@ class SubAgentDriver:
         agent_def: AgentDefinition,
         llm: CountingLLM,
         tool_manager: ToolManager,
-        *, input_cleanup: bool = False,
+        *, input_cleanup: bool = False, task_input: dict[str, Any] | None = None,
     ) -> None:
         if input_cleanup and (agent_def.engine or agent_def.extension):
             raise ValueError("Input cleanup requires a built-in benchmark agent")
+        self._task_input = validate_task_input(task_input)
         self._input_cleanup = MacOSInputCleanup() if input_cleanup else None
         self._runner = runner
         self._agent_def = agent_def
@@ -389,6 +394,7 @@ class SubAgentDriver:
         comparison: ComparisonContract | None = None,
         input_cleanup: bool = False,
         enforce_agent_budget: bool = False,
+        task_input: dict[str, Any] | None = None,
     ) -> SubAgentDriver:
         """Assemble the stack from repo config (config.yaml + agents/*.md)."""
         from dotenv import load_dotenv
@@ -414,8 +420,27 @@ class SubAgentDriver:
             raise ValueError(
                 f"agent definition '{agent_name}' not found in {agent_dirs}"
             )
-        if request_limits is not None and (agent_def.engine or agent_def.extension):
-            raise ValueError("Request limits require the built-in benchmark transport")
+        plugin_manifest = None
+        if agent_def.engine or agent_def.extension:
+            from ..plugin.manager import PluginManager
+
+            reference = agent_def.engine or agent_def.extension
+            assert reference is not None
+            plugin_manifest = PluginManager().discover_plugins().get(reference.split(":", 1)[0])
+            extension = next((
+                item for item in plugin_manifest.extensions
+                if item.name == reference.split(":", 1)[1]
+            ), None) if plugin_manifest else None
+            governed = (
+                extension is not None and extension.runtime_api == 1
+                and ("task_model" in extension.needs or bool(agent_def.model))
+                and (bool(agent_def.extension) or "task_runtime" in extension.needs)
+            )
+            if request_limits is not None and not governed:
+                raise ValueError(
+                    "Request limits require the built-in benchmark transport "
+                    "or a governed task model"
+                )
         if input_cleanup and (sys.platform != "darwin" or agent_def.engine or agent_def.extension):
             raise ValueError("Input cleanup requires the built-in macOS benchmark driver")
         if comparison is not None:
@@ -436,6 +461,7 @@ class SubAgentDriver:
         tool_manager = ToolManager(app_config, bus=bus)
 
         driver = cls.__new__(cls)
+        driver._task_input = validate_task_input(task_input)
         driver._input_cleanup = MacOSInputCleanup() if input_cleanup else None
         driver._trace = None
         driver._request_limits = request_limits
@@ -500,13 +526,11 @@ class SubAgentDriver:
 
         registry = None
         if agent_def.engine or agent_def.extension:
-            from ..plugin.manager import PluginManager
-
             registry = _MeasuredRegistry(llm, lambda: driver._trace)
             ref = agent_def.engine or agent_def.extension
             assert ref is not None
             plugin_name = ref.split(":", 1)[0]
-            manifest = PluginManager().discover_plugins().get(plugin_name)
+            manifest = plugin_manifest
             if manifest is None:
                 raise ValueError(f"benchmark engine plugin '{plugin_name}' not found")
             for extension in manifest.extensions:
@@ -686,8 +710,11 @@ class SubAgentDriver:
                     trace.event(kind, **metadata)
 
         async def consume() -> None:
+            from .task_model_policy import BenchmarkTaskPolicy
+
             nonlocal steps, stopped_reason, primitives
             run_kwargs: dict[str, Any] = {}
+            task_policy = None
             if self._input_cleanup is not None:
                 run_kwargs.update(desktop_cleanup=self._input_cleanup, observer=Observer())
             if (self._agent_def.extension or (self._agent_def.engine
@@ -696,9 +723,15 @@ class SubAgentDriver:
                 run_kwargs.update(authorization=SubAgentAuthorization(permissions),
                                   deadline=time.monotonic() + timeout_s, observer=Observer(),
                                   max_steps=max_steps)
-            elif self._agent_def.grounding is not None:
+                task_policy = BenchmarkTaskPolicy(trace, self._request_budget, self._spend)
+                run_kwargs.update(model_policy=task_policy, model_capture=task_policy)
+                if self._agent_def.extension:
+                    run_kwargs["task_input"] = getattr(self, "_task_input", None)
+            elif not self._agent_def.engine:
                 run_kwargs.update(deadline=time.monotonic() + timeout_s, observer=Observer(),
                                   max_steps=max_steps)
+                task_policy = BenchmarkTaskPolicy(trace, self._request_budget, self._spend)
+                run_kwargs.update(model_policy=task_policy, model_capture=task_policy)
             outputs = self._runner.run_agent(self._agent_def, messages, **run_kwargs)
             try:
                 async for output in outputs:
@@ -741,9 +774,13 @@ class SubAgentDriver:
                     if output.type != AgentOutputType.USAGE:
                         trace.output(output)
             finally:
-                close = getattr(outputs, "aclose", None)
-                if close is not None:
-                    await close()
+                try:
+                    close = getattr(outputs, "aclose", None)
+                    if close is not None:
+                        await close()
+                finally:
+                    if task_policy is not None:
+                        task_policy.active = False
 
         timed_out = False
         start = time.monotonic()

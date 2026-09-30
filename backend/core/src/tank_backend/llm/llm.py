@@ -12,7 +12,7 @@ import asyncio
 import json as _json
 import logging
 from collections.abc import AsyncGenerator, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from openai import (
     APIConnectionError,
@@ -33,6 +33,9 @@ from ..core.content import (
 from ..core.events import UpdateType
 from ..observability.langfuse_client import initialize_langfuse, is_tracing_registered
 from ..tools.base import ToolResult
+
+if TYPE_CHECKING:
+    from ..agents.subagent import SubAgentContext
 
 logger = logging.getLogger("LLM")
 
@@ -368,6 +371,8 @@ class LLM:
         self.max_tokens = max_tokens
         self.stream_options = stream_options
         self.extra_body = extra_body or {}
+        self.extra_headers = extra_headers or {}
+        self._task_context: SubAgentContext | None = None
         self._retries_enabled = True
         self.on_response_usage: Callable[[CompletionUsage | None], None] | None = None
 
@@ -382,6 +387,15 @@ class LLM:
             )
         self.client = client
 
+    @property
+    def manages_task_usage(self) -> bool:
+        return self._task_context is not None
+
+    def bind_task(self, context: SubAgentContext, task_id: str) -> LLM:
+        from .task_binding import bind_llm
+
+        return bind_llm(self, context, task_id)
+
     async def aclose(self) -> None:
         """Close only a client created by this LLM; borrowed clients remain host-owned."""
         if self._owns_client:
@@ -395,6 +409,8 @@ class LLM:
 
     async def _create_with_retry(self, **api_kwargs: Any) -> Any:
         """Call chat.completions.create with exponential backoff on transient errors."""
+        if self._task_context is not None:
+            self._task_context.check("network")
         if not self._retries_enabled:
             client = self.client.with_options(max_retries=0)
             return await client.chat.completions.create(**api_kwargs)
@@ -403,6 +419,12 @@ class LLM:
             try:
                 return await self.client.chat.completions.create(**api_kwargs)
             except self._RETRYABLE_ERRORS as exc:
+                if self._task_context is not None:
+                    from ..agents.subagent import SubAgentStopped
+
+                    self._task_context.check("network")
+                    if isinstance(exc.__cause__, (SubAgentStopped, ValueError)):
+                        raise exc.__cause__ from None
                 last_exc = exc
                 if attempt == MAX_RETRY_ATTEMPTS:
                     break
@@ -745,7 +767,15 @@ class LLM:
             iter_tokens = self._get_iteration_tokens(
                 iteration_usage, working_messages, full_content, full_reasoning, tool_calls_data,
             )
+            call_metadata = {}
+            if self._task_context is not None:
+                from .model_transport import get_model_call
+
+                call = get_model_call(self._task_context.runtime.task_id)
+                if call is not None:
+                    call_metadata["call_id"] = call.call_id
             yield (UpdateType.USAGE, "", {
+                **call_metadata,
                 "prompt_tokens": iteration_usage.prompt_tokens if iteration_usage else 0,
                 "completion_tokens": iteration_usage.completion_tokens if iteration_usage else 0,
                 "total_tokens": iter_tokens,

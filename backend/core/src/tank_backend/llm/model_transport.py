@@ -12,13 +12,16 @@ from collections import deque
 from contextlib import suppress
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
-from typing import Literal, Protocol, TypedDict
+from typing import TYPE_CHECKING, Literal, Protocol, TypedDict
 from uuid import uuid4
 
 import httpx
 
 from ..agents.subagent import SubAgentContext, SubAgentStopped
 from ..agents.task_runtime import ExecutionRecord
+
+if TYPE_CHECKING:
+    from .task_stream import TaskStream
 
 
 class ModelCallPolicy(Protocol):
@@ -28,6 +31,15 @@ class ModelCallPolicy(Protocol):
     def settle(self, call_id: str, inputs: int | None, outputs: int | None) -> None: ...
     def release_unsent(self, call_id: str) -> None: ...
     def check(self) -> None: ...
+
+
+class ModelCaptureError(RuntimeError):
+    """Required wire capture failed; no later business request may proceed."""
+
+
+class ModelCapture(Protocol):
+    async def request(self, call_id: str, request: httpx.Request) -> None: ...
+    async def response(self, call_id: str, response: httpx.Response) -> None: ...
 
 
 class ModelSnapshot(TypedDict):
@@ -64,6 +76,8 @@ class _CallState:
     sent: bool = False
     inputs: int | None = None
     outputs: int | None = None
+    response: httpx.Response | None = None
+    streaming: bool = False
 
 
 @dataclass(frozen=True)
@@ -75,6 +89,8 @@ class ChatCompletionsRoute:
     max_upload_bytes: int = 65536
     allow_images: bool = False
     allow_tools: bool = False
+    allow_stream: bool = False
+    allow_http: bool = False
     require_max_tokens: bool = True
     extra_parameters: dict[str, object] = field(default_factory=dict)
     extra_types: dict[str, type] = field(default_factory=dict)
@@ -82,7 +98,8 @@ class ChatCompletionsRoute:
     def __post_init__(self) -> None:
         url = httpx.URL(self.url)
         if (
-            url.scheme != "https" or not url.host or url.userinfo or url.query or url.fragment
+            (url.scheme != "https" and not (self.allow_http and url.scheme == "http"))
+            or not url.host or url.userinfo or url.query or url.fragment
             or not self.model or not self.credential_ref
             or (self.max_output_tokens is not None and (
                 type(self.max_output_tokens) is not int or self.max_output_tokens <= 0
@@ -103,7 +120,9 @@ class ChatCompletionsRoute:
         data = json_object(request.content)
         maximum = data.get("max_tokens", data.get("max_completion_tokens"))
         if (
-            data.get("model") != self.model or data.get("stream", False) is not False
+            data.get("model") != self.model
+            or type(data.get("stream", False)) is not bool
+            or (data.get("stream", False) and not self.allow_stream)
             or ("max_tokens" in data and "max_completion_tokens" in data)
             or (maximum is None and self.require_max_tokens)
             or (maximum is not None and (type(maximum) is not int or maximum <= 0))
@@ -114,6 +133,7 @@ class ChatCompletionsRoute:
                  "stream", "temperature"}
                 | set(self.extra_parameters) | set(self.extra_types)
                 | ({"tools", "tool_choice", "parallel_tool_calls"} if self.allow_tools else set())
+                | ({"stream_options"} if self.allow_stream else set())
             )
             or any(key in data and data[key] != value
                    for key, value in self.extra_parameters.items())
@@ -134,7 +154,10 @@ class ChatCompletionsRoute:
             fields = {"role", "content"}
             roles = {"system", "user", "assistant", "developer"}
             if self.allow_tools:
-                fields |= {"tool_calls", "tool_call_id", "name", "reasoning", "reasoning_content"}
+                fields |= {
+                    "tool_calls", "tool_call_id", "name", "reasoning",
+                    "reasoning_content", "metadata",
+                }
                 roles.add("tool")
             if (
                 not isinstance(message, dict) or set(message) - fields
@@ -204,6 +227,7 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         self._closing: asyncio.Task[None] | None = None
         self._inflight: set[asyncio.Task[httpx.Response]] = set()
         self._settling: set[asyncio.Event] = set()
+        self._streams: set[TaskStream] = set()
 
     def snapshot(self) -> ModelSnapshot:
         return {
@@ -229,16 +253,20 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
             self._context.observe(
                 "model_call", task_id=self._task_id, call_id=call_id, phase="started",
             )
+            streaming = await self._prepare(request, call_id)
+            if streaming:
+                return await self._start_stream(request, call_id, state, settled)
             return await self._request(request, call_id, state)
         finally:
-            try:
-                if not state.finished:
-                    await self._finish(call_id, state)
-            finally:
-                settled.set()
-                self._settling.discard(settled)
+            if not state.streaming:
+                try:
+                    if not state.finished:
+                        await self._finish(call_id, state)
+                finally:
+                    settled.set()
+                    self._settling.discard(settled)
 
-    async def _finish(self, call_id: str, state: _CallState) -> None:
+    async def _finish(self, call_id: str, state: _CallState) -> ModelCallRecord:
         state.finished = True
         record = ModelCallRecord(
             self._task_id, call_id,
@@ -258,10 +286,9 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         finally:
             _completed_call.set(record)
             self._context.observe("model_call", phase="finished", **asdict(record))
+        return record
 
-    async def _request(
-        self, request: httpx.Request, call_id: str, state: _CallState,
-    ) -> httpx.Response:
+    async def _prepare(self, request: httpx.Request, call_id: str) -> bool:
         self._context.check("network")
         if self._closed:
             raise SubAgentStopped("transport_closed")
@@ -269,29 +296,59 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         if route is None:
             raise ValueError("model destination not approved")
         route.validate(request)
-        if self._policy is not None:
-            self._policy.reserve(call_id, request)
         request.headers["Accept-Encoding"] = "identity"
         request.headers["Authorization"] = "Bearer " + self._credentials[route.credential_ref]
+        if self._policy is not None:
+            self._policy.reserve(call_id, request)
+        return json_object(request.content).get("stream") is True
+
+
+    async def _send(
+        self, request: httpx.Request, call_id: str, state: _CallState,
+    ) -> httpx.Response:
+        await self._context.runtime.write_audit(ExecutionRecord(
+            self._task_id, call_id, "chat_completions", "not_sent",
+            category="model", phase="prepared",
+        ))
+        capture = self._context.model_capture
+        if capture is not None:
+            try:
+                await capture.request(call_id, request)
+            except BaseException:
+                self._context.runtime.stop("capture_failed")
+                raise
+        self._context.check("network")
+        await self._context.runtime.write_audit(ExecutionRecord(
+            self._task_id, call_id, "chat_completions", "unknown",
+            category="model", phase="dispatch",
+        ))
+        # Audit writes are await boundaries: recheck immediately before sending.
+        self._context.check("network")
+        if self._closed:
+            raise SubAgentStopped("transport_closed")
+        state.sent = True
+        self._sent_requests += 1
+        response = await self._inner.handle_async_request(request)
+        response.request = request
+        state.response = response
+        if capture is not None:
+            try:
+                await capture.response(call_id, response)
+            except asyncio.CancelledError:
+                await response.aclose()
+                raise
+            except Exception:
+                # Read an already received response so trustworthy usage is not lost.
+                self._context.runtime.stop("capture_failed")
+        return response
+
+    async def _request(
+        self, request: httpx.Request, call_id: str, state: _CallState,
+    ) -> httpx.Response:
 
         async def receive() -> httpx.Response:
             async with asyncio.timeout_at(self._context.deadline):
-                await self._context.runtime.write_audit(ExecutionRecord(
-                    self._task_id, call_id, "chat_completions", "not_sent",
-                    category="model", phase="prepared",
-                ))
-                self._context.check("network")
-                await self._context.runtime.write_audit(ExecutionRecord(
-                    self._task_id, call_id, "chat_completions", "unknown",
-                    category="model", phase="dispatch",
-                ))
-                # Audit writes are await boundaries: recheck immediately before sending.
-                self._context.check("network")
-                if self._closed:
-                    raise SubAgentStopped("transport_closed")
-                state.sent = True
-                self._sent_requests += 1
-                response = await self._inner.handle_async_request(request)
+                response = await self._send(request, call_id, state)
                 body = bytearray()
                 try:
                     if response.headers.get("content-encoding", "identity") != "identity":
@@ -300,6 +357,9 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                         if len(body) + len(chunk) > 2_000_000:
                             raise ValueError("model response exceeds byte limit")
                         body.extend(chunk)
+                except ModelCaptureError:
+                    self._context.runtime.stop("capture_failed")
+                    raise
                 finally:
                     await response.aclose()
                 return httpx.Response(
@@ -326,6 +386,12 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                     if operation.done() and not operation.cancelled():
                         with suppress(Exception):
                             inputs, outputs = read_usage(operation.result())
+                    if inputs is None and state.response is not None:
+                        with suppress(Exception):
+                            encoding = state.response.headers.get("content-encoding", "identity")
+                            if (encoding == "identity"
+                                    and len(state.response.content) <= 2_000_000):
+                                inputs, outputs = read_usage(state.response)
                     self._record_usage(call_id, state, inputs, outputs)
                 else:
                     if self._policy is not None:
@@ -357,6 +423,54 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
             raise SubAgentStopped("transport_closed")
         return response
 
+    async def _start_stream(
+        self, request: httpx.Request, call_id: str, state: _CallState, settled: asyncio.Event,
+    ) -> httpx.Response:
+        from .task_stream import TaskStream
+
+        async def headers() -> httpx.Response:
+            async with asyncio.timeout_at(self._context.deadline):
+                return await self._send(request, call_id, state)
+
+        operation = asyncio.create_task(headers())
+        cancelled = asyncio.create_task(self._context.cancel.wait())
+        self._inflight.add(operation)
+        try:
+            done, _ = await asyncio.wait(
+                {operation, cancelled}, return_when=asyncio.FIRST_COMPLETED,
+            )
+            if operation not in done:
+                raise asyncio.CancelledError("task cancelled during model request")
+            response = operation.result()
+            self._context.check("network")
+            if self._closed:
+                raise SubAgentStopped("transport_closed")
+            if (not response.is_success or
+                    "text/event-stream" not in response.headers.get("content-type", "")):
+                await response.aclose()
+                raise ValueError("invalid streaming model response")
+            stream = TaskStream(self, call_id, state, response, settled)
+            self._streams.add(stream)
+            state.streaming = True
+            return httpx.Response(
+                response.status_code, headers=response.headers, stream=stream, request=request,
+                extensions={**response.extensions, "tank_call_id": call_id},
+            )
+        except BaseException:
+            if state.sent:
+                self._record_usage(call_id, state, None, None)
+            elif self._policy is not None:
+                self._policy.release_unsent(call_id)
+            raise
+        finally:
+            cancelled.cancel()
+            if not operation.done() and not operation.cancelling():
+                operation.cancel()
+            await asyncio.gather(operation, cancelled, return_exceptions=True)
+            if not state.streaming and state.response is not None:
+                await state.response.aclose()
+            self._inflight.discard(operation)
+
     def _record_usage(
         self, call_id: str, state: _CallState, inputs: int | None, outputs: int | None,
     ) -> None:
@@ -383,6 +497,7 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                 operation.cancel()
         try:
             async with asyncio.timeout(5):
+                await asyncio.gather(*(stream.aclose() for stream in tuple(self._streams)))
                 await asyncio.gather(*(settled.wait() for settled in settling))
                 await self._inner.aclose()
         finally:

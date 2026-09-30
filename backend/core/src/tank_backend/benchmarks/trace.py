@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 
 from ..agents.base import AgentOutput
+from ..llm.model_transport import ModelCaptureError
 from ..tools.computer_grounding import grounding_call_id
 
 _MAX_CONTENT_CHARS = 2000
@@ -31,6 +32,10 @@ class TraceSink:
         self._file = (trial_dir / "trace.jsonl").open("a", encoding="utf-8")
         self.screenshot_count = 0
         self._pending: dict[str, _ResponseStream | None] = {}
+
+    @property
+    def closed(self) -> bool:
+        return self._file.closed
 
     def event(self, kind: str, **fields: Any) -> None:
         record = {"ts": time.time(), "kind": kind, **fields}
@@ -103,7 +108,9 @@ class TraceSink:
                    stream=bool(body.get("stream")), image_sha256=hashes,
                    grounding_call_id=grounding_call_id.get())
 
-    async def capture_response(self, response: httpx.Response) -> None:
+    async def capture_response(
+        self, response: httpx.Response, *, redactions: tuple[bytes, ...] = (),
+    ) -> None:
         """Preserve the body before SDK parsing, linked to its actual HTTP attempt."""
         binding = response.request.extensions.get("tank_benchmark_trace")
         if binding is None or self._file.closed:
@@ -111,7 +118,7 @@ class TraceSink:
         owner, request_id = binding
         if owner is not self or request_id not in self._pending:
             return
-        archive = _ResponseStream(self, request_id, response)
+        archive = _ResponseStream(self, request_id, response, redactions=redactions)
         self._pending[request_id] = archive
         if response.is_stream_consumed:
             # In-memory transports may return an already-read body.
@@ -124,7 +131,10 @@ class TraceSink:
 class _ResponseStream(httpx.AsyncByteStream):
     """Tee bytes before SDK parsing without buffering ahead of the consumer."""
 
-    def __init__(self, sink: TraceSink, request_id: str, response: httpx.Response) -> None:
+    def __init__(
+        self, sink: TraceSink, request_id: str, response: httpx.Response,
+        *, redactions: tuple[bytes, ...] = (),
+    ) -> None:
         if not isinstance(response.stream, httpx.AsyncByteStream):
             raise TypeError("Benchmark response requires an async stream")
         self.inner = response.stream
@@ -138,25 +148,54 @@ class _ResponseStream(httpx.AsyncByteStream):
         self.file = (sink.trial_dir / self.relative).open("xb")
         self.digest = hashlib.sha256()
         self.size = 0
+        self.redactions = tuple(value for value in redactions if value)
+        self.tail = b""
+        self.redacted = False
+
+    def _write(self, data: bytes) -> None:
+        for secret in self.redactions:
+            if secret in data:
+                self.redacted = True
+                data = data.replace(secret, b"[REDACTED]")
+        try:
+            self.file.write(data)
+            self.file.flush()
+        except (OSError, ValueError):
+            raise ModelCaptureError("required response archive failed") from None
+        self.digest.update(data)
+        self.size += len(data)
 
     def write(self, chunk: bytes) -> None:
         if self.file.closed:
             return
-        self.file.write(chunk)
-        self.file.flush()
-        self.digest.update(chunk)
-        self.size += len(chunk)
+        if not self.redactions:
+            self._write(chunk)
+            return
+        self.tail += chunk
+        cut = max(0, len(self.tail) - max(map(len, self.redactions)) + 1)
+        for secret in self.redactions:
+            start = self.tail.find(secret)
+            while start >= 0:
+                if start < cut < start + len(secret):
+                    cut = start
+                start = self.tail.find(secret, start + 1)
+        self._write(self.tail[:cut])
+        self.tail = self.tail[cut:]
 
     def finish(self, state: str, error: str | None = None) -> None:
         if self.file.closed:
             return
+        if self.tail:
+            self._write(self.tail)
+            self.tail = b""
         self.file.close()
         self.sink._pending.pop(self.request_id, None)
         self.sink.event("http_response", request_id=self.request_id,
                         status_code=self.status_code, file=self.relative, body_state=state,
                         bytes=self.size, sha256=self.digest.hexdigest(), error_type=error,
                         content_type=self.content_type, content_encoding=self.content_encoding,
-                        body_representation=self.representation)
+                        body_representation=self.representation,
+                        **({"credentials_redacted": True} if self.redacted else {}))
 
     async def __aiter__(self) -> AsyncIterator[bytes]:
         try:

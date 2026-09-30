@@ -22,11 +22,13 @@ class ContextWindowContract:
     model: str
     allowance: TokenAllowance
     evidence: str
+    output_cap_required: bool = True
 
     def __post_init__(self) -> None:
         url = httpx.URL(self.url)
         if (
-            not self.evidence.strip()
+            type(self.output_cap_required) is not bool
+            or not self.evidence.strip()
             or not self.model.strip()
             or url.scheme != "https"
             or not url.host
