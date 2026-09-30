@@ -14,14 +14,16 @@ from the pool.
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +82,19 @@ class Database:
     def __init__(self, url: str, *, echo: bool = False) -> None:
         resolved = _expand_sqlite_url(url)
         self._url = resolved
+        parsed = make_url(resolved)
+        in_memory = (
+            parsed.get_backend_name() == "sqlite" and parsed.database in (None, "", ":memory:")
+        )
+        # A task's audit writer runs in a thread. Memory databases need one shared
+        # connection, with transactions serialized so one session cannot commit another.
+        self._session_lock = threading.RLock() if in_memory else None
+        options: dict[str, Any] = (
+            {"poolclass": StaticPool, "connect_args": {"check_same_thread": False}}
+            if in_memory else {}
+        )
         # ``future=True`` is the default in 2.0 but explicit keeps intent clear.
-        self._engine: Engine = create_engine(resolved, echo=echo, future=True)
+        self._engine: Engine = create_engine(resolved, echo=echo, future=True, **options)
         self._session_factory = sessionmaker(
             bind=self._engine, expire_on_commit=False, future=True,
         )
@@ -107,15 +120,16 @@ class Database:
                 s.add(row)
                 # commit happens automatically on clean exit
         """
-        session = self._session_factory()
-        try:
-            yield session
-            session.commit()
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+        with self._session_lock if self._session_lock is not None else nullcontext():
+            session = self._session_factory()
+            try:
+                yield session
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+            finally:
+                session.close()
 
     def dispose(self) -> None:
         """Close all pooled connections. Call at shutdown."""

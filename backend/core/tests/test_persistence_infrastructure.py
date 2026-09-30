@@ -4,9 +4,51 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from sqlalchemy import text
 
 from tank_backend.persistence import Base, Database, run_migrations
+
+
+def test_memory_database_serializes_cross_thread_transactions() -> None:
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    db = Database("sqlite+pysqlite:///:memory:")
+    entered, release, attempted = Event(), Event(), Event()
+    with db.session() as session:
+        session.execute(text("CREATE TABLE smoke (k TEXT PRIMARY KEY)"))
+
+    def rollback() -> None:
+        with db.session() as session:
+            session.execute(text("INSERT INTO smoke VALUES ('discard')"))
+            entered.set()
+            assert release.wait(2)
+            raise ValueError("rollback first transaction")
+
+    def commit() -> None:
+        attempted.set()
+        with db.session() as session:
+            session.execute(text("INSERT INTO smoke VALUES ('keep')"))
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(rollback)
+            try:
+                assert entered.wait(2)
+                second = pool.submit(commit)
+                assert attempted.wait(2)
+                with pytest.raises(TimeoutError):
+                    second.result(timeout=0.03)
+            finally:
+                release.set()
+            with pytest.raises(ValueError, match="rollback first"):
+                first.result(timeout=2)
+            second.result(timeout=2)
+        with db.session() as session:
+            assert list(session.scalars(text("SELECT k FROM smoke"))) == ["keep"]
+    finally:
+        db.dispose()
 
 
 def test_database_creates_session_and_commits(tmp_path: Path) -> None:
@@ -136,3 +178,26 @@ def test_expand_sqlite_url_expands_tilde() -> None:
         # The parent directory should now exist (created by the helper).
         assert (Path(d) / "sub").is_dir()
         assert expanded.endswith("/new.db")
+
+
+def test_worker_audit_migration_preserves_workers(tmp_path: Path) -> None:
+    from alembic import command
+
+    from tank_backend.agents.store import WorkerStore
+    from tank_backend.agents.task_runtime import ExecutionRecord
+    from tank_backend.persistence.migrate import _build_config
+
+    url = f"sqlite+pysqlite:///{tmp_path}/audit-migration.db"
+    command.upgrade(_build_config(url), "f2b8d5c9e3a7")
+    db = Database(url)
+    store = WorkerStore(db)
+    store.create(task_id="old", agent_def="fake", prompt="keep")
+    run_migrations(url)
+    try:
+        record = ExecutionRecord("old", "call", "read", "returned")
+        store.append_audit(record)
+        assert store.audit_records("old") == [record]
+        old = store.get("old")
+        assert old is not None and old.prompt == "keep"
+    finally:
+        db.dispose()

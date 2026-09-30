@@ -230,3 +230,44 @@ class TestReapRunningOnStartup:
 
     def test_reap_on_clean_db_returns_zero(self, store: WorkerStore):
         assert store.reap_running_on_startup() == 0
+
+
+
+def test_task_audit_is_durable_and_separate_from_worker_output(tmp_path):
+    from tank_backend.agents.task_runtime import ExecutionRecord
+
+    url = f"sqlite+pysqlite:///{tmp_path}/audit.db"
+    db = Database(url)
+    Base.metadata.create_all(db.engine)
+    store = WorkerStore(db)
+    _create(store)
+    record = ExecutionRecord("t_001", "call", "read", "returned")
+    store.append_audit(record)
+    store.finish("t_001", status="completed", output="done")
+    db.dispose()
+    reopened = Database(url)
+    try:
+        persisted = WorkerStore(reopened)
+        assert persisted.audit_records("t_001") == [record]
+        assert persisted.audit_records("other") == []
+        run = persisted.get("t_001")
+        assert run is not None and run.output == "done"
+    finally:
+        reopened.dispose()
+
+
+def test_audit_requires_a_worker_and_preserves_ordered_pages(store):
+    from sqlalchemy.exc import IntegrityError
+
+    from tank_backend.agents.task_runtime import ExecutionRecord
+
+    record = ExecutionRecord("missing", "call", "read", "not_sent")
+    with pytest.raises(IntegrityError):
+        store.append_audit(record)
+    assert store.audit_records("missing") == []
+    _create(store)
+    records = [ExecutionRecord("t_001", str(index), "read", "returned") for index in range(3)]
+    for record in records:
+        store.append_audit(record)
+    assert store.audit_records("t_001", limit=2) == records[:2]
+    assert store.audit_records("t_001", offset=2, limit=2) == records[2:]

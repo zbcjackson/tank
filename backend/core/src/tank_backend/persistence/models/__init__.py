@@ -16,6 +16,7 @@ from .conversation_messages import ConversationMessageRow
 from .conversations import ConversationRow
 from .jobs import JobRow, JobRunRow
 from .speakers import EmbeddingRow, SpeakerRow
+from .worker_audit import WorkerAuditRow
 from .workers import WorkerRunRow
 
 __all__ = [
@@ -31,5 +32,6 @@ __all__ = [
     "JobRow",
     "JobRunRow",
     "SpeakerRow",
+    "WorkerAuditRow",
     "WorkerRunRow",
 ]

@@ -16,16 +16,17 @@ from __future__ import annotations
 import copy
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Final, Literal
 
 from sqlalchemy import CursorResult, func, select, update
 
 from ..persistence import Database
-from ..persistence.models import WorkerRunRow
+from ..persistence.models import WorkerAuditRow, WorkerRunRow
 from .subagent import JsonValue, validate_task_input
 from .task_result import INCOMPLETE_TASK_STATUSES, TaskStatus
+from .task_runtime import ExecutionRecord
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,28 @@ class WorkerStore:
 
     def __init__(self, db: Database) -> None:
         self._db = db
+
+    def append_audit(self, record: ExecutionRecord) -> None:
+        """Return only after the audit transaction commits; errors are mandatory failures."""
+        with self._db.session() as session:
+            session.add(WorkerAuditRow(
+                task_id=record.task_id, call_id=record.call_id,
+                recorded_at=datetime.now(timezone.utc).isoformat(),
+                record_json=json.dumps(asdict(record), allow_nan=False),
+            ))
+
+    def audit_records(
+        self, task_id: str, *, offset: int = 0, limit: int = 1000,
+    ) -> list[ExecutionRecord]:
+        """Read one bounded page in append order, including unfinished call intentions."""
+        if offset < 0 or not 1 <= limit <= 1000:
+            raise ValueError("invalid audit page")
+        with self._db.session() as session:
+            rows = session.scalars(
+                select(WorkerAuditRow).where(WorkerAuditRow.task_id == task_id)
+                .order_by(WorkerAuditRow.id).offset(offset).limit(limit)
+            )
+            return [ExecutionRecord(**json.loads(row.record_json)) for row in rows]
 
     # ------------------------------------------------------------------
     # Lifecycle
