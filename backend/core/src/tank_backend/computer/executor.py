@@ -25,13 +25,17 @@ in ``finally`` on ``CancelledError``.
 from __future__ import annotations
 
 import asyncio
+import inspect
+import os
 import re
+import signal
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 from ..tools import computer_use, computer_use_macos
+from ..tools.computer_native import join_on_cancel, run_native
 from ..tools.computer_use_common import (
     BATCH_ACTIONS,
     PYAUTOGUI_KEY_ALIASES,
@@ -42,6 +46,9 @@ from ..tools.computer_use_common import (
     normalized_to_pixel,
     parse_region,
 )
+
+if TYPE_CHECKING:
+    from ..agents.subagent import SubAgentContext
 
 _WAIT_MIN_S = 0.1
 _WAIT_MAX_S = 5.0
@@ -156,9 +163,81 @@ class _BaseExecutor:
     """Platform-independent behavior: size cache, coordinate math, wait,
     bash, files, batch. Subclasses provide the desktop primitives."""
 
-    def __init__(self, cwd: Path | str | None = None) -> None:
+    def __init__(
+        self, cwd: Path | str | None = None, *, context: SubAgentContext | None = None,
+    ) -> None:
         self._cwd = Path(cwd).resolve() if cwd is not None else Path.cwd().resolve()
         self._size: tuple[int, int] | None = None
+        self._context = context
+        self._held_keys: set[str] = set()
+        self._held_buttons: set[str] = set()
+        self._process: asyncio.subprocess.Process | None = None
+
+    async def _native(
+        self, permission: str | None, function: Any, *args: Any, **kwargs: Any,
+    ) -> Any:
+        context = self._context
+        if context is None:
+            return await asyncio.to_thread(function, *args, **kwargs)
+
+        def invoke() -> Any:
+            if permission is not None:
+                context.check(permission)
+                target = getattr(function, "__self__", None)
+                if permission == "filesystem" and isinstance(target, Path):
+                    operation = "file_write" if function.__name__ == "write_text" else "file_read"
+                    context.runtime.check_policy_now(operation, {"path": str(target)})
+            return function(*args, **kwargs)
+
+        return await run_native(invoke)
+
+    async def _input_state(
+        self, name: str, down: bool, held: set[str], action: Any,
+    ) -> None:
+        if self._context is not None and not down and name not in held:
+            return
+
+        def emit() -> None:
+            if down:
+                held.add(name)
+            action()
+            if not down:
+                held.discard(name)
+
+        await self._native("desktop" if down else None, emit)
+
+    async def _stop_process(self) -> None:
+        process = self._process
+        if process is None or process.returncode is not None:
+            return
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+            async with asyncio.timeout(1):
+                await process.wait()
+        except TimeoutError:
+            os.killpg(process.pid, signal.SIGKILL)
+            await process.wait()
+        except ProcessLookupError:
+            await process.wait()
+
+    async def aclose(self) -> None:
+        failures = []
+        try:
+            await self._stop_process()
+        except (Exception, asyncio.CancelledError):
+            failures.append("process")
+        for key in tuple(self._held_keys):
+            try:
+                await cast(DesktopExecutor, self).key_up(key)
+            except Exception:
+                failures.append(key)
+        for button in tuple(self._held_buttons):
+            try:
+                await cast(DesktopExecutor, self).mouse_up(button)
+            except Exception:
+                failures.append(button)
+        if failures:
+            raise RuntimeError("task input release unconfirmed")
 
     # -- shared helpers ------------------------------------------------
 
@@ -178,7 +257,7 @@ class _BaseExecutor:
         raise NotImplementedError
 
     async def screenshot(self, region: Any = None) -> Screenshot:
-        png = await asyncio.to_thread(self._capture)
+        png = await self._native("desktop", self._capture)
         width, height = computer_use._png_size(png)
         if width and height:
             self._size = (width, height)
@@ -192,7 +271,7 @@ class _BaseExecutor:
                 "region must be [x1, y1, x2, y2] in 0-1000 normalized "
                 "coordinates with x2 > x1, y2 > y1"
             )
-        cropped = await asyncio.to_thread(
+        cropped = await self._native("desktop",
             crop_and_upscale, png, parsed, (width, height),
         )
         return Screenshot(cropped, width, height, parsed)
@@ -218,10 +297,29 @@ class _BaseExecutor:
             f'cd "{self._cwd}" && {{ {command}\n}}; __rc=$?; '
             f'printf \'\\n{marker}%s\\n\' "$PWD"; exit $__rc'
         )
-        proc = await asyncio.to_thread(
-            subprocess.run, ["bash", "-c", wrapped],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout_s,
-        )
+        if self._context is None:
+            proc = await asyncio.to_thread(
+                subprocess.run, ["bash", "-c", wrapped],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=timeout_s,
+            )
+        else:
+            self._context.check("shell")
+            self._process = await asyncio.create_subprocess_exec(
+                "bash", "-c", wrapped, stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE, start_new_session=True,
+            )
+            try:
+                self._context.check("shell")
+                async with asyncio.timeout(timeout_s):
+                    out, err = await self._process.communicate()
+                proc = subprocess.CompletedProcess(
+                    ["bash"], self._process.returncode or 0,
+                    out.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace"),
+                )
+            finally:
+                await join_on_cancel(self._stop_process())
+                self._process = None
 
         stdout = proc.stdout or ""
         cwd = self._cwd
@@ -256,21 +354,21 @@ class _BaseExecutor:
         return p if p.is_absolute() else self._cwd / p
 
     async def read_file(self, path: str) -> str:
-        return await asyncio.to_thread(self._resolve(path).read_text, "utf-8")
+        return await self._native("filesystem", self._resolve(path).read_text, "utf-8")
 
     async def write_file(self, path: str, content: str) -> None:
-        await asyncio.to_thread(self._resolve(path).write_text, content, "utf-8")
+        await self._native("filesystem", self._resolve(path).write_text, content, "utf-8")
 
     async def edit_file(self, path: str, old: str, new: str) -> None:
         target = self._resolve(path)
-        content = await asyncio.to_thread(target.read_text, "utf-8")
+        content = await self._native("filesystem", target.read_text, "utf-8")
         matches = content.count(old)
         if matches != 1:
             raise ValueError(
                 f"edit_file: 'old' matches {matches} times in {target} "
                 f"(must be exactly 1) — read the file first"
             )
-        await asyncio.to_thread(
+        await self._native("filesystem",
             target.write_text, content.replace(old, new, 1), "utf-8",
         )
 
@@ -332,25 +430,25 @@ class _LinuxExecutor(_BaseExecutor):
         nx, ny = self._point(x, y)
         px, py = self._pixel(nx, ny)
         if computer_use._ydotool_available():
-            await asyncio.to_thread(
+            await self._native("desktop",
                 computer_use._click_ydotool, px, py, button, clicks,
             )
         else:
-            await asyncio.to_thread(
+            await self._native("desktop",
                 computer_use._run_pyautogui, "click", px, py,
                 button=button, clicks=clicks,
             )
 
     async def type_text(self, text: str) -> None:
         if any(ord(c) >= 128 for c in text):
-            await asyncio.to_thread(computer_use._paste_linux, text)
+            await self._native("desktop", computer_use._paste_linux, text)
         elif computer_use._ydotool_available():
             for i in range(0, len(text), 50):
-                await asyncio.to_thread(computer_use._type_ydotool, text[i : i + 50])
+                await self._native("desktop", computer_use._type_ydotool, text[i : i + 50])
                 if i + 50 < len(text):
                     await asyncio.sleep(0.1)
         else:
-            await asyncio.to_thread(
+            await self._native("desktop",
                 computer_use._run_pyautogui, "write", text, interval=0,
             )
 
@@ -369,12 +467,12 @@ class _LinuxExecutor(_BaseExecutor):
                     )
                 finally:
                     sock.close()
-            await asyncio.to_thread(emit)
+            await self._input_state(keys[0], down, self._held_keys, emit)
         else:
             mapped = PYAUTOGUI_KEY_ALIASES.get(keys[0], keys[0])
-            await asyncio.to_thread(
-                computer_use._run_pyautogui, "keyDown" if down else "keyUp", mapped,
-            )
+            await self._input_state(keys[0], down, self._held_keys, lambda: (
+                computer_use._run_pyautogui("keyDown" if down else "keyUp", mapped)
+            ))
 
     async def key_down(self, key: str) -> None:
         await self._key_state(key, True)
@@ -392,9 +490,9 @@ class _LinuxExecutor(_BaseExecutor):
         mapped = [aliases.get(k, k) for k in key_list]
         for _ in range(times):
             if ydotool:
-                await asyncio.to_thread(computer_use._key_ydotool, mapped)
+                await self._native("desktop", computer_use._key_ydotool, mapped)
             else:
-                await asyncio.to_thread(
+                await self._native("desktop",
                     computer_use._run_pyautogui, "hotkey", *mapped,
                 )
 
@@ -408,14 +506,14 @@ class _LinuxExecutor(_BaseExecutor):
             nx, ny = self._point(x, y)
             px, py = self._pixel(nx, ny)
         if computer_use._ydotool_available():
-            await asyncio.to_thread(computer_use._scroll_ydotool, amount, px, py)
+            await self._native("desktop", computer_use._scroll_ydotool, amount, px, py)
         else:
             kwargs: dict[str, Any] = {}
             if px is not None:
                 kwargs["x"] = px
             if py is not None:
                 kwargs["y"] = py
-            await asyncio.to_thread(
+            await self._native("desktop",
                 computer_use._run_pyautogui, "scroll", amount, **kwargs,
             )
 
@@ -423,9 +521,9 @@ class _LinuxExecutor(_BaseExecutor):
         nx, ny = self._point(x, y)
         px, py = self._pixel(nx, ny)
         if computer_use._ydotool_available():
-            await asyncio.to_thread(computer_use._move_ydotool, px, py)
+            await self._native("desktop", computer_use._move_ydotool, px, py)
         else:
-            await asyncio.to_thread(computer_use._run_pyautogui, "moveTo", px, py)
+            await self._native("desktop", computer_use._run_pyautogui, "moveTo", px, py)
 
     async def mouse_down(self, button: str = "left") -> None:
         await self._mouse_button(button, down=True)
@@ -434,30 +532,38 @@ class _LinuxExecutor(_BaseExecutor):
         await self._mouse_button(button, down=False)
 
     async def _mouse_button(self, button: str, down: bool) -> None:
-        if computer_use._ydotool_available():
-            await asyncio.to_thread(
-                computer_use._mouse_button_ydotool, button, down,
-            )
-        else:
-            fn = "mouseDown" if down else "mouseUp"
-            await asyncio.to_thread(computer_use._run_pyautogui, fn, button=button)
+        def action() -> None:
+            if computer_use._ydotool_available():
+                computer_use._mouse_button_ydotool(button, down)
+            else:
+                computer_use._run_pyautogui("mouseDown" if down else "mouseUp", button=button)
+        await self._input_state(button, down, self._held_buttons, action)
 
     async def hold_key(self, keys: str, duration_s: float = 1.0) -> None:
         key_list = normalize_keys(keys)
         if not key_list:
             raise ValueError(f"hold_key: invalid 'keys' {keys!r}")
         duration = max(0.1, min(10.0, float(duration_s)))
+        if self._context is not None:
+            try:
+                for key in key_list:
+                    await self.key_down(key)
+                await asyncio.sleep(duration)
+            finally:
+                for key in reversed(key_list):
+                    await join_on_cancel(self.key_up(key))
+            return
         if computer_use._ydotool_available():
-            await asyncio.to_thread(
+            await self._native("desktop",
                 computer_use._hold_key_ydotool, key_list, duration,
             )
         else:
             mapped = [PYAUTOGUI_KEY_ALIASES.get(k, k) for k in key_list]
-            await asyncio.to_thread(
+            await self._native("desktop",
                 computer_use._run_pyautogui, "keyDown", *mapped,
             )
             await asyncio.sleep(duration)
-            await asyncio.to_thread(
+            await self._native("desktop",
                 computer_use._run_pyautogui, "keyUp", *mapped,
             )
 
@@ -469,9 +575,9 @@ class _LinuxExecutor(_BaseExecutor):
         sx, sy = self._pixel(*start)
         ex, ey = self._pixel(*end)
         if computer_use._ydotool_available():
-            await asyncio.to_thread(computer_use._drag_ydotool, sx, sy, ex, ey)
+            await self._native("desktop", computer_use._drag_ydotool, sx, sy, ex, ey)
         else:
-            await asyncio.to_thread(
+            await self._native("desktop",
                 computer_use._run_pyautogui, "drag", sx, sy, ex, ey,
                 duration=0.4, button="left",
             )
@@ -494,17 +600,19 @@ class _MacOSExecutor(_BaseExecutor):
     ) -> None:
         nx, ny = self._point(x, y)
         px, py = self._pixel(nx, ny)
-        await asyncio.to_thread(
+        await self._native("desktop",
             computer_use_macos._click_macos, px, py, button, clicks,
         )
 
     async def type_text(self, text: str) -> None:
-        await asyncio.to_thread(computer_use_macos._type_macos, text)
+        await self._native("desktop", computer_use_macos._type_macos, text)
 
     async def _key_state(self, key: str, down: bool) -> None:
         keys = normalize_keys(key)
         if not keys or len(keys) != 1:
             raise ValueError("key_down/up requires one valid key")
+        if self._context is not None and not down and keys[0] not in self._held_keys:
+            return
         def emit() -> None:
             quartz = computer_use_macos._load_quartz()
             modifier_codes = {"cmd": 55, "ctrl": 59, "alt": 58, "shift": 56}
@@ -512,8 +620,12 @@ class _MacOSExecutor(_BaseExecutor):
             if code is None:
                 raise ValueError(f"unsupported key: {key}")
             event = quartz.CGEventCreateKeyboardEvent(None, code, down)
+            if down:
+                self._held_keys.add(keys[0])
             quartz.CGEventPost(quartz.kCGHIDEventTap, event)
-        await asyncio.to_thread(emit)
+            if not down:
+                self._held_keys.discard(keys[0])
+        await self._native("desktop" if down else None, emit)
 
     async def key_down(self, key: str) -> None:
         await self._key_state(key, True)
@@ -527,7 +639,7 @@ class _MacOSExecutor(_BaseExecutor):
             raise ValueError(f"key_press: invalid 'keys' {keys!r}")
         times = max(1, min(20, int(repeat)))
         for _ in range(times):
-            await asyncio.to_thread(computer_use_macos._key_macos, key_list)
+            await self._native("desktop", computer_use_macos._key_macos, key_list)
 
     async def scroll(self, amount: int, x: Any = None, y: Any = None) -> None:
         amount = int(amount)
@@ -538,25 +650,40 @@ class _MacOSExecutor(_BaseExecutor):
         if x is not None or y is not None:
             nx, ny = self._point(x, y)
             px, py = self._pixel(nx, ny)
-        await asyncio.to_thread(computer_use_macos._scroll_macos, amount, px, py)
+        await self._native("desktop", computer_use_macos._scroll_macos, amount, px, py)
 
     async def mouse_move(self, x: Any, y: Any = None) -> None:
         nx, ny = self._point(x, y)
         px, py = self._pixel(nx, ny)
-        await asyncio.to_thread(computer_use_macos._move_macos, px, py)
+        await self._native("desktop", computer_use_macos._move_macos, px, py)
 
     async def mouse_down(self, button: str = "left") -> None:
-        await asyncio.to_thread(computer_use_macos._mouse_button_macos, button, True)
+        def emit() -> None:
+            self._held_buttons.add(button)
+            computer_use_macos._mouse_button_macos(button, True)
+        await self._native("desktop", emit)
 
     async def mouse_up(self, button: str = "left") -> None:
-        await asyncio.to_thread(computer_use_macos._mouse_button_macos, button, False)
+        if self._context is not None and button not in self._held_buttons:
+            return
+        await self._native(None, computer_use_macos._mouse_button_macos, button, False)
+        self._held_buttons.discard(button)
 
     async def hold_key(self, keys: str, duration_s: float = 1.0) -> None:
         key_list = normalize_keys(keys)
         if not key_list:
             raise ValueError(f"hold_key: invalid 'keys' {keys!r}")
         duration = max(0.1, min(10.0, float(duration_s)))
-        await asyncio.to_thread(
+        if self._context is not None:
+            try:
+                for key in key_list:
+                    await self.key_down(key)
+                await asyncio.sleep(duration)
+            finally:
+                for key in reversed(key_list):
+                    await join_on_cancel(self.key_up(key))
+            return
+        await self._native("desktop",
             computer_use_macos._hold_key_macos, key_list, duration,
         )
 
@@ -567,13 +694,74 @@ class _MacOSExecutor(_BaseExecutor):
         end = self._point(x2, y2)
         sx, sy = self._pixel(*start)
         ex, ey = self._pixel(*end)
-        await asyncio.to_thread(computer_use_macos._drag_macos, sx, sy, ex, ey)
+        await self._native("desktop", computer_use_macos._drag_macos, sx, sy, ex, ey)
 
 
-def create_desktop_executor(cwd: Path | str | None = None) -> DesktopExecutor:
-    """Create the platform-appropriate DesktopExecutor."""
+class _TaskDesktopExecutor:
+    """Compatibility view: the public executor protocol, governed by one task runtime."""
+
+    def __init__(self, inner: _BaseExecutor, context: SubAgentContext) -> None:
+        from ..agents.task_runtime import TaskOperation
+
+        self._inner, self._context = inner, context
+        self._operations = {}
+        for name in (
+            "screenshot", "click", "type_text", "key_press", "key_down", "scroll", "mouse_move",
+            "mouse_down", "hold_key", "drag", "wait", "batch", "bash", "read_file",
+            "write_file", "edit_file",
+        ):
+            permission = "shell" if name == "bash" else (
+                "filesystem" if name.endswith("_file") else "desktop"
+            )
+            operation = TaskOperation(
+                "desktop." + name, frozenset({permission}),
+                "read" if name in {"screenshot", "read_file", "wait"} else "action",
+                lambda call, name=name: self._invoke(name, call),
+                lambda call, name=name: self._preflight(name, call),
+            )
+            context.runtime.register(operation)
+            self._operations[name] = operation
+        context.runtime.own("desktop-executor", inner.aclose)
+
+    async def _preflight(self, name: str, call: Any) -> None:
+        args, kwargs = call
+        values = inspect.signature(getattr(self._inner, name)).bind(*args, **kwargs).arguments
+        if name == "bash":
+            await self._context.runtime.authorize("run_command", {"command": values["command"]})
+        elif name.endswith("_file"):
+            await self._context.runtime.authorize(
+                {"read_file": "file_read", "write_file": "file_write",
+                 "edit_file": "file_edit"}[name],
+                {"path": str(self._inner._resolve(values["path"]).resolve())},
+            )
+
+    async def _invoke(self, name: str, call: Any) -> Any:
+        args, kwargs = call
+        result = await getattr(self._inner, name)(*args, **kwargs)
+        if isinstance(result, BatchResult) and result.failed_at is not None:
+            raise RuntimeError("native batch effect could not be confirmed")
+        return result
+
+    def __getattr__(self, name: str) -> Any:
+        if name in {"key_up", "mouse_up"}:
+            return getattr(self._inner, name)
+        if name not in self._operations:
+            raise AttributeError(name)
+
+        async def invoke(*args: Any, **kwargs: Any) -> Any:
+            return await self._context.runtime.execute(self._operations[name], (args, kwargs))
+        return invoke
+
+
+def create_desktop_executor(
+    cwd: Path | str | None = None, *, context: SubAgentContext | None = None,
+) -> DesktopExecutor:
+    """Create the platform executor, optionally bound to the host's original task."""
     import sys
 
-    if sys.platform == "darwin":
-        return _MacOSExecutor(cwd)
-    return _LinuxExecutor(cwd)
+    inner = _MacOSExecutor(cwd, context=context) if sys.platform == "darwin" else _LinuxExecutor(
+        cwd, context=context,
+    )
+    if context is not None:
+        return cast(DesktopExecutor, _TaskDesktopExecutor(inner, context))
+    return inner

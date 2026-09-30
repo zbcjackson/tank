@@ -17,6 +17,7 @@ def create_agent(config: dict[str, Any]) -> N2Agent:
             "agent-n2 requires a valid llm_profile: configure llm.n2 and "
             "agent_engines.\"agent-n2:agent\".llm_profile: n2"
         )
-    return N2Agent(executor, profile, max_steps=config.get("max_steps", 100),
+    return N2Agent(executor, profile, task_context=config.get("task_context"),
+                   max_steps=config.get("max_steps", 100),
                    reasoning_effort=config.get("reasoning_effort", "medium"),
                    tool_set=config.get("tool_set", "computer_use_tools-20260830"))

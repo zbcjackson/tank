@@ -8,6 +8,7 @@ from typing import AsyncGenerator, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import httpx
 from openai.types.chat import ChatCompletionMessage
 from PIL import Image
 
@@ -15,6 +16,7 @@ from agent_n2 import create_agent
 from agent_n2.agent import N2Agent
 from agent_n2.protocol import TOOL_SET, key_name
 from tank_backend.agents.base import AgentOutput, AgentOutputType, AgentState
+from tank_backend.agents.subagent import SubAgentAuthorization
 from tank_backend.computer.executor import BatchResult, BatchStep, DesktopExecutor, Screenshot
 from tank_backend.llm.profile import LLMProfile
 
@@ -187,17 +189,49 @@ def test_rejects_default_text_model_before_desktop_or_api(executor):
     executor.screenshot.assert_not_awaited()
 
 
+def task_context(profile):
+    from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
+
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"desktop", "filesystem", "shell", "network"})),
+        SubAgentBudget(), asyncio.Event(),
+    )
+    ctx.runtime.bind("fixture")
+    ctx.runtime.configure_model("fixture", profile, input_modalities=frozenset({"text", "image"}))
+    return ctx
+
+
+def model_http(monkeypatch, response):
+    requests, closed = [], []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            requests.append(request)
+            message = response.choices[0].message
+            return httpx.Response(200, json={
+                "id": "fixture", "model": "n2", "created": 1, "object": "chat.completion",
+                "choices": [{"index": 0, "message": message.model_dump(exclude_none=True),
+                             "finish_reason": "tool_calls" if message.tool_calls else "stop"}],
+                "usage": {"prompt_tokens": 12, "completion_tokens": 8, "total_tokens": 20},
+            })
+
+        async def aclose(self):
+            closed.append(True)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    return requests, closed
+
+
 async def test_usage_boundary_closes_client_without_actions(executor, profile, monkeypatch):
-    client = MagicMock()
-    client.close = AsyncMock()
-    client.chat.completions.create = AsyncMock(return_value=completion([
-        call("write", {"file_path": "a", "content": "x"})
-    ]))
-    monkeypatch.setattr("agent_n2.agent.AsyncOpenAI", lambda **kw: client)
-    stream = cast(AsyncGenerator[AgentOutput, None], N2Agent(executor, profile).run(AgentState()))
+    _, closed = model_http(monkeypatch, completion([call("write", {"file_path": "a", "content": "x"})]))
+    ctx = task_context(profile)
+    stream = cast(AsyncGenerator[AgentOutput, None], N2Agent(
+        executor, profile, task_context=ctx,
+    ).run(AgentState()))
     assert (await anext(stream)).type == AgentOutputType.USAGE
     await stream.aclose()
-    client.close.assert_awaited_once()
+    await ctx.runtime.aclose()
+    assert closed == [True]
     executor.write_file.assert_not_awaited()
 
 
@@ -229,13 +263,10 @@ async def test_real_factory_runner_dispatch_and_budget(executor, profile, monkey
     app_config = MagicMock()
     app_config.get_section.return_value = {"agent-n2:agent": {"llm_profile": "n2", "max_steps": 2}}
     app_config.llm_profiles = {"n2": profile}
-    client = MagicMock()
-    client.close = AsyncMock()
-    client.chat.completions.create = AsyncMock(return_value=completion([
-        call("write", {"file_path": "a", "content": "x"})
+    requests, closed = model_http(monkeypatch, completion([
+        call("write", {"file_path": "a", "content": "x"}),
     ]))
-    monkeypatch.setattr("agent_n2.agent.AsyncOpenAI", lambda **kw: client)
-    monkeypatch.setattr("tank_backend.computer.executor.create_desktop_executor", lambda: executor)
+    monkeypatch.setattr("tank_backend.computer.executor.create_desktop_executor", lambda **kwargs: executor)
     runner = AgentRunner(llm=MagicMock(), tool_manager=MagicMock(), bus=MagicMock(),
                          app_config=app_config, registry=registry,
                          approval_policy=ToolApprovalPolicy(computer_mode="require"),
@@ -244,14 +275,17 @@ async def test_real_factory_runner_dispatch_and_budget(executor, profile, monkey
     # Dispatch approval is reached before constructing the remote client.
     result = await AgentTool(runner).execute(prompt="task", subagent_type=definition.name)
     assert str(result.content).startswith("APPROVAL REQUIRED")
-    client.chat.completions.create.assert_not_awaited()
+    assert requests == []
     # Runner consumes usage and closes the engine before executing an over-budget action.
     outputs = [o async for o in runner.run_agent(
         definition, [{"role": "user", "content": "task"}], token_budget=10,
+        authorization=SubAgentAuthorization(
+            frozenset({"desktop", "filesystem", "shell", "network"}),
+        ),
     )]
     assert any("token budget" in o.content for o in outputs)
     executor.write_file.assert_not_awaited()
-    client.close.assert_awaited_once()
+    assert closed == [True]
 
 
 async def test_benchmark_engine_records_usage_and_screenshots(executor, profile, tmp_path, monkeypatch):
@@ -265,11 +299,11 @@ async def test_benchmark_engine_records_usage_and_screenshots(executor, profile,
     registry.register("agent-n2", ExtensionManifest(
         name="agent", type="agent", factory="agent_n2:create_agent", needs=("desktop_executor",),
     ))
-    client = MagicMock()
-    client.close = AsyncMock()
-    client.chat.completions.create = AsyncMock(return_value=completion(content="Done"))
-    monkeypatch.setattr("agent_n2.agent.AsyncOpenAI", lambda **kw: client)
-    engine = registry.instantiate("agent-n2:agent", {"desktop_executor": executor, "llm_profile": profile})
+    model_http(monkeypatch, completion(content="Done"))
+    ctx = task_context(profile)
+    engine = registry.instantiate("agent-n2:agent", {
+        "desktop_executor": executor, "llm_profile": profile, "task_context": ctx,
+    })
     assert isinstance(engine, _MeasuredEngine)
     try:
         outputs = [o async for o in engine.run(AgentState())]
@@ -279,6 +313,7 @@ async def test_benchmark_engine_records_usage_and_screenshots(executor, profile,
         assert trace.screenshot_count == 1
         assert (tmp_path / "screenshots/shot_001.png").exists()
     finally:
+        await ctx.runtime.aclose()
         trace.close()
 
 

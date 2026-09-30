@@ -9,9 +9,12 @@ import time
 from collections.abc import AsyncIterator
 from typing import Any
 
-from openai import AsyncOpenAI
+import httpx
+from tank_backend.llm.task_client import TaskOpenAI as AsyncOpenAI
 
 from tank_backend.agents.base import Agent, AgentOutput, AgentOutputType, AgentState
+from tank_backend.agents.subagent import SubAgentContext
+from tank_backend.llm.model_transport import ChatCompletionsRoute, get_model_call
 from tank_backend.computer.executor import DesktopExecutor
 from tank_backend.llm.profile import LLMProfile
 
@@ -25,6 +28,7 @@ class N2Agent(Agent):
         self, executor: DesktopExecutor, profile: LLMProfile,
         *, max_steps: int = 100, reasoning_effort: str = "medium",
         tool_set: str = TOOL_SET, client: Any = None,
+        task_context: SubAgentContext | None = None,
     ) -> None:
         super().__init__("computer_use_n2")
         if profile.model != "n2":
@@ -44,16 +48,32 @@ class N2Agent(Agent):
         self.reasoning_effort = reasoning_effort
         self.tool_set = tool_set
         self._client = client
+        self._context = task_context
         self._known_files: set[str] = set()
         self._batch_completed = 0
 
     async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
         logger.info("N2 starting: profile=%s model=%s", self.profile.name, self.profile.model)
-        client: Any = self._client or AsyncOpenAI(
-            api_key=self.profile.api_key, base_url=self.profile.base_url,
-            default_headers=self.profile.extra_headers, max_retries=0,
-        )
+        client: Any = self._client
+        transport = None
+        if client is None:
+            if self._context is None or self._context.runtime.model is None:
+                raise RuntimeError("n2 requires a host-bound task model")
+            binding = self._context.runtime.model
+            transport = binding.create_transport(ChatCompletionsRoute(
+                self.profile.base_url.rstrip("/") + "/chat/completions", self.profile.model,
+                binding.credential_ref, max_upload_bytes=9_500_000,
+                allow_images=True, allow_tools=True, require_max_tokens=False,
+                extra_parameters={"tool_set": self.tool_set, "reasoning_effort": self.reasoning_effort},
+            ))
+            client = AsyncOpenAI(
+                api_key="host-managed", base_url=self.profile.base_url, max_retries=0,
+                http_client=httpx.AsyncClient(transport=transport, follow_redirects=False),
+            )
+            self._context.runtime.own("n2-client", client.close)
+            self._context.runtime.restrict_operations(actions=self.max_steps * 20)
         self._known_files.clear()
+        stop_reason = "max_steps"
         try:
             # Task-specific instructions belong in the first user message.
             tasks = [m.get("content", "") for m in state.messages if m.get("role") == "user"]
@@ -66,17 +86,26 @@ class N2Agent(Agent):
                 await asyncio.sleep(0)
                 if len(json.dumps(history).encode()) > 9_500_000:
                     yield AgentOutput(AgentOutputType.TOKEN, "Stopped: n2 request size limit reached.")
+                    stop_reason = "request_size"
                     break
                 started = time.monotonic()
-                response = await client.chat.completions.create(
-                    model=self.profile.model, messages=history,
-                    extra_body={"tool_set": self.tool_set,
-                                "reasoning_effort": self.reasoning_effort},
-                )
+                try:
+                    response = await client.chat.completions.create(
+                        model=self.profile.model, messages=history,
+                        extra_body={"tool_set": self.tool_set,
+                                    "reasoning_effort": self.reasoning_effort},
+                    )
+                except Exception:
+                    if self._context is not None:
+                        self._context.check("network")
+                    raise
                 usage = response.usage
                 if usage is None:
                     raise RuntimeError("n2 response missing usage; cannot enforce token budget")
+                record = (get_model_call(self._context.runtime.task_id)
+                          if transport is not None and self._context is not None else None)
                 yield AgentOutput(AgentOutputType.USAGE, metadata={
+                    **({"call_id": record.call_id} if record is not None else {}),
                     "total_tokens": usage.total_tokens,
                     "prompt_tokens": usage.prompt_tokens,
                     "completion_tokens": usage.completion_tokens,
@@ -91,6 +120,7 @@ class N2Agent(Agent):
                 # Yield before actions, so runner can stop on the usage budget.
                 yield AgentOutput(AgentOutputType.TOKEN, message.content or "")
                 if not message.tool_calls:
+                    stop_reason = "final_answer"
                     break
                 for call in message.tool_calls:
                     metadata = {"name": call.function.name, "tool_name": call.function.name,
@@ -112,9 +142,9 @@ class N2Agent(Agent):
                                        "status": "error" if text.startswith("ERROR:") else "success"})
             else:
                 yield AgentOutput(AgentOutputType.TOKEN, "Stopped: n2 max_steps reached; task may be incomplete.")
-            yield AgentOutput(AgentOutputType.DONE)
+            yield AgentOutput(AgentOutputType.DONE, metadata={"stop_reason": stop_reason})
         finally:
-            if self._client is None:
+            if self._client is None and self._context is None:
                 await client.close()
 
     async def execute(self, name: str, args: dict[str, Any]) -> tuple[str, bytes | None]:
