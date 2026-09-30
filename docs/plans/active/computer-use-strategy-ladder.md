@@ -1,5 +1,5 @@
-> 状态：进行中（2026-09-30：S0 验收通过；S1 AX/Vision 观察、候选与离线/合成验收完成；S2–S6、实机执行/恢复及生产采用仍待验收）。
-> 完整目标设计尚未实现、尚未实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
+> 状态：进行中（2026-09-30：S0 验收通过；S1 离线/合成验收与 S2 管理 Chromium 本地验收完成；S3–S6、原生桌面执行/恢复及生产采用仍待验收）。
+> 完整目标设计尚未全部实现、尚未完成整体实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
 
 # 计划：Computer Use 子代理的宿主循环与策略阶梯（S0–S6）
 
@@ -1299,7 +1299,7 @@ docs check、diff check 通过。未变化文件复用此前类型检查证据�
 - **最终步骤**：执行 §10 完整 Verification Checklist 的全部适用项，保存结果，
   按仓库要求完成最多三轮 review-and-refactor 后才更新 S1 状态。
 
-### S2：管理的 Chromium 语义闭环
+### S2：管理的 Chromium 语义闭环（2026-09-30 本地验收完成）
 
 - 一个 Playwright 管理实例、一条 locator 路径，绑定 page/frame/导航代次；
   文本观察、动作候选、点击/填写、读回闭环，不依赖 Quartz 窗口标题映射。
@@ -1307,7 +1307,7 @@ docs check、diff check 通过。未变化文件复用此前类型检查证据�
 - **退出条件**：真实本地浏览器集成通过；默认 backend 无 extras 可启动；
   权限/取消/预算在派发前生效，不访问用户日常 profile。
 
-#### S2 实施步骤（2026-09-30，进行中）
+#### S2 实施步骤（2026-09-30，已完成）
 
 基线 `26bd91b4`。复用现有 Controller / TaskRuntime，不增加核心的浏览器分支。
 
@@ -1579,7 +1579,7 @@ core/插件/benchmark lint、CLI lint、修复文件 pyright、开发服务日�
 S2–S6 继续 active；默认工厂、实机输入/效果、Jev/Advisor 与恢复不因 S1 完成而启用。
 
 
-### S2 实施与验收记录（2026-09-30，验证/评审中）
+### S2 实施与验收记录（2026-09-30，本地受控浏览器验收完成）
 
 - 基线 `26bd91b4`；新增插件内部 `channels/dom.py`，没有核心 Runner 的浏览器特判。
   显式 browser 配置、Playwright 1.58.0 可选 extra、临时 headless Chromium/context；
@@ -1601,8 +1601,8 @@ S2–S6 继续 active；默认工厂、实机输入/效果、Jev/Advisor 与恢�
 - 无 extra 启动：禁用 Playwright 导入，默认空 AppConfig 与隔离临时数据库启动后，
   `/api/health` 返回 200；另有插件缺依赖拒绝测试。空配置无 LLM profile 的启动警告
   不表示浏览器依赖失败。锁文件仅增加 browser extra，保留既有依赖版本。
-- 最终步骤：§10 全部适用 Verification Checklist 和至多三轮 review-and-refactor
-  完成后补最终结果。协议及生成物未改，协议同步检查不适用。
+- 最终步骤：§10 全部适用 Verification Checklist 和有界 review-and-refactor
+  已完成，最终结果见下文。协议及生成物未改，协议同步检查不适用。
 
 评审前冻结代码的验证：后端全量 **5572 passed / 1 skipped / 21 warnings**
 （`/tmp/tank-s2-stable-backend.log`），其中 S2 的 27 项真实 Chromium 测试实际运行、
@@ -1611,3 +1611,20 @@ S2–S6 继续 active；默认工厂、实机输入/效果、Jev/Advisor 与恢�
 E2E TypeScript、开发服务日志、docs/diff check 均通过。`uv lock --check --offline`
 及 browser extra 安装命令的 `--locked --dry-run --offline` 检查通过，未改变现有环境。
 中间 E2E 曾与新配置用例的 TDD 红灯编辑重叠，最终冻结版本已完整重跑通过。
+
+S2 实现提交 `091fbf10`，使用/验收说明提交 `2c1a7bdc`。独立 code-reviewer 按
+`agents/code-reviewer.md` 的 review-and-refactor 模式执行两轮：第 1 轮确认 R1，
+驱动已启动但尚未返回所有权时取消启动 await，会遗漏驱动并可能错误报告清理完成。
+真实驱动取消回归先红后绿；保留并 shield 启动任务，在关闭时接管并停止迟到资源。
+最小修复提交 `4e728c11`，未扩展 S2 功能范围。
+
+修复后的最终验证：真实 Chromium **28 passed，零 skip**；后端全量
+**5573 passed / 1 skipped / 21 warnings**（`/tmp/tank-s2-review-backend.log`）；
+E2E **21 场景 / 83 步**（`/tmp/tank-s2-review-e2e.log`）。backend/CLI lint、
+全部改动 Python pyright、web lint/tsc、E2E TypeScript、开发服务日志、docs/diff check
+全部通过。第 2 轮复核无新增或遗留可操作问题，立即停止；该轮为评审者对自己修复
+的自检，不包装成额外独立验收。
+
+协调者已核对最终修复 diff、验证日志及评审结论。S2 按本节的本地受控 Chromium
+范围完成；默认配置不变，远端 CI 未触发，S3–S6 继续 active。原生桌面输入、
+Jev/Advisor、恢复和生产采用不因 S2 完成而获得验收。
