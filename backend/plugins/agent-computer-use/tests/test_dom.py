@@ -361,7 +361,10 @@ async def test_browser_config_through_real_runner(site, chromium_required) -> No
     assert results[0]["cleanup"] == "confirmed"
 
 
-async def test_close_during_driver_creation_releases_late_resource(site, chromium_required, monkeypatch):
+@pytest.mark.parametrize("shutdown", ["close", "cancel"])
+async def test_close_during_driver_creation_releases_late_resource(
+    site, chromium_required, monkeypatch, shutdown,
+):
     from playwright.async_api import async_playwright
     from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
     from tank_backend.agents.subagent import SubAgentStopped
@@ -392,12 +395,19 @@ async def test_close_during_driver_creation_releases_late_resource(site, chromiu
     task = asyncio.create_task(browser.observe("managed-page", ctx))
     try:
         await asyncio.wait_for(started.wait(), 3)
-        closing = asyncio.create_task(browser.aclose())
-        await asyncio.sleep(0)
-        release.set()
-        with pytest.raises(SubAgentStopped, match="channel_closed"):
-            await task
-        await closing
+        if shutdown == "cancel":
+            task.cancel()
+            await asyncio.sleep(0)
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            closing = asyncio.create_task(browser.aclose())
+            await asyncio.sleep(0)
+            release.set()
+            with pytest.raises(SubAgentStopped, match="channel_closed"):
+                await task
+            await closing
         assert stopped == acquired
         assert browser.browser is None
     finally:

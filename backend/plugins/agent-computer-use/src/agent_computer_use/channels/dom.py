@@ -125,6 +125,7 @@ class ManagedChromiumChannel:
         self.closed = False
         self.task_id: str | None = None
         self.playwright: Playwright | None = None
+        self.starting: asyncio.Task[Playwright] | None = None
         self.browser: Browser | None = None
         self.page: Page | None = None
         self.frame: Frame | None = None
@@ -158,14 +159,16 @@ class ManagedChromiumChannel:
         try:
             async with self.resource_lock:
                 self.check(context)
-                self.playwright = await async_playwright().start()
+                self.starting = asyncio.create_task(async_playwright().start())
+                playwright = await asyncio.shield(self.starting)
+                self.playwright = playwright
             self.check(context)
-            await self.playwright.selectors.register(
+            await playwright.selectors.register(
                 self.engine, _ENGINE.replace("NAMESPACE", json.dumps(self.namespace)),
                 content_script=False,
             )
             self.check(context)
-            self.browser = await self.playwright.chromium.launch(headless=True)
+            self.browser = await playwright.chromium.launch(headless=True)
             self.check(context)
             browser_context = await self.browser.new_context(
                 accept_downloads=False, service_workers="block",
@@ -330,6 +333,11 @@ class ManagedChromiumChannel:
         self.closed = True
         self.previous, self.view = None, None
         async with self.resource_lock:
+            if self.starting is not None and self.playwright is None:
+                # Cancellation must not abandon a driver before ownership transfers.
+                results = await asyncio.gather(self.starting, return_exceptions=True)
+                if not isinstance(results[0], BaseException):
+                    self.playwright = results[0]
             try:
                 if self.browser is not None:
                     await self.browser.close()
