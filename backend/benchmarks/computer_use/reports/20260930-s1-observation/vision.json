@@ -1,0 +1,457 @@
+{
+  "manifest_sha256": "48c70b9a823494652c98f30337082f25b5a4271768c59cf20f1d322118d8ce26",
+  "macos": "26.6.2",
+  "vision_binding": "12.2",
+  "revision": 3,
+  "splits": {
+    "calibration": {
+      "expected": 7,
+      "hits": 7,
+      "recall": 1.0,
+      "false_matches": 0,
+      "passed": true
+    },
+    "holdout": {
+      "expected": 7,
+      "hits": 7,
+      "recall": 1.0,
+      "false_matches": 0,
+      "passed": true
+    }
+  },
+  "cases": [
+    {
+      "id": "calibration-chinese",
+      "split": "calibration",
+      "category": "chinese",
+      "expected": 1,
+      "hits": 1,
+      "false_matches": 0,
+      "center_errors_px": [
+        1.1180351650233211
+      ],
+      "regions": [
+        {
+          "ref": "253676dd4be4497faf615868f3c6459a:ocr:0",
+          "role": "text",
+          "label": "保存报告",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            39.87357037274046,
+            49.513480094585155,
+            106.25286102294923,
+            28.97304153442382
+          ]
+        }
+      ]
+    },
+    {
+      "id": "calibration-small",
+      "split": "calibration",
+      "category": "small",
+      "expected": 1,
+      "hits": 1,
+      "false_matches": 0,
+      "center_errors_px": [
+        0.7071064983438503
+      ],
+      "regions": [
+        {
+          "ref": "3503e473ca7945d18ea81519ce87c5fd:ocr:0",
+          "role": "text",
+          "label": "Export PDF",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            39.99999975,
+            48.000000149999984,
+            60.0,
+            12.000000000000004
+          ]
+        }
+      ]
+    },
+    {
+      "id": "calibration-digit",
+      "split": "calibration",
+      "category": "digit",
+      "expected": 1,
+      "hits": 1,
+      "false_matches": 0,
+      "center_errors_px": [
+        1.118033988749911
+      ],
+      "regions": [
+        {
+          "ref": "dabc35c796c741539df62e48954252f8:ocr:0",
+          "role": "text",
+          "label": "7",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            39.999999900000006,
+            55.99999979999999,
+            12.000000000000004,
+            16.000000000000007
+          ]
+        }
+      ]
+    },
+    {
+      "id": "calibration-duplicate",
+      "split": "calibration",
+      "category": "duplicate",
+      "expected": 2,
+      "hits": 2,
+      "false_matches": 0,
+      "center_errors_px": [
+        1.118033872474376,
+        1.1180338740298896
+      ],
+      "regions": [
+        {
+          "ref": "5e0ec89a7033467bb0782c84e132c60a:ocr:0",
+          "role": "text",
+          "label": "保存",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            39.99999990500001,
+            49.99999993000001,
+            53.99999999999999,
+            28.00000000000001
+          ]
+        },
+        {
+          "ref": "5e0ec89a7033467bb0782c84e132c60a:ocr:1",
+          "role": "text",
+          "label": "保存",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            39.999999900000006,
+            135.99999994347826,
+            53.99999999999999,
+            26.00000000000002
+          ]
+        }
+      ]
+    },
+    {
+      "id": "calibration-parent-child",
+      "split": "calibration",
+      "category": "parent-child",
+      "expected": 1,
+      "hits": 1,
+      "false_matches": 0,
+      "center_errors_px": [
+        1.1180333328366532
+      ],
+      "regions": [
+        {
+          "ref": "b1d1553c3fdd421b92f542831b5af0cb:ocr:0",
+          "role": "text",
+          "label": "Export",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            37.99999930000001,
+            52.00000006666668,
+            84.0,
+            28.00000000000001
+          ]
+        }
+      ]
+    },
+    {
+      "id": "calibration-icon",
+      "split": "calibration",
+      "category": "icon",
+      "expected": 0,
+      "hits": 0,
+      "false_matches": 0,
+      "center_errors_px": [],
+      "regions": []
+    },
+    {
+      "id": "calibration-absent",
+      "split": "calibration",
+      "category": "absent",
+      "expected": 1,
+      "hits": 1,
+      "false_matches": 0,
+      "center_errors_px": [
+        1.1180334470096962
+      ],
+      "regions": [
+        {
+          "ref": "a2af6587aad841c0a48d45452ea539ec:ocr:0",
+          "role": "text",
+          "label": "Cancel",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            39.90503235353327,
+            53.63164688332072,
+            84.18993377685547,
+            22.736705780029315
+          ]
+        }
+      ]
+    },
+    {
+      "id": "holdout-chinese",
+      "split": "holdout",
+      "category": "chinese",
+      "expected": 1,
+      "hits": 1,
+      "false_matches": 0,
+      "center_errors_px": [
+        1.118034156598809
+      ],
+      "regions": [
+        {
+          "ref": "3551007689d24d08bc3c1afc125a2c8a:ocr:0",
+          "role": "text",
+          "label": "保存报告",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            319.9692579052494,
+            93.8910128965786,
+            106.06148529052733,
+            30.21797275543216
+          ]
+        }
+      ]
+    },
+    {
+      "id": "holdout-small",
+      "split": "holdout",
+      "category": "small",
+      "expected": 1,
+      "hits": 1,
+      "false_matches": 0,
+      "center_errors_px": [
+        1.581139130816302
+      ],
+      "regions": [
+        {
+          "ref": "9c5c4636814d4af4a6d2b49347447052:ocr:0",
+          "role": "text",
+          "label": "Export PDF",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            319.9683290765856,
+            91.83958471063485,
+            60.06334304809569,
+            12.32083034515381
+          ]
+        }
+      ]
+    },
+    {
+      "id": "holdout-digit",
+      "split": "holdout",
+      "category": "digit",
+      "expected": 1,
+      "hits": 1,
+      "false_matches": 0,
+      "center_errors_px": [
+        1.1180340206937467
+      ],
+      "regions": [
+        {
+          "ref": "9073830cec6b4f96a717190166004643:ocr:0",
+          "role": "text",
+          "label": "7",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            315.99999988571426,
+            97.99999984285711,
+            20.000000000000004,
+            22.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "holdout-duplicate",
+      "split": "holdout",
+      "category": "duplicate",
+      "expected": 2,
+      "hits": 2,
+      "false_matches": 0,
+      "center_errors_px": [
+        1.5058872439092426,
+        2.499999937499981
+      ],
+      "regions": [
+        {
+          "ref": "da3f97c2b41b4569b6f0a280394fa317:ocr:0",
+          "role": "text",
+          "label": "保存",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            316.42477759127587,
+            92.57522081231299,
+            59.01770019531251,
+            34.85840606689453
+          ]
+        },
+        {
+          "ref": "da3f97c2b41b4569b6f0a280394fa317:ocr:1",
+          "role": "text",
+          "label": "保存",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            487.99999990000003,
+            235.9999999375,
+            56.00000000000003,
+            29.99999999999997
+          ]
+        }
+      ]
+    },
+    {
+      "id": "holdout-parent-child",
+      "split": "holdout",
+      "category": "parent-child",
+      "expected": 1,
+      "hits": 1,
+      "false_matches": 0,
+      "center_errors_px": [
+        2.0615529179075898
+      ],
+      "regions": [
+        {
+          "ref": "c99508daad2d46698ea9cd9ce095971a:ocr:0",
+          "role": "text",
+          "label": "Export",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            320.00000005,
+            98.00000023333332,
+            82.00000000000001,
+            27.99999999999998
+          ]
+        }
+      ]
+    },
+    {
+      "id": "holdout-icon",
+      "split": "holdout",
+      "category": "icon",
+      "expected": 0,
+      "hits": 0,
+      "false_matches": 0,
+      "center_errors_px": [],
+      "regions": []
+    },
+    {
+      "id": "holdout-absent",
+      "split": "holdout",
+      "category": "absent",
+      "expected": 1,
+      "hits": 1,
+      "false_matches": 0,
+      "center_errors_px": [
+        2.0615525298758004
+      ],
+      "regions": [
+        {
+          "ref": "f4e9e025fcfb4086bd581491c43fe260:ocr:0",
+          "role": "text",
+          "label": "Cancel",
+          "actions": [],
+          "enabled": true,
+          "kind": "text_region",
+          "source": "ocr",
+          "value": "",
+          "focused": null,
+          "ancestors": [],
+          "bounds": [
+            319.833098791418,
+            99.3444794126654,
+            84.33380126953122,
+            23.311040878295866
+          ]
+        }
+      ]
+    }
+  ],
+  "mode": "auxiliary_only",
+  "desktop_input": false,
+  "model_requests": 0
+}

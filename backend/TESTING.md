@@ -930,3 +930,17 @@ Domain loop fixtures remain in `plugins/agent-computer-use/tests`; SDK compactio
 format recovery, driver/file boundaries and zero request allowance remain in
 `plugins/agent-n2-sdk/tests`. This is offline S0 acceptance, not live-channel or
 resume acceptance for S1–S4.
+
+
+## S1 observation adapters
+
+`plugins/agent-computer-use/tests/test_observation.py` covers native identity,
+whole-scope candidate admission, frozen AX fixtures, controller/runtime read gates,
+and text-only current-snapshot HTTP through the real SDK. `test_vision.py` replaces
+only the native Vision boundary to check bound PNGs, crop/negative-display mapping,
+output limits, dependency absence and stop checks after capture. Core AX tests also
+cover subtree/text truncation, native action names and ambiguous window geometry.
+The [S1 acceptance](benchmarks/computer_use/reports/20260930-s1-observation/README.md)
+archives a local Vision run against frozen synthetic PNGs, without desktop input or
+model network requests. Run `uv run --no-sync python -m benchmarks.computer_use.s1_acceptance`
+from backend after installing the optional plugin `vision` extra on macOS.

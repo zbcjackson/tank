@@ -1516,3 +1516,33 @@ completed/cleanup=confirmed，并拒绝失败分支返回 completed TaskResult�
 测试已完整重跑。第 2 轮为评审者对断言及结论的自检，无遗留可操作问题，结束评审。
 最终 docs check、diff check 通过。S0 按 §2.6 和本节离线退出条件完成；整个计划仍
 保留 active，S1–S6、真实 AX/OCR/DOM/Jev/Advisor、同进程恢复和生产默认切换均未验收。
+
+
+### S1 实施与验收记录（2026-09-30，待最终评审）
+
+- 基线 `dc26a77a`；在既有插件内增加 AX / Vision 只读观察源及当前快照文字视图，
+  未新增生产默认、真实动作执行器、Jev/Advisor 或跨任务恢复。
+- AX 复用原枚举/坐标，原生动作使用 CopyActionNames，fill 需 AXValue 可写；
+  原生身份与展示序号分离，父子文字保留，焦点/值变化更新观察代次；深度/子节点/
+  节点数/文字裁切标记不完整，重合窗口拒绝歧义绑定。候选先全范围检查，再 top-32。
+- Vision 12.2 为 macOS 可选惰性依赖；revision 3 / accurate / 中英 / 无语言纠错。
+  验证 PNG hash/尺寸，复用 M2 crop/display 映射；图像/区域/文字输出有界。
+  OCR 仍为 text_region，不生成动作、不融合两源。
+- [冻结数据与逐例报告](../../../backend/benchmarks/computer_use/reports/20260930-s1-observation/README.md)：
+  14 张合成 PNG，布局族分割；两个 split 各 7/7 文字实例匹配，无额外误匹配。
+  最大 OCR 框中心偏差分别 1.12 / 2.50 像素；这与坐标转换误差是不同指标。
+  AX 14 例中 10 个可行动目标全部形成正确完整候选，4 个重复/缺失目标全部拒绝；
+  实际物理动作率未测。合成样本不证明实机应用泛化，OCR 仅辅助。
+- **Tests**：新增边界逐项先红后绿；定向测试 108 passed，覆盖稳定引用、fill、
+  拒绝、top-k、坐标、缺依赖、输出限制和异步停止。真实 Controller/TaskRuntime
+  覆盖读取额度/撤权；真实 TaskModel/SDK + fake HTTP 覆盖当前结构文字无图片/
+  无旧快照重发及统一用量。原生 Vision 已本地运行，未调用外部模型。
+- 评审前验证：后端全量 5535 passed / 1 skipped / 21 warnings
+  （`/tmp/tank-s1-backend-final.log`），E2E 20 场景 / 79 步
+  （`/tmp/tank-s1-e2e.log`）；web lint / `tsc -b --noEmit`、backend core/插件/
+  benchmark lint、改动 Python pyright、CLI lint、开发服务日志、docs check、
+  diff check 均通过。`uv lock --check --offline` 通过，保留其它锁定包版本。
+  协议/生成物未改，协议同步检查不适用。初次沙箱内全量因本地监听/网络受限失败，
+  已在允许环境完整重跑；新增用例各自的 TDD 红灯也已修复。
+- 实现提交：AX `ad8b6ac2`；Vision `c6388f43`。review-and-refactor 结果在收尾后
+  补录；通过前不将 S1 标为完成。

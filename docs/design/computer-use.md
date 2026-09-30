@@ -730,3 +730,20 @@ Adapter 也拒绝将其当作成功任务。
 任务关闭后拒绝调用及借用连接所有权断言。HTTP 与 OS 被替换，无付费或真实桌面调用。
 领域证据与 SDK 辅助出口回归分别在 `agent-computer-use/tests`、`agent-n2-sdk/tests`、
 `agent-n2/tests`；核心限额、撤权/取消/迟到完成及资源回收在 task_runtime/model_transport 测试。
+
+
+### S1 AX / Vision 观察适配器（2026-09-30）
+
+Computer Use 插件新增可注入的只读 AX 与 Vision 观察源，默认工厂仍不启用实机任务。
+AX 复用核心枚举，补原生动作名 API、AXValue 可写性、祖先、焦点、PID/窗口；
+深度/子节点/总节点/文本裁切均标记不完整，窗口几何重合无法唯一绑定时拒绝。
+插件用任务内原生对象身份分配引用，重排保持引用，消失后不复用旧引用；
+快照保留语义数据，原生句柄不进入模型文本。候选先检查全范围歧义，再保留至多
+32 条，携带总数/截断状态；明确唯一目标不受原列表位置影响。
+
+Vision 为可选惰性依赖，固定 revision 3 / accurate / 中英 / 关闭语言纠错，
+只识别宿主绑定 hash/尺寸的 PNG。文字框保留为 image-pixel text_region，
+通过 M2 Observation 映射全局坐标；不推断可点击性，不融合 AX/OCR。
+两种观察源经 Controller 的 TaskOperation 读取，撤权/关闭后不得新增原生读取。
+[合成样本验收与限制](../../backend/benchmarks/computer_use/reports/20260930-s1-observation/README.md)
+记录逐例输出；实机应用 AX、动作派发/效果、Jev/Advisor 与恢复不在本次证据内。
