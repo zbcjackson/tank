@@ -201,3 +201,21 @@ async def test_ax_controller_uses_governed_read_boundary(monkeypatch, case: str)
         assert result.reason == "scope_incomplete"
     await ctx.runtime.aclose()
     await source.aclose()
+
+
+async def test_ax_closed_while_native_read_is_queued_does_not_read(monkeypatch) -> None:
+    from agent_computer_use.observation import AXObservationSource
+    from tank_backend.agents.subagent import SubAgentStopped
+
+    source = AXObservationSource(frame(), "window-7")
+    read = Mock(return_value=([candidate(object(), "Save")], False))
+    monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", read)
+
+    async def queued(function, *args, **kwargs):
+        await source.aclose()
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr(asyncio, "to_thread", queued)
+    with pytest.raises(SubAgentStopped, match="channel_closed"):
+        await source.observe("window-7", context())
+    read.assert_not_called()

@@ -45,6 +45,8 @@ class AXObservationSource:
         def read() -> tuple[list[AXCandidate], bool]:
             context.check("desktop")
             context.runtime.check_open()
+            if self.closed:
+                raise SubAgentStopped("channel_closed")
             assert self.frame.window_id is not None
             return ax_window_candidates(self.frame.window_id, self.frame.display_geometry)
 
