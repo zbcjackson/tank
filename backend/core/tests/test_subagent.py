@@ -1496,16 +1496,25 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
         model_records = [r for r in audit_records if r.category == "model"]
         assert len({r.call_id for r in model_records}) == 1
         assert all(r.task_id == "shared-task" for r in audit_records)
+        terminals = [o for o in outputs if o.type == AgentOutputType.DONE]
         if outcome == "ok":
             assert ctx.budget.total_tokens == 10 and len(ctx.budget.call_ids) == 1
             assert model_records[-1].status == "returned"
             assert model_records[-1].call_id in ctx.budget.call_ids
             assert not any(o.metadata.get("status") == "error" for o in outputs)
+            assert len(terminals) == 1
+            if caller == "computer_use":
+                result = terminals[0].metadata["task_result"]
+                assert result["status"] == "completed" and result["cleanup"] == "confirmed"
+            elif caller != "llm":
+                assert terminals[0].metadata["stop_reason"] == "final_answer"
             assert len(actions) == (1 if caller == "computer_use" else 0)
         else:
             assert actions == []
             assert not any(o.type == AgentOutputType.DONE
                            and o.metadata.get("stop_reason") == "final_answer" for o in outputs)
+            assert not any(o.metadata.get("task_result", {}).get("status") == "completed"
+                           for o in terminals)
         assert "host-secret" not in repr(audit_records) + repr(outputs)
         with pytest.raises(SubAgentStopped, match="runtime_closed"):
             ctx.check()
