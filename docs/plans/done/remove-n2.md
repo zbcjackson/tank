@@ -1,6 +1,6 @@
 # Remove N2 and simplify SubAgent
 
-> **Status:** In progress — 2026-10-02
+> **Status:** Complete — 2026-10-02
 
 ## Scope
 
@@ -50,7 +50,7 @@ and backlog must describe the retained implementation. Baseline: `3113fd83`.
 
 ## Results
 
-Implementation complete; independent review pending.
+Implementation and independent review complete. No deferred work remains.
 
 - Removed both N2 plugins, engine/executor dispatch, provider model declarations,
   unused pause/resume capabilities, bare final_answer completion and SDK-only metrics.
@@ -74,3 +74,11 @@ Implementation complete; independent review pending.
   Actual backend lint paths are core/src, core/tests and plugins; repository root
   src/tests paths in older instructions do not reflect the current workspace.
 
+- Independent code-reviewer gate: round 1, review-and-refactor, baseline
+  `3113fd83` through `36dc13de`. No actionable or unresolved findings;
+  stopped after the first clean round without production changes. Reviewed
+  retained Computer Use lifecycle, TaskResult-only completion, model and
+  benchmark changes, removal completeness and regression coverage.
+- Review reused the final full-suite, E2E and static-check evidence above
+  because the reviewed code was unchanged. Plan archival and index closeout
+  were self-reviewed documentation changes; docs consistency passed again.

@@ -52,4 +52,4 @@
 - [plans/done/computer-use-adaptation-and-grounding.md](plans/done/computer-use-adaptation-and-grounding.md)：macOS 适配与定位效果改进计划（M0–M8 已完成，2026-09-25 关档）：保留生产基线 A（一体 legacy 归一化，默认全程未切换）；静态首轮门槛无候选通过；calc-open 拆分显著优于适配一体+宿主还原（p=0.011）但宽任务集 A 10/36 > C 5/36 且 C 耗 1.7–2× token；AX 条件性暂缓；点击大偏移根因未解决（归因止于服务输出边界）；全计划 ≈35.4M tokens（unpriced）。收口汇总见 [M8 收口报告](../backend/benchmarks/computer_use/reports/20260925-m8-closeout/README.md)，触发式后续工作在 [backlog.md](backlog.md)。
 - [plans/done/token-accounting-boundaries.md](plans/done/token-accounting-boundaries.md)：统一生产 token 用量记录，移回 benchmark trial/费用/预留策略；默认仅统计，修复显式零额度覆盖语义（2026-09-29 完成，第 1 轮独立评审通过）。
 
-- [plans/active/remove-n2.md](plans/active/remove-n2.md)：移除 N2 与 SDK，按当前 Computer Use 精简 SubAgent（进行中）。
+- [plans/done/remove-n2.md](plans/done/remove-n2.md)：N2 与 SDK 及专用扩展已移除，SubAgent 按当前 Computer Use 精简；完整验证通过，第 1 轮独立评审无可操作问题（2026-10-02 完成）。
