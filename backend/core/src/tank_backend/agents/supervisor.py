@@ -407,9 +407,7 @@ class WorkerSupervisor:
         if allowed_categories:
             # Optional so narrow test fakes (and older callers) keep working.
             run_kwargs["allowed_categories"] = allowed_categories
-        task_runtime = bool(agent_def.extension) or (
-            bool(agent_def.engine) and self._runner.uses_task_runtime(agent_def)
-        )
+        task_runtime = bool(agent_def.extension)
         terminal = False
         stop_reason: str | None = None
         task_result: TaskResult | None = None
@@ -431,13 +429,12 @@ class WorkerSupervisor:
             **run_kwargs,
         ):
             if event.type == AgentOutputType.DONE and task_runtime:
-                if "task_result" in event.metadata:
-                    task_result = TaskResult.model_validate(event.metadata["task_result"])
-                    if (task_result.cleanup != "confirmed"
-                            or event.metadata.get("stop_reason") != task_result.status):
-                        raise SubAgentStopped("error", "unconfirmed task result")
-                elif event.metadata.get("stop_reason") != "final_answer":
-                    raise SubAgentStopped(str(event.metadata.get("stop_reason", "error")))
+                if "task_result" not in event.metadata:
+                    raise SubAgentStopped("error", "extension ended without TaskResult")
+                task_result = TaskResult.model_validate(event.metadata["task_result"])
+                if (task_result.cleanup != "confirmed"
+                        or event.metadata.get("stop_reason") != task_result.status):
+                    raise SubAgentStopped("error", "unconfirmed task result")
                 terminal = True
             if event.type == AgentOutputType.TOKEN:
                 output_chunks.append(event.content)
@@ -469,7 +466,7 @@ class WorkerSupervisor:
         if task_runtime and not terminal:
             if stop_reason is not None:
                 raise SubAgentStopped(stop_reason)
-            raise SubAgentStopped("error", "extension ended without final_answer")
+            raise SubAgentStopped("error", "extension ended without TaskResult")
         return task_result
 
     def _finalize(

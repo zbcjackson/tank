@@ -97,15 +97,6 @@ class SubAgentRequest:
         object.__setattr__(self, "task_input", validate_task_input(self.task_input))
 
 
-@dataclass(frozen=True)
-class SubAgentCapabilities:
-    cancel: bool = False
-    pause: bool = False
-    resume: bool = False
-    persistent_resume: bool = False
-    pause_boundary: str = "unsupported"
-
-
 @dataclass
 class SubAgentAuthorization:
     """Task-level grant, issued by Tank, revocable at action boundaries."""
@@ -188,29 +179,7 @@ class SubAgentContext:
                 logging.getLogger(__name__).warning("Subagent observer failed for %s", kind)
 
 
-@dataclass(frozen=True)
-class SubAgentModel:
-    """Credential-free provider declaration returned by a trusted plugin factory."""
-
-    profile: str
-    model: str
-    base_url: str
-    input_modalities: frozenset[str] = frozenset({"text"})
-
-    def __post_init__(self) -> None:
-        if (
-            not all(isinstance(value, str) and value for value in (
-                self.profile, self.model, self.base_url,
-            )) or "text" not in self.input_modalities
-            or not self.input_modalities <= {"text", "image"}
-        ):
-            raise ValueError("unsupported task model declaration")
-
-
 class SubAgent(ABC):
-    capabilities = SubAgentCapabilities()
-    model_spec: SubAgentModel | None = None
-
     def __init__(self, *, cleanup_timeout: float = 5.0) -> None:
         from .task_resources import TaskResources
 

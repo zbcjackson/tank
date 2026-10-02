@@ -105,18 +105,6 @@ class ExtensionRegistry:
         factory = getattr(module, callable_name)
 
         instance = factory(config)
-        if manifest.type == "agent":
-            # B2: an agent extension must implement the Agent ABC —
-            # validated here so a broken plugin fails at instantiation,
-            # not mid-conversation.
-            from ..agents.base import Agent
-
-            if not isinstance(instance, Agent):
-                raise TypeError(
-                    f"Extension '{full_name}' declares type 'agent' but its "
-                    f"factory returned {type(instance).__name__} (must "
-                    f"implement the Agent ABC)"
-                )
         if manifest.type == "subagent":
             from ..agents.subagent import SubAgent
 

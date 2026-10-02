@@ -42,10 +42,11 @@ class SubAgentAdapter(Agent):
                     raise SubAgentStopped("error", "events after DONE")
                 if output.type == AgentOutputType.DONE:
                     terminal = output
-                    if "task_result" in output.metadata:
-                        result = TaskResult.model_validate(output.metadata["task_result"])
-                        if output.metadata.get("stop_reason") != result.status:
-                            raise SubAgentStopped("error", "task result disagrees with stop_reason")
+                    if "task_result" not in output.metadata:
+                        raise SubAgentStopped("error", "plugin ended without TaskResult")
+                    result = TaskResult.model_validate(output.metadata["task_result"])
+                    if output.metadata.get("stop_reason") != result.status:
+                        raise SubAgentStopped("error", "task result disagrees with stop_reason")
                 else:
                     yield output
         except SubAgentStopped as exc:
@@ -127,21 +128,12 @@ class SubAgentAdapter(Agent):
             raise SubAgentStopped("audit_failed", task_result=result)
         if terminal is None:
             raise SubAgentStopped("error", "plugin ended without DONE")
-        reason = terminal.metadata.get("stop_reason")
-        if result is not None:
-            result = result.with_cleanup("confirmed")
-            terminal = AgentOutput(
-                AgentOutputType.DONE, result.summary,
-                {**terminal.metadata, "task_result": result.model_dump(mode="json")},
-            )
-        if reason == "timeout":
-            raise TimeoutError("subagent timeout")
-        if reason != "final_answer" and "task_result" not in terminal.metadata:
-            raise SubAgentStopped(
-                str(reason or "error"),
-                "plugin did not finish the task",
-                terminal.metadata,
-            )
+        assert result is not None
+        result = result.with_cleanup("confirmed")
+        terminal = AgentOutput(
+            AgentOutputType.DONE, result.summary,
+            {**terminal.metadata, "task_result": result.model_dump(mode="json")},
+        )
         yield AgentOutput(
             AgentOutputType.DONE,
             terminal.content,

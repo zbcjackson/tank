@@ -180,7 +180,6 @@ class TaskRuntime:
 
     def configure_model(
         self, task_id: str, profile: LLMProfile,
-        *, input_modalities: frozenset[str] = frozenset({"text"}),
     ) -> None:
         """Host assembly before plugin creation; allocates no HTTP resources."""
         from ..llm.task_model import TaskModel
@@ -188,7 +187,7 @@ class TaskRuntime:
         self.bind(task_id)
         if self._model is not None:
             raise ValueError("task model is already configured")
-        model = TaskModel(task_id, self._context, profile, input_modalities=input_modalities)
+        model = TaskModel(task_id, self._context, profile)
         self.own("task-model", model.aclose)
         self._model = model
 

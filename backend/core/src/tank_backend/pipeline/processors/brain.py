@@ -77,8 +77,7 @@ class Brain(Processor):
         self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
         self._worker_store = worker_store
-        # B2: ExtensionRegistry handed to AgentRunner for plugin agent
-        # engines ("engine:" in agent definitions).
+        # ExtensionRegistry handed to AgentRunner for SubAgent plugins.
         self._registry = registry
 
         # Language config — used to detect the response language for TTS voice

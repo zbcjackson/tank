@@ -10,7 +10,6 @@ without touching the suite/runner — see the benchmarks README.
 from __future__ import annotations
 
 import asyncio
-import base64
 import hashlib
 import logging
 import re
@@ -26,11 +25,10 @@ import httpx
 from openai.types.chat import ChatCompletion
 
 from ..agents.approval import PendingToolCallStore
-from ..agents.base import Agent, AgentOutput, AgentOutputType, AgentState
+from ..agents.base import AgentOutputType
 from ..agents.definition import AgentDefinition, load_agent_definitions
 from ..agents.runner import AgentRunner
 from ..agents.subagent import (
-    SubAgent,
     SubAgentAuthorization,
     SubAgentCleanupError,
     SubAgentStopped,
@@ -82,7 +80,6 @@ class DriverResult:
     llm_ttft_s: float | None = None
     llm_call_s: float = 0.0
     llm_total_s: float = 0.0
-    llm_rtt_s: float = 0.0
     stop_reason: str | None = None
     cleanup: str = "unknown"
     primitives: int = 0
@@ -303,58 +300,6 @@ class RepinImeAfterLaunchTool(BaseTool):
         return result
 
 
-class _MeasuredEngine(Agent):
-    """Record engine usage without involving the shared LLM transport."""
-
-    def __init__(self, inner: Agent, llm: CountingLLM) -> None:
-        super().__init__(inner.name)
-        self.inner = inner
-        self.llm = llm
-
-    async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
-        outputs = self.inner.run(state)
-        try:
-            async for output in outputs:
-                if output.type == AgentOutputType.USAGE:
-                    self.llm.prompt_tokens += int(output.metadata.get("prompt_tokens", 0))
-                    self.llm.completion_tokens += int(output.metadata.get("completion_tokens", 0))
-                    elapsed = float(output.metadata.get("elapsed_s", 0))
-                    self.llm._record(0.0, elapsed)  # Non-streaming engine: no streamed TTFT.
-                yield output
-        finally:
-            close = getattr(outputs, "aclose", None)
-            if close is not None:
-                await close()
-
-
-class _MeasuredRegistry(ExtensionRegistry):
-    def __init__(self, llm: CountingLLM, trace: Callable[[], TraceSink | None]) -> None:
-        super().__init__()
-        self.llm = llm
-        self.trace = trace
-
-    def instantiate(self, full_name: str, config: dict) -> object:
-        executor = config.get("desktop_executor")
-        if executor is not None:
-            capture = executor.screenshot
-
-            async def screenshot(region: Any = None) -> Any:
-                shot = await capture(region)
-                trace = self.trace()
-                if trace is not None:
-                    encoded = base64.b64encode(shot.png).decode("ascii")
-                    trace.save_screenshot(f"data:image/png;base64,{encoded}")
-                return shot
-
-            executor.screenshot = screenshot
-        inner = super().instantiate(full_name, config)
-        if isinstance(inner, SubAgent):
-            return inner
-        if not isinstance(inner, Agent):
-            raise TypeError("benchmark extension must implement Agent or SubAgent")
-        return _MeasuredEngine(inner, self.llm)
-
-
 class SubAgentDriver:
     """Drive one sub-agent definition in-process (no pipeline, no WS).
 
@@ -372,7 +317,7 @@ class SubAgentDriver:
         tool_manager: ToolManager,
         *, input_cleanup: bool = False, task_input: dict[str, Any] | None = None,
     ) -> None:
-        if input_cleanup and (agent_def.engine or agent_def.extension):
+        if input_cleanup and agent_def.extension:
             raise ValueError("Input cleanup requires a built-in benchmark agent")
         self._task_input = validate_task_input(task_input)
         self._input_cleanup = MacOSInputCleanup() if input_cleanup else None
@@ -421,11 +366,10 @@ class SubAgentDriver:
                 f"agent definition '{agent_name}' not found in {agent_dirs}"
             )
         plugin_manifest = None
-        if agent_def.engine or agent_def.extension:
+        if agent_def.extension:
             from ..plugin.manager import PluginManager
 
-            reference = agent_def.engine or agent_def.extension
-            assert reference is not None
+            reference = agent_def.extension
             plugin_manifest = PluginManager().discover_plugins().get(reference.split(":", 1)[0])
             extension = next((
                 item for item in plugin_manifest.extensions
@@ -433,15 +377,14 @@ class SubAgentDriver:
             ), None) if plugin_manifest else None
             governed = (
                 extension is not None and extension.runtime_api == 1
-                and ("task_model" in extension.needs or bool(agent_def.model))
-                and (bool(agent_def.extension) or "task_runtime" in extension.needs)
+                and bool(agent_def.model)
             )
             if request_limits is not None and not governed:
                 raise ValueError(
                     "Request limits require the built-in benchmark transport "
                     "or a governed task model"
                 )
-        if input_cleanup and (sys.platform != "darwin" or agent_def.engine or agent_def.extension):
+        if input_cleanup and (sys.platform != "darwin" or agent_def.extension):
             raise ValueError("Input cleanup requires the built-in macOS benchmark driver")
         if comparison is not None:
             comparison.verify(app_config, agent_def)
@@ -525,14 +468,13 @@ class SubAgentDriver:
             return cast(LLM, CountingLLM(inner, counter=llm))
 
         registry = None
-        if agent_def.engine or agent_def.extension:
-            registry = _MeasuredRegistry(llm, lambda: driver._trace)
-            ref = agent_def.engine or agent_def.extension
-            assert ref is not None
+        if agent_def.extension:
+            registry = ExtensionRegistry()
+            ref = agent_def.extension
             plugin_name = ref.split(":", 1)[0]
             manifest = plugin_manifest
             if manifest is None:
-                raise ValueError(f"benchmark engine plugin '{plugin_name}' not found")
+                raise ValueError(f"benchmark subagent plugin '{plugin_name}' not found")
             for extension in manifest.extensions:
                 registry.register(plugin_name, extension)
         driver._runner = AgentRunner(
@@ -544,7 +486,7 @@ class SubAgentDriver:
             definitions=definitions,
             toolsets_config=app_config.toolsets,
             app_config=app_config if (
-                agent_def.engine or agent_def.extension or agent_def.grounding is not None
+                agent_def.extension or agent_def.grounding is not None
             ) else None,
             llm_factory=measured_llm,
             registry=registry,
@@ -566,15 +508,14 @@ class SubAgentDriver:
             configured_token_budget=configured_token_budget,
         )
 
-        # Built-in agents use this exact SDK client. Plugin engines own their
-        # transport and must not be labelled HTTP-verified by this hook.
+        # Built-in agents use this SDK client; SubAgent model calls use task capture.
         if (
-            not agent_def.engine and not agent_def.extension
+            not agent_def.extension
             and capture_request not in llm.client._client.event_hooks["request"]
         ):
             llm.client._client.event_hooks["request"].append(capture_request)
         if (
-            not agent_def.engine and not agent_def.extension
+            not agent_def.extension
             and capture_response not in llm.client._client.event_hooks["response"]
         ):
             llm.client._client.event_hooks["response"].append(capture_response)
@@ -596,21 +537,9 @@ class SubAgentDriver:
     def describe(self) -> dict[str, Any]:
         definition = self._agent_def
         config = self._runner._app_config
-        summary = {}
-        if definition.extension and config is not None:
-            raw = config.subagents.get(definition.extension, {})
-            summary = {k: raw[k] for k in ("model", "tool_set", "reasoning_effort", "max_steps",
-                                          "environment") if k in raw}
-        elif definition.engine and config is not None:
-            raw = config.get_section("agent_engines").get(definition.engine, {})
-            summary = {k: raw[k] for k in ("tool_set", "reasoning_effort", "max_steps") if k in raw}
-            profile_name = raw.get("llm_profile", definition.engine.split(":", 1)[0])
-            profile = config.llm_profiles.get(profile_name)
-            if profile is not None:
-                summary.update(model=profile.model, llm_profile=profile_name)
-        else:
-            summary = {"model": self._llm.model}
-        return {"agent_name": definition.name, "engine": definition.engine,
+        profile = config.llm_profiles.get(definition.model) if config and definition.model else None
+        summary = {"model": profile.model if profile else self._llm.model}
+        return {"agent_name": definition.name,
                 "extension": definition.extension, "config": summary,
                 "prompt_revision": hashlib.sha256(definition.system_prompt.encode()).hexdigest(),
                 **self._runtime_metadata,
@@ -669,7 +598,7 @@ class SubAgentDriver:
         # Per-call latency lands in the trace next to the actions it delays.
         self._llm.on_call = lambda call, ttft, total: trace.event(
             "llm_call", call=call,
-            ttft_s=None if self._agent_def.engine or self._agent_def.extension else ttft,
+            ttft_s=None if self._agent_def.extension else ttft,
             total_s=total,
         )
         messages: list[dict[str, Any]] = [{"role": "user", "content": instruction}]
@@ -677,35 +606,19 @@ class SubAgentDriver:
         token_parts: list[str] = []
         stopped_reason: str | None = None
         terminal: dict[str, Any] = {}
-        rtts: list[float] = []
-        unknown_calls = 0
         primitives = 0
         non_gui_tools: set[str] = set()
 
         class Observer:
             def on_event(_self, kind: str, metadata: dict[str, Any]) -> None:
-                nonlocal unknown_calls, primitives
+                nonlocal primitives
                 if kind == "desktop_cleanup":
                     terminal["cleanup"] = ("confirmed" if metadata.get("confirmed") is True
                                            else "unconfirmed")
                 if kind == "desktop_dispatch" and metadata.get("in_batch"):
                     primitives += int(metadata.get("succeeded", False))
-                if kind == "dimensions":
-                    self._runtime_metadata["display"] = dict(metadata)
-                if "sdk_version" in metadata:
-                    self._runtime_metadata["sdk_version"] = metadata["sdk_version"]
                 if kind == "screenshot":
                     trace.save_screenshot(metadata["data_url"])
-                elif kind == "api_end":
-                    elapsed = float(metadata["elapsed_s"])
-                    rtts.append(elapsed)
-                    if metadata.get("usage") == "unknown":
-                        unknown_calls += 1
-                    else:
-                        self._llm.prompt_tokens += int(metadata["prompt_tokens"])
-                        self._llm.completion_tokens += int(metadata["completion_tokens"])
-                    self._llm._record(0.0, elapsed)
-                    trace.event(kind, **metadata)
                 else:
                     trace.event(kind, **metadata)
 
@@ -714,24 +627,16 @@ class SubAgentDriver:
 
             nonlocal steps, stopped_reason, primitives
             run_kwargs: dict[str, Any] = {}
-            task_policy = None
             if self._input_cleanup is not None:
-                run_kwargs.update(desktop_cleanup=self._input_cleanup, observer=Observer())
-            if (self._agent_def.extension or (self._agent_def.engine
-                    and self._runner.uses_task_runtime(self._agent_def))):
+                run_kwargs["desktop_cleanup"] = self._input_cleanup
+            if self._agent_def.extension:
                 permissions = self._runner.extension_permissions(self._agent_def)
                 run_kwargs.update(authorization=SubAgentAuthorization(permissions),
-                                  deadline=time.monotonic() + timeout_s, observer=Observer(),
-                                  max_steps=max_steps)
-                task_policy = BenchmarkTaskPolicy(trace, self._request_budget, self._spend)
-                run_kwargs.update(model_policy=task_policy, model_capture=task_policy)
-                if self._agent_def.extension:
-                    run_kwargs["task_input"] = getattr(self, "_task_input", None)
-            elif not self._agent_def.engine:
-                run_kwargs.update(deadline=time.monotonic() + timeout_s, observer=Observer(),
-                                  max_steps=max_steps)
-                task_policy = BenchmarkTaskPolicy(trace, self._request_budget, self._spend)
-                run_kwargs.update(model_policy=task_policy, model_capture=task_policy)
+                                  task_input=getattr(self, "_task_input", None))
+            run_kwargs.update(deadline=time.monotonic() + timeout_s, observer=Observer(),
+                              max_steps=max_steps)
+            task_policy = BenchmarkTaskPolicy(trace, self._request_budget, self._spend)
+            run_kwargs.update(model_policy=task_policy, model_capture=task_policy)
             outputs = self._runner.run_agent(self._agent_def, messages, **run_kwargs)
             try:
                 async for output in outputs:
@@ -801,25 +706,19 @@ class SubAgentDriver:
             stopped_reason = f"{type(exc).__name__}: {exc}"
             terminal["stop_reason"] = "error"
 
-        if ((self._agent_def.extension or (self._agent_def.engine
-                and self._runner.uses_task_runtime(self._agent_def)))
-                and terminal.get("cleanup") != "unconfirmed"):
+        if self._agent_def.extension and terminal.get("cleanup") != "unconfirmed":
             terminal["cleanup"] = "confirmed"
         if timed_out:
             terminal["stop_reason"] = "timeout"
         if self._request_budget is not None and self._request_budget.blocked:
             terminal["stop_reason"] = "request_limit"
-        if "sdk_version" in terminal:
-            self._runtime_metadata["sdk_version"] = terminal["sdk_version"]
         wall_s = time.monotonic() - start
         call_stats = self._llm.call_stats
         ttfts = [t for t, _ in call_stats if t is not None]
-        unknown_calls += self._llm.unknown_calls
+        unknown_calls = self._llm.unknown_calls
         totals = [t for _, t in call_stats]
         llm_calls = len(call_stats)
-        llm_ttft_s = (median(ttfts) if ttfts else None) if not (
-            self._agent_def.engine or self._agent_def.extension
-        ) else None
+        llm_ttft_s = median(ttfts) if ttfts and not self._agent_def.extension else None
         llm_call_s = median(totals) if totals else 0.0
         llm_total_s = sum(totals)
         trace.event(
@@ -850,7 +749,6 @@ class SubAgentDriver:
             llm_ttft_s=llm_ttft_s,
             llm_call_s=llm_call_s,
             llm_total_s=llm_total_s,
-            llm_rtt_s=median(rtts) if rtts else (llm_call_s if self._agent_def.engine else 0.0),
             stop_reason=terminal.get("stop_reason"), cleanup=terminal.get("cleanup", "unknown"),
             primitives=primitives,
             model_turns=int(terminal.get("model_turns", llm_calls)), unknown_calls=unknown_calls,

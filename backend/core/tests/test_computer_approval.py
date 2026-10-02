@@ -42,22 +42,6 @@ def _computer_toolset_policy() -> ToolApprovalPolicy:
     return _policy()
 
 
-def test_engine_desktop_capability_requires_approval_even_with_empty_toolset():
-    from tank_backend.plugin.manifest import ExtensionManifest
-    from tank_backend.plugin.registry import ExtensionRegistry
-
-    runner = _runner(_policy())
-    registry = ExtensionRegistry()
-    registry.register("desktop", ExtensionManifest(
-        name="agent", type="agent", factory="unused:create",
-        needs=("desktop_executor",),
-    ))
-    runner._registry = registry
-    definition = AgentDefinition(name="desktop", description="", system_prompt="",
-                                 engine="desktop:agent", tool_filter=())
-    assert AgentTool(runner)._computer_gate_needed(definition)
-
-    
 def _runner(policy: ToolApprovalPolicy) -> AgentRunner:
     return AgentRunner(
         llm=MagicMock(),

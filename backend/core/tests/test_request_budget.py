@@ -46,16 +46,14 @@ def test_closed_request_budget_never_reopens_or_changes_its_summary():
     assert budget.snapshot() == summary
 
 
-@pytest.mark.parametrize("kind", ["engine", "extension"])
-def test_request_limits_reject_uninstrumented_plugin_clients(monkeypatch, tmp_path, kind):
+def test_request_limits_reject_uninstrumented_plugin_clients(monkeypatch, tmp_path):
     from types import SimpleNamespace
 
     from tank_backend.agents.definition import AgentDefinition
     from tank_backend.benchmarks import driver as module
     from tank_backend.benchmarks.request_budget import RequestLimits
 
-    definition = (AgentDefinition("plugin", "", "", engine="test:agent") if kind == "engine"
-                  else AgentDefinition("plugin", "", "", extension="test:agent"))
+    definition = AgentDefinition("plugin", "", "", extension="test:agent")
     config = SimpleNamespace(agents=SimpleNamespace(dirs=[]))
     monkeypatch.setattr(module.AppConfig, "load", lambda _: config)
     monkeypatch.setattr(module, "load_agent_definitions", lambda _: {"plugin": definition})

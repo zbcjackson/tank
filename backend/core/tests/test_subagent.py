@@ -18,6 +18,7 @@ from tank_backend.agents.runner import AgentRunner
 from tank_backend.agents.store import WorkerStore
 from tank_backend.agents.subagent import SubAgent, SubAgentBudget, SubAgentStopped
 from tank_backend.agents.supervisor import WorkerSupervisor
+from tank_backend.agents.task_result import TaskResult
 from tank_backend.config.app_config import AppConfig, ConfigError
 from tank_backend.persistence import Base, Database
 from tank_backend.pipeline.bus import Bus
@@ -93,7 +94,7 @@ async def test_desktop_prompt_at_http_has_no_self_delegation(
 
 class FakeSubAgent(SubAgent):
     def __init__(self):
-        self.reason = "final_answer"
+        self.reason = "completed"
         self.close_error = False
         self.closed = False
         self.request = self.context = None
@@ -105,7 +106,9 @@ class FakeSubAgent(SubAgent):
         yield AgentOutput(AgentOutputType.USAGE, metadata={"total_tokens": 10})
         yield AgentOutput(AgentOutputType.TOOL_EXECUTING, metadata={"name": "fake"})
         yield AgentOutput(AgentOutputType.TOKEN, "hello")
-        if self.reason:
+        if self.reason == "completed":
+            yield TaskResult(status="completed", summary="hello").to_output()
+        elif self.reason:
             yield AgentOutput(AgentOutputType.DONE, metadata={"stop_reason": self.reason})
 
     async def aclose(self):
@@ -119,7 +122,7 @@ class ResourceOnlyAgent(SubAgent):
 
     async def run(self, request, context):
         self.check_open()
-        yield AgentOutput(AgentOutputType.DONE, metadata={"stop_reason": "final_answer"})
+        yield TaskResult(status="completed", summary="done").to_output()
 
 
 async def test_base_subagent_owns_and_releases_resources_without_running():
@@ -248,7 +251,9 @@ async def test_adapter_owns_runtime_cleanup_even_when_plugin_close_fails(stack, 
         prompt="task", subagent_type="fake",
     )
     assert isinstance(result.content, str)
-    assert json.loads(result.content)["status"] == "failed"
+    data = json.loads(result.content)
+    assert data["status"] == "unknown"
+    assert data["task_result"]["reason"] == "cleanup_unconfirmed"
     assert released == [True]
     with pytest.raises(SubAgentStopped, match="runtime_closed"):
         fake.context.check()
@@ -276,7 +281,7 @@ async def test_adapter_stops_runtime_operations_before_releasing_plugin_resource
         context.runtime.register(operation)
         operation_task = asyncio.create_task(context.runtime.execute(operation, None))
         await entered.wait()
-        yield AgentOutput(AgentOutputType.DONE, metadata={"stop_reason": "final_answer"})
+        yield TaskResult(status="completed", summary="done").to_output()
 
     async def release():
         order.append("resources_released")
@@ -317,7 +322,6 @@ async def test_adapter_cleans_up_if_output_iterator_creation_fails(stack, monkey
 async def test_runtime_cleanup_failure_still_releases_plugin_and_preserves_result(
     stack, monkeypatch,
 ):
-    from tank_backend.agents.task_result import TaskResult
 
     fake, runner, supervisor, definition, store = stack
 
@@ -394,10 +398,9 @@ async def test_extension_receives_assembled_task_constraints(stack, structured_p
     assert "`ask_user`" not in fake.request.context
 
 
-@pytest.mark.parametrize("engine", [None, "old:agent"])
-async def test_structured_input_requires_extension_and_is_advertised(stack, engine):
+async def test_structured_input_requires_extension_and_is_advertised(stack):
     fake, runner, supervisor, definition, store = stack
-    definition = AgentDefinition("legacy", "", "", engine=engine)
+    definition = AgentDefinition("legacy", "", "")
     runner.definitions["legacy"] = definition
     tool = AgentTool(runner, supervisor=supervisor)
     parameter = next(p for p in tool.get_info().parameters if p.name == "task_input")
@@ -411,8 +414,8 @@ async def test_structured_input_requires_extension_and_is_advertised(stack, engi
     assert store.count_active() == 0
 
 
-@pytest.mark.parametrize("reason", ["max_steps", "budget", "context_limit", "unknown", None])
-async def test_only_explicit_final_answer_completes(stack, reason):
+@pytest.mark.parametrize("reason", ["final_answer", "max_steps", "budget", "unknown", None])
+async def test_subagent_requires_structured_result(stack, reason):
     fake, runner, supervisor, definition, store = stack
     fake.reason = reason
     result = await supervisor.run_foreground(agent_def=definition, prompt="task")
@@ -421,7 +424,6 @@ async def test_only_explicit_final_answer_completes(stack, reason):
 
 @pytest.mark.parametrize("status", ["completed", "partial", "unknown", "needs_input", "stopped"])
 async def test_structured_task_result_is_not_confused_with_completion(stack, monkeypatch, status):
-    from tank_backend.agents.task_result import TaskResult
     from tank_backend.agents.worker_tools import AgentStatusTool
 
     fake, runner, supervisor, definition, store = stack
@@ -461,7 +463,6 @@ async def test_structured_task_result_is_not_confused_with_completion(stack, mon
 @pytest.mark.parametrize("status", ["partial", "unknown", "needs_input", "stopped"])
 async def test_background_task_outcome_reaches_notifications(stack, monkeypatch, status):
     from tank_backend.agents.notification_hub import NotificationHub, NotificationHubConfig
-    from tank_backend.agents.task_result import TaskResult
     from tank_backend.agents.worker_inbox import WorkerInboxObserver
     from tank_backend.api.agents import get_agent
     from tank_backend.api.router import _worker_event_to_ws_msg
@@ -502,7 +503,6 @@ async def test_background_task_outcome_reaches_notifications(stack, monkeypatch,
 @pytest.mark.parametrize("status", ["completed", "partial", "unknown", "needs_input", "stopped"])
 @pytest.mark.parametrize("summary", ["", "save unverified"])
 async def test_legacy_tool_path_preserves_structured_outcome(stack, monkeypatch, status, summary):
-    from tank_backend.agents.task_result import TaskResult
 
     fake, runner, supervisor, definition, store = stack
 
@@ -521,7 +521,6 @@ async def test_legacy_tool_path_preserves_structured_outcome(stack, monkeypatch,
 
 async def test_cleanup_failure_retains_task_evidence_as_unknown(stack, monkeypatch):
     from tank_backend.agents.subagent import SubAgentAuthorization
-    from tank_backend.agents.task_result import TaskResult
 
     fake, runner, supervisor, definition, store = stack
 
@@ -587,7 +586,6 @@ async def test_invalid_result_envelope_never_completes(stack, monkeypatch, chang
 @pytest.mark.parametrize("status", ["completed", "partial"])
 async def test_cleanup_exception_cannot_report_success(stack, monkeypatch, close_error, status):
     from tank_backend.agents.subagent import SubAgentCleanupError
-    from tank_backend.agents.task_result import TaskResult
 
     fake, runner, supervisor, definition, store = stack
 
@@ -609,7 +607,6 @@ async def test_cleanup_exception_cannot_report_success(stack, monkeypatch, close
 @pytest.mark.parametrize("evidence_source", ["terminal", "cleanup_error"])
 async def test_cleanup_error_preserves_each_evidence_source(stack, monkeypatch, evidence_source):
     from tank_backend.agents.subagent import SubAgentCleanupError
-    from tank_backend.agents.task_result import TaskResult
 
     fake, runner, supervisor, definition, store = stack
     evidence = TaskResult(status="partial", summary="save sent", details={"receipts": ["sent"]})
@@ -643,7 +640,6 @@ async def test_interruption_during_cleanup_keeps_lock_and_evidence(
     stack, monkeypatch, trigger, close_error,
 ):
     from tank_backend.agents.subagent import SubAgentAuthorization
-    from tank_backend.agents.task_result import TaskResult
 
     fake, runner, supervisor, definition, store = stack
     entered, release = asyncio.Event(), asyncio.Event()
@@ -704,7 +700,8 @@ async def test_close_failure_fails_worker(stack):
     fake, runner, supervisor, definition, store = stack
     fake.close_error = True
     result = await supervisor.run_foreground(agent_def=definition, prompt="task")
-    assert result.status == "failed" and "cleanup" in result.error
+    assert result.status == "unknown" and "cleanup" in result.error
+    assert result.task_result["cleanup"] == "unknown"
 
 
 async def test_no_authorization_means_no_start(stack):
@@ -720,13 +717,12 @@ async def test_no_authorization_means_no_start(stack):
     assert result.status == "failed" and fake.request is None
 
 
-def test_extension_engine_exclusive(tmp_path):
+@pytest.mark.parametrize("extension", ["", "extension: new:agent\n"])
+def test_removed_engine_configuration_is_rejected(tmp_path, extension):
     path = tmp_path / "agent.md"
-    path.write_text("---\nname: test\nengine: old:agent\nextension: new:agent\n---\nprompt")
-    with pytest.raises(ValueError, match="engine.*extension|extension.*engine"):
+    path.write_text(f"---\nname: test\nengine: old:agent\n{extension}---\nprompt")
+    with pytest.raises(ValueError, match="engine.*unsupported"):
         parse_agent_file(path)
-    with pytest.raises(ValueError):
-        AgentDefinition("x", "", "", engine="x:y", extension="x:z")
 
 
 @pytest.mark.parametrize(
@@ -827,7 +823,8 @@ async def test_cleanup_failure_quarantines_desktop(stack):
     fake.close_error = True
     auth = SubAgentAuthorization(frozenset({"desktop"}))
     first = await supervisor.run_foreground(agent_def=definition, prompt="task", authorization=auth)
-    assert first.status == "failed"
+    assert first.status == "unknown"
+    assert first.task_result["reason"] == "cleanup_unconfirmed"
     second = await supervisor.run_foreground(
         agent_def=definition, prompt="task", authorization=auth
     )
@@ -863,7 +860,7 @@ def test_wrong_factory_type_and_ambiguous_registration(monkeypatch):
         registry.register("bad", ExtensionManifest("agent", "subagent", "other:create"))
 
 
-async def test_builtin_engine_and_extension_share_desktop_lock(stack, monkeypatch):
+async def test_builtin_and_extension_share_desktop_lock(stack, monkeypatch):
     from tank_backend.agents.base import Agent
     from tank_backend.agents.subagent import SubAgentAuthorization
 
@@ -888,7 +885,7 @@ async def test_builtin_engine_and_extension_share_desktop_lock(stack, monkeypatc
     class WaitingSubAgent(FakeSubAgent):
         async def run(self, request, context):
             await occupy()
-            yield AgentOutput(AgentOutputType.DONE, metadata={"stop_reason": "final_answer"})
+            yield TaskResult(status="completed", summary="done").to_output()
 
     monkeypatch.setattr(sys.modules["_subagent_test"], "create", lambda cfg: WaitingSubAgent())
     runner._registry.unregister("fake:agent")
@@ -896,16 +893,11 @@ async def test_builtin_engine_and_extension_share_desktop_lock(stack, monkeypatc
         "fake",
         ExtensionManifest("agent", "subagent", "_subagent_test:create", permissions=("desktop",)),
     )
-    runner._registry.register(
-        "old", ExtensionManifest("agent", "agent", "unused:create", needs=("desktop_executor",))
-    )
-    monkeypatch.setattr(runner, "_create_engine_agent", lambda *args: WaitingAgent("old"))
     monkeypatch.setattr(
         "tank_backend.agents.runner.LLMAgent", lambda **kwargs: WaitingAgent("builtin")
     )
     definitions = [
         definition,
-        AgentDefinition("n2", "", "", engine="old:agent"),
         AgentDefinition("computer_use", "", "", tool_filter=("screenshot",)),
     ]
 
@@ -1083,7 +1075,7 @@ async def test_runner_assembles_governed_text_model(stack, monkeypatch, telemetr
             self.context = context
             assert context.runtime.model is not None
             text = await context.runtime.model.complete([{"role": "user", "content": request.task}])
-            yield AgentOutput(AgentOutputType.DONE, text, {"stop_reason": "final_answer"})
+            yield TaskResult(status="completed", summary=text).to_output()
 
     plugin = TextAgent()
     monkeypatch.setitem(sys.modules, "_subagent_test", SimpleNamespace(create=lambda cfg: plugin))
@@ -1193,7 +1185,7 @@ async def test_supervisor_persists_native_audit_before_dispatch(stack, monkeypat
         operation = TaskOperation("inspect", frozenset({"filesystem"}), "read", invoke)
         context.runtime.register(operation)
         await context.runtime.execute(operation, "document")
-        yield AgentOutput(AgentOutputType.DONE, "done", {"stop_reason": "final_answer"})
+        yield TaskResult(status="completed", summary="done").to_output()
 
     monkeypatch.setattr(fake, "run", run)
     result = await supervisor.run_foreground(
@@ -1254,7 +1246,7 @@ async def test_supervisor_persists_model_intent_before_http_and_usage_after(
                 )
             except SubAgentStopped as exc:
                 errors.append(exc.reason)
-        yield AgentOutput(AgentOutputType.DONE, "done", {"stop_reason": "final_answer"})
+        yield TaskResult(status="completed", summary="done").to_output()
 
     monkeypatch.setattr(fake, "run", run)
     result = await supervisor.run_foreground(
@@ -1263,8 +1255,9 @@ async def test_supervisor_persists_model_intent_before_http_and_usage_after(
     )
     records = store.audit_records(result.task_id)
     if fail_phase:
-        assert result.status == "failed"
-        assert result.error is not None and "audit_failed" in result.error
+        assert result.status == "unknown"
+        assert result.task_result["reason"] == "audit_failed"
+        assert result.task_result["cleanup"] == "confirmed"
         assert errors == ["audit_failed", "audit_failed"]
         assert fake.context.budget.total_tokens == (10 if fail_phase == "finished" else 0)
         assert len(before_http) == (2 if fail_phase == "finished" else 0)
@@ -1302,7 +1295,7 @@ async def test_output_quota_retains_partial_output_and_closes_the_task():
     assert plugin.closed
 
 
-async def test_legacy_success_cannot_hide_an_unknown_native_effect(stack, monkeypatch):
+async def test_success_cannot_hide_an_unknown_native_effect(stack, monkeypatch):
     from contextlib import suppress
 
     from tank_backend.agents.subagent import SubAgentAuthorization
@@ -1318,7 +1311,7 @@ async def test_legacy_success_cannot_hide_an_unknown_native_effect(stack, monkey
         context.runtime.register(operation)
         with suppress(OSError):
             await context.runtime.execute(operation, None)
-        yield AgentOutput(AgentOutputType.DONE, "done", {"stop_reason": "final_answer"})
+        yield TaskResult(status="completed", summary="done").to_output()
 
     monkeypatch.setattr(fake, "run", run)
     result = await supervisor.run_foreground(
@@ -1329,32 +1322,21 @@ async def test_legacy_success_cannot_hide_an_unknown_native_effect(stack, monkey
     assert result.task_result["reason"] == "effect_unknown"
 
 
-@pytest.mark.parametrize("caller", ["text", "computer_use", "n2_sdk", "n2", "llm"])
+@pytest.mark.parametrize("caller", ["text", "computer_use", "llm"])
 @pytest.mark.parametrize("outcome", ["ok", "revoked", "audit_failure"])
 async def test_retained_callers_share_governance(stack, monkeypatch, caller, outcome):
     """One acceptance contract over real Runner/SDK paths; only HTTP and OS are fake."""
-    import base64
-    import io
     from pathlib import Path
-    from unittest.mock import AsyncMock
 
     import agent_computer_use
-    import agent_n2_sdk
     import httpx
     from agent_computer_use.agent import ComputerUseSubAgent
     from agent_computer_use.contracts import AdvisorResult, DispatchReceipt, Element, Fact, Snapshot
     from agent_computer_use.controller import ComputerUseController
-    from agent_n2_sdk.agent import N2SdkSubAgent
-    from agent_n2_sdk.config import N2SdkConfig
-    from agent_n2_sdk.environment import GuardedComputer
     from openai import AsyncOpenAI
-    from PIL import Image
-    from yutori.navigator.macos.types import CancellationLatch
 
     from tank_backend.agents import runner as runner_module
     from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentContext
-    from tank_backend.computer import executor as executor_module
-    from tank_backend.computer.executor import DesktopExecutor, Screenshot
     from tank_backend.llm.llm import LLM
     from tank_backend.llm.profile import LLMProfile
     from tank_backend.plugin.manifest import read_manifest_from_yaml
@@ -1387,13 +1369,13 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
                 grant.revoke()
             if body.get("stream"):
                 chunk = {"id": "reply", "object": "chat.completion.chunk", "created": 1,
-                         "model": "n2", "usage": usage,
+                         "model": "test-model", "usage": usage,
                          "choices": [{"index": 0, "delta": {"content": "ready"},
                                       "finish_reason": "stop"}]}
                 return httpx.Response(200, headers={"content-type": "text/event-stream"},
                                       content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n")
             return httpx.Response(200, json={
-                "id": "reply", "object": "chat.completion", "created": 1, "model": "n2",
+                "id": "reply", "object": "chat.completion", "created": 1, "model": "test-model",
                 "choices": [{"index": 0, "message": {"role": "assistant", "content": "ready"},
                              "finish_reason": "stop"}], "usage": usage,
             })
@@ -1402,24 +1384,25 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
             closed.append(self)
 
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
-    profile = LLMProfile("shared", "host-secret", "n2", "https://offline.invalid/v1", max_tokens=20)
-    runner._app_config.llm_profiles.update(shared=profile, **{"agent-n2": profile})
+    profile = LLMProfile(
+        "shared", "host-secret", "test-model", "https://offline.invalid/v1", max_tokens=20,
+    )
+    runner._app_config.llm_profiles.update(shared=profile)
     client = AsyncOpenAI(api_key="host-secret", base_url=profile.base_url,
                          http_client=httpx.AsyncClient(transport=HTTP()))
-    runner._llm = LLM(api_key="host-secret", model="n2", base_url=profile.base_url,
+    runner._llm = LLM(api_key="host-secret", model="test-model", base_url=profile.base_url,
                       max_tokens=20, client=client)
     runner._tool_manager.get_openai_tools.return_value = []
-    for name in ("agent-computer-use", "agent-n2-sdk", "agent-n2"):
-        manifest = read_manifest_from_yaml(
-            Path(__file__).parents[2] / "plugins" / name / "plugin.yaml",
-        )
-        runner._registry.register(manifest.plugin_name, manifest.extensions[0])
+    manifest = read_manifest_from_yaml(
+        Path(__file__).parents[2] / "plugins/agent-computer-use/plugin.yaml",
+    )
+    runner._registry.register(manifest.plugin_name, manifest.extensions[0])
 
     class TextAgent(SubAgent):
         async def run(self, request, context):
             assert context.runtime.model is not None
             text = await context.runtime.model.complete([{"role": "user", "content": request.task}])
-            yield AgentOutput(AgentOutputType.DONE, text, {"stop_reason": "final_answer"})
+            yield TaskResult(status="completed", summary=text).to_output()
 
     class World:
         observations = 0
@@ -1445,22 +1428,6 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
                 action_set.binding, "inputs", inputs=(Fact(key="name", value=value),),
             )
 
-    image = io.BytesIO()
-    Image.new("RGB", (10, 10)).save(image, "PNG")
-    computer = SimpleNamespace(
-        cancellation=CancellationLatch(), get_dimensions=AsyncMock(return_value=(10, 10)),
-        screenshot=AsyncMock(return_value=base64.b64encode(image.getvalue()).decode()),
-        __aenter__=AsyncMock(), aclose=AsyncMock(),
-    )
-    computer.__aenter__.return_value = computer
-    monkeypatch.setattr(agent_n2_sdk, "create_subagent", lambda config: N2SdkSubAgent(
-        N2SdkConfig.from_dict(config), computer_factory=lambda ctx: GuardedComputer(computer, ctx),
-    ))
-    desktop = MagicMock(spec=DesktopExecutor)
-    desktop.screenshot = AsyncMock(return_value=Screenshot(image.getvalue(), 10, 10))
-    desktop.aclose = AsyncMock()
-    monkeypatch.setattr(executor_module, "create_desktop_executor", lambda *, context:
-                        executor_module._TaskDesktopExecutor(desktop, context))
     world = World()
     monkeypatch.setattr(agent_computer_use, "create_subagent", lambda config:
                         ComputerUseSubAgent(ComputerUseController(world, world, advisor=Advisor())))
@@ -1468,13 +1435,10 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
         sys.modules, "_subagent_test", SimpleNamespace(create=lambda cfg: TextAgent()),
     )
     task_input = None
-    if caller == "n2":
-        definition = AgentDefinition("shared", "", "", engine="agent-n2:agent")
-    elif caller == "llm":
+    if caller == "llm":
         definition = AgentDefinition("shared", "", "")
     else:
-        extension = {"text": "fake:agent", "computer_use": "agent-computer-use:agent",
-                     "n2_sdk": "agent-n2-sdk:agent"}[caller]
+        extension = {"text": "fake:agent", "computer_use": "agent-computer-use:agent"}[caller]
         definition = AgentDefinition("shared", "", "", extension=extension, model="shared")
         if caller == "computer_use":
             task_input = {
@@ -1507,12 +1471,12 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
                 result = terminals[0].metadata["task_result"]
                 assert result["status"] == "completed" and result["cleanup"] == "confirmed"
             elif caller != "llm":
-                assert terminals[0].metadata["stop_reason"] == "final_answer"
+                assert terminals[0].metadata["stop_reason"] == "completed"
             assert len(actions) == (1 if caller == "computer_use" else 0)
         else:
             assert actions == []
             assert not any(o.type == AgentOutputType.DONE
-                           and o.metadata.get("stop_reason") == "final_answer" for o in outputs)
+                           and o.metadata.get("stop_reason") == "completed" for o in outputs)
             assert not any(o.metadata.get("task_result", {}).get("status") == "completed"
                            for o in terminals)
         assert "host-secret" not in repr(audit_records) + repr(outputs)

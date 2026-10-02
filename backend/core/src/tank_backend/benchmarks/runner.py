@@ -306,7 +306,6 @@ async def _run_trial(
         screenshots=result.screenshots if result else 0,
         timed_out=timed_out,
         scoring=task.scoring,
-        llm_rtt_s=result.llm_rtt_s if result else 0.0,
         stop_reason=result.stop_reason if result else "error",
         cleanup=result.cleanup if result else "unknown",
         primitives=result.primitives if result else 0,

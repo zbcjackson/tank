@@ -161,10 +161,8 @@ class AgentTool(BaseTool):
         if task_input is not None and not agent_def.extension:
             return ToolResult(content="task_input requires an extension agent", error=True)
 
-        governed = agent_def.extension or (
-            agent_def.engine and self._runner.uses_task_runtime(agent_def)
-        )
-        permissions = self._runner.extension_permissions(agent_def) if governed else frozenset()
+        permissions = (self._runner.extension_permissions(agent_def)
+                       if agent_def.extension else frozenset())
         # A5 dispatch gate: launching an agent whose toolset controls the
         # computer needs ONE user approval; the approved re-entry carries a
         # token and the run inherits the authorization for its actions.
@@ -208,13 +206,8 @@ class AgentTool(BaseTool):
         # ``is not True`` keeps duck-typed fakes (unit-test mocks) open.
         if policy is None or policy.computer_requires_approval() is not True:
             return False
-        if agent_def.extension or (agent_def.engine and self._runner.uses_task_runtime(agent_def)):
+        if agent_def.extension:
             return bool(self._runner.extension_permissions(agent_def))
-        if agent_def.engine:
-            registry = getattr(self._runner, "_registry", None)
-            manifest = registry.get_manifest(agent_def.engine) if registry is not None else None
-            # Engine agents ignore toolsets: approval follows declared capabilities.
-            return manifest is None or "desktop_executor" in manifest.needs
         tool_filter = agent_def.tool_filter
         if tool_filter is None and agent_def.toolset:
             tool_filter = self._runner._resolve_toolset(agent_def.toolset)

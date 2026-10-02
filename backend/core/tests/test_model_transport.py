@@ -177,6 +177,7 @@ async def test_lost_response_retains_reservation_and_blocks_replay():
     {"url": "https://model.test/v1/embeddings"},
     {"url": "https://model.test/v1/chat/completions?key=secret"},
     {"model": "other-model"}, {"stream": True}, {"max_tokens": 21},
+    {"max_tokens": None}, {"max_tokens": 0}, {"max_tokens": True},
     {"messages": [{"role": "user", "content": [{
         "type": "image_url", "image_url": {"url": "https://private.test/image"},
     }]}]},
@@ -854,13 +855,13 @@ async def test_declared_image_tool_route_uses_the_same_governed_http_boundary():
 
     route = ChatCompletionsRoute(
         "https://model.test/v1/chat/completions", "test-model", "test-key",
-        allow_images=True, allow_tools=True, require_max_tokens=False,
+        allow_images=True, allow_tools=True,
         extra_parameters={"tool_set": "pinned-tools"},
     )
     ctx, transport, client, _ = governed(provider, routes=(route,), policy=None)
     async with client:
         await client.chat.completions.create(
-            model="test-model", messages=[{"role": "user", "content": [
+            model="test-model", max_tokens=20, messages=[{"role": "user", "content": [
                 {"type": "text", "text": "inspect"},
                 {"type": "image_url", "image_url": {
                     "url": "data:image/png;base64," + base64.b64encode(b"fixture").decode(),

@@ -91,9 +91,7 @@ class ChatCompletionsRoute:
     allow_tools: bool = False
     allow_stream: bool = False
     allow_http: bool = False
-    require_max_tokens: bool = True
     extra_parameters: dict[str, object] = field(default_factory=dict)
-    extra_types: dict[str, type] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         url = httpx.URL(self.url)
@@ -107,12 +105,11 @@ class ChatCompletionsRoute:
             or type(self.max_upload_bytes) is not int or self.max_upload_bytes <= 0
         ):
             raise ValueError("model route requires an exact HTTPS endpoint and bounded upload")
-        if (set(self.extra_parameters) | set(self.extra_types)) & {
+        if set(self.extra_parameters) & {
             "model", "messages", "max_tokens", "max_completion_tokens", "stream", "temperature",
         }:
             raise ValueError("provider parameters cannot override core model fields")
         object.__setattr__(self, "extra_parameters", copy.deepcopy(self.extra_parameters))
-        object.__setattr__(self, "extra_types", dict(self.extra_types))
 
     def validate(self, request: httpx.Request) -> None:
         if request.method != "POST" or len(request.content) > self.max_upload_bytes:
@@ -124,21 +121,18 @@ class ChatCompletionsRoute:
             or type(data.get("stream", False)) is not bool
             or (data.get("stream", False) and not self.allow_stream)
             or ("max_tokens" in data and "max_completion_tokens" in data)
-            or (maximum is None and self.require_max_tokens)
-            or (maximum is not None and (type(maximum) is not int or maximum <= 0))
+            or type(maximum) is not int or maximum <= 0
             or (self.max_output_tokens is not None and isinstance(maximum, int)
                 and maximum > self.max_output_tokens)
             or set(data) - (
                 {"model", "messages", "max_tokens", "max_completion_tokens",
                  "stream", "temperature"}
-                | set(self.extra_parameters) | set(self.extra_types)
+                | set(self.extra_parameters)
                 | ({"tools", "tool_choice", "parallel_tool_calls"} if self.allow_tools else set())
                 | ({"stream_options"} if self.allow_stream else set())
             )
             or any(key in data and data[key] != value
                    for key, value in self.extra_parameters.items())
-            or any(key in data and type(data[key]) is not expected
-                   for key, expected in self.extra_types.items())
         ):
             raise ValueError("model request outside approved protocol")
         temperature = data.get("temperature", 1)

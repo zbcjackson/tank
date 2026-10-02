@@ -7,7 +7,6 @@ from tank_backend.agents.base import AgentOutput
 from tank_backend.agents.subagent import (
     SubAgent,
     SubAgentCancelled,
-    SubAgentCapabilities,
     SubAgentContext,
     SubAgentRequest,
 )
@@ -20,8 +19,6 @@ class OwnedResource(Protocol):
 
 
 class ComputerUseSubAgent(SubAgent):
-    capabilities = SubAgentCapabilities(cancel=True)
-
     def __init__(
         self,
         controller: ComputerUseController,

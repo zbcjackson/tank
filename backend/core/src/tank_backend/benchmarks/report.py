@@ -45,7 +45,6 @@ class TrialRecord:
     llm_call_s: float = 0.0
     llm_total_s: float = 0.0
     scoring: str = "strict"
-    llm_rtt_s: float = 0.0
     stop_reason: str | None = None
     cleanup: str = "unknown"
     primitives: int = 0
@@ -114,7 +113,7 @@ def aggregate(records: list[TrialRecord]) -> SuiteReport:
                 k: _median(recs, k)
                 for k in (
                     "steps", "wall_s", "tokens", "screenshots",
-                    "llm_calls", "llm_ttft_s", "llm_call_s", "llm_total_s", "llm_rtt_s",
+                    "llm_calls", "llm_ttft_s", "llm_call_s", "llm_total_s",
                     "primitives", "model_turns", "tool_call_limit",
                 )
             },
@@ -182,15 +181,15 @@ def write_markdown_report(
         "",
         "## LLM latency (per call)",
         "",
-        "| task | calls (med) | stream ttft s (med) | call s (med) | total s | nonstream RTT s |",
-        "|---|---|---|---|---|---|",
+        "| task | calls (med) | stream ttft s (med) | call s (med) | total s |",
+        "|---|---|---|---|---|",
     ]
     for task_id in sorted(report.tasks):
         t = report.tasks[task_id]
         lines.append(
             f"| {task_id} | {t.medians['llm_calls']:.0f} "
             f"| {_fmt_ttft(t.medians['llm_ttft_s'])} | {t.medians['llm_call_s']:.1f} "
-            f"| {t.medians['llm_total_s']:.0f} | {t.medians.get('llm_rtt_s', 0.0):.1f} |"
+            f"| {t.medians['llm_total_s']:.0f} |"
         )
     lines += [
         "",

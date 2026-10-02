@@ -766,9 +766,8 @@ def capture_chain(
                 cap_w, cap_h, cap_scale = width, height, scale
             else:
                 rect_arg = next(a for a in args if a.startswith("-R"))
-                rect_values = [int(v) for v in rect_arg[2:].split(",")]
-                cap_w, cap_h = rect_values[2], rect_values[3]
-                cap_scale = display_scale(tuple(rect_values))
+                x, y, cap_w, cap_h = (int(v) for v in rect_arg[2:].split(","))
+                cap_scale = display_scale((x, y, cap_w, cap_h))
             img = Image.new("RGB", (round(cap_w * cap_scale), round(cap_h * cap_scale)), "black")
             # Known target in the lower-right quadrant, away from crop edges.
             ImageDraw.Draw(img).rectangle(
@@ -858,21 +857,13 @@ async def test_successful_but_wrong_screenshot_dimensions_are_rejected(capture_c
 
 
 @pytest.mark.parametrize("capture_chain", [(1920, 1080, 2, True)], indirect=True)
-@pytest.mark.parametrize("use_executor", [False, True])
-async def test_resize_failure_never_advertises_retina_pixels_as_points(capture_chain, use_executor):
+async def test_resize_failure_never_advertises_retina_pixels_as_points(capture_chain):
     """A failed conversion must stop, not advertise an unusable screenshot."""
-    from tank_backend.computer.executor import _MacOSExecutor
-
     quartz, _ = capture_chain
-    if use_executor:
-        executor = _MacOSExecutor()
-        with pytest.raises(RuntimeError, match="sips"):
-            await executor.screenshot()
-    else:
-        result = await ScreenshotTool().execute()
-        assert result.error
-        assert "sips" in result.content
-        assert not cu_macos._screen_caches  # Failure must not publish a cache
+    result = await ScreenshotTool().execute()
+    assert result.error
+    assert "sips" in result.content
+    assert not cu_macos._screen_caches  # Failure must not publish a cache
     quartz.CGEventCreateMouseEvent.assert_not_called()
 
 
@@ -1168,22 +1159,13 @@ async def test_numeric_string_display_is_tolerated(capture_chain):
     (-0.5, 100), (1000.5, 100),
     ([900, 100, 1100, 200], None),
 ])
-@pytest.mark.parametrize("use_executor", [False, True])
 async def test_macos_rejects_invalid_coordinates_before_injection(
-    capture_chain, x, y, use_executor,
+    capture_chain, x, y,
 ):
-    from tank_backend.computer.executor import _MacOSExecutor
-
     quartz, _ = capture_chain
-    if use_executor:
-        executor = _MacOSExecutor()
-        await executor.screenshot()
-        with pytest.raises(ValueError, match="coordinates"):
-            await executor.click(x, y)
-    else:
-        await ScreenshotTool().execute()
-        result = await ClickTool().execute(x=x, y=y)
-        assert result.error
+    await ScreenshotTool().execute()
+    result = await ClickTool().execute(x=x, y=y)
+    assert result.error
     quartz.CGEventCreateMouseEvent.assert_not_called()
 
 
@@ -1220,16 +1202,10 @@ async def test_batch_replays_calculator_miss_and_returns_wire_screenshot(capture
         assert img.size == (1920, 1080)
 
 
-async def test_executor_and_tool_keep_maximum_inside_display(capture_chain):
-    from tank_backend.computer.executor import _MacOSExecutor
-
+async def test_tool_keeps_maximum_inside_display(capture_chain):
     quartz, _ = capture_chain
     await ScreenshotTool().execute()
     await ClickTool().execute(x=1000, y=1000)
-    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1919, 1079)
-    executor = _MacOSExecutor()
-    await executor.screenshot()
-    await executor.click(1000, 1000)
     assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1919, 1079)
 
 

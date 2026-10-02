@@ -93,8 +93,7 @@ class AgentRunner:
         self._active_agents: dict[str, _AgentTracker] = {}
         self._toolsets_config = toolsets_config
         self._app_config = app_config
-        # B2: ExtensionRegistry for plugin agent engines ("brain in the
-        # plugin"). None = this context can only run built-in agents.
+        # None = this context can only run built-in agents.
         self._registry = registry
         self._desktop_resource = desktop_resource or DESKTOP_RESOURCE
 
@@ -117,10 +116,8 @@ class AgentRunner:
     def extension_permissions(self, agent_def: AgentDefinition) -> frozenset[str]:
         if self._registry is None:
             raise RuntimeError("Subagent requires an ExtensionRegistry")
-        reference = agent_def.extension or agent_def.engine
-        manifest = self._registry.get_manifest(reference)
-        expected = "subagent" if agent_def.extension else "agent"
-        if manifest is None or manifest.type != expected:
+        manifest = self._registry.get_manifest(agent_def.extension)
+        if manifest is None or manifest.type != "subagent":
             raise ValueError(
                 f"Subagent extension '{agent_def.extension}' is missing or has wrong type"
             )
@@ -129,22 +126,11 @@ class AgentRunner:
             {"network"} if agent_def.model is not None else set()
         )
 
-    def uses_task_runtime(self, agent_def: AgentDefinition) -> bool:
-        if agent_def.extension:
-            return True
-        if not agent_def.engine:
-            return False
-        manifest = self._registry.get_manifest(agent_def.engine) if self._registry else None
-        return manifest is not None and "task_runtime" in manifest.needs
-
     def _uses_desktop(self, agent_def: AgentDefinition) -> bool:
         if agent_def.grounding is not None:
             return True
         if agent_def.extension:
             return "desktop" in self.extension_permissions(agent_def)
-        if agent_def.engine:
-            manifest = self._registry.get_manifest(agent_def.engine) if self._registry else None
-            return manifest is not None and "desktop_executor" in manifest.needs
         tools = agent_def.tool_filter
         if tools is None and agent_def.toolset:
             tools = self._resolve_toolset(agent_def.toolset)
@@ -182,7 +168,7 @@ class AgentRunner:
                 audit=audit, model_policy=model_policy, model_capture=model_capture,
             )
             context.check("desktop")
-        if self.uses_task_runtime(agent_def):
+        if agent_def.extension:
             deadline = deadline if deadline is not None else time.monotonic() + 600
             permissions = self.extension_permissions(agent_def)
             authorization = authorization or SubAgentAuthorization()
@@ -197,7 +183,7 @@ class AgentRunner:
                 max_actions=max_actions, max_observations=max_observations,
             )
             context.check()
-        if context is None and not agent_def.engine:
+        if context is None:
             context = SubAgentContext(
                 authorization or SubAgentAuthorization(frozenset({"network"})),
                 SubAgentBudget(
@@ -216,7 +202,7 @@ class AgentRunner:
             try:
                 await join_on_cancel(outputs.aclose())
             finally:
-                if context is not None and not self.uses_task_runtime(agent_def):
+                if not agent_def.extension:
                     await join_on_cancel(context.runtime.aclose())
 
         async def clean_inputs() -> None:
@@ -261,8 +247,7 @@ class AgentRunner:
                 self._desktop_resource.quarantine(str(exc))
             raise
         finally:
-            if context is not None:
-                context.cancel.set()
+            context.cancel.set()
 
     async def _run_agent(
         self,
@@ -272,13 +257,12 @@ class AgentRunner:
         background: bool = False,
         token_budget: int | None = None,
         allowed_categories: set[str] | None = None,
-        *, context: SubAgentContext | None = None, task_id: str | None = None,
+        *, context: SubAgentContext, task_id: str | None = None,
         task_input: dict[str, JsonValue] | None = None,
     ) -> AsyncGenerator[AgentOutput, None]:
         """Run an agent to completion, yielding all outputs.
 
-        This is the ONLY way to run an agent. Brain, AgentTool, and
-        UseSkillTool all call this method.
+        Called by run_agent with the original task context.
 
         Args:
             agent_def: The agent definition (system prompt, tool config).
@@ -344,10 +328,10 @@ class AgentRunner:
         exclude_tools = exclude or None
 
         effective_budget = agent_def.token_budget if token_budget is None else token_budget
-        usage = context.budget if context is not None else SubAgentBudget(limit=effective_budget)
+        usage = context.budget
 
         available_tools: set[str] = set()
-        if not agent_def.engine and not agent_def.extension:
+        if not agent_def.extension:
             available_tools = {
                 tool["function"]["name"]
                 for tool in self._tool_manager.get_openai_tools(exclude=exclude_tools)
@@ -362,13 +346,11 @@ class AgentRunner:
         owned_grounders: list[LLM] = []
 
         def task_llm(value: LLM) -> LLM:
-            if context is not None and callable(getattr(type(value), "bind_task", None)):
+            if callable(getattr(type(value), "bind_task", None)):
                 return value.bind_task(context, task_id or agent_id)
             return value
 
         if agent_def.extension:
-            if context is None:
-                raise RuntimeError("Subagent runtime context missing")
             context.check()
             for permission in self.extension_permissions(agent_def):
                 context.authorization.check(permission)
@@ -376,40 +358,16 @@ class AgentRunner:
                       if self._app_config is not None else {})
             from .subagent import SubAgent
 
-            manifest = self._registry.get_manifest(agent_def.extension)
-            needs_model = manifest is not None and "task_model" in manifest.needs
-            factory_config = dict(config)
-            legacy_key = None
-            profiles = self._app_config.llm_profiles if self._app_config is not None else {}
-            if needs_model:
-                legacy_key = factory_config.pop("api_key", None)
-                reference = agent_def.model or factory_config.pop(
-                    "llm_profile", factory_config.get("credential_ref", agent_def.extension),
-                )
-                factory_config["credential_ref"] = reference
-                if reference in profiles:
-                    factory_config.setdefault("model", profiles[reference].model)
-                    factory_config.setdefault("base_url", profiles[reference].base_url)
             plugin = None
             try:
-                if agent_def.model is not None and not needs_model:
+                if agent_def.model is not None:
+                    profiles = self._app_config.llm_profiles if self._app_config is not None else {}
                     if agent_def.model not in profiles:
                         raise ValueError("subagent model profile is not configured")
                     context.runtime.configure_model(task_id or agent_id, profiles[agent_def.model])
-                plugin = self._registry.instantiate(agent_def.extension, factory_config)
+                plugin = self._registry.instantiate(agent_def.extension, dict(config))
                 if not isinstance(plugin, SubAgent):
                     raise TypeError("Subagent factory must return SubAgent")
-                if needs_model:
-                    from ..llm.task_model import resolve_plugin_profile
-
-                    if (plugin.model_spec is None or manifest is None or not
-                            plugin.model_spec.input_modalities <= set(manifest.model_inputs)):
-                        raise ValueError("subagent must declare an approved model binding")
-                    profile = resolve_plugin_profile(plugin.model_spec, profiles, legacy_key)
-                    context.runtime.configure_model(
-                        task_id or agent_id, profile,
-                        input_modalities=plugin.model_spec.input_modalities,
-                    )
                 task = next((m.get("content", "") for m in reversed(messages)
                              if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
                 agent = SubAgentAdapter(agent_def.name, plugin, SubAgentRequest(
@@ -422,18 +380,6 @@ class AgentRunner:
                 finally:
                     if isinstance(plugin, SubAgent):
                         await join_on_cancel(plugin.aclose())
-                raise
-        elif agent_def.engine:
-            # B2 factory branch: plugin agent engine (e.g. agent-n2).
-            # toolset/model are meaningless for engine agents — ignored.
-            try:
-                agent = (self._create_engine_agent(agent_def, system_prompt) if context is None
-                         else self._create_engine_agent(
-                             agent_def, system_prompt, context=context, task_id=task_id or agent_id,
-                         ))
-            except BaseException:
-                if context is not None:
-                    await join_on_cancel(context.runtime.aclose())
                 raise
         else:
             # Resolve LLM: use agent-specific model profile if declared
@@ -453,7 +399,6 @@ class AgentRunner:
                 from ..tools.computer_grounding import GroundingAdapter
                 from ..tools.computer_locate import SPLIT_PROMPT, LocateSession, LocateTool
 
-                assert context is not None
                 config = agent_def.grounding
                 from ..tools.computer_frame import FrameTool
 
@@ -537,7 +482,7 @@ class AgentRunner:
 
             approval_policy: Any = self._approval_policy
             classifier = getattr(approval_policy, "_llm", None)
-            if (context is not None and classifier is not None
+            if (classifier is not None
                     and callable(getattr(type(classifier), "bind_task", None))):
                 approval_policy = copy.copy(approval_policy)
                 approval_policy._llm = task_llm(classifier)
@@ -574,13 +519,6 @@ class AgentRunner:
             },
         )
 
-        if agent_def.engine and context is not None and self.uses_task_runtime(agent_def):
-            from .engine_subagent import EngineSubAgent
-
-            agent = SubAgentAdapter(agent_def.name, EngineSubAgent(agent, state), SubAgentRequest(
-                task="", context=system_prompt, task_id=task_id or agent_id,
-            ), context)
-
         logger.info(
             "AgentRunner: starting '%s' (id=%s, depth=%d, token_budget=%d, bg=%s)",
             agent_def.name, agent_id, depth, effective_budget, background,
@@ -591,15 +529,9 @@ class AgentRunner:
         outputs = agent.run(state)
         try:
             async for output in outputs:
-                # Accumulate token usage (internal, not forwarded)
+                # Usage is already recorded in the task context; do not forward it.
                 if output.type == AgentOutputType.USAGE:
-                    if context is None:
-                        call_id = output.metadata.get("call_id") or uuid.uuid4().hex
-                        usage.record_event(call_id, output.metadata)
                     continue
-
-                if context is None:
-                    usage.check()
 
                 # Stream all outputs to caller
                 yield output
@@ -619,7 +551,7 @@ class AgentRunner:
             if e.task_result is not None:
                 yield e.task_result.to_output()
         except Exception as e:
-            if self.uses_task_runtime(agent_def):
+            if agent_def.extension:
                 raise
             logger.error(
                 "Agent '%s' (id=%s) error: %s",
@@ -635,7 +567,7 @@ class AgentRunner:
             close = getattr(outputs, "aclose", None)
             if close is not None:
                 await close()
-            if context is not None and not self.uses_task_runtime(agent_def):
+            if not agent_def.extension:
                 await join_on_cancel(context.runtime.aclose())
             for grounder in owned_grounders:
                 await grounder.client.close()
@@ -677,83 +609,6 @@ class AgentRunner:
         if not profile.tools:
             return None  # Empty tools list = all tools
         return list(profile.tools)
-
-    def _create_engine_agent(
-        self, agent_def: AgentDefinition, system_prompt: str,
-        *, context: SubAgentContext | None = None, task_id: str | None = None,
-    ) -> Any:
-        """Instantiate a plugin agent engine via the ExtensionRegistry.
-
-        The factory config carries only what the engine declared it
-        needs (B2 trust boundary): a DesktopExecutor when the manifest
-        ``needs`` includes it, the LLM profile named after the plugin
-        (e.g. "agent-n2:agent" → profile "agent-n2", None when absent),
-        and the assembled system prompt.
-        """
-        engine = agent_def.engine
-        if not engine:
-            raise RuntimeError(
-                f"Agent '{agent_def.name}' has no engine declared"
-            )
-        if self._registry is None:
-            raise RuntimeError(
-                f"Agent '{agent_def.name}' requires engine "
-                f"'{engine}' but no ExtensionRegistry is "
-                f"available in this context"
-            )
-
-        from ..computer.executor import create_desktop_executor
-
-        manifest = self._registry.get_manifest(engine)
-        if manifest is not None:
-            manifest.check_runtime_api()
-        needs = getattr(manifest, "needs", ()) or ()
-
-        engine_config: dict[str, Any] = {}
-        if self._app_config is not None:
-            engine_config = self._app_config.get_section("agent_engines").get(engine, {})
-            if not isinstance(engine_config, dict):
-                raise ValueError(f"agent_engines.{engine} must be a mapping")
-        llm_profile = None
-        if self._app_config is not None:
-            profile_name = engine_config.get("llm_profile", engine.split(":", 1)[0])
-            # Engine protocols can be provider-specific. Never substitute the
-            # default chat model when the requested profile is absent.
-            llm_profile = self._app_config.llm_profiles.get(profile_name)
-            if llm_profile is None:
-                logger.warning(
-                    "Engine '%s': LLM profile '%s' not found; no fallback", engine, profile_name,
-                )
-
-        if "task_runtime" in needs:
-            assert manifest is not None
-            if context is None or task_id is None:
-                raise ValueError("engine requires an original task runtime")
-            context.runtime.bind(task_id)
-            if "task_model" in needs:
-                if llm_profile is None:
-                    raise ValueError("engine model profile is not configured")
-                from dataclasses import replace
-
-                context.runtime.configure_model(
-                    task_id, llm_profile, input_modalities=frozenset(manifest.model_inputs),
-                )
-                llm_profile = replace(llm_profile, api_key="host-managed")
-
-        config: dict[str, Any] = {
-            **engine_config,
-            "system_prompt": system_prompt,
-            "desktop_executor": (
-                (create_desktop_executor(context=context) if "task_runtime" in needs
-                 else create_desktop_executor())
-                if "desktop_executor" in needs
-                else None
-            ),
-            "llm_profile": llm_profile,
-        }
-        if "task_runtime" in needs:
-            config["task_context"] = context
-        return self._registry.instantiate(engine, config)
 
     def _build_sub_agent_prompt(
         self,

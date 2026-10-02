@@ -136,15 +136,15 @@ def test_smoke_tasks_excluded_from_strict_success_rate():
 def test_nonstream_ttft_is_null_and_markdown_na(tmp_path):
     from dataclasses import replace
 
-    report = aggregate([replace(_record("n2", True), llm_ttft_s=None, llm_rtt_s=4.2,
+    report = aggregate([replace(_record("non-streaming", True), llm_ttft_s=None, llm_call_s=4.2,
                                 primitives=7, model_turns=3, tool_call_limit=15)])
     assert report.llm_ttft_s is None
-    assert report.tasks["n2"].medians["llm_ttft_s"] is None
-    write_markdown_report(report, tmp_path / "report.md", title="test", label="n2")
+    assert report.tasks["non-streaming"].medians["llm_ttft_s"] is None
+    write_markdown_report(report, tmp_path / "report.md", title="test", label="non-streaming")
     text = (tmp_path / "report.md").read_text()
     assert "N/A" in text and "4.2" in text
     assert "actions (med)" in text and "turns (med)" in text and "call limit" in text
-    write_json_report(report, tmp_path / "report.json", label="n2")
+    write_json_report(report, tmp_path / "report.json", label="non-streaming")
     data = json.loads((tmp_path / "report.json").read_text())
     assert data["overall"]["llm"]["ttft_s_median"] is None
 

@@ -225,7 +225,7 @@ async def test_notification_with_incomplete_reasoning_history(llm, model, reason
     if reasoning is not None:
         assistant["reasoning_content"] = reasoning
     history = [
-        {"role": "user", "content": "Use n2 to calculate 57 times 8"},
+        {"role": "user", "content": "Use computer_use to calculate 57 times 8"},
         assistant,
         {"role": "system", "content": "Background worker completed: calculator displays 456"},
     ]

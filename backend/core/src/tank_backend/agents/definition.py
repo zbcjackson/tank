@@ -66,17 +66,12 @@ class AgentDefinition:
     background: bool = False
     token_budget: int = 0
     model: str | None = None
-    # Plugin agent engine (B2): registry full name like "agent-n2:agent".
-    # None = the built-in LLMAgent loop.
-    engine: str | None = None
     extension: str | None = None
     grounding: GroundingConfig | None = None
 
     def __post_init__(self) -> None:
-        if self.grounding is not None and (self.engine or self.extension):
+        if self.grounding is not None and self.extension:
             raise ValueError("grounding is only supported by the built-in agent")
-        if self.engine and self.extension:
-            raise ValueError("engine and extension cannot both be configured")
         if self.extension is not None and (
             not isinstance(self.extension, str)
             or not re.fullmatch(r"[^\s:]+:[^\s:]+", self.extension)
@@ -104,6 +99,9 @@ def parse_agent_file(path: Path) -> AgentDefinition:
     name = fm.get("name")
     if not name:
         raise ValueError(f"Missing required field 'name' in {path}")
+
+    if "engine" in fm:
+        raise ValueError("engine is unsupported; use a SubAgent extension")
 
     description = fm.get("description", "")
 
@@ -142,7 +140,6 @@ def parse_agent_file(path: Path) -> AgentDefinition:
         background=bool(fm.get("background", False)),
         token_budget=int(fm.get("token-budget", fm.get("token_budget", 0))),
         model=fm.get("model"),
-        engine=fm.get("engine"),
         extension=fm.get("extension"),
         grounding=grounding,
     )

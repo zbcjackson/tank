@@ -33,17 +33,6 @@ Feature: Chat mode
     When the user sends a long-answer prompt with audio streaming tracked
     Then the first audio frame arrives before the response text completes
 
-  Scenario Outline: Official N2 SDK dispatch uses the worker lifecycle
-    When the isolated N2 SDK dispatch is "<outcome>"
-    Then the N2 SDK worker reports "<status>" with confirmed cleanup
-
-    Examples:
-      | outcome  | status    |
-      | rejected | rejected  |
-      | approved | completed |
-      | stopped  | cancelled |
-      | failed   | failed    |
-
   Scenario Outline: Split desktop orchestration preserves dispatch and stop contracts
     When the isolated split desktop contract "<contract>" is exercised
     Then the split desktop contract passes without live model or desktop input
