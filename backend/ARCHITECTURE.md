@@ -120,23 +120,23 @@ Both layers are backend-only, platform-independent, and fail-open.
 ### 3. Agent Orchestration (`src/tank_backend/agents/`)
 
 Plugin task agents can declare `extension: plugin:extension` (manifest type
-`subagent`) instead of `engine`. `SubAgentAdapter` converts a task/context request
+`subagent`). `SubAgentAdapter` converts a task/context request
 into existing AgentOutput events. Tank owns task authorization, one shared token
 ledger, cancellation/deadline and the same-process desktop lock. WorkerSupervisor
 supplies the persisted task_id and bounded structured task_input; request context
-includes assembled workspace/security rules. Plugins may return a versioned
-TaskResult (completed/partial/unknown/needs_input/stopped) or retain legacy
-final_answer. Results are delivered after cleanup; cleanup failure preserves
+includes assembled workspace/security rules. Plugins return a versioned
+TaskResult (completed/partial/unknown/needs_input/stopped); unstructured DONE
+is rejected. Results are delivered after cleanup; cleanup failure preserves
 received evidence as unknown and quarantines the desktop. Extension agents cannot
 resume through the legacy chat-history path, which would reset task authority
 and budgets.
-`n2_sdk` uses the pinned official SDK/MacOSComputer in the new agent-n2-sdk plugin;
-old `n2` and DesktopExecutor remain supported through the same TaskRuntime.
-Runtime API 1 is checked before factory creation. Runner binds task LLMs and both
-N2 model paths to TaskModelTransport for shared HTTP admission, usage and audit;
-SDK native operations and the legacy executor use registered TaskOperations. Linux SDK adapters,
-physical cancellation acceptance and pause/resume are pending. See
-[SDK plugin](plugins/agent-n2-sdk/README.md) for configuration and platform limits.
+Runner binds ordinary task LLMs and the optional SubAgent text model to
+TaskModelTransport for shared HTTP admission, usage and audit. Computer Use
+registers its operations with TaskRuntime. The host resolves `AgentDefinition.model`
+from named LLM profiles before plugin creation; plugins borrow `TaskModel.complete()`.
+Runtime API 1 is checked before factory creation. Legacy engine dispatch and
+provider-specific model declarations/transports have been removed. See
+[Computer Use plugin](plugins/agent-computer-use/README.md) for current capabilities.
 
 The Brain delegates to an AgentGraph that runs a single ChatAgent with access to all tools. The LLM decides which tools to call naturally — no routing overhead.
 

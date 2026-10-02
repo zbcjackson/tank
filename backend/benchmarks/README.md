@@ -96,14 +96,13 @@ trace / driver / runner / report / __main__），套件无关。
 确定性 setup/teardown；validator 只查副作用；零外网；每任务多 trial 报成功率+置信区间；
 环境钉死；全量 trace；硬超时+步数上限；任务先人工金标跑一次、validator 过了才入套。
 
-## SDK path and scoring revision
+## Task governance and scoring revision
 
-Select `n2_sdk` explicitly to measure the new plugin through the same Runner.
-Its observer archives screenshots and every logical API response (including
-compaction/retries) without patching DesktopExecutor. Reports separate streamed
-TTFT from non-streaming RTT and record incomplete endings/unknown usage/cleanup.
-Unconfirmed cleanup skips validation/teardown and stops the suite with its trace
-preserved; verify and reset the desktop before continuing.
+SubAgent extensions use the same Runner with host-owned model capture and task
+authorization. Ordinary agents retain streamed TTFT and per-call latency reporting;
+provider-specific SDK timing and executor wrappers have been removed. Unconfirmed
+cleanup skips validation/teardown and stops the suite with its trace preserved;
+verify and reset the desktop before continuing.
 
 Scoring revision `trial-token-v2` uses a fresh capture file and unpredictable URL
 prefix per trial. Asset pages submit relative to that URL; closed/stale tokens
@@ -113,9 +112,9 @@ are smoke tasks, excluded from the strict score; file validators verify complete
 contents/copies. Historical reports cannot be compared as equivalent scoring.
 Reuse existing computer_use and n2 reports as historical references. New claims
 of improvement require comparable tasks and scoring; rerun the affected comparison
-only when existing data cannot support that claim. A full N2 rerun is not a
-prerequisite for the current
-[effectiveness improvement plan](../../docs/plans/active/computer-use-adaptation-and-grounding.md).
+only when existing data cannot support that claim. N2 integrations were retired
+on 2026-10-02; their reports remain historical evidence. See the
+[completed effectiveness plan](../../docs/plans/done/computer-use-adaptation-and-grounding.md).
 
 Scoring revision `trial-token-gui-v3` retains that isolation and also
 checks execution paths. The computer_use suite defaults to `gui_only: true`;

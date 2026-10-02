@@ -31,7 +31,6 @@ live 新实验预算按该计划 §8 逐批授权执行。
 | 项目 | 触发条件 | 背景/前置 | 来源 |
 |---|---|---|---|
 | 多浏览器可见启动与现有会话接管 | **需求已确认**（2026-09-30 用户要求，允许后续实现）；待后续排期，确定逐浏览器接入及会话身份方案后立项 | 分别支持启动可见浏览器和接管用户正在使用的浏览器，授权范围内复用页签/登录态；不局限于 Headless Chromium。评估 Chrome、Edge、Firefox、Safari 等的实际支持范围与接入方式；验收身份绑定、用户操作冲突、撤权/取消、断连及清理所有权，原有浏览器仅解除附着。尚未实现，不改变已完成的 S2 与当前 S3–S6 范围 | [策略阶梯计划 §9](plans/active/computer-use-strategy-ladder.md#9-还需依据实际执行调整的点)；2026-09-30 用户后续需求 |
-| 旧 DesktopExecutor 动作 hooks / guardrails | SDK 迁移后仍保留旧 N2，且需要对旧 executor 提供逐动作策略或 hooks | 现有旧插件绕过 ToolManager 管线；若旧路径已退役则删除此条，不为退役实现扩建控制层 | [computer-use-improvement-and-n2-plan.md](plans/done/computer-use-improvement-and-n2-plan.md) B4 / §18 |
 | 客户端 token 携带（web/cli/device 连接时发 `?token=`） | 远程部署启动 | P0-2 只落地了服务端校验，三端客户端从未实现携带；需与 token 分发方式一并设计 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) P0-2 |
 | 认证 token 分发方式定案 | 远程部署设计时 | 配置文件 vs 首次配对流程，计划 §11.2 未决问题 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) §11 |
 | Resume（断线续传） | 远程部署实测断线频繁到影响体验 | 现靠 session_id 恢复会话历史，在途 turn 状态全丢；需 text/audio 帧序号 + 重连 replay 窗口 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) §6 |
@@ -43,9 +42,6 @@ live 新实验预算按该计划 §8 逐批授权执行。
 
 | macOS 动态几何与高频输入验收 | 产品需要截图后切换主屏/分辨率或无截图高频连点，或这些条件下再次报告错点 | 当前静态主屏九点验收通过；默认尺寸/截图缓存不追踪动态几何，首次校准存在未确定原因的事件缺失；多屏支持见 [多显示器支持计划](plans/done/computer-use-multi-display.md) | [macos-coordinate-chain.md](research/macos-coordinate-chain.md) |
 
-| N2 SDK Linux adapter 与平台验收 | 产品需要 Linux，且有专用 X11/Wayland 实机环境 | 原 M4/M6 未完成：X11 adapter、来源/许可证、中文/修饰键、截图光标/时延与真实取消/清理分别验收；未通过保持 unsupported，不能套用 macOS 结果 | [SDK 原 M4/M6](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划 §2.3](plans/done/computer-use-adaptation-and-grounding.md) |
-| N2 SDK 采用后同进程暂停与恢复 | 产品使用 SDK 且需要暂停/接管/恢复 | 原 M7 未触发：pause_pending/paused、运行实例/trajectory、恢复重新截图/授权/预算/桌面锁、状态与协议展示及停止/过期边界；暂停计入时限，跨重启恢复另立项 | [SDK 原 M7](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划范围](plans/done/computer-use-adaptation-and-grounding.md) |
-| N2/SDK 特定控制与集成补验 | 修改 SDK/共享派发控制、升级 driver，或出现新的 WS/通知/输入释放/进程清理问题 | N2 已有真实 benchmark，SDK 42 个 trial cleanup=confirmed；普通报告不证明每种中途停止与完整主会话 WS。仅针对受影响 seam/动作补验，保留原 M4/M6 细则，不将全套重验设为效果改进前置 | [SDK 原清单](plans/done/plugin-subagents-and-n2-sdk.md)、[效果改进范围](plans/done/computer-use-adaptation-and-grounding.md) |
 
 | Computer-use 原生协议与专用定位模型探索 | 明确需要该路线，取得可用端点/部署、协议与授权，并批准独立实验预算 | M3 已完成自定义 point/pixels/bbox 适配；原生点框、Responses computer、UI-TARS 未测试，不能由自定义工具结果推断支持性或收益 | [M3 收尾](plans/done/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
 | Computer-use 静态候选采用复验 | 决定重新考虑候选/提示配置，且准备新预算与未使用的独立 holdout | 首轮 544 次额度已用完；旧 holdout 歧义拒绝失败，唯一匹配修正仅三次开发 smoke。新冻结需覆盖正例和负例，不能复用旧数据宣称独立验收；M4–M8 集成/真实任务验收已在原计划完成（保留基线结论） | [M3 收尾](plans/done/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |

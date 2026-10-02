@@ -2,6 +2,8 @@
 
 > 状态：已完成并归档（2026-09-19）。SDK 已实现并有真实 benchmark；按用户要求复用既有 N2 验证，后续聚焦效果改进。条件性平台/控制专项见 backlog，保留旧 n2/engine/executor。
 
+> 2026-10-02：N2 两条实现及专用扩展已退役；本文保留当时的设计和验证记录，不代表当前支持范围。
+
 ## 归档处置（2026-09-19）
 
 用户确认 N2 已验证；本次已读取旧 N2 33/42 和 SDK strict 4/36、smoke 2/6
@@ -15,7 +17,7 @@
 定向验证。Linux 与原 M7 暂停/恢复同样保留条件和原始清单。
 下文“active/待验收”等为历史记录；当前范围以上述用户决定为准。
 
-关联：[已归档 computer-use / N2 计划](../done/computer-use-improvement-and-n2-plan.md)、[当前编排设计](../../design/agent-orchestration.md)、[当前 N2 插件](../../../backend/plugins/agent-n2/README.md)、[基准指南](../../../backend/benchmarks/README.md)。
+关联：[已归档 computer-use / N2 计划](../done/computer-use-improvement-and-n2-plan.md)、[当前编排设计](../../design/agent-orchestration.md)、`backend/plugins/agent-n2/`（2026-10-02 已退役）、[基准指南](../../../backend/benchmarks/README.md)。
 
 2026-09-19 核对：新增的自研 macOS 校准与 GPT-5.5 单任务闭环不是本 SDK
 路径验收，不能勾选 M1/M4/M6 的三路、真实停止/清理和完整 WS 项。

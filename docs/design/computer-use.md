@@ -1,7 +1,8 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-09-26（多显示器支持；其余结论截至 2026-09-25）。本文汇总自研 `computer_use` 与共享 `MacOSDesktopExecutor`
-的现行行为及验证边界；官方 N2 SDK 是另一条路径，不能直接套用结论。
+更新：2026-10-02（N2 退役；保留既有 Computer Use 验证边界）。本文汇总自研
+`computer_use` 的现行行为；旧 N2、官方 SDK 和独立 DesktopExecutor 已移除。
+历史报告中的 N2 数据仅作为当时的实验记录。
 逐轮原始证据、历史测试数量和异常记录见
 [macOS 调研](../research/macos-coordinate-chain.md)，复现入口见
 [benchmark 文档](../../backend/benchmarks/README.md)。
@@ -70,11 +71,9 @@ AX 独立分支：适配一体+宿主还原（B-combined）在 calc-open 上是�
 多屏截图结果仅在活跃屏 >1 时追加 DISPLAYS 段（各屏 id、主屏标记、尺寸、
 布局与缺省规则）；单屏文案不变，保证 benchmark 前后可比。截图后拔掉显示器
 会让缓存原点过期，动作会落在旧坐标——与旧单屏分辨率变化同类，重截图即恢复。
-旧 DesktopExecutor（旧 N2 插件）保持仅主屏语义不变。
 
 源代码：[macOS 工具](../../backend/core/src/tank_backend/tools/computer_use_macos.py)、
 [共用转换](../../backend/core/src/tank_backend/tools/computer_use_common.py)、
-[executor](../../backend/core/src/tank_backend/computer/executor.py)、
 [LLM 消息链](../../backend/core/src/tank_backend/llm/llm.py)。
 
 ## 显式 image/frame 接口（M2）
@@ -103,8 +102,7 @@ batch 共享 frame，逐步检查，首错即停并返回新截图。
 反馈截图判断效果并在必要时重新观察。几何检查也无法排除检查到投递之间的变化。
 多显示器拓扑、任意屏窗口绑定与跨屏坐标已在 2026-09-26 支持（见上文 legacy
 节与[多显示器计划](../plans/done/computer-use-multi-display.md)）；模型效果、
-跨应用和完整停止验收不在通过结论内。旧 normalized 调用及独立 DesktopExecutor
-保持旧语义（后者仅主屏）。AX 分支接收绑定屏几何但副屏行为未验收（M7 暂缓不变）。
+跨应用和完整停止验收不在通过结论内。旧 normalized 调用保持既有语义。AX 分支接收绑定屏几何但副屏行为未验收（M7 暂缓不变）。
 
 [M2 报告](../../backend/benchmarks/computer_use/reports/20260920-m2-observation/README.md)
 保留初次全屏场景变化拒绝及窗口九点 9/9、每轴 0 point 的实机证据。
@@ -302,7 +300,7 @@ token 也不保证定位。off 与 on 的有效采样不同，不能用小分差
   静态校准中的早期异常原因仍未知。
 - 模型权重与服务端预处理、OCR 与空间表达仍无法独立归因；未采用猜测倍率
   进行运行时补偿。跨部署同权重控制及更多按钮尺寸需要另行实验。
-- 全套跨应用任务、长历史/compaction、生产可靠率与官方 N2 SDK 的独立验收。
+- 全套跨应用任务、长历史/compaction、生产可靠率。
   16 个布局重复两次不等于 32 个独立布局；不能从合成 32/32 推断零错点。
 
 ## 完整闭环的判定
@@ -652,7 +650,7 @@ profile 名称，插件工厂不接收密钥。结构化文本入口拒绝非 HT
 客户端首次调用时创建，runtime 登记统一清理；关闭等待在飞 HTTP 收尾，结束后
 拒绝新调用。此入口已由通用 fake SubAgent + 真实 Runner/SDK + fake HTTP 验证，
 Computer Use 的 Advisor fixture 已通过该服务与真实 SDK/fake HTTP 联测；默认工厂
-仍无真实 Advisor/Jev。N2、N2 SDK 和 Runner 的 LLMAgent 已通过公共 transport 接入。
+仍无真实 Advisor/Jev。Runner 的 LLMAgent 已通过公共 transport 接入。
 
 文本请求构造与 SDK 调用复用 `LLM.complete_response(retry=False)`。TaskModel 仅保留
 受控客户端装配、任务检查及严格文本回复校验，不维护第二套补全请求实现。
@@ -684,7 +682,7 @@ Runner 自动将 extension 的 model_call 事件经核心 TaskObserver 转发到
 
 ### S0 Supervisor 的必需持久审计（2026-09-29）
 
-WorkerSupervisor 为 extension 和已迁移的 engine 任务装配数据库审计回调，复用 TaskRuntime 的审计
+WorkerSupervisor 为 extension 任务装配数据库审计回调，复用 TaskRuntime 的审计
 失败锁定机制；原生操作和受控模型都写入统一数据库的 worker_audit_events 表。
 每行保存任务/调用身份、类别、阶段、状态与可用的用量/耗时，按追加顺序保留；
 不保存端点、凭据或请求/响应正文。WorkerStore.audit_records 提供按任务分页读取。
@@ -714,11 +712,6 @@ Adapter 也拒绝将其当作成功任务。
   规则零模型、多步 fake Jev、一次 Advisor 后恢复、旧回复/未知效果等均离线验收。
   默认工厂仍拒绝真实通道配置，不创建 AX/OCR/DOM/Jev 资源。
 - 非 GUI fixture：同一 SubAgent/Runner/TaskModel 服务，无 Computer Use 领域依赖。
-- `n2_sdk`：actor、compaction、格式恢复共享 N2ModelClient → TaskModelTransport；
-  SDK/compactor 隐式 HTTP 重试关闭。GuardedComputer 注册原生操作，CheckedTransport
-  门控 driver 初始化/RPC，文件和 shell 在最终边界复查；清理只释放本任务会话/输入。
-- `n2`：EngineSubAgent 保留原 AgentState；模型使用 TaskModelTransport，桌面、文件、
-  shell 使用受控 DesktopExecutor。工厂校验完整可调用能力面，兼容动态受控代理。
 - Runner 的 LLMAgent：planner、locator、fallback 和审批 classifier 绑定原 context；
   流式/非流式共享 transport，旧 usage 投影按 call_id 去重；保留现有工具政策与提示。
   主会话直接使用的 ChatAgent 不因此变成受管 SubAgent，其原审批/账本契约保持不变。
@@ -726,10 +719,10 @@ Adapter 也拒绝将其当作成功任务。
   客户端；没有已声明模型能力的 extension 仍拒绝启用请求限额。凭据不进入审计/遥测。
 
 公共验收为 `core/tests/test_subagent.py::test_retained_callers_share_governance`：
-五条真实 Runner/SDK 路径共用授权、唯一用量、发送前审计、审计失败零发送、响应时撤权、
+三条真实 Runner/SDK 路径共用授权、唯一用量、发送前审计、审计失败零发送、响应时撤权、
 任务关闭后拒绝调用及借用连接所有权断言。HTTP 与 OS 被替换，无付费或真实桌面调用。
-领域证据与 SDK 辅助出口回归分别在 `agent-computer-use/tests`、`agent-n2-sdk/tests`、
-`agent-n2/tests`；核心限额、撤权/取消/迟到完成及资源回收在 task_runtime/model_transport 测试。
+领域证据在 `agent-computer-use/tests`；核心限额、撤权/取消/迟到完成及资源回收
+在 task_runtime/model_transport 测试。2026-10-02 移除两条 N2 验收路径。
 
 
 ### S1 AX / Vision 观察适配器（2026-09-30）

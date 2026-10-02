@@ -58,7 +58,7 @@
 实现：[macOS tools](../../backend/core/src/tank_backend/tools/computer_use_macos.py)、
 [共用转换](../../backend/core/src/tank_backend/tools/computer_use_common.py)、
 [LLM](../../backend/core/src/tank_backend/llm/llm.py)、
-[executor](../../backend/core/src/tank_backend/computer/executor.py)。
+`backend/core/src/tank_backend/computer/executor.py`（2026-10-02 随 N2 退役删除）。
 
 ## pytest 覆盖
 

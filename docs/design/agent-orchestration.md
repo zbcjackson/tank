@@ -326,7 +326,7 @@ notifications:
 ## Plugin task agents
 
 An agent definition may select `extension: plugin:extension` with a manifest
-`type: subagent`. This is mutually exclusive with the retained `engine` field.
+`type: subagent`. The removed `engine` field is rejected during parsing.
 Factories receive only `subagents.<extension>.config`; runtime authority is
 provided separately in SubAgentContext. Requests contain the task, assembled
 context (definition prompt, applicable workspace and security rules), stable
@@ -344,10 +344,9 @@ on_confirmation callback; rejection invalidates it. Re-entry also checks that
 the manifest permission scope is unchanged. Supervisor passes the explicit grant
 and task deadline into Runner. SubAgent
 plugins are trusted Python code; these approvals are not a sandbox or substitutes
-for OS file/network isolation. SDK native adapters reuse the host file/command
-policies; hard denials remain effective even with an approved task grant.
+for OS file/network isolation.
 
-SubAgentAdapter defers DONE until producer/environment/client cleanup completes.
+SubAgentAdapter defers DONE until plugin resource cleanup completes.
 It binds `context.runtime` to the original task ID and closes its business gate
 before cleanup. After closing the output iterator, it closes the runtime (joining
 in-flight operations and releasing runtime-owned resources), then calls plugin
@@ -357,11 +356,9 @@ call `super().__init__(cleanup_timeout=...)`, register release callbacks through
 `own_resource(name, release)`, and call `check_open()` at run entry; they do not
 implement a cleanup loop or close the borrowed runtime. The inherited cleanup
 works before the first run and shares its outcome, including failures, across
-repeated calls. Computer Use registers its channels; N2 SDK registers producer,
-SDK, environment and client releases, preserving producer-first shutdown. Provider
-release details remain in callbacks; reverse order, timeouts and failure continuation
-belong to the shared implementation. Neither concrete plugin closes its resource
-collection from `run()`; direct consumers outside the Adapter must use `aclose()`
+repeated calls. Computer Use registers its channels. Release details remain in
+callbacks; reverse order, timeouts and failure continuation belong to the shared
+implementation. The plugin does not close its resource collection from `run()`; direct consumers outside the Adapter must use `aclose()`
 in `finally`. Factories
 assemble configuration/strategy objects without opening external resources; resource
 injection remains supported for tests and compatibility. Synchronous output iterator
@@ -373,8 +370,7 @@ checks original authority, cancellation, deadline and read/action quotas before
 and after asynchronous preflight, retains bounded call records, and never replays
 an operation with an unknown effect. `returned` means the adapter returned, not
 that its business postcondition succeeded. Computer Use's offline observation and
-dispatch paths, N2 SDK primitives and the legacy N2 desktop executor use this
-entry. LLMAgent retains AllowlistExecutor/ApprovalGateExecutor and rechecks the
+dispatch paths use this entry. LLMAgent retains AllowlistExecutor/ApprovalGateExecutor and rechecks the
 same task context after asynchronous approval.
 
 Core `TaskResources` handles idempotent reverse-order release, bounded waits and
@@ -384,15 +380,15 @@ then releases registered resources even after authorization/deadline expiry. An
 uncooperative callback produces unconfirmed cleanup, not a claim of OS termination.
 An optional host audit callback is required when configured: failure or cancellation
 latches the runtime closed to subsequent business calls. Ordinary observer failures
-are logged without changing execution. Supervisor injects required WorkerStore audit for managed extension/engine tasks.
+are logged without changing execution. Supervisor injects required WorkerStore audit for managed extension tasks.
 TaskResources.acquire validates capacity before synchronous creation/registration.
 Ordinary model telemetry uses bounded Bus publication; required audit failures
 stop business calls. Unwired benchmark transports remain rejected.
 
-Legacy `stop_reason=final_answer` still completes. Plugins can instead return
-`TaskResult.to_output()`: a versioned result with completed / partial / unknown /
+Plugins return `TaskResult.to_output()`: a versioned result with completed / partial / unknown /
 needs_input / stopped, summary, reason and opaque JSON details. Its status must
-match stop_reason. These are distinct terminal worker states, persisted and
+match stop_reason; a bare DONE or legacy final_answer is rejected. These are
+distinct terminal worker states, persisted and
 returned by agent/agent_status and the REST API, with matching background
 notifications. The existing HUD marks incomplete outcomes as unsuccessful and
 shows their status and summary. Bare unknown or absent terminal reasons still
@@ -410,7 +406,7 @@ REST and worker tools use the same public WorkerRun serializer.
 `core.token_usage.TokenUsageLedger` records usage by call ID, distinguishing known,
 estimated and unknown counts. SubAgentBudget is only a compatibility wrapper for
 an explicitly configured cumulative task limit (`0` means recording only). Runner,
-LLMAgent/SDK task contexts, AgentGraph logging and TokenUsageObserver reuse this
+LLMAgent/SubAgent task contexts, AgentGraph logging and TokenUsageObserver reuse this
 accounting implementation; a task context and its model transports share one ledger.
 Runner does not add context-owned usage again. Session observers have their own
 aggregation scope, never execution authority. Graph logs provider usage, not text
@@ -431,16 +427,18 @@ lifecycle and transport close does not close a batch. Core never imports benchma
 implementations. Default accounting does not latch a token stop on unknown usage;
 the failed request still fails protocol validation and its usage remains unknown.
 The strict benchmark policy retains unknown reservations and refuses further sends.
-Runner binds ordinary task LLMs (including locator/classifier clients), legacy N2
-and N2 SDK to this transport. TaskOpenAI retains SDK serialization without global
+Runner binds ordinary task LLMs (including locator/classifier clients) and
+SubAgent text models to this transport. TaskOpenAI retains SDK serialization without global
 payload tracing or implicit retries. Text TaskModel.complete reuses
-LLM.complete_response(retry=False); approved compatibility routes also accept
-inline images, tool messages and SSE. Streaming checks stop state between delivered
+LLM.complete_response(retry=False); ordinary LLM task bindings also accept
+inline images, tool messages and SSE. All requests require an output token limit. Streaming checks stop state between delivered
 SSE lines, preventing buffered SDK frames from bypassing cancellation. Partial
 responses without validated usage remain unknown; close and settlement occur once.
-Host profile references resolve credentials before plugin execution. API version 1
-is checked before factory/resource creation. Existing n2_sdk api_key configuration
-is accepted by the host for compatibility but removed from factory configuration.
+The host resolves `AgentDefinition.model` against named LLM profiles before
+plugin execution. API version 1 is checked before factory/resource creation.
+SubAgent plugins borrow the text model service; they do not declare provider
+protocols, receive credentials or create transports. Manifest capability-injection
+fields and the legacy engine path have been removed.
 Task clients close with the runtime; a bound ordinary LLM borrows its host pool.
 BenchmarkTaskPolicy supplies request limits, spend admission and raw HTTP capture,
 using the same call_id; no production module imports benchmarks. Model records
@@ -449,23 +447,14 @@ currently aggregate per task/call, without provider/model dimensions.
 Observer events support API timing and screenshot traces without participating
 in execution.
 
-Runner-managed computer_use, old n2 and n2_sdk tasks share one desktop lock.
+Runner-managed built-in desktop agents and Computer Use extensions share one desktop lock.
 Lock wait counts against the task deadline; authorization precedes locking and
 initialization. This covers one event loop, not direct main-session tools or
 other processes. An operator must verify cleanup before explicitly clearing a
 quarantine using DESKTOP_RESOURCE.clear_quarantine().
 
-The [N2 SDK plugin](../../backend/plugins/agent-n2-sdk/README.md) uses the official
-pinned N2ComputerAgent and MacOSComputer. The existing n2/engine path is retained.
-Current SDK platform scope is macOS; Linux X11 is unvalidated and Wayland
-unsupported. The native adapter emulates held input while delivering atomic
-gestures. Real input/process cleanup and business outcomes need macOS acceptance.
-Session-bound SDK driver RPCs are not replayed after connection failure: reconnect
-ends the old MCP lease and task session. The plugin preserves the original tool
-failure, blocks further actions and allows only end_session cleanup on the existing
-connection; uncertain cleanup still quarantines the desktop. Actual screen capture
-readiness requires the driver's direct capture permission check.
-Plugin pause/resume/persistent resume remain disabled. `needs_input` returns to
+SubAgents support cooperative cancellation through the task context. There is no
+unused pause/resume capability declaration; plugin pause/resume remain unsupported. `needs_input` returns to
 the parent as a terminal outcome; it does not start a fresh run on agent_reply.
 The legacy chat-history resume path rejects extension agents because it cannot
 restore plugin progress, the original grant or cumulative budgets. Built-in

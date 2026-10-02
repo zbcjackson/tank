@@ -1,6 +1,8 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
 > 状态：实现工作已完成并归档（2026-09-17）。Part A 与 B1–B3 已落地，macOS N2 计算器操作已获用户确认；尚未完成的完整 A/B、真机控制验收已移交后续计划，处理结果见 §18。
+
+> 2026-10-02：N2 两条实现及专用扩展已退役；本文保留当时的设计和验证记录，不代表当前支持范围。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 

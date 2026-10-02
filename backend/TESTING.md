@@ -485,22 +485,19 @@ When adding a new feature, ask these questions to identify missing integration t
 - **Testing only the happy path** — DENY and REQUIRE_APPROVAL paths are where bugs hide.
 - **Testing components in isolation when the bug is at the seam** — the `ApprovalCallback` was `None` for years because no integration test verified file tools actually got a working callback.
 
-## Plugin subagents and N2 SDK
+## Plugin subagents and Computer Use
 
 `core/tests/test_subagent.py` exercises the generic contract and the real
 AgentTool → Supervisor → Runner seam, including missing grants, scoped approval,
-terminal errors, cleanup quarantine and lock-wait timeouts. It needs no yutori
-import. `plugins/agent-n2-sdk/tests` uses yutori 0.9.29 with fake computer/completions
-for callback events, retries, usage, cancellation and cleanup; no paid API or
-host input. Install all workspace packages before running all plugin tests:
-`uv sync --all-packages --all-groups`, then `uv run --no-sync pytest`.
+terminal errors, cleanup quarantine and lock-wait timeouts. Install all workspace
+packages before running all plugin tests: `uv sync --all-packages --all-groups`,
+then `uv run --no-sync pytest`. Add `--extra browser --extra vision` for the
+Computer Use optional adapters. Yutori and cua-driver are no longer dependencies.
 
-The existing chat.feature includes isolated-process SDK dispatch scenarios using
-`test/support/n2-sdk-dispatch.py`. They verify approvals, persisted status, stop,
-activity frame conversion and completion/failure notifications. Existing live
-client scenarios cover transport separately. Fake tests do not establish physical
-macOS input cleanup, Linux support or benchmark success; these remain real-machine
-acceptance items in the active SDK plan.
+The existing chat.feature covers isolated structured plugin dispatch, outcomes,
+cancellation and managed Chromium, with live client transport scenarios separately.
+Old engine frontmatter is rejected rather than silently dispatched as an LLM agent.
+Fake tests do not establish physical macOS input cleanup or model effectiveness.
 
 Benchmark regression tests verify per-trial capture/token isolation, rejection of
 stale tabs/late requests, correct PNG/WebP MIME, tool-call step boundaries,
@@ -715,7 +712,7 @@ locator and shared limits, zero allowance, 429/503 failures without retries, exa
 admitted request/trace counts, fresh allowances on driver reuse and late requests
 from closed trial contexts. Refused requests cannot supply new actions, and cleanup
 remains unknown. Seven `test_request_budget.py` cases cover counter validation,
-latched/closed budgets and rejection of unsupported engine/extension transports.
+latched/closed budgets and rejection of uninstrumented extension transports.
 `test_llm_retry.py` adds a real SDK 429 regression proving one HTTP attempt with
 both retry layers disabled. These tests do not establish token/cost reservations,
 batch-wide enforcement, real model effectiveness or physical desktop cleanup.
@@ -918,18 +915,15 @@ cancel/budget/cleanup evidence cited by the
 
 `core/tests/test_subagent.py::test_retained_callers_share_governance` runs the
 same assertions through real Runner paths for a non-GUI SubAgent, Computer Use
-with an injected Advisor, N2 SDK, legacy N2 and LLMAgent. Only HTTP/native OS
+with an injected Advisor, and LLMAgent. Only HTTP/native OS
 boundaries are replaced. It verifies one context/call identity, usage counted once,
 required audit before HTTP, zero sends on audit failure, revoked response handling,
-closed task refusal and borrowed client ownership. Legacy N2 uses the actual
-TaskDesktopExecutor proxy and factory, catching runtime Protocol/static-lookup
-incompatibilities that a directly injected executor would hide.
+closed task refusal and borrowed client ownership.
 
 Run from backend: `uv run pytest core/tests/test_subagent.py -k retained_callers -q`.
-Domain loop fixtures remain in `plugins/agent-computer-use/tests`; SDK compaction,
-format recovery, driver/file boundaries and zero request allowance remain in
-`plugins/agent-n2-sdk/tests`. This is offline S0 acceptance, not live-channel or
-resume acceptance for S1–S4.
+Domain loop fixtures remain in `plugins/agent-computer-use/tests`; task/model
+regressions cover cancellation, closed-task refusal and request admission.
+This is offline S0 acceptance, not live-channel or resume acceptance for S1–S4.
 
 
 ## S1 observation adapters

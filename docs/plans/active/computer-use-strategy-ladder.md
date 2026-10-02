@@ -1,4 +1,6 @@
 > 状态：进行中（2026-09-30：S0 验收通过；S1 离线/合成验收与 S2 管理 Chromium 本地验收完成；S3–S6、原生桌面执行/恢复及生产采用仍待验收）。
+
+> 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
 > 完整目标设计尚未全部实现、尚未完成整体实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
 
 # 计划：Computer Use 子代理的宿主循环与策略阶梯（S0–S6）
@@ -40,7 +42,7 @@ SubAgentContext、执行白名单、审批、停止清理、SpendLedger 与独�
 保留已落地的多显示器身份与 crop 语义；M2 窗口完整位于一台活跃显示器，
 AX 副屏效果仍需单列验收，不从几何支持推定。
 
-**非目标**：N2/SDK 供应商算法及业务行为重写（公共治理接线属于本计划）、Linux 实机支持、
+**非目标**：Linux 实机支持、
 不可信插件的 OS 沙箱/进程隔离、Safari safaridriver、任意用户 profile 接管、
 新增业务 API/CLI、原生 computer 协议/UI-TARS、通用历史压缩、动态几何高频压测。
 当前范围内的引用过期、图像历史、焦点与迟到回包处理不能因此省略。
@@ -161,7 +163,7 @@ S0 第二批已新增 `backend/plugins/agent-computer-use/`，manifest type 为 
 `ComputerUseSubAgent` 实现 `run(request, context)` / `aclose()`，
 内部组合 `ComputerUseController`；目前只有离线骨架，默认工厂无真实通道。
 这是 Tank 进程内的领域实现，不要求另启进程或增加一次 LLM 请求。
-生产默认及 split/ax/integrated、N2/SDK 的领域行为保持原路径；公共治理按 §2.6 兼容接入，
+生产默认及 split/ax/integrated 的领域行为保持原路径；公共治理按 §2.6 接入，
 不复制旧的政策实现。冻结的实验基线 A 保留原 revision，不用新运行时冒充原基线。
 
 ```mermaid
@@ -388,7 +390,7 @@ Jev 的领域 payload 与协议解析首期可放在同一小模块；HTTP 发�
   注册、凭据引用、资源登记、事件及唯一记账；以 fake native + 真实 SDK/HTTP 测试验收。
   不允许真实通道先自行发送请求/动作，再事后补记审计；未接线能力拒绝启用。
 - **S0-G2**：Computer Use 的通用检查/账本/资源/事件迁到核心服务；现有 subagent 插件
-  （含 n2_sdk）和旧 agent 插件（含 n2）通过兼容适配使用同一政策与调用原语。
+  通过 SubAgent 接口使用同一政策与调用原语。旧 engine 插件不再支持。
   LLMAgent 原路径复用同一执行政策和记账基础，不改变提示、工具语义或默认选择；
   梳理 SDK 的隐式调用、压缩、重试及环境初始化，覆盖每个实际出口而非只主模型请求。
   未迁移插件可以暂时保留 legacy 标识和旧准入限制，但本计划交付前须迁移或明确禁用；
@@ -1386,7 +1388,7 @@ docs check、diff check 通过。未变化文件复用此前类型检查证据�
 实现行为按仓库 TDD 规则先写可失败测试；各批次已运行的验证见对应实施记录。
 
 - **公共治理接入套件**：放在 core/tests，参数化运行 Computer Use、另一非 GUI fake
-  插件、现有 n2_sdk 与旧 n2 的适配路径，并覆盖 LLMAgent 复用同一原语的路径；
+  插件，并覆盖 LLMAgent 复用同一原语的路径；
   真实 Runner/政策/账本/SDK 链路，只有 HTTP/OS
   外部边界使用 fake。共享同一批断言，领域测试留插件自身。至少覆盖：
   版本/配置不兼容在资源创建前拒绝；工厂不启动任务副作用；执行白名单与参数范围；
