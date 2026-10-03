@@ -1356,3 +1356,157 @@ def test_holdout_pair_order_is_balanced_within_each_condition(monkeypatch):
     for condition in holdout.CONDITIONS:
         selected = [row for row in frozen["cases"] if row["condition"] == condition]
         assert sum(first[row["id"]] == "legacy" for row in selected) == 3
+
+
+@pytest.mark.parametrize("failure", [None, "unknown", "cancel", "cleanup", "audit", "budget", "invalid", "http"])
+async def test_holdout_live_governed_execution(monkeypatch, tmp_path, failure):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_holdout_live as live
+
+    sent, closed = [], []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        def __init__(self, **kwargs):
+            assert kwargs["retries"] == 0
+
+        async def handle_async_request(self, request):
+            sent.append(json.loads(request.content))
+            if failure == "cancel":
+                raise asyncio.CancelledError
+            if failure == "http":
+                return httpx.Response(503)
+            data = reply(request, "need_more_context")
+            if failure == "invalid":
+                data["answers"]["next_action"]["confidence"] = True
+            if failure == "unknown":
+                data.pop("usage")
+            return httpx.Response(200, json=data)
+
+        async def aclose(self):
+            closed.append(True)
+            if failure == "cleanup":
+                raise RuntimeError("cleanup failure")
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    if failure == "audit":
+        append = live.v1.append_json
+
+        def reject_audit(file, row):
+            if Path(file.name).name == "audit.jsonl":
+                raise OSError("audit unavailable")
+            append(file, row)
+
+        monkeypatch.setattr(live.v1, "append_json", reject_audit)
+    if failure == "budget":
+        original = live.SpendLedger
+
+        def zero_budget(*args, **kwargs):
+            kwargs["request_limit"] = 0
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(live, "SpendLedger", zero_budget)
+    frozen = live.prepare(tmp_path / "run")
+    if failure == "cancel":
+        with pytest.raises(asyncio.CancelledError):
+            await live.run_replay(tmp_path / "run", frozen["sha256"], "test-key")
+        result = json.loads((tmp_path / "run/result.json").read_text())
+    else:
+        result = await live.run_replay(tmp_path / "run", frozen["sha256"], "test-key")
+    assert len(result["rows"]) == 48
+    assert sum(s["planned_n"] for s in result["summary"].values()) == 48
+    assert len((tmp_path / "run/rows.jsonl").read_text().splitlines()) == 48
+    assert closed == [True]
+    if failure in ("audit", "budget"):
+        assert sent == []
+    elif failure in ("unknown", "cancel", "http"):
+        assert len(sent) == 1
+        assert sum(r["status"] == "not_run" for r in result["rows"]) == 47
+    else:
+        assert len(sent) == 48
+        by_id = {c["id"]: c for c in frozen["cases"]}
+        assert sent == [by_id[r["case_id"]]["requests"][r["arm"]] for r in frozen["schedule"]]
+        assert result["spend"]["batch"]["known_tokens"] == 48 * 12
+        assert result["spend"]["batch"]["reserved_tokens"] == 0
+        assert len((tmp_path / "run/audit.jsonl").read_text().splitlines()) == 144
+        assert all(s["invalid_n" if failure == "invalid" else "returned_n"] == 6
+                   for s in result["summary"].values())
+    assert result["completed"] == (failure in (None, "invalid"))
+    assert (result["contrasts"] is not None) == (failure in (None, "cleanup"))
+    before = len(sent)
+    with pytest.raises((FileExistsError, ValueError)):
+        await live.run_replay(tmp_path / "run", frozen["sha256"], "test-key")
+    assert len(sent) == before
+
+
+async def test_holdout_live_refuses_changed_freeze_before_client(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_holdout_live as live
+
+    frozen = live.prepare(tmp_path / "run")
+    live.load_freeze(tmp_path / "run", frozen["sha256"])
+    frozen["request_limit"] = 49
+    frozen["sha256"] = live.v1.digest({k: v for k, v in frozen.items() if k != "sha256"})
+    (tmp_path / "run/freeze.json").write_text(json.dumps(frozen))
+
+    def forbidden(**kwargs):
+        raise AssertionError("changed recipe created a client")
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", forbidden)
+    with pytest.raises(ValueError, match="recipe changed"):
+        await live.run_replay(tmp_path / "run", frozen["sha256"], "test-key")
+    assert not (tmp_path / "run/spend.jsonl").exists()
+
+
+async def test_holdout_live_preserves_existing_result_without_ledger(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_holdout_live as live
+
+    frozen = live.prepare(tmp_path / "run")
+    result = tmp_path / "run/result.json"
+    result.write_text("existing evidence")
+
+    def forbidden(**kwargs):
+        raise AssertionError("existing evidence allowed transport creation")
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", forbidden)
+    with pytest.raises(FileExistsError):
+        await live.run_replay(tmp_path / "run", frozen["sha256"], "test-key")
+    assert result.read_text() == "existing evidence"
+    assert not (tmp_path / "run/spend.jsonl").exists()
+
+
+async def test_holdout_live_scores_frozen_labels_without_second_source_read(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_holdout_live as live
+
+    frozen = live.prepare(tmp_path / "run")
+    original = live.dataset.load_dataset
+    reads = 0
+
+    def changing_source():
+        nonlocal reads
+        reads += 1
+        cases, labels = original()
+        if reads > 1:
+            labels["h02"] = live.dataset.Expected(expected_target_ref="e0")
+        return cases, labels
+
+    class HTTP(httpx.AsyncBaseTransport):
+        def __init__(self, **kwargs):
+            pass
+
+        async def handle_async_request(self, request):
+            return httpx.Response(200, json=reply(request, "need_more_context"))
+
+    monkeypatch.setattr(live.dataset, "load_dataset", changing_source)
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    result = await live.run_replay(tmp_path / "run", frozen["sha256"], "test-key")
+    assert all(r["correct"] for r in result["rows"] if r["case_id"] == "h02")
