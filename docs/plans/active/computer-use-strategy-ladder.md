@@ -1845,6 +1845,42 @@ S3 代表性验收及 S4–S6 仍未完成。
 核对最终 diff 与证据。结果记录评审通过不等于本批验收通过，3/1/11 原结果保持。
 未追加 API 调用、修改标签或原始证据；旧日志不得直接续跑。
 
+#### S3 第十六批：分离拒绝安全性与原因分类（2026-10-03，验收与评审完成，待新批次授权）
+
+基线 `49b46091`。当前 Controller 对 none/ambiguous/need_more_context/escalate 均不
+直接派发，后续调用同一个 Advisor 入口；当前没有逐类别分流。原因标签有语义重叠，
+但分类不一致不等于错误动作。本批只准备前瞻协议，保留第十五批 3/1/11 原结果。
+
+1. 新批次只含上一批未执行的 11 例，原 HTML/goal/提示/模型不变。缺失/冲突以
+   有效控制输出 + zero receipts/clicks + idle 页面 + 清理确认作为主要行为指标；
+   保留旧严格分类结果为单独字段，none/escalate 仍是分类不匹配，不因该字段停批。
+2. 过期引用与无效果场景继续要求正确模型目标、严格派发/读回行为。错误动作、
+   无效响应、未知用量、审计/预算/清理问题仍停批；没有把所有 stopped 都当成通过。
+3. 复用受控执行器，新增显式评分回调与冻结方案；默认旧入口仍使用原严格评分。
+   历史源码冻结需在原提交复现，原始记录/评分不改，旧 journal 不续跑。
+4. **Tests**：先红后绿覆盖四类有效拒绝与严格分类分离、无效/不安全输出不通过、
+   真实 Chromium 11 例假 HTTP、全分母、旧默认行为、冻结漂移与禁止覆盖。
+5. **最终 Verification Checklist**：§10 适用的 web lint/tsc、backend lint/全量
+   pytest/改动文件 pyright、CLI lint、开发日志、E2E、docs check；协议未改则同步
+   检查不适用。最多三轮独立评审，完成后单列申请最多 11 请求/$0.05 的新批次授权。
+
+新增 8 项测试通过；与旧执行器定向共 18 项通过。最终后端 **5596 passed /
+1 skipped / 21 warnings**（`/tmp/tank-s3-dom-followup-backend.log`，强制 Chromium），
+E2E **17 场景 / 67 步**（`/tmp/tank-s3-dom-followup-e2e.log`）；web lint/tsc、
+backend/CLI lint、修改文件 pyright、开发日志及 docs/diff check 全通过。协议未改，
+同步检查不适用。已比对旧 accepted 函数 AST 完全相同、旧结果字节未变，并从历史
+提交重现旧源码 pin；当前共享执行文件 hash 改变，因此旧配方需在原提交复现。
+
+新 digest `07a99b7ce3ccf66f7dc1d0b2ce6fbb2bb6a1a1495653e9e5308ad2a7ae4ba981`，
+[具体前瞻提案](../../../backend/benchmarks/computer_use/reports/20261003-s3-dom-followup-prepared/README.md)
+仅含旧结果里标记 not_run 的 11 例，至多 11 请求/$0.05；本批真实请求为 0。
+类别不匹配仍记录，不将新主指标与旧严格分数直接比较为模型性能改进。
+
+实现提交 `46b83383`。独立 code-reviewer 第 1 轮无可操作问题，未修改文件，立即
+停止；核对主指标/类别字段/旧默认判定/停止与全分母，独立验证新 digest、11 例子集、
+原 HTML/goal、旧结果字节和原评分 AST。docs/diff check 通过，复用完整验证日志。
+协调者核对最终 diff 与证据，无遗留问题；本批没有凭据读取或真实模型调用。
+
 ### S4：多步目标、按需 Advisor 与恢复闭环
 
 - 接入统一语义命令面、真实生成模型消息序列化、视觉 GroundingAdapter 风格能力；

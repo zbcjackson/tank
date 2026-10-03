@@ -1061,3 +1061,14 @@ Every stopped batch retains all 15 planned rows. HTML and goals are reused from 
 archived fixed-model acceptance; the live request is built from newly observed DOM.
 The live CLI requires an approved executable digest before loading the credential.
 No paid model requests run during these tests.
+
+## Prospective DOM refusal follow-up
+
+`test_dom.py` adds eight checks for `s3_dom_followup.py`: all four valid control
+outputs versus strict refusal classification, actual zero-click verification, rejection
+of invalid replies and unsafe guesses (even when a guess happens to complete the page),
+11 real-Chromium/fake-HTTP cases, full planned-row retention, immutable prior failure
+and tampered-protocol rejection. The shared executor's original entry still defaults
+to its original strict evaluator; the previous operational failure tests remain active.
+No paid requests run during tests. The new protocol preserves category misses in
+separate fields instead of silently relabeling them as correct classifications.

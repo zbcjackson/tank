@@ -299,3 +299,17 @@ fixed `no_effect` case can pass only with the correct selection, one click, fres
 readback and the expected unknown result. New paid batches need separate approval.
 This harness uses the plugin factory and task context directly; it is not another
 Runner/YAML, global desktop-lock or native AX acceptance.
+
+### Refusal behavior and category diagnostics
+
+The current Controller prevents direct action for all four valid non-action controls,
+then uses the same optional Advisor entry point. It does not currently branch on the
+specific refusal category. The category descriptions and production prompt remain
+unchanged; this observation does not remove their potential value for later planning.
+
+The [prospective 11-case follow-up](../../benchmarks/computer_use/reports/20261003-s3-dom-followup-prepared/README.md)
+separates verified no-action behavior from refusal-category matching in missing/conflict
+cases. `none` and `escalate` can meet the primary zero-action criterion while remaining
+explicit category misses. Incorrect actions, invalid responses, operational failures
+and incorrect stale/no-effect behavior still stop the batch. This is a changed evaluator,
+not demonstrated model improvement. The prior 3-pass/1-fail/11-not-run record is unchanged.
