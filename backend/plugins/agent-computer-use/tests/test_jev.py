@@ -897,3 +897,273 @@ async def test_v2_phase_names_do_not_claim_first_byte_or_inference(monkeypatch):
     assert s['headers_complete_ms'] <= s['body_complete_ms']
     assert 'ttfb_ms' not in s and 'inference_ms' not in s
     assert 'DO_NOT_LOG' not in json.dumps(s)
+
+
+def replay_v3(monkeypatch):
+    import runpy
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    return runpy.run_module(
+        "benchmarks.computer_use.s3_replay_v3", run_name="replay_v3_test"
+    )
+
+
+def test_v3_factorial_changes_only_intended_factor(monkeypatch, tmp_path):
+    m = replay_v3(monkeypatch)
+    f = m["prepare"](tmp_path / "prepared")
+    assert len(f["cases"]) == 12 and f["request_limit"] == 120
+    for c in f["cases"]:
+        q = c["questions"]
+        assert q["legacy"] == m["v2"].question(c["public"])
+        assert "host_contract" not in q["legacy"]["state"]
+        assert q["broad_minimal"]["state"] == q["scoped_minimal"]["state"]
+        assert q["broad_enriched"]["state"] == q["scoped_enriched"]["state"]
+        assert q["broad_minimal"]["instructions"] == q["broad_enriched"]["instructions"]
+        assert (
+            q["scoped_minimal"]["instructions"] == q["scoped_enriched"]["instructions"]
+        )
+        assert len({m["v1"].digest(x["criteria"]) for x in q.values()}) == 1
+        assert "business_state" not in q["broad_minimal"]["state"]
+        assert (
+            q["broad_minimal"]["state"]["host_contract"]
+            == q["scoped_enriched"]["state"]["host_contract"]
+        )
+        assert '"gold"' not in json.dumps(q) and '"should_act"' not in json.dumps(q)
+    assert m["load_freeze"](tmp_path / "prepared", f["sha256"]) == f
+
+
+def test_v3_does_not_penalize_minimal_evidence_refusal_as_error(monkeypatch):
+    m = replay_v3(monkeypatch)
+    c = m["freeze_inputs"]()["cases"][0]
+    for variant in ("legacy", "broad_minimal", "scoped_minimal"):
+        s = m["score"](c, variant, "abstain", "returned")
+        assert s["evidence_acceptable"] is True and not s["enriched_positive_refusal"]
+        assert s["positive_abstain"] and not s["positive_action"]
+    s = m["score"](c, "scoped_enriched", "abstain", "returned")
+    assert not s["evidence_acceptable"] and s["enriched_positive_refusal"]
+    negative = next(
+        c for c in m["freeze_inputs"]()["cases"] if not c["gold"]["should_act"]
+    )
+    assert not m["score"](negative, "broad_enriched", None, "invalid")[
+        "evidence_acceptable"
+    ]
+    action = negative["public"]["actions"]["actions"][0]["id"]
+    assert m["score"](negative, "scoped_enriched", action, "returned")[
+        "negative_action"
+    ]
+
+
+@pytest.mark.parametrize("key", ["gold", "should_act", "target_ref", "candidate_id"])
+def test_v3_rejects_gold_markers_in_business_facts(monkeypatch, key):
+    m = replay_v3(monkeypatch)
+    c = m["freeze_inputs"]()["cases"][0]
+    with pytest.raises(ValueError, match="oracle"):
+        m["questions"](c["public"], {"nested": {key: "a0"}})
+
+
+@pytest.mark.parametrize("fail", [False, True])
+async def test_v3_governed_factorial_batch(monkeypatch, tmp_path, fail):
+    m = replay_v3(monkeypatch)
+    f = m["prepare"](tmp_path / "prepared")
+    sent, pools, closed = [], [], []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        def __init__(self, **kwargs):
+            pools.append(self)
+
+        async def handle_async_request(self, request):
+            data = json.loads(request.content)
+            sent.append(data)
+            if fail:
+                return httpx.Response(529)
+            if "questions" in data:
+                criteria = data["questions"]["next_action"]["criteria"]
+                return httpx.Response(
+                    200,
+                    json={
+                        "model": "jev-1.13.0",
+                        "answers": {
+                            "next_action": {
+                                "type": "choice",
+                                "choice": "abstain",
+                                "confidence": 1,
+                                "probabilities": {
+                                    key: float(key == "abstain") for key in criteria
+                                },
+                            }
+                        },
+                        "usage": {"input_tokens": 10, "output_tokens": 0},
+                    },
+                )
+            return httpx.Response(
+                200,
+                json={
+                    "model": m["v1"].MODELS["qwen"]["model"],
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {"content": '{"choice":"abstain"}'},
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 1,
+                        "total_tokens": 11,
+                    },
+                },
+            )
+
+        async def aclose(self):
+            closed.append(self)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    r = await m["run_replay"](
+        tmp_path / "prepared",
+        f["sha256"],
+        {"jev": "fake-secret", "qwen": "fake-secret"},
+    )
+    assert len(r["rows"]) == 120 and len(sent) == (1 if fail else 120)
+    assert len(pools) == len(closed) == (1 if fail else 2)
+    assert len({id(p) for p in closed}) == len(closed)
+    assert bool(r["spend"]["stop_reason"]) == fail
+    assert "fake-secret" not in json.dumps(r)
+    if not fail:
+        assert r["spend"]["batch"]["known_tokens"] == 1260
+        for variant in m["VARIANTS"]:
+            for arm in ("jev", "qwen"):
+                s = r["summary"][f"{variant}/{arm}"]
+                assert (
+                    s["planned_n"] == 12
+                    and s["positive_n"] == 8
+                    and s["negative_n"] == 4
+                )
+                assert s["positive_abstain"] == 8 and s["negative_action"] == 0
+        for c in f["cases"]:
+            for variant in m["VARIANTS"]:
+                pair = [
+                    x
+                    for x in r["rows"]
+                    if x["case_id"] == c["id"] and x["variant"] == variant
+                ]
+                q = [
+                    (
+                        {
+                            "state": x["request"]["state"],
+                            "instructions": x["request"]["questions"]["next_action"][
+                                "instructions"
+                            ],
+                            "criteria": x["request"]["questions"]["next_action"][
+                                "criteria"
+                            ],
+                        }
+                        if x["arm"] == "jev"
+                        else json.loads(x["request"]["messages"][1]["content"])
+                    )
+                    for x in pair
+                ]
+                assert q[0] == q[1] == c["questions"][variant]
+    with pytest.raises(FileExistsError):
+        await m["run_replay"](
+            tmp_path / "prepared", f["sha256"], {"jev": "fake", "qwen": "fake"}
+        )
+
+
+def test_v3_order_and_freeze_integrity(monkeypatch, tmp_path):
+    from collections import Counter
+
+    m = replay_v3(monkeypatch)
+    f = m["prepare"](tmp_path / "prepared")
+    for v in m["VARIANTS"]:
+        first = Counter(
+            next(arm for variant, arm in m["schedule"](i) if variant == v)
+            for i in range(12)
+        )
+        assert first == {"jev": 6, "qwen": 6}
+    starts = Counter(m["schedule"](i)[0][0] for i in range(12))
+    assert max(starts.values()) - min(starts.values()) <= 1
+    f["cases"][0]["questions"]["legacy"]["instructions"] = "altered"
+    f["sha256"] = m["v1"].digest({k: v for k, v in f.items() if k != "sha256"})
+    (tmp_path / "prepared/freeze.json").write_text(json.dumps(f))
+    with pytest.raises(ValueError, match="Frozen"):
+        m["load_freeze"](tmp_path / "prepared", f["sha256"])
+
+
+async def test_v3_audit_failure_stops_all_conditions(monkeypatch, tmp_path):
+    m = replay_v3(monkeypatch)
+    f = m["prepare"](tmp_path / "prepared")
+    append = m["v1"].append_json
+    failed = []
+    sent = []
+
+    def fail(file, value):
+        if str(file.name).endswith("audit.jsonl") and not failed:
+            failed.append(True)
+            raise OSError("audit unavailable")
+        append(file, value)
+
+    async def provider(request):
+        sent.append(request)
+        return httpx.Response(529)
+
+    monkeypatch.setattr(m["v1"], "append_json", fail)
+    monkeypatch.setattr(
+        httpx, "AsyncHTTPTransport", lambda **kwargs: httpx.MockTransport(provider)
+    )
+    r = await m["run_replay"](
+        tmp_path / "prepared", f["sha256"], {"jev": "fake", "qwen": "fake"}
+    )
+    assert failed and not sent and r["spend"]["stop_reason"] == "audit_failed"
+    assert len(r["rows"]) == 120 and not r["completed"]
+
+
+async def test_v3_cancel_keeps_inflight_evidence(monkeypatch, tmp_path):
+    m = replay_v3(monkeypatch)
+    f = m["prepare"](tmp_path / "prepared")
+    started, ended = asyncio.Event(), asyncio.Event()
+    closed = []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+                raise AssertionError("unreachable")
+            finally:
+                ended.set()
+
+        async def aclose(self):
+            closed.append(True)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda **kwargs: HTTP())
+    task = asyncio.create_task(
+        m["run_replay"](
+            tmp_path / "prepared", f["sha256"], {"jev": "fake", "qwen": "fake"}
+        )
+    )
+    await asyncio.wait_for(started.wait(), 2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    r = json.loads((tmp_path / "prepared/result.json").read_text())
+    assert ended.is_set() and closed == [True]
+    assert (
+        r["rows"][0]["status"] == "cancelled"
+        and r["rows"][0]["usage"]["unknown_calls"] == 1
+    )
+    assert not r["completed"]
+
+
+def test_v3_contrasts_are_predefined_and_require_complete_responses(monkeypatch):
+    m = replay_v3(monkeypatch)
+    rows = []
+    for arm in ('jev','qwen'):
+        for variant in m['VARIANTS']:
+            rows.append({'case_id':'one','arm':arm,'variant':variant,'status':'returned',
+                         'positive_action':variant=='scoped_enriched',
+                         'negative_action':False,'wrong_target':False})
+    c = m['contrasts'](rows)
+    assert c['jev']['facts_under_scoped']['positive_action_delta'] == 1
+    assert c['jev']['interaction']['positive_action_delta'] == 1
+    rows[0]['status']='invalid'
+    assert m['contrasts'](rows) is None

@@ -1,0 +1,17 @@
+{
+  "revision": "s3-refusal-v3",
+  "cases": [
+    {"id":"editor-save","business_state":{"document_id":"demo-document-7","active_document":"demo-document-7","save_behavior":"Save updates the active document in place; Save a copy and Export PDF create separate files."}},
+    {"id":"dialog-print","business_state":{"document_id":"demo-document-8","print_range":"all pages","printer_id":"demo-printer-1","printer_ready":true,"print_behavior":"打印 submits all pages with the current print settings; 打印选中部分 overrides the page range."}},
+    {"id":"export-name","business_state":{"export_job":"demo-export-1","output_directory":"/synthetic/export","format":"PDF","file_name_input_binding":"文件名 sets the output filename; Directory and Folder name set paths; Template name selects a template."}},
+    {"id":"file-discard","business_state":{"active_file":"demo-file-1","has_unsaved_edits":true,"discard_behavior":"Discard changes reverts unsaved edits only; Delete file removes the file; Reset all files changes other files."}},
+    {"id":"invoice-submit","business_state":{"invoice_id":"demo-invoice-7","selected_invoice":"demo-invoice-7","recipient":"billing@example.test","invoice_validation":"passed","submission_behavior":"Submit invoice sends the selected invoice to its configured recipient. Save invoice draft does not send. Submit quote creates a quote instead."}},
+    {"id":"booking-reserve","business_state":{"selected_itinerary":"demo-trip-7","traveler":"demo-traveler-1","fare_confirmed":true,"reservation_behavior":"确认预订 confirms the selected itinerary with the current traveler and fare; 加入收藏 only bookmarks it; 修改行程 changes the selection."}},
+    {"id":"search-product","business_state":{"search_domain":"product catalog","query":"blue mug","search_bindings":"商品搜索 queries the catalog; Order search queries existing orders; Search history queries prior search records."}},
+    {"id":"subscription-pause","business_state":{"current_subscription":"demo-subscription-7","pause_duration":"one billing cycle","pause_available":true,"pause_behavior":"Pause subscription temporarily suspends the current subscription, retaining the account; Cancel subscription terminates it; Delete account removes the account."}},
+    {"id":"contact-email","business_state":{"person_id":"demo-person-7","desired_email_field":null,"field_owner_bindings":null}},
+    {"id":"delivery-address","business_state":{"order_id":"demo-order-7","shipping_address_field_binding":null,"home_vs_residential_mapping":null}},
+    {"id":"workspace-context","business_state":{"desired_workspace_id":null,"available_workspace_labels":["North team","South team"]}},
+    {"id":"photo-visual","business_state":{"image_pixels_available":false,"image_descriptions_available":false}}
+  ]
+}
