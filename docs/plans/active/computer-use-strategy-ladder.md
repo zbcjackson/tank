@@ -1647,6 +1647,42 @@ pyright、开发服务日志、docs/diff check 全通过。协议未改，同步
 check，读取并复用上述全量验证日志。协调者已核对最终 diff 与验证证据。没有新付费
 调用；业务事实验证器与新留出数据集仍待后续实现。
 
+#### S3 第十批：新合成留出集离线冻结（2026-10-03，离线验收与评审完成）
+
+基线 `645cdb5d`。6 个新领域 × 4 条件（充分、缺失身份、冲突、页面指令注入），
+24 个场景全部作为新留出，不拆出校准集、不根据模型回答调提示。比较旧 selector
+提示与当前生产 evidence contract；同一模型和四类控制输出，拟定 48 请求。
+
+1. 公共场景与独立标签分文件；真实 ActionBuilder 生成完整动作，稳定 ID；
+   提取无副作用的生产请求构造函数用于冻结，避免复制当前提示造成对照漂移。
+2. 冻结每个完整 payload、源码/数据 hash、预声明评分、配对顺序及预算上限。
+   页面身份信息是合成通道报告；冲突不设置来源优先级，缺失不按位置猜测。
+3. **Tests**：先红后绿覆盖无标签泄漏、请求与真实 selector 一致、目标位置平衡、
+   配对仅改契约/提示、候选召回、篡改拒绝、无网络准备、失败分母和控制类型评分。
+4. 本批只实现离线准备入口，不接真实付费执行器、不读密钥。下一批接线后必须按
+   最终执行源码重新冻结，当前冻结不能作为执行授权；历史证据不变。
+5. **最终 Verification Checklist**：§10 全部适用步骤，web lint/tsc、backend
+   lint/全量 pytest/修改文件 pyright、CLI lint、运行时日志、E2E、docs check；
+   协议未改时同步检查不适用。最多三轮独立 code-reviewer review-and-refactor。
+
+新数据为 6 个领域共用两行身份匹配结构，不等于 6 个独立 UI 布局族；正例/负例
+各 12，正例目标位置 6:6，每条件两版提示各 3 次先发。来源语义人工撰写，标签独立
+存储且不参与构造请求；所有场景尚无模型响应。离线冻结 digest
+`1daf61ad4e337dba196fb38ce5077a995db678ca0bfdb763c5a607ab9b160ac7`，详见
+[准备记录](../../../backend/benchmarks/computer_use/reports/20261003-s3-holdout-prepared/README.md)。
+
+Tests：新增 7 项离线检查；请求构造/冻结及条件内先手平衡曾先红后绿修正。
+全量后端 **5552 passed / 1 skipped / 21 warnings**
+（`/tmp/tank-s3-holdout-backend.log`）；E2E **17 场景 / 67 步**
+（`/tmp/tank-s3-holdout-e2e.log`）。web lint/tsc、backend/CLI lint、改动 Python
+pyright、开发服务日志、docs/diff check 通过；协议未改，同步检查不适用。
+本批不读取密钥、没有模型请求。下一步仅在新执行器完成并重新冻结后请求付费授权。
+
+实现提交 `293c41a7`。独立 code-reviewer 第 1 轮无可操作问题，未修改文件，立即
+停止；人工核对事实与标签，独立复算身份映射/配对差异/位置及先手平衡/冻结 hash，
+并以 AST 比较验证生产 payload 提取前后相同。docs/diff check 通过，复用实现后
+完整验证日志。协调者核对最终 diff 与证据；没有遗留问题、模型请求或凭据访问。
+
 ### S4：多步目标、按需 Advisor 与恢复闭环
 
 - 接入统一语义命令面、真实生成模型消息序列化、视觉 GroundingAdapter 风格能力；

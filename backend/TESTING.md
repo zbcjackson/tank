@@ -1012,3 +1012,15 @@ Existing Controller tests verify all four refusal controls prevent dispatch and
 successful proposals require effect verification. These fake-HTTP checks establish
 serialization and control handling, not model obedience or business authenticity.
 The held-out protocol is in the plugin README; no paid calls run during tests.
+
+## S3 new synthetic holdout preparation
+
+`test_jev.py` adds seven offline holdout checks: actual selector HTTP payload equality,
+label-independent request construction, paired state/action equality, balanced target
+positions and within-condition order, coverage/scoring denominators, source/label
+mutation refusal, exclusive output creation and preparation without HTTP clients or
+credentials. `choice_payload` is shared with the admitted production selector; host
+admission and four control outcomes remain covered by existing integration tests.
+See [the holdout protocol](benchmarks/computer_use/fixtures/s3-holdout/README.md).
+These tests establish preparation contracts, not model effectiveness; no live executor
+or business-evidence provider is added.

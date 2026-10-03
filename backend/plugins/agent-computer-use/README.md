@@ -266,3 +266,10 @@ trace connection reuse, reserve usage and declare repetitions before execution.
 Do not tune on this holdout; failures become development cases and require a new
 holdout for later claims. This protocol is not a prepared dataset, frozen paid batch
 or production acceptance. No additional live requests are part of this change.
+
+The [first new synthetic holdout preparation](../../benchmarks/computer_use/fixtures/s3-holdout/README.md)
+now contains 24 label-separated scenarios and 48 paired planned Jev requests. It
+uses the actual production payload builder; its six domains share one two-row layout.
+No model responses have been collected, and the live execution adapter is not yet
+implemented. This supersedes the protocol's earlier “not a prepared dataset” status;
+it still does not constitute a frozen executable paid batch or production acceptance.
