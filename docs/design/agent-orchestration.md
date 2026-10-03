@@ -436,9 +436,10 @@ SSE lines, preventing buffered SDK frames from bypassing cancellation. Partial
 responses without validated usage remain unknown; close and settlement occur once.
 The host resolves `AgentDefinition.model` against named LLM profiles before
 plugin execution. API version 1 is checked before factory/resource creation.
-SubAgent plugins borrow the text model service; they do not declare provider
-protocols, receive credentials or create transports. Manifest capability-injection
-fields and the legacy engine path have been removed.
+SubAgent instances borrow host model services. Separately registered model_route
+factories receive public endpoint/model metadata only; neither those factories nor
+the agent configuration receives credentials or creates transports. Legacy manifest
+capability-injection fields and the engine path remain removed.
 Task clients close with the runtime; a bound ordinary LLM borrows its host pool.
 BenchmarkTaskPolicy supplies request limits, spend admission and raw HTTP capture,
 using the same call_id; no production module imports benchmarks. Model records
@@ -461,7 +462,7 @@ restore plugin progress, the original grant or cumulative budgets. Built-in
 LLM agents retain the existing ask_user/waiting behavior.
 
 
-### Explicit JSON model assembly (S3 first slice)
+### Explicit JSON model assembly (S3)
 
 A trusted host may additionally assemble `TaskRuntime.configure_json_model` with
 an immutable protocol route and resolved credential. The optional borrowed
@@ -470,5 +471,11 @@ TaskModelTransport and original context/ledger as the text model. Route adapters
 validate protocol requests and normalize usage; core does not parse Jev fields.
 Audit records use the selected route's operation name. The runtime owns client
 cleanup and refuses model replacement or task rebinding. Protocol adapters do not
-receive credentials. This is an explicit programmatic seam; Runner/YAML model
-selection, live Jev activation and recovery are not implemented by this slice.
+receive credentials. Extension definitions can select `json-model: <name>` from
+host `json_models` profiles. Each profile specifies a `model_route` extension,
+exact HTTPS URL, fixed model and credential environment-variable name. Runner
+adds network approval and resolves only the selected credential before the agent
+factory; core verifies the route matches the profile. Plugins receive neither the
+key nor environment access through this interface. Jev protocol construction stays
+in its plugin factory; the core does not import plugin code. Recovery remains
+unsupported. No model is enabled just because a key exists in the environment.

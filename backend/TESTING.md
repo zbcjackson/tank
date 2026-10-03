@@ -955,3 +955,17 @@ skips. Ordinary pytest may skip if they are missing; that is not S2 acceptance.
 The managed-Chromium scenario in the existing chat.feature requires the same setup.
 See the [plugin instructions](plugins/agent-computer-use/README.md#s2-managed-chromium)
 for configuration, supported DOM semantics and the limits of page-fact verification.
+
+
+## S3 configured Jev integration
+
+`core/tests/test_subagent.py` covers named JSON profiles, extension-only agent
+references, network approval and refusal before the SubAgent factory. The plugin's
+`test_dom.py` exercises YAML → Runner → real managed Chromium with fake HTTP,
+including nested observation facts, structured completion and resource cleanup.
+It also verifies the three-case smoke harness using fake HTTP (including malformed
+no-target replies and the per-case one-request limit). No paid API calls run in pytest.
+Use `TANK_REQUIRE_CHROMIUM=1` to require the optional browser extra and executable.
+
+The explicitly paid harness and frozen evidence are documented in
+[the S3 smoke record](benchmarks/computer_use/reports/20261003-s3-jev-smoke/README.md).

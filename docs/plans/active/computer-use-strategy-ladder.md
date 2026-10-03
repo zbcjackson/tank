@@ -1,7 +1,7 @@
 > 状态：进行中（2026-09-30：S0 验收通过；S1 离线/合成验收与 S2 管理 Chromium 本地验收完成；S3–S6、原生桌面执行/恢复及生产采用仍待验收）。
 
 > 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
-> 2026-10-03：S3 首批受控 JSON/Jev Choice 显式装配及 fake HTTP 闭环验收完成；Runner/YAML 装配、冻结回放和校准仍待完成。
+> 2026-10-03：S3 受控 JSON/Jev Choice、Runner/YAML 装配及 3 例真实服务冒烟验收完成；正式冻结对照回放和校准仍待完成。
 > 完整目标设计尚未全部实现、尚未完成整体实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
 
 # 计划：Computer Use 子代理的宿主循环与策略阶梯（S0–S6）
@@ -1370,6 +1370,44 @@ docs check 和 diff check 通过。协议契约及生成物未改，协议同步
 - **退出条件**：适用域、错误代价、覆盖率/拒绝率、延迟和成本可复核。
   若没有收益，保留比较结果和 Advisor 对照，不把“接入成功”写成“应当采用”。
   Jev 是本轮必评估的决策路径，不再仅按旧方案条件触发 D2。
+
+#### S3 第二批：配置装配与真实服务冒烟（2026-10-03，验收完成）
+
+基线 `54c4462a`。用户提供 `.env` 的 `TYPESAFE_API_KEY` 并要求继续。本批增加
+命名 JSON 模型配置、通用 model_route 工厂及 Runner 装配，Computer Use 显式启用
+Jev；不改变生产默认。凭据仅由宿主从环境变量解析，不进入插件配置或事件。
+
+1. TDD 实现 JSON profile/agent 引用校验、权限合并、宿主 route/凭据装配。
+2. Computer Use 工厂接入显式 selector，真实 Runner + fake HTTP + 受控 Chromium 验收。
+3. 冻结最多 3 次无重试的合成页面冒烟：官方 `https://api.typesafe.ai/v1/systemone`，
+   固定 `jev-1.13.0`，仅合成 DOM/目标文字。使用共享实验预留/结算与 3 请求上限，
+   参考官方输入价格 $0.042/M tokens，预留不超过 $0.01；未知用量立即停批。
+   这不是校准数据集，不宣称 S3 整体完成或具有选择准确率/效率收益。
+4. **Tests**：配置未知键/非法引用/缺密钥/错协议拒绝、零网络权限零工厂、
+   YAML→Runner→HTTP→DOM→TaskResult 及清理；保留现有治理和生产 A 回归。
+5. **最终验证**：执行 §10 完整 Verification Checklist 的全部适用项与最多三轮
+   code-reviewer review-and-refactor；记录真实冒烟结果和未测边界。
+
+第二批真实冒烟：3 个冻结场景全部通过（英文保存、中文保存、无目标拒绝），
+共 3 次请求，4235 input + 413 output tokens；冻结价格估算 $0.000177870。
+每例均确认清理，无目标例零动作。协议回包、请求 hash、审计与实验账本见
+[冒烟记录](../../../backend/benchmarks/computer_use/reports/20261003-s3-jev-smoke/README.md)。
+真实 Chromium 回归发现观察 facts 含 Pydantic Fact 时不可 JSON 序列化，已修复并由
+YAML→Runner→fake HTTP→DOM 集成回归覆盖。
+评审前验证：后端全量 **5505 passed / 1 skipped / 21 warnings**
+（`/tmp/tank-s3-config-backend.log`），E2E **17 场景 / 67 步**
+（`/tmp/tank-s3-config-e2e.log`），强制 Chromium **32 passed / 零 skip**
+（`/tmp/tank-s3-config-chromium.log`）。backend core/tests/plugins/冒烟脚本 lint、
+CLI lint、全部改动 Python pyright、web lint/tsc、开发服务重载检查、docs/diff check
+通过。协议与生成物未改，协议同步检查不适用。
+实现提交：核心配置 `37cd9b2d`；Jev/浏览器接入及冒烟工具/证据 `0710f37b`。
+独立 code-reviewer 以 `review-and-refactor` 审查基线 `54c4462a` 后的完整变更，
+第 1 轮无可操作或遗留问题，未修改代码，按规则停止。评审者独立复跑模型/SubAgent/
+Jev 集中测试 **298 passed**、强制 Chromium **32 passed / 零 skip**，docs/diff check
+通过，并核对冻结 harness hash、3 例真实证据及全量/E2E 日志。未再次调用付费 API。
+协调者已核对最终 diff 与验证证据；本批完成，S3 正式对照回放与校准仍 active。
+下一批冻结 D2/完整 ActionSet 数据，比较规则、Jev、廉价生成式选择器；本次 3 例
+不得充当校准或泛化结论。生产默认、原生桌面执行及恢复范围不变。
 
 ### S4：多步目标、按需 Advisor 与恢复闭环
 

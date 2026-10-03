@@ -1,0 +1,15 @@
+# Merge into the host config. Enable the plugin and select an extension agent
+# with `json-model: jev` explicitly; this file changes no production defaults.
+json_models:
+  jev:
+    extension: agent-computer-use:jev
+    url: https://api.typesafe.ai/v1/systemone
+    model: jev-1.13.0
+    credential_env: TYPESAFE_API_KEY
+subagents:
+  agent-computer-use:agent:
+    config:
+      browser:
+        scope: managed-page
+        url: http://127.0.0.1:8080/form
+      selector: jev

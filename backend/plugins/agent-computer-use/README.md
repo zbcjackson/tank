@@ -1,4 +1,4 @@
-# Computer Use host loop — S0–S2 adapters
+# Computer Use host loop — S0–S3 adapters
 
 This opt-in `type: subagent` plugin uses the existing Runner/Adapter lifecycle.
 It does not change the production computer-use agent or grounding modes.
@@ -6,7 +6,7 @@ The default factory currently has **no live channel or model transport**: a vali
 goal returns `stopped / observation_unavailable`, with zero desktop/model calls.
 Unknown private configuration keys are rejected. S1 provides injectable AX/OCR
 observations; S2 adds explicitly configured managed Chromium. Native desktop
-execution and Jev/Advisor domain wiring remain later stages.
+execution and Advisor domain wiring remain later stages. S3 adds an opt-in Jev Choice route.
 
 The constructor accepts separate observation, action, selector and Advisor
 implementations. Tests inject semantic fake UI boundaries through the actual
@@ -161,7 +161,7 @@ also has a real Chromium contract scenario and requires this extra/browser for
 in an isolated process, not browser-agent transport through the chat WebSocket.
 No paid model call or personal browser input is part of S2 acceptance.
 
-## S3 first slice: explicitly assembled Jev Choice
+## S3: explicitly configured Jev Choice
 
 `JevChoiceRoute` and `JevSelector` implement the Choice subset of the
 [official TypeSafe HTTP contract](https://docs.typesafe.ai/api). A trusted host
@@ -169,8 +169,12 @@ must explicitly call `context.runtime.configure_json_model(task_id, route,
 credential=...)` and inject `JevSelector(version)` into the controller. The route
 is immutable, uses an exact HTTPS destination and credential reference, and
 requires a fixed `jev-X.Y.Z` version. The selector never receives credentials or
-creates a client. There is no Runner/YAML wiring or production activation yet;
-this programmatic seam is the offline acceptance path, not a supported user setup.
+creates a client. Runner can now perform this assembly from the named `json_models`
+profile selected by an extension agent's `json-model` field. Network permission is
+included in the task approval; missing profiles/credentials or wrong route types
+are rejected before the SubAgent factory. Core resolves `credential_env` from the
+host environment (`core/.env` is loaded by the normal server startup). The secret
+is never part of the plugin config or protocol factory arguments.
 
 The host's lazy `TaskJSONModel` uses the same transport as text models: actual
 HTTP admission, call IDs, audit, capture, usage accounting, cancellation and
@@ -187,7 +191,36 @@ for wire rounding; it is not an acceptance-confidence threshold or calibration
 claim. Rules still bypass the model. Model results cannot change action arguments,
 permissions or completion evidence. Only Choice is implemented; Score/Noul,
 provider availability evaluation, frozen replay comparisons and calibration remain
-S3 work. No paid requests or real model quality measurements were made.
+S3 work. Three real synthetic smoke cases passed; this is service integration
+evidence, not a model-quality or calibration result. See the
+[smoke record](../../benchmarks/computer_use/reports/20261003-s3-jev-smoke/README.md).
 
 Run the fake HTTP and Controller/Adapter acceptance from `backend/`:
 `uv run --no-sync pytest plugins/agent-computer-use/tests/test_jev.py -q`.
+
+
+Merge [config.example.yaml](config.example.yaml) into the host configuration and
+explicitly select an agent definition such as:
+
+```yaml
+---
+name: computer-use-ladder
+extension: agent-computer-use:agent
+json-model: jev
+---
+Complete the structured task goal within its approved scope.
+```
+
+Enable the `agent-computer-use` plugin through the existing plugin manager. Its
+`jev` extension is a `model_route`, separate from the `agent` SubAgent extension.
+The private config `selector: jev` borrows the host's configured fixed model
+version. Without this selector, the existing rule-only behavior remains. Merely
+having `TYPESAFE_API_KEY` in the environment does not enable Jev or change the
+production agent. A structured `task_input` goal is still required.
+
+The real Chromium + fake HTTP config regression is in `test_dom.py`:
+`TANK_REQUIRE_CHROMIUM=1 uv run --no-sync pytest plugins/agent-computer-use/tests/test_dom.py -q`.
+The paid smoke harness is an explicit opt-in: from backend run
+`uv run --no-sync python benchmarks/computer_use/jev_smoke.py --live --output <new-directory>`.
+It uses at most three requests, one per case, with no automatic retry; it stops on
+failure/unknown usage and writes synthetic-only wire evidence and its spend journal.

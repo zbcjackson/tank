@@ -134,6 +134,9 @@ Runner binds ordinary task LLMs and the optional SubAgent text model to
 TaskModelTransport for shared HTTP admission, usage and audit. Computer Use
 registers its operations with TaskRuntime. The host resolves `AgentDefinition.model`
 from named LLM profiles before plugin creation; plugins borrow `TaskModel.complete()`.
+Named `json_models` profiles and extension-only `json-model` references additionally
+assemble host-owned JSON models through registered `model_route` factories; the
+host resolves credential environment references without handing secrets to factories.
 Runtime API 1 is checked before factory creation. Legacy engine dispatch and
 provider-specific model declarations/transports have been removed. See
 [Computer Use plugin](plugins/agent-computer-use/README.md) for current capabilities.
