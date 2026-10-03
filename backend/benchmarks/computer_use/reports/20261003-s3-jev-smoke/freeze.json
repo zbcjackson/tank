@@ -1,0 +1,37 @@
+{
+  "endpoint": "https://api.typesafe.ai/v1/systemone",
+  "model": "jev-1.13.0",
+  "request_limit": 3,
+  "reserved_usd_limit": 0.01,
+  "synthetic_only": true,
+  "cases": [
+    {
+      "name": "english",
+      "target": "Store document",
+      "buttons": [
+        "Save",
+        "Cancel"
+      ],
+      "expected_status": "completed"
+    },
+    {
+      "name": "chinese",
+      "target": "保存文档",
+      "buttons": [
+        "保存",
+        "取消"
+      ],
+      "expected_status": "completed"
+    },
+    {
+      "name": "no-target",
+      "target": "Save document",
+      "buttons": [
+        "Cancel",
+        "Delete"
+      ],
+      "expected_status": "stopped"
+    }
+  ],
+  "harness_sha256": "99c8967b143630ce43538cc464e0531a7518ea8c8e10ac11d4796e3a8baf298f"
+}

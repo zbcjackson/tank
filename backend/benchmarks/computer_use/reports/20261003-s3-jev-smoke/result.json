@@ -1,0 +1,1001 @@
+{
+  "endpoint": "https://api.typesafe.ai/v1/systemone",
+  "model": "jev-1.13.0",
+  "request_limit": 3,
+  "reserved_usd_limit": 0.01,
+  "synthetic_only": true,
+  "cases": [
+    {
+      "name": "english",
+      "passed": true,
+      "result": {
+        "schema_version": 1,
+        "status": "completed",
+        "summary": "goal_verified",
+        "reason": "goal_verified",
+        "details": {
+          "task_id": "smoke-english",
+          "evidence": [
+            {
+              "milestone": "save",
+              "observation_id": "4fadc5bca0a54d988d0d7a3b15ee72d8",
+              "generation": 2,
+              "predicate_key": "status:Result"
+            }
+          ],
+          "goal_id": "6caf8adc432d4952979b5b11073d5ca0",
+          "goal_version": 1,
+          "milestones": [
+            "save"
+          ],
+          "receipts": [
+            {
+              "action_id": "0dafff48f91f43adb22f278df8717d6a",
+              "status": "sent",
+              "observation_id": "4b87cc97aab747c78437e0a5647363a4",
+              "goal_version": 1,
+              "candidate_set_id": "7393edadd4af4f2bbf2ecd93a94328ab",
+              "scope": "smoke",
+              "generation": 1
+            }
+          ],
+          "pending_effect": false
+        },
+        "cleanup": "confirmed"
+      },
+      "elapsed_ms": 2702.908291015774,
+      "calls": {
+        "d269453d0b36454f980a4d3079d32b8a": {
+          "request": {
+            "model": "jev-1.13.0",
+            "state": {
+              "goal": {
+                "schema_version": 1,
+                "objective": "Store document",
+                "scope": "smoke",
+                "inputs": [],
+                "milestones": [
+                  {
+                    "id": "save",
+                    "operation": "click",
+                    "role": "button",
+                    "label": "Store document",
+                    "input_key": null,
+                    "postcondition": {
+                      "key": "status:Result",
+                      "value": "saved"
+                    }
+                  }
+                ],
+                "completion": [
+                  {
+                    "key": "status:Result",
+                    "value": "saved"
+                  }
+                ]
+              },
+              "snapshot": {
+                "observation_id": "4b87cc97aab747c78437e0a5647363a4",
+                "scope": "smoke",
+                "generation": 1,
+                "elements": [
+                  {
+                    "ref": "__tank_dom_0975c076052a4e8dbfbaa6d8118175551",
+                    "role": "button",
+                    "label": "Save",
+                    "actions": [
+                      "click"
+                    ],
+                    "enabled": true,
+                    "kind": "control",
+                    "source": "dom",
+                    "value": "Save",
+                    "focused": false,
+                    "ancestors": [],
+                    "bounds": null
+                  },
+                  {
+                    "ref": "__tank_dom_0975c076052a4e8dbfbaa6d8118175552",
+                    "role": "button",
+                    "label": "Cancel",
+                    "actions": [
+                      "click"
+                    ],
+                    "enabled": true,
+                    "kind": "control",
+                    "source": "dom",
+                    "value": "Cancel",
+                    "focused": false,
+                    "ancestors": [],
+                    "bounds": null
+                  },
+                  {
+                    "ref": "__tank_dom_0975c076052a4e8dbfbaa6d8118175553",
+                    "role": "status",
+                    "label": "Result",
+                    "actions": [],
+                    "enabled": true,
+                    "kind": "text_region",
+                    "source": "dom",
+                    "value": "empty",
+                    "focused": false,
+                    "ancestors": [],
+                    "bounds": null
+                  }
+                ],
+                "facts": [
+                  {
+                    "key": "button:Save",
+                    "value": "Save"
+                  },
+                  {
+                    "key": "button:Cancel",
+                    "value": "Cancel"
+                  },
+                  {
+                    "key": "status:Result",
+                    "value": "empty"
+                  }
+                ],
+                "complete": true,
+                "ready": true
+              },
+              "binding": {
+                "goal_id": "6caf8adc432d4952979b5b11073d5ca0",
+                "goal_version": 1,
+                "observation_id": "4b87cc97aab747c78437e0a5647363a4",
+                "scope": "smoke",
+                "generation": 1,
+                "candidate_set_id": "7393edadd4af4f2bbf2ecd93a94328ab"
+              }
+            },
+            "questions": {
+              "next_action": {
+                "type": "choice",
+                "instructions": "Select one complete action or a control option.",
+                "criteria": {
+                  "fe8fcb10f2e34b3a9e120085a94d297a": {
+                    "id": "fe8fcb10f2e34b3a9e120085a94d297a",
+                    "target_ref": "__tank_dom_0975c076052a4e8dbfbaa6d8118175552",
+                    "operation": "click",
+                    "value": null
+                  },
+                  "0dafff48f91f43adb22f278df8717d6a": {
+                    "id": "0dafff48f91f43adb22f278df8717d6a",
+                    "target_ref": "__tank_dom_0975c076052a4e8dbfbaa6d8118175551",
+                    "operation": "click",
+                    "value": null
+                  },
+                  "none": "No offered action achieves the current goal.",
+                  "ambiguous": "Several actions fit and the evidence cannot distinguish them.",
+                  "need_more_context": "Another observation is needed before selecting an action.",
+                  "escalate": "Planning, generation or visual reasoning is required."
+                }
+              }
+            }
+          },
+          "request_sha256": "65fa0b75f628f431d74d7b4df89245177c096f6e2505a67adced56b41b48c3a7",
+          "http_status": 200,
+          "response": {
+            "model": "jev-1.13.0",
+            "answers": {
+              "next_action": {
+                "type": "choice",
+                "choice": "0dafff48f91f43adb22f278df8717d6a",
+                "confidence": 0.96,
+                "probabilities": {
+                  "escalate": 0.0,
+                  "0dafff48f91f43adb22f278df8717d6a": 0.98,
+                  "none": 0.02,
+                  "fe8fcb10f2e34b3a9e120085a94d297a": 0.0,
+                  "need_more_context": 0.0,
+                  "ambiguous": 0.0
+                }
+              }
+            },
+            "usage": {
+              "input_tokens": 1409,
+              "output_tokens": 145
+            }
+          }
+        }
+      },
+      "audits": [
+        {
+          "task_id": "smoke-english",
+          "call_id": "b3c06c44b6874fd4ad2cd7dcc9a261c8",
+          "operation": "computer_use.observe",
+          "status": "not_sent",
+          "category": "execution",
+          "phase": "prepared",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "b3c06c44b6874fd4ad2cd7dcc9a261c8",
+          "operation": "computer_use.observe",
+          "status": "unknown",
+          "category": "execution",
+          "phase": "dispatch",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "b3c06c44b6874fd4ad2cd7dcc9a261c8",
+          "operation": "computer_use.observe",
+          "status": "returned",
+          "category": "execution",
+          "phase": "finished",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "d269453d0b36454f980a4d3079d32b8a",
+          "operation": "jev_choice",
+          "status": "not_sent",
+          "category": "model",
+          "phase": "prepared",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "d269453d0b36454f980a4d3079d32b8a",
+          "operation": "jev_choice",
+          "status": "unknown",
+          "category": "model",
+          "phase": "dispatch",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "d269453d0b36454f980a4d3079d32b8a",
+          "operation": "jev_choice",
+          "status": "returned",
+          "category": "model",
+          "phase": "finished",
+          "prompt_tokens": 1409,
+          "completion_tokens": 145,
+          "elapsed_ms": 2066.716792061925
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "2465464f1a424ee0b5e0e96184e75405",
+          "operation": "computer_use.dispatch",
+          "status": "not_sent",
+          "category": "execution",
+          "phase": "prepared",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "2465464f1a424ee0b5e0e96184e75405",
+          "operation": "computer_use.dispatch",
+          "status": "unknown",
+          "category": "execution",
+          "phase": "dispatch",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "2465464f1a424ee0b5e0e96184e75405",
+          "operation": "computer_use.dispatch",
+          "status": "returned",
+          "category": "execution",
+          "phase": "finished",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "9808e96e27b54316aa8a5e62ccf4466d",
+          "operation": "computer_use.observe",
+          "status": "not_sent",
+          "category": "execution",
+          "phase": "prepared",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "9808e96e27b54316aa8a5e62ccf4466d",
+          "operation": "computer_use.observe",
+          "status": "unknown",
+          "category": "execution",
+          "phase": "dispatch",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-english",
+          "call_id": "9808e96e27b54316aa8a5e62ccf4466d",
+          "operation": "computer_use.observe",
+          "status": "returned",
+          "category": "execution",
+          "phase": "finished",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        }
+      ]
+    },
+    {
+      "name": "chinese",
+      "passed": true,
+      "result": {
+        "schema_version": 1,
+        "status": "completed",
+        "summary": "goal_verified",
+        "reason": "goal_verified",
+        "details": {
+          "task_id": "smoke-chinese",
+          "evidence": [
+            {
+              "milestone": "save",
+              "observation_id": "8b0f0e005f4d423abe1ecb36afe855ce",
+              "generation": 2,
+              "predicate_key": "status:Result"
+            }
+          ],
+          "goal_id": "b342c1549e394a6dadc97b7f634eb017",
+          "goal_version": 1,
+          "milestones": [
+            "save"
+          ],
+          "receipts": [
+            {
+              "action_id": "6cd2c3be47474800ac5b5657bcf5160a",
+              "status": "sent",
+              "observation_id": "a19fc382388840cb899960c2b8ed8492",
+              "goal_version": 1,
+              "candidate_set_id": "e0ecbf28a8f548058dd30b42c3d73297",
+              "scope": "smoke",
+              "generation": 1
+            }
+          ],
+          "pending_effect": false
+        },
+        "cleanup": "confirmed"
+      },
+      "elapsed_ms": 1457.8926670365036,
+      "calls": {
+        "068f2110945743b2b475c9e317a5aa14": {
+          "request": {
+            "model": "jev-1.13.0",
+            "state": {
+              "goal": {
+                "schema_version": 1,
+                "objective": "保存文档",
+                "scope": "smoke",
+                "inputs": [],
+                "milestones": [
+                  {
+                    "id": "save",
+                    "operation": "click",
+                    "role": "button",
+                    "label": "保存文档",
+                    "input_key": null,
+                    "postcondition": {
+                      "key": "status:Result",
+                      "value": "saved"
+                    }
+                  }
+                ],
+                "completion": [
+                  {
+                    "key": "status:Result",
+                    "value": "saved"
+                  }
+                ]
+              },
+              "snapshot": {
+                "observation_id": "a19fc382388840cb899960c2b8ed8492",
+                "scope": "smoke",
+                "generation": 1,
+                "elements": [
+                  {
+                    "ref": "__tank_dom_3131887e9d7d485d8a9df4acf03b62861",
+                    "role": "button",
+                    "label": "保存",
+                    "actions": [
+                      "click"
+                    ],
+                    "enabled": true,
+                    "kind": "control",
+                    "source": "dom",
+                    "value": "保存",
+                    "focused": false,
+                    "ancestors": [],
+                    "bounds": null
+                  },
+                  {
+                    "ref": "__tank_dom_3131887e9d7d485d8a9df4acf03b62862",
+                    "role": "button",
+                    "label": "取消",
+                    "actions": [
+                      "click"
+                    ],
+                    "enabled": true,
+                    "kind": "control",
+                    "source": "dom",
+                    "value": "取消",
+                    "focused": false,
+                    "ancestors": [],
+                    "bounds": null
+                  },
+                  {
+                    "ref": "__tank_dom_3131887e9d7d485d8a9df4acf03b62863",
+                    "role": "status",
+                    "label": "Result",
+                    "actions": [],
+                    "enabled": true,
+                    "kind": "text_region",
+                    "source": "dom",
+                    "value": "empty",
+                    "focused": false,
+                    "ancestors": [],
+                    "bounds": null
+                  }
+                ],
+                "facts": [
+                  {
+                    "key": "button:保存",
+                    "value": "保存"
+                  },
+                  {
+                    "key": "button:取消",
+                    "value": "取消"
+                  },
+                  {
+                    "key": "status:Result",
+                    "value": "empty"
+                  }
+                ],
+                "complete": true,
+                "ready": true
+              },
+              "binding": {
+                "goal_id": "b342c1549e394a6dadc97b7f634eb017",
+                "goal_version": 1,
+                "observation_id": "a19fc382388840cb899960c2b8ed8492",
+                "scope": "smoke",
+                "generation": 1,
+                "candidate_set_id": "e0ecbf28a8f548058dd30b42c3d73297"
+              }
+            },
+            "questions": {
+              "next_action": {
+                "type": "choice",
+                "instructions": "Select one complete action or a control option.",
+                "criteria": {
+                  "6cd2c3be47474800ac5b5657bcf5160a": {
+                    "id": "6cd2c3be47474800ac5b5657bcf5160a",
+                    "target_ref": "__tank_dom_3131887e9d7d485d8a9df4acf03b62861",
+                    "operation": "click",
+                    "value": null
+                  },
+                  "d35ec1acd13e42508433c47ed4961b63": {
+                    "id": "d35ec1acd13e42508433c47ed4961b63",
+                    "target_ref": "__tank_dom_3131887e9d7d485d8a9df4acf03b62862",
+                    "operation": "click",
+                    "value": null
+                  },
+                  "none": "No offered action achieves the current goal.",
+                  "ambiguous": "Several actions fit and the evidence cannot distinguish them.",
+                  "need_more_context": "Another observation is needed before selecting an action.",
+                  "escalate": "Planning, generation or visual reasoning is required."
+                }
+              }
+            }
+          },
+          "request_sha256": "42a6d83d4533fa3e0de656445ee858e973cf9e79ec017adf7981cbe6468f9881",
+          "http_status": 200,
+          "response": {
+            "model": "jev-1.13.0",
+            "answers": {
+              "next_action": {
+                "type": "choice",
+                "choice": "6cd2c3be47474800ac5b5657bcf5160a",
+                "confidence": 0.96,
+                "probabilities": {
+                  "escalate": 0.0,
+                  "need_more_context": 0.0,
+                  "6cd2c3be47474800ac5b5657bcf5160a": 0.97,
+                  "none": 0.02,
+                  "ambiguous": 0.01,
+                  "d35ec1acd13e42508433c47ed4961b63": 0.0
+                }
+              }
+            },
+            "usage": {
+              "input_tokens": 1420,
+              "output_tokens": 147
+            }
+          }
+        }
+      },
+      "audits": [
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "5eaebd370aef4a3293714f8197def24d",
+          "operation": "computer_use.observe",
+          "status": "not_sent",
+          "category": "execution",
+          "phase": "prepared",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "5eaebd370aef4a3293714f8197def24d",
+          "operation": "computer_use.observe",
+          "status": "unknown",
+          "category": "execution",
+          "phase": "dispatch",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "5eaebd370aef4a3293714f8197def24d",
+          "operation": "computer_use.observe",
+          "status": "returned",
+          "category": "execution",
+          "phase": "finished",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "068f2110945743b2b475c9e317a5aa14",
+          "operation": "jev_choice",
+          "status": "not_sent",
+          "category": "model",
+          "phase": "prepared",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "068f2110945743b2b475c9e317a5aa14",
+          "operation": "jev_choice",
+          "status": "unknown",
+          "category": "model",
+          "phase": "dispatch",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "068f2110945743b2b475c9e317a5aa14",
+          "operation": "jev_choice",
+          "status": "returned",
+          "category": "model",
+          "phase": "finished",
+          "prompt_tokens": 1420,
+          "completion_tokens": 147,
+          "elapsed_ms": 987.7722500823438
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "9570805a4433487fb8d31d251887b494",
+          "operation": "computer_use.dispatch",
+          "status": "not_sent",
+          "category": "execution",
+          "phase": "prepared",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "9570805a4433487fb8d31d251887b494",
+          "operation": "computer_use.dispatch",
+          "status": "unknown",
+          "category": "execution",
+          "phase": "dispatch",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "9570805a4433487fb8d31d251887b494",
+          "operation": "computer_use.dispatch",
+          "status": "returned",
+          "category": "execution",
+          "phase": "finished",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "5e80e61894e94edaafd8eed4df628fff",
+          "operation": "computer_use.observe",
+          "status": "not_sent",
+          "category": "execution",
+          "phase": "prepared",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "5e80e61894e94edaafd8eed4df628fff",
+          "operation": "computer_use.observe",
+          "status": "unknown",
+          "category": "execution",
+          "phase": "dispatch",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-chinese",
+          "call_id": "5e80e61894e94edaafd8eed4df628fff",
+          "operation": "computer_use.observe",
+          "status": "returned",
+          "category": "execution",
+          "phase": "finished",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        }
+      ]
+    },
+    {
+      "name": "no-target",
+      "passed": true,
+      "result": {
+        "schema_version": 1,
+        "status": "stopped",
+        "summary": "jev_eligible",
+        "reason": "jev_eligible",
+        "details": {
+          "task_id": "smoke-no-target",
+          "evidence": [],
+          "goal_id": "6d02c8b1cee3481e9608acf9b0087b2a",
+          "goal_version": 1,
+          "milestones": [],
+          "receipts": [],
+          "pending_effect": false
+        },
+        "cleanup": "confirmed"
+      },
+      "elapsed_ms": 1203.6697501316667,
+      "calls": {
+        "ca342b844de64ac4b8e7b8c6d4f59cc6": {
+          "request": {
+            "model": "jev-1.13.0",
+            "state": {
+              "goal": {
+                "schema_version": 1,
+                "objective": "Save document",
+                "scope": "smoke",
+                "inputs": [],
+                "milestones": [
+                  {
+                    "id": "save",
+                    "operation": "click",
+                    "role": "button",
+                    "label": "Save document",
+                    "input_key": null,
+                    "postcondition": {
+                      "key": "status:Result",
+                      "value": "saved"
+                    }
+                  }
+                ],
+                "completion": [
+                  {
+                    "key": "status:Result",
+                    "value": "saved"
+                  }
+                ]
+              },
+              "snapshot": {
+                "observation_id": "c6319325930641ac90d0c1213c7250dc",
+                "scope": "smoke",
+                "generation": 1,
+                "elements": [
+                  {
+                    "ref": "__tank_dom_9f62bba4adab4f7f91181da767fe36921",
+                    "role": "button",
+                    "label": "Cancel",
+                    "actions": [
+                      "click"
+                    ],
+                    "enabled": true,
+                    "kind": "control",
+                    "source": "dom",
+                    "value": "Cancel",
+                    "focused": false,
+                    "ancestors": [],
+                    "bounds": null
+                  },
+                  {
+                    "ref": "__tank_dom_9f62bba4adab4f7f91181da767fe36922",
+                    "role": "button",
+                    "label": "Delete",
+                    "actions": [
+                      "click"
+                    ],
+                    "enabled": true,
+                    "kind": "control",
+                    "source": "dom",
+                    "value": "Delete",
+                    "focused": false,
+                    "ancestors": [],
+                    "bounds": null
+                  },
+                  {
+                    "ref": "__tank_dom_9f62bba4adab4f7f91181da767fe36923",
+                    "role": "status",
+                    "label": "Result",
+                    "actions": [],
+                    "enabled": true,
+                    "kind": "text_region",
+                    "source": "dom",
+                    "value": "empty",
+                    "focused": false,
+                    "ancestors": [],
+                    "bounds": null
+                  }
+                ],
+                "facts": [
+                  {
+                    "key": "button:Cancel",
+                    "value": "Cancel"
+                  },
+                  {
+                    "key": "button:Delete",
+                    "value": "Delete"
+                  },
+                  {
+                    "key": "status:Result",
+                    "value": "empty"
+                  }
+                ],
+                "complete": true,
+                "ready": true
+              },
+              "binding": {
+                "goal_id": "6d02c8b1cee3481e9608acf9b0087b2a",
+                "goal_version": 1,
+                "observation_id": "c6319325930641ac90d0c1213c7250dc",
+                "scope": "smoke",
+                "generation": 1,
+                "candidate_set_id": "18687e1600ca4dcd95bb1ea5422da651"
+              }
+            },
+            "questions": {
+              "next_action": {
+                "type": "choice",
+                "instructions": "Select one complete action or a control option.",
+                "criteria": {
+                  "b21ec7a1c553454097f3a81de2eae4af": {
+                    "id": "b21ec7a1c553454097f3a81de2eae4af",
+                    "target_ref": "__tank_dom_9f62bba4adab4f7f91181da767fe36921",
+                    "operation": "click",
+                    "value": null
+                  },
+                  "abe5e82622e04c1f8ca8257724f06e05": {
+                    "id": "abe5e82622e04c1f8ca8257724f06e05",
+                    "target_ref": "__tank_dom_9f62bba4adab4f7f91181da767fe36922",
+                    "operation": "click",
+                    "value": null
+                  },
+                  "none": "No offered action achieves the current goal.",
+                  "ambiguous": "Several actions fit and the evidence cannot distinguish them.",
+                  "need_more_context": "Another observation is needed before selecting an action.",
+                  "escalate": "Planning, generation or visual reasoning is required."
+                }
+              }
+            }
+          },
+          "request_sha256": "4c271096dfedb143bdc4dd68e7d53b7c384d7154a74aa04c0f97b259238a80f4",
+          "http_status": 200,
+          "response": {
+            "model": "jev-1.13.0",
+            "answers": {
+              "next_action": {
+                "type": "choice",
+                "choice": "none",
+                "confidence": 0.86,
+                "probabilities": {
+                  "ambiguous": 0.01,
+                  "abe5e82622e04c1f8ca8257724f06e05": 0.0,
+                  "none": 0.9,
+                  "escalate": 0.01,
+                  "b21ec7a1c553454097f3a81de2eae4af": 0.0,
+                  "need_more_context": 0.08
+                }
+              }
+            },
+            "usage": {
+              "input_tokens": 1406,
+              "output_tokens": 121
+            }
+          }
+        }
+      },
+      "audits": [
+        {
+          "task_id": "smoke-no-target",
+          "call_id": "5909eb3afd9f46dd932912a94858f2e7",
+          "operation": "computer_use.observe",
+          "status": "not_sent",
+          "category": "execution",
+          "phase": "prepared",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-no-target",
+          "call_id": "5909eb3afd9f46dd932912a94858f2e7",
+          "operation": "computer_use.observe",
+          "status": "unknown",
+          "category": "execution",
+          "phase": "dispatch",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-no-target",
+          "call_id": "5909eb3afd9f46dd932912a94858f2e7",
+          "operation": "computer_use.observe",
+          "status": "returned",
+          "category": "execution",
+          "phase": "finished",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-no-target",
+          "call_id": "ca342b844de64ac4b8e7b8c6d4f59cc6",
+          "operation": "jev_choice",
+          "status": "not_sent",
+          "category": "model",
+          "phase": "prepared",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-no-target",
+          "call_id": "ca342b844de64ac4b8e7b8c6d4f59cc6",
+          "operation": "jev_choice",
+          "status": "unknown",
+          "category": "model",
+          "phase": "dispatch",
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "elapsed_ms": null
+        },
+        {
+          "task_id": "smoke-no-target",
+          "call_id": "ca342b844de64ac4b8e7b8c6d4f59cc6",
+          "operation": "jev_choice",
+          "status": "returned",
+          "category": "model",
+          "phase": "finished",
+          "prompt_tokens": 1406,
+          "completion_tokens": 121,
+          "elapsed_ms": 777.9089170508087
+        }
+      ]
+    }
+  ],
+  "spend": {
+    "record_only": false,
+    "cost_status": "contract_estimate",
+    "batch": {
+      "limit_tokens": 393216,
+      "limit_nano_usd": 10000000,
+      "charged_tokens": 4648,
+      "charged_nano_usd": 177870,
+      "known_tokens": 4648,
+      "known_nano_usd": 177870,
+      "reserved_tokens": 0,
+      "reserved_nano_usd": 0,
+      "limit_requests": 3,
+      "admitted_requests": 3
+    },
+    "trials": {
+      "english": {
+        "limit_tokens": 131072,
+        "limit_nano_usd": 3000000,
+        "charged_tokens": 1554,
+        "charged_nano_usd": 59178,
+        "known_tokens": 1554,
+        "known_nano_usd": 59178,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0
+      },
+      "chinese": {
+        "limit_tokens": 131072,
+        "limit_nano_usd": 3000000,
+        "charged_tokens": 1567,
+        "charged_nano_usd": 59640,
+        "known_tokens": 1567,
+        "known_nano_usd": 59640,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0
+      },
+      "no-target": {
+        "limit_tokens": 131072,
+        "limit_nano_usd": 3000000,
+        "charged_tokens": 1527,
+        "charged_nano_usd": 59052,
+        "known_tokens": 1527,
+        "known_nano_usd": 59052,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0
+      }
+    },
+    "stop_reason": null,
+    "requests": {
+      "d269453d0b36454f980a4d3079d32b8a": {
+        "trial": "english",
+        "allowance": {
+          "input_tokens": 65536,
+          "output_tokens": 65536,
+          "input_nano_usd": 42,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 1409,
+        "output_tokens": 145,
+        "status": "known"
+      },
+      "068f2110945743b2b475c9e317a5aa14": {
+        "trial": "chinese",
+        "allowance": {
+          "input_tokens": 65536,
+          "output_tokens": 65536,
+          "input_nano_usd": 42,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 1420,
+        "output_tokens": 147,
+        "status": "known"
+      },
+      "ca342b844de64ac4b8e7b8c6d4f59cc6": {
+        "trial": "no-target",
+        "allowance": {
+          "input_tokens": 65536,
+          "output_tokens": 65536,
+          "input_nano_usd": 42,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 1406,
+        "output_tokens": 121,
+        "status": "known"
+      }
+    }
+  }
+}

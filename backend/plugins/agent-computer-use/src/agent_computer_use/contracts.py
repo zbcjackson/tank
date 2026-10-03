@@ -149,6 +149,11 @@ class AdvisorResult:
     candidate_id: str | None = None
 
 
+def snapshot_json(snapshot: Snapshot) -> dict[str, object]:
+    """Serialize nested Pydantic facts as well as dataclass observation fields."""
+    return {**asdict(snapshot), "facts": [fact.model_dump(mode="json") for fact in snapshot.facts]}
+
+
 def snapshot_text(snapshot: Snapshot) -> str:
     """Current semantic view only; native handles and image bytes have no fields here."""
-    return json.dumps(asdict(snapshot), ensure_ascii=False, allow_nan=False)
+    return json.dumps(snapshot_json(snapshot), ensure_ascii=False, allow_nan=False)

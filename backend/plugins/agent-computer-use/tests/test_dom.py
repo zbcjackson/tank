@@ -414,3 +414,150 @@ async def test_close_during_driver_creation_releases_late_resource(
         for cleanup in releases:
             await cleanup()
         await ctx.runtime.aclose()
+
+
+async def test_yaml_runner_jev_clicks_and_verifies_real_dom(
+    site, chromium_required, monkeypatch, tmp_path,
+):
+    import json
+    from unittest.mock import MagicMock
+
+    import httpx
+
+    from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
+    from tank_backend.agents.definition import parse_agent_file
+    from tank_backend.agents.resources import DesktopResource
+    from tank_backend.agents.runner import AgentRunner
+    from tank_backend.config.app_config import AppConfig
+    from tank_backend.pipeline.bus import Bus
+    from tank_backend.plugin.manifest import read_manifest_from_yaml
+    from tank_backend.plugin.registry import ExtensionRegistry
+
+    sent, closed, audits = [], [], []
+    monkeypatch.setenv("TEST_JEV_KEY", "never-in-plugin-config")
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            data = json.loads(request.content)
+            sent.append(data)
+            assert request.headers["authorization"] == "Bearer never-in-plugin-config"
+            assert data["state"]["snapshot"]["facts"]
+            criteria = data["questions"]["next_action"]["criteria"]
+            choice = next(key for key, value in criteria.items() if isinstance(value, dict))
+            return httpx.Response(200, json={"model": "jev-1.13.0", "answers": {
+                "next_action": {"type": "choice", "choice": choice, "confidence": 1,
+                                "probabilities": {key: int(key == choice) for key in criteria}},
+            }, "usage": {"input_tokens": 12, "output_tokens": 0}})
+
+        async def aclose(self):
+            closed.append(True)
+
+    async def audit(record):
+        audits.append(record)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    registry = ExtensionRegistry()
+    manifest = read_manifest_from_yaml(Path(__file__).parents[1] / "plugin.yaml")
+    for extension in manifest.extensions:
+        registry.register(manifest.plugin_name, extension)
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(f'''llm:
+  default:
+    api_key: unused
+    model: unused
+    base_url: https://offline.invalid/v1
+json_models:
+  decision:
+    extension: agent-computer-use:jev
+    url: https://offline.invalid/v1/systemone
+    model: jev-1.13.0
+    credential_env: TEST_JEV_KEY
+subagents:
+  agent-computer-use:agent:
+    config:
+      browser:
+        scope: managed-page
+        url: {site}
+      selector: jev
+''')
+    definition_path = tmp_path / "agent.md"
+    definition_path.write_text('''---
+name: ladder
+extension: agent-computer-use:agent
+json-model: decision
+---
+Save name.
+''')
+    definition = parse_agent_file(definition_path)
+    runner = AgentRunner(
+        MagicMock(), MagicMock(), Bus(), ToolApprovalPolicy(computer_mode="allow"),
+        PendingToolCallStore(), {definition.name: definition}, registry=registry,
+        app_config=AppConfig.load(config_path), desktop_resource=DesktopResource(),
+    )
+    task_goal = goal().model_dump(mode="json")
+    task_goal["milestones"][1]["label"] = "保存"
+    outputs = [output async for output in runner.run_agent(
+        definition, [], task_id="jev-dom", task_input=task_goal,
+        authorization=SubAgentAuthorization(frozenset({"desktop", "network"})), audit=audit,
+    )]
+    results = [out.metadata["task_result"] for out in outputs if "task_result" in out.metadata]
+    assert len(results) == 1 and results[0]["status"] == "completed", outputs
+    assert results[0]["cleanup"] == "confirmed"
+    assert len(sent) == 1 and closed == [True]
+    assert any(record.operation == "jev_choice" and record.phase == "finished" for record in audits)
+    assert "never-in-plugin-config" not in repr(outputs) + repr(audits)
+
+
+@pytest.mark.parametrize("bad_reply", [False, True])
+async def test_frozen_jev_smoke_harness_with_fake_http(
+    chromium_required, monkeypatch, tmp_path, bad_reply,
+):
+    import json
+    import runpy
+
+    import httpx
+
+    module = runpy.run_path(str(Path(__file__).parents[3] / "benchmarks/computer_use/jev_smoke.py"))
+    sent = []
+
+    async def respond(request):
+        data = json.loads(request.content)
+        sent.append(data)
+        criteria = data["questions"]["next_action"]["criteria"]
+        refs = {element["ref"] for element in data["state"]["snapshot"]["elements"]
+                if element["label"] in {"Save", "保存"}}
+        choice = next((key for key, value in criteria.items()
+                       if isinstance(value, dict) and value["target_ref"] in refs), "none")
+        return httpx.Response(200, json={
+            "model": "invalid" if bad_reply and len(sent) == 3 else "jev-1.13.0", "answers": {
+            "next_action": {"type": "choice", "choice": choice, "confidence": 1,
+                            "probabilities": {key: int(key == choice) for key in criteria}},
+        }, "usage": {"input_tokens": 20, "output_tokens": 0}})
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "fake-smoke-key")
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda: httpx.MockTransport(respond))
+    report = await module["run_smoke"](tmp_path / "report")
+    assert len(sent) == 3
+    assert [case["passed"] for case in report["cases"]] == [True, True, not bad_reply]
+    assert report["spend"]["batch"]["known_tokens"] == 60
+    assert "fake-smoke-key" not in repr(report)
+
+
+def test_smoke_refuses_a_second_request_in_one_case():
+    import runpy
+
+    import httpx
+
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, SpendLimitExceeded
+
+    module = runpy.run_path(str(Path(__file__).parents[3] / "benchmarks/computer_use/jev_smoke.py"))
+    ledger = SpendLedger(SpendLimit(393216, 10_000_000), request_limit=3)
+    ledger.start_trial("case", SpendLimit(131072, 3_000_000))
+    policy = module["OneCallPolicy"](ledger)
+    request = httpx.Request("POST", module["ENDPOINT"], json={"model": module["MODEL"]})
+    policy.reserve("one", request)
+    policy.settle("one", 20, 0)
+    with pytest.raises(SpendLimitExceeded, match="smoke_case_requests"):
+        policy.reserve("two", request)
+    assert ledger.snapshot()["batch"]["admitted_requests"] == 1
+    ledger.close()

@@ -27,11 +27,17 @@ class UnavailableChannel:
 
 def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
     if config:
-        if set(config) != {"browser"} or not isinstance(config["browser"], dict):
+        if (set(config) - {"browser", "selector"} or not isinstance(config.get("browser"), dict)
+                or ("selector" in config and config["selector"] != "jev")):
             raise ValueError("Only an explicit browser configuration is supported")
         from .channels.dom import BrowserConfig, ManagedChromiumChannel
 
         browser = ManagedChromiumChannel(BrowserConfig.model_validate(config["browser"]))
-        return ComputerUseSubAgent(ComputerUseController(browser, browser), resources=(browser,))
+        from .jev import JevSelector
+
+        selector = JevSelector() if config.get("selector") == "jev" else None
+        return ComputerUseSubAgent(
+            ComputerUseController(browser, browser, selector=selector), resources=(browser,),
+        )
     channel = UnavailableChannel()
     return ComputerUseSubAgent(ComputerUseController(channel, channel))

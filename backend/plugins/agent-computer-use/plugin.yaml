@@ -1,9 +1,12 @@
 name: agent-computer-use
 display_name: Computer Use Host Loop
-description: Host loop with opt-in managed Chromium; no live model transport.
+description: Host loop with opt-in managed Chromium and host-governed Jev Choice.
 extensions:
   - name: agent
     type: subagent
     runtime_api: 1
     factory: agent_computer_use:create_subagent
     permissions: [desktop, network]
+  - name: jev
+    type: model_route
+    factory: agent_computer_use.jev:create_route

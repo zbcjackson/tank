@@ -12,7 +12,7 @@ import httpx
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 from tank_backend.llm.model_transport import json_object
 
-from .contracts import ActionSet, DecisionResult, GoalContract, Snapshot
+from .contracts import ActionSet, DecisionResult, GoalContract, Snapshot, snapshot_json
 
 Control = Literal["none", "ambiguous", "need_more_context", "escalate"]
 CONTROLS: dict[Control, str] = {
@@ -82,8 +82,9 @@ class JevChoiceRoute:
 
 
 class JevSelector:
-    def __init__(self, model: str) -> None:
-        validate_version(model)
+    def __init__(self, model: str | None = None) -> None:
+        if model is not None:
+            validate_version(model)
         self.model = model
 
     async def choose(
@@ -100,13 +101,15 @@ class JevSelector:
         model = context.runtime.json_model
         if model is None:
             raise SubAgentStopped("model_unavailable")
+        version = self.model or model.model_name
+        validate_version(version)
         criteria: dict[str, object] = {
             action.id: asdict(action) for action in actions.actions
         }
         criteria.update((key, value) for key, value in CONTROLS.items())
         payload: dict[str, object] = {
-            "model": self.model,
-            "state": {"goal": goal.model_dump(mode="json"), "snapshot": asdict(snapshot),
+            "model": version,
+            "state": {"goal": goal.model_dump(mode="json"), "snapshot": snapshot_json(snapshot),
                       "binding": asdict(actions.binding)},
             "questions": {"next_action": {
                 "type": "choice", "instructions": "Select one complete action or a control option.",
@@ -115,7 +118,7 @@ class JevSelector:
         }
         response = await model.request(payload)
         answers = response.get("answers")
-        if (response.get("model") != self.model or not isinstance(answers, dict)
+        if (response.get("model") != version or not isinstance(answers, dict)
                 or set(answers) != {"next_action"}
                 or not isinstance(answers.get("next_action"), dict)):
             raise SubAgentStopped("invalid_decision")
@@ -144,3 +147,10 @@ def probability(value: object) -> bool:
 def validate_version(model: str) -> None:
     if not re.fullmatch(r"jev-[0-9]+\.[0-9]+\.[0-9]+", model):
         raise ValueError("Jev requires an explicit version such as jev-1.13.0")
+
+
+def create_route(config: dict[str, object]) -> JevChoiceRoute:
+    if (set(config) != {"url", "model", "credential_ref"}
+            or any(not isinstance(value, str) for value in config.values())):
+        raise ValueError("Jev route requires only url/model/credential_ref strings")
+    return JevChoiceRoute(str(config["url"]), str(config["model"]), str(config["credential_ref"]))
