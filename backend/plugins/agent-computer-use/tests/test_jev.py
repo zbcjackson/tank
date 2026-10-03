@@ -1222,3 +1222,137 @@ async def test_selector_request_uses_only_current_observation_evidence(monkeypat
         assert state["binding"]["observation_id"] == "obs2"
     finally:
         await ctx.runtime.aclose()
+
+
+async def test_holdout_freezes_actual_selector_payload_without_labels(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_holdout as holdout
+
+    cases, labels = holdout.load_dataset()
+    seen = []
+
+    async def respond(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=reply(request, "need_more_context"))
+
+    ctx, selector, _, _ = setup(monkeypatch, respond)
+    try:
+        case = cases[0]
+        snapshot, actions = holdout.build_case(case)
+        await selector.choose(case.goal, snapshot, actions, ctx)
+        frozen = json.loads(json.dumps(holdout.prepare(tmp_path / "freeze")))
+        assert frozen["cases"][0]["requests"]["contract"] == seen[0]
+        for row in frozen["cases"]:
+            old, new = row["requests"]["legacy"], row["requests"]["contract"]
+            assert old["questions"]["next_action"]["criteria"] == new["questions"]["next_action"]["criteria"]
+            assert {k: v for k, v in new["state"].items() if k != "evidence_contract"} == old["state"]
+            assert all(key not in json.dumps(new) for key in ("expected_target_ref", "allowed_controls"))
+        assert len(labels) == 24
+    finally:
+        await ctx.runtime.aclose()
+
+
+def test_holdout_coverage_scoring_and_freeze_tampering(monkeypatch, tmp_path):
+    from collections import Counter
+
+    from agent_computer_use.contracts import DecisionResult
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_holdout as holdout
+
+    cases, labels = holdout.load_dataset()
+    assert len(cases) == 24
+    assert Counter(c.condition for c in cases) == dict.fromkeys(holdout.CONDITIONS, 6)
+    positions = []
+    for case in cases:
+        _, actions = holdout.build_case(case)
+        expected = labels[case.id]
+        if expected.expected_target_ref is not None:
+            index = next(i for i, a in enumerate(actions.actions) if a.target_ref == expected.expected_target_ref)
+            positions.append(index)
+            correct = DecisionResult(actions.binding, "candidate", actions.actions[index].id)
+            assert holdout.score(expected, actions, correct, "returned")["correct"]
+        else:
+            wrong = DecisionResult(actions.binding, "candidate", actions.actions[0].id)
+            assert holdout.score(expected, actions, wrong, "returned")["negative_action"]
+            refusal = DecisionResult(actions.binding, "need_more_context")
+            assert holdout.score(expected, actions, refusal, "returned")["correct"]
+        failed = holdout.score(expected, actions, None, "not_run")
+        assert failed["planned_n"] == 1 and failed["correct"] is False
+    assert Counter(positions) == {0: 6, 1: 6}
+    frozen = json.loads(json.dumps(holdout.prepare(tmp_path / "freeze")))
+    holdout.load_freeze(tmp_path / "freeze", frozen["sha256"])
+    path = tmp_path / "freeze" / "freeze.json"
+    data = json.loads(path.read_text())
+    data["request_limit"] += 1
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError):
+        holdout.load_freeze(path.parent, frozen["sha256"])
+    with pytest.raises(FileExistsError):
+        holdout.prepare(path.parent)
+
+
+@pytest.mark.parametrize("mutation", ["label", "case", "missing_label"])
+def test_holdout_sources_are_pinned_and_labels_never_build_requests(monkeypatch, tmp_path, mutation):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_holdout as holdout
+
+    for name in ("cases.json", "labels.json"):
+        (tmp_path / name).write_bytes((holdout.DATA / name).read_bytes())
+    monkeypatch.setattr(holdout, "DATA", tmp_path)
+    cases, _ = holdout.load_dataset()
+    before = holdout.requests(cases[0])
+    frozen = holdout.prepare(tmp_path / "freeze")
+    if mutation == "case":
+        data = json.loads((tmp_path / "cases.json").read_text())
+        data[0]["facts"][0]["value"] = "changed observation"
+        (tmp_path / "cases.json").write_text(json.dumps(data))
+    else:
+        labels = json.loads((tmp_path / "labels.json").read_text())
+        if mutation == "label":
+            labels["h01"] = {"expected_target_ref": "e1"}
+        else:
+            del labels["h01"]
+        (tmp_path / "labels.json").write_text(json.dumps(labels))
+    with pytest.raises(ValueError):
+        holdout.load_freeze(tmp_path / "freeze", str(frozen["sha256"]))
+    if mutation == "label":
+        assert holdout.requests(holdout.load_dataset()[0][0]) == before
+
+
+def test_holdout_preparation_has_no_network_or_credentials(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_holdout as holdout
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("offline preparation reached an external boundary")
+
+    monkeypatch.setattr(httpx, "AsyncClient", forbidden)
+    monkeypatch.setattr(httpx, "Client", forbidden)
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    frozen = json.loads(json.dumps(holdout.prepare(tmp_path / "freeze")))
+    assert frozen["request_limit"] == len(frozen["schedule"]) == 48
+    assert frozen["preparation_only"] is True
+    for arm in ("legacy", "contract"):
+        assert sum(row["arm"] == arm for row in frozen["schedule"]) == 24
+    assert {p.name for p in (tmp_path / "freeze").iterdir()} == {"freeze.json"}
+
+
+def test_holdout_pair_order_is_balanced_within_each_condition(monkeypatch):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_holdout as holdout
+
+    frozen = json.loads(json.dumps(holdout.freeze_inputs()))
+    first = {row["case_id"]: row["arm"] for row in frozen["schedule"][::2]}
+    for condition in holdout.CONDITIONS:
+        selected = [row for row in frozen["cases"] if row["condition"] == condition]
+        assert sum(first[row["id"]] == "legacy" for row in selected) == 3
