@@ -711,3 +711,122 @@ async def test_real_dom_multilayout_selection_readback(
     if screenshot is not None:
         with (destination / f"{layout}-{scenario}.png").open("xb") as file:
             file.write(screenshot)
+
+
+@pytest.mark.parametrize("failure", [None, "unknown", "cancel", "wrong", "audit", "budget", "invalid", "cleanup", "http"])
+async def test_real_model_dom_harness_with_fake_http(chromium_required, monkeypatch, tmp_path, failure):
+    import json
+    import httpx
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_dom_live as live
+
+    sent = []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            data = json.loads(request.content)
+            sent.append(data)
+            if failure == "cancel":
+                raise asyncio.CancelledError
+            if failure == "http":
+                return httpx.Response(503)
+            state = data["state"]["snapshot"]
+            facts = {f["key"]: f["value"] for f in state["facts"]}
+            criteria = data["questions"]["next_action"]["criteria"]
+            if not any(k.startswith("status:Identity") for k in facts):
+                choice = "need_more_context"
+            elif any(k.startswith("status:Secondary identity") for k in facts):
+                choice = "ambiguous"
+            else:
+                slot = next(slot for slot in ("A", "B") if facts[f"status:Identity {slot}"] == "K7")
+                if failure == "wrong":
+                    slot = "A" if slot == "B" else "B"
+                ref = next(e["ref"] for e in state["elements"] if e["label"] == f"执行 {slot}")
+                choice = next(k for k, v in criteria.items() if isinstance(v, dict) and v["target_ref"] == ref)
+            response = {"model": "jev-1.13.0", "answers": {"next_action": {
+                "type": "choice", "choice": choice, "confidence": 1,
+                "probabilities": {k: int(k == choice) for k in criteria}}},
+                "usage": {"input_tokens": 12, "output_tokens": 0}}
+            if failure == "invalid":
+                response["answers"]["next_action"]["confidence"] = True
+            if failure == "unknown":
+                response.pop("usage")
+            return httpx.Response(200, json=response)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    if failure == "cleanup":
+        close = live.dom.ManagedChromiumChannel.aclose
+
+        async def failed_close(self):
+            await close(self)
+            raise RuntimeError("reported cleanup failure")
+
+        monkeypatch.setattr(live.dom.ManagedChromiumChannel, "aclose", failed_close)
+    if failure == "audit":
+        append = live.v1.append_json
+
+        def failing(file, row):
+            if Path(file.name).name == "audit.jsonl":
+                raise OSError("audit failure")
+            append(file, row)
+
+        monkeypatch.setattr(live.v1, "append_json", failing)
+    if failure == "budget":
+        original = live.SpendLedger
+
+        def zero(*args, **kwargs):
+            kwargs["request_limit"] = 0
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(live, "SpendLedger", zero)
+    frozen = live.prepare(tmp_path / "run")
+    if failure == "cancel":
+        with pytest.raises(asyncio.CancelledError):
+            await live.run_batch(tmp_path / "run", frozen["sha256"], "fixture-key")
+        result = json.loads((tmp_path / "run/result.json").read_text())
+    else:
+        result = await live.run_batch(tmp_path / "run", frozen["sha256"], "fixture-key")
+    assert len(result["rows"]) == len(frozen["cases"]) == 15
+    assert len((tmp_path / "run/rows.jsonl").read_text().splitlines()) == 15
+    assert result["completed"] == (failure is None)
+    assert all(r["cleanup_confirmed"] == (failure != "cleanup")
+               for r in result["rows"] if r["status"] != "not_run")
+    if failure is None:
+        assert len(sent) == 15 and all(r["passed"] for r in result["rows"])
+        assert result["spend"]["batch"]["known_tokens"] == 180
+        assert result["spend"]["batch"]["reserved_tokens"] == 0
+        assert sum(len(r["page_clicks"]) for r in result["rows"]) == 6
+    else:
+        assert len(sent) == (0 if failure in ("audit", "budget") else 1)
+        assert sum(r["status"] == "not_run" for r in result["rows"]) == 14
+        assert result["spend"]["stop_reason"]
+    before = len(sent)
+    with pytest.raises(FileExistsError):
+        await live.run_batch(tmp_path / "run", frozen["sha256"], "fixture-key")
+    assert len(sent) == before
+
+
+async def test_dom_live_freeze_requires_exact_recipe_before_resources(monkeypatch, tmp_path):
+    import json
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_dom_live as live
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("offline or rejected proposal touched resources")
+
+    monkeypatch.setattr(live.factory, "create_subagent", forbidden)
+    monkeypatch.setattr(asyncio, "start_server", forbidden)
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    frozen = live.prepare(tmp_path / "run")
+    assert len(frozen["cases"]) == frozen["request_limit"] == 15
+    live.load_freeze(tmp_path / "run", frozen["sha256"])
+    with pytest.raises(ValueError, match="credential"):
+        await live.run_batch(tmp_path / "run", frozen["sha256"], "")
+    frozen["cases"][0]["goal"]["objective"] = "changed"
+    frozen["sha256"] = live.v1.digest({k: v for k, v in frozen.items() if k != "sha256"})
+    (tmp_path / "run/freeze.json").write_text(json.dumps(frozen))
+    with pytest.raises(ValueError, match="recipe changed"):
+        await live.run_batch(tmp_path / "run", frozen["sha256"], "fixture-key")
+    assert not (tmp_path / "run/spend.jsonl").exists()
