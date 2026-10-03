@@ -26,6 +26,10 @@ class TaskJSONModel:
         self._client: httpx.AsyncClient | None = None
         self._closed = False
 
+    @property
+    def model_name(self) -> str:
+        return self._route.model
+
     async def request(self, payload: dict[str, object]) -> dict[str, object]:
         self._context.check("network")
         if self._closed:

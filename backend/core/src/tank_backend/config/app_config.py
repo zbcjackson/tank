@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ..audio.input.types import SegmenterConfig
+from ..llm.json_profile import JSONModelProfile, parse_json_profiles
 from ..llm.profile import LLMProfile, resolve_profile
 
 if TYPE_CHECKING:
@@ -162,6 +163,8 @@ class AppConfig:
     # Raw config dict — kept for backward-compat ``get_section()``
     _raw: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
+    json_models: dict[str, JSONModelProfile] = field(default_factory=dict)
+
     # ── Factories ─────────────────────────────────────────────────
 
     @classmethod
@@ -192,6 +195,7 @@ class AppConfig:
 
             return cls(
                 llm_profiles=llm_profiles,
+                json_models=parse_json_profiles(raw.get("json_models", {})),
                 brain=parse_section(BrainConfig, raw.get("brain")),
                 echo_guard=parse_section(EchoGuardConfig, raw.get("echo_guard")),
                 assistant=parse_section(AssistantConfig, raw.get("assistant")),

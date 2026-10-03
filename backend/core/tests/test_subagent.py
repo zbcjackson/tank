@@ -1488,3 +1488,175 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
             assert len(closed) == 1
     finally:
         await client.close()
+
+
+def test_json_model_profile_and_agent_reference_load_from_yaml(tmp_path, monkeypatch):
+    monkeypatch.setenv("TEST_DECISION_KEY", "not-in-config")
+    path = tmp_path / "config.yaml"
+    path.write_text('''llm:
+  default:
+    api_key: fake
+    model: fake
+    base_url: https://offline.invalid/v1
+json_models:
+  decision:
+    extension: fake:route
+    url: https://offline.invalid/v1/decision
+    model: decision-v1
+    credential_env: TEST_DECISION_KEY
+''')
+    config = AppConfig.load(path)
+    profile = config.json_models["decision"]
+    assert profile.model == "decision-v1"
+    assert profile.credential_env == "TEST_DECISION_KEY"
+    assert "not-in-config" not in repr(config)
+    agent_file = tmp_path / "agent.md"
+    agent_file.write_text('''---
+name: decision
+extension: fake:agent
+json-model: decision
+---
+Choose.
+''')
+    definition = parse_agent_file(agent_file)
+    assert definition.json_model == "decision"
+
+
+async def test_runner_assembles_json_route_without_exposing_secret(stack, monkeypatch):
+    from dataclasses import replace
+
+    import httpx
+
+    from tank_backend.agents.subagent import SubAgentAuthorization
+    from tank_backend.llm.json_profile import JSONModelProfile
+    from tank_backend.llm.model_transport import ChatCompletionsRoute
+
+    _, runner, _, definition, _ = stack
+    sent, route_configs = [], []
+    monkeypatch.setenv("TEST_JSON_KEY", "host-secret")
+
+    def route_factory(config):
+        route_configs.append(config)
+        return ChatCompletionsRoute(**config, max_output_tokens=10)
+
+    class JSONAgent(SubAgent):
+        async def run(self, request, context):
+            self.context = context
+            assert context.runtime.json_model is not None
+            result = await context.runtime.json_model.request({
+                "model": "test", "messages": [{"role": "user", "content": "hello"}],
+                "max_tokens": 10,
+            })
+            yield TaskResult(status="completed", summary=str(result["answer"])).to_output()
+
+    async def respond(request):
+        sent.append(request)
+        return httpx.Response(200, json={"answer": "selected", "usage": {
+            "prompt_tokens": 7, "completion_tokens": 0, "total_tokens": 7,
+        }})
+
+    plugin = JSONAgent()
+    monkeypatch.setitem(sys.modules, "_subagent_test", SimpleNamespace(
+        create=lambda cfg: plugin, route=route_factory,
+    ))
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda: httpx.MockTransport(respond))
+    runner._registry.register("fake", ExtensionManifest(
+        "route", "model_route", "_subagent_test:route",
+    ))
+    runner._app_config.json_models["decision"] = JSONModelProfile(
+        "fake:route", "https://offline.invalid/v1/chat/completions", "test", "TEST_JSON_KEY",
+    )
+    definition = replace(definition, json_model="decision")
+    assert runner.extension_permissions(definition) == {"network"}
+    outputs = [output async for output in runner.run_agent(
+        definition, [], task_id="json-task",
+        authorization=SubAgentAuthorization(frozenset({"network"})),
+    )]
+    assert outputs[-1].content == "selected"
+    assert plugin.context.budget.total_tokens == 7 and plugin.closed
+    assert len(sent) == 1 and sent[0].headers["authorization"] == "Bearer host-secret"
+    assert route_configs == [{"url": "https://offline.invalid/v1/chat/completions",
+                              "model": "test", "credential_ref": "decision"}]
+    assert "host-secret" not in repr(outputs) + repr(route_configs)
+
+
+@pytest.mark.parametrize("invalid", ["secret", "url", "env", "extension", "model", "name"])
+def test_json_profile_rejects_invalid_configuration(invalid):
+    from tank_backend.llm.json_profile import parse_json_profiles
+
+    values = {"extension": "fake:route", "url": "https://offline.invalid/v1/decision",
+              "model": "fixed", "credential_env": "TEST_JSON_KEY"}
+    if invalid == "secret":
+        values["api_key"] = "do-not-log"
+    elif invalid == "url":
+        values["url"] = "http://offline.invalid/v1/decision"
+    elif invalid == "env":
+        values["credential_env"] = "${TEST_JSON_KEY}"
+    elif invalid == "extension":
+        values["extension"] = "invalid"
+    elif invalid == "model":
+        values["model"] = ""
+    with pytest.raises(ValueError) as exc:
+        parse_json_profiles({"" if invalid == "name" else "decision": values})
+    assert "do-not-log" not in str(exc.value)
+
+
+@pytest.mark.parametrize("invalid", [
+    "missing_profile", "missing_key", "wrong_type", "bad_route", "wrong_url", "wrong_model",
+    "wrong_ref", "no_grant",
+])
+async def test_json_profile_failure_precedes_agent_factory(stack, monkeypatch, invalid):
+    from dataclasses import replace
+
+    from tank_backend.agents.subagent import SubAgentAuthorization
+    from tank_backend.llm.json_profile import JSONModelProfile
+    from tank_backend.llm.model_transport import ChatCompletionsRoute
+
+    _, runner, _, definition, _ = stack
+    created = []
+    route_calls = []
+    monkeypatch.setenv("TEST_JSON_KEY", "secret")
+
+    def create(config):
+        created.append(config)
+        return ResourceOnlyAgent()
+
+    def route(config):
+        route_calls.append(config)
+        if invalid == "bad_route":
+            return object()
+        if invalid == "wrong_url":
+            config["url"] = "https://other.invalid/v1/chat/completions"
+        elif invalid == "wrong_model":
+            config["model"] = "other"
+        elif invalid == "wrong_ref":
+            config["credential_ref"] = "other"
+        return ChatCompletionsRoute(**config)
+
+    monkeypatch.setitem(sys.modules, "_subagent_test", SimpleNamespace(create=create, route=route))
+    runner._registry.register("fake", ExtensionManifest(
+        "route", "tool" if invalid == "wrong_type" else "model_route", "_subagent_test:route",
+    ))
+    if invalid != "missing_profile":
+        runner._app_config.json_models["decision"] = JSONModelProfile(
+            "fake:route", "https://offline.invalid/v1/chat/completions", "fixed", "TEST_JSON_KEY",
+        )
+    if invalid == "missing_key":
+        monkeypatch.delenv("TEST_JSON_KEY")
+    definition = replace(definition, json_model="decision")
+    with pytest.raises((ValueError, SubAgentStopped)):
+        _ = [out async for out in runner.run_agent(
+            definition, [], authorization=SubAgentAuthorization(
+                frozenset() if invalid == "no_grant" else frozenset({"network"}),
+            ),
+        )]
+    assert created == []
+    if invalid in {"missing_profile", "missing_key", "wrong_type", "no_grant"}:
+        assert route_calls == []
+
+
+@pytest.mark.parametrize("fields", [{"json_model": "decision"},
+                                    {"extension": "fake:agent", "json_model": ""}])
+def test_json_model_reference_requires_extension_and_name(fields):
+    with pytest.raises(ValueError):
+        AgentDefinition("test", "", "", **fields)

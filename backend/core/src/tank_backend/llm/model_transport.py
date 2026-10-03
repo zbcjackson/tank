@@ -12,7 +12,7 @@ from collections import deque
 from contextlib import suppress
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
-from typing import TYPE_CHECKING, Literal, Protocol, TypedDict
+from typing import TYPE_CHECKING, Literal, Protocol, TypedDict, runtime_checkable
 from uuid import uuid4
 
 import httpx
@@ -69,6 +69,7 @@ def get_model_call(task_id: str) -> ModelCallRecord | None:
     return record if record is not None and record.task_id == task_id else None
 
 
+@runtime_checkable
 class ModelRoute(Protocol):
     """Trusted wire adapter; the host owns destinations, credentials and dispatch."""
 
@@ -76,6 +77,8 @@ class ModelRoute(Protocol):
     def url(self) -> str: ...
     @property
     def credential_ref(self) -> str: ...
+    @property
+    def model(self) -> str: ...
     @property
     def operation(self) -> str: ...
     def validate(self, request: httpx.Request) -> None: ...

@@ -123,7 +123,8 @@ class AgentRunner:
             )
         manifest.check_runtime_api()
         return frozenset(manifest.permissions) | (
-            {"network"} if agent_def.model is not None else set()
+            {"network"}
+            if agent_def.model is not None or agent_def.json_model is not None else set()
         )
 
     def _uses_desktop(self, agent_def: AgentDefinition) -> bool:
@@ -365,6 +366,14 @@ class AgentRunner:
                     if agent_def.model not in profiles:
                         raise ValueError("subagent model profile is not configured")
                     context.runtime.configure_model(task_id or agent_id, profiles[agent_def.model])
+                if agent_def.json_model is not None:
+                    from ..llm.json_profile import configure_json_profile
+
+                    profiles = self._app_config.json_models if self._app_config is not None else {}
+                    configure_json_profile(
+                        context.runtime, task_id or agent_id, agent_def.json_model,
+                        profiles, self._registry,
+                    )
                 plugin = self._registry.instantiate(agent_def.extension, dict(config))
                 if not isinstance(plugin, SubAgent):
                     raise TypeError("Subagent factory must return SubAgent")

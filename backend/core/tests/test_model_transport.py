@@ -1155,6 +1155,7 @@ async def test_non_chat_route_uses_shared_http_accounting():
         url = "https://decision.test/v1/choose"
         credential_ref = "decision"
         operation = "choice"
+        model = "test"
 
         def validate(self, request):
             assert request.method == "POST"

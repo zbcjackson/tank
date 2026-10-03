@@ -68,8 +68,14 @@ class AgentDefinition:
     model: str | None = None
     extension: str | None = None
     grounding: GroundingConfig | None = None
+    json_model: str | None = None
 
     def __post_init__(self) -> None:
+        if self.json_model is not None and (
+            not self.extension or not isinstance(self.json_model, str)
+            or not self.json_model.strip()
+        ):
+            raise ValueError("json-model requires an extension and a nonempty profile name")
         if self.grounding is not None and self.extension:
             raise ValueError("grounding is only supported by the built-in agent")
         if self.extension is not None and (
@@ -142,6 +148,7 @@ def parse_agent_file(path: Path) -> AgentDefinition:
         model=fm.get("model"),
         extension=fm.get("extension"),
         grounding=grounding,
+        json_model=fm.get("json-model"),
     )
 
 
