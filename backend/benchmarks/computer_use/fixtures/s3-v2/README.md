@@ -1,6 +1,8 @@
 # S3 v2 — rubric and connection diagnostics
 
-2026-10-03. Prepared only; no v2 paid calls yet.
+2026-10-03. Original frozen protocol; the user subsequently approved its one execution.
+See [the execution record](../../reports/20261003-s3-v2-prepared/README.md).
+The protocol below was not changed after results were observed.
 
 This revises the 24 previously observed synthetic scenarios. The calibration/holdout
 names are historical strata, **not a new blind holdout**. No thresholds are fitted
