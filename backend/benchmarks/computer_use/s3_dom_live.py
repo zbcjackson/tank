@@ -8,6 +8,7 @@ import inspect
 import json
 import time
 from contextlib import ExitStack
+from collections.abc import Callable
 from dataclasses import asdict
 from importlib.metadata import version
 from pathlib import Path
@@ -123,6 +124,7 @@ def accepted(case: dict[str, Any], row: dict[str, Any]) -> bool:
 async def run_case(
     case: dict[str, Any], row: dict[str, Any], url: str, credential: str,
     ledger: SpendLedger, audit_file: TextIO,
+    acceptance: Callable[[dict[str, Any], dict[str, Any]], bool] = accepted,
 ) -> None:
     instance = factory.create_subagent({"browser": {"scope": "managed-page", "url": url}, "selector": "jev"})
     browser = cast(dom.ManagedChromiumChannel, instance.controller.source)
@@ -167,7 +169,7 @@ async def run_case(
                    cleanup_confirmed=not errors and browser.closed and
                    (browser.browser is None or not browser.browser.is_connected()),
                    elapsed_ms=(time.monotonic() - started) * 1000)
-        row["passed"] = bool(row["status"] == "finished" and row["cleanup_confirmed"] and accepted(case, row))
+        row["passed"] = bool(row["status"] == "finished" and row["cleanup_confirmed"] and acceptance(case, row))
         if ctx.runtime.audit_failed:
             ledger.stop("audit_failed")
         if not row["cleanup_confirmed"]:
@@ -178,6 +180,14 @@ async def run_case(
 
 async def run_batch(output: Path, approved: str, credential: str) -> dict[str, Any]:
     f = load_freeze(output, approved)
+    return await execute_frozen_batch(output, f, credential)
+
+
+async def execute_frozen_batch(
+    output: Path, f: dict[str, Any], credential: str,
+    acceptance: Callable[[dict[str, Any], dict[str, Any]], bool] = accepted,
+) -> dict[str, Any]:
+    """Execute a caller-validated recipe; the explicit evaluator is pinned by its entry point."""
     if not credential.strip():
         raise ValueError("Jev credential required")
     for name in ("spend.jsonl", "audit.jsonl", "rows.jsonl", "result.json"):
@@ -187,8 +197,8 @@ async def run_batch(output: Path, approved: str, credential: str) -> dict[str, A
     rows = [{"id": c["id"], "layout": c["layout"], "scenario": c["scenario"],
              "status": "not_run", "passed": False, "calls": {}, "cleanup_confirmed": False}
             for c in f["cases"]]
-    report: dict[str, Any] = {"freeze_sha256": approved, "rows": rows, "completed": False}
-    ledger = SpendLedger(SpendLimit(2_000_000, f["nano_usd_limit"]), request_limit=15,
+    report: dict[str, Any] = {"freeze_sha256": f["sha256"], "rows": rows, "completed": False}
+    ledger = SpendLedger(SpendLimit(2_000_000, f["nano_usd_limit"]), request_limit=f["request_limit"],
                          journal=output / "spend.jsonl")
 
     async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -215,7 +225,7 @@ async def run_batch(output: Path, approved: str, credential: str) -> dict[str, A
                 for row in rows:
                     ledger.start_trial(row["id"], SpendLimit(131072, 3_000_000))
                     await run_case(cases[row["id"]], row, f"http://127.0.0.1:{port}/{row['id']}",
-                                   credential, ledger, audit)
+                                   credential, ledger, audit, acceptance)
                     v1.append_json(journal, row)
                     written += 1
                     if ledger.snapshot()["stop_reason"] or not row["passed"]:

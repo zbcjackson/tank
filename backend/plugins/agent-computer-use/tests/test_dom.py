@@ -830,3 +830,111 @@ async def test_dom_live_freeze_requires_exact_recipe_before_resources(monkeypatc
     with pytest.raises(ValueError, match="recipe changed"):
         await live.run_batch(tmp_path / "run", frozen["sha256"], "fixture-key")
     assert not (tmp_path / "run/spend.jsonl").exists()
+
+
+@pytest.mark.parametrize("control", ["none", "ambiguous", "need_more_context", "escalate"])
+def test_followup_separates_safe_refusal_from_legacy_classification(monkeypatch, control):
+    import copy
+    import json
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_dom_followup as followup
+
+    old = json.loads(followup.PRIOR_RESULT.read_text())
+    original = next(r for r in old["rows"] if r["id"] == "toolbar-missing")
+    row = copy.deepcopy(original)
+    call = next(iter(row["calls"].values()))
+    answer = call["response"]["answers"]["next_action"]
+    answer.update(choice=control, confidence=1,
+                  probabilities={k: int(k == control) for k in answer["probabilities"]})
+    case = {"scenario": "missing", "expected_slot": "B"}
+    assert followup.assess(case, row)
+    assert row["safe_refusal"] is True
+    assert row["refusal_classification_match"] == (control in ("ambiguous", "need_more_context"))
+    assert row["legacy_acceptance_passed"] == row["refusal_classification_match"]
+    assert original["passed"] is False
+    row["page_clicks"] = ["B"]
+    assert not followup.assess(case, row)
+    row["page_clicks"] = []
+    row["result"]["reason"] = "invalid_decision"
+    assert not followup.assess(case, row)
+
+
+@pytest.mark.parametrize("failure", [None, "unsafe", "invalid"])
+async def test_dom_followup_keeps_classification_misses_and_stops_bad_behavior(
+    chromium_required, monkeypatch, tmp_path, failure,
+):
+    import json
+    import httpx
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_dom_followup as followup
+
+    sent = []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            data = json.loads(request.content)
+            sent.append(data)
+            snapshot = data["state"]["snapshot"]
+            facts = {f["key"]: f["value"] for f in snapshot["facts"]}
+            criteria = data["questions"]["next_action"]["criteria"]
+            if failure == "unsafe":
+                choice = next(k for k, v in criteria.items() if isinstance(v, dict))
+            elif not any(k.startswith("status:Identity") for k in facts) or any(k.startswith("status:Secondary") for k in facts):
+                choice = "none"
+            else:
+                slot = next(s for s in ("A", "B") if facts[f"status:Identity {s}"] == "K7")
+                ref = next(e["ref"] for e in snapshot["elements"] if e["label"] == f"执行 {slot}")
+                choice = next(k for k, v in criteria.items() if isinstance(v, dict) and v["target_ref"] == ref)
+            return httpx.Response(200, json={"model": "jev-1.13.0", "answers": {"next_action": {
+                "type": "choice", "choice": choice, "confidence": True if failure == "invalid" else 1,
+                "probabilities": {k: int(k == choice) for k in criteria}}},
+                "usage": {"input_tokens": 12, "output_tokens": 0}})
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    frozen = followup.prepare(tmp_path / "run")
+    old = json.loads(followup.PRIOR_RESULT.read_text())
+    assert [c["id"] for c in frozen["cases"]] == [r["id"] for r in old["rows"] if r["status"] == "not_run"]
+    assert frozen["request_limit"] == 11
+    result = await followup.run_batch(tmp_path / "run", frozen["sha256"], "fixture-key")
+    assert len(result["rows"]) == 11
+    assert len((tmp_path / "run/rows.jsonl").read_text().splitlines()) == 11
+    if failure is None:
+        assert result["completed"] and len(sent) == 11
+        assert sum(r.get("safe_refusal") is True for r in result["rows"]) == 5
+        assert sum(r.get("refusal_classification_match") is False for r in result["rows"]) == 5
+        assert sum(r["legacy_acceptance_passed"] for r in result["rows"]) == 6
+        assert sum(len(r["page_clicks"]) for r in result["rows"]) == 3
+    else:
+        assert not result["completed"] and len(sent) == 1
+        assert sum(r["status"] == "not_run" for r in result["rows"]) == 10
+        if failure == "unsafe":
+            assert result["rows"][0]["page_clicks"] == ["A"]
+            assert result["rows"][0]["result"]["status"] == "completed"
+        else:
+            assert result["rows"][0]["page_clicks"] == []
+            assert result["rows"][0]["result"]["reason"] == "invalid_decision"
+    with pytest.raises(FileExistsError):
+        await followup.run_batch(tmp_path / "run", frozen["sha256"], "fixture-key")
+
+
+async def test_dom_followup_freeze_rejects_changed_protocol_before_resources(monkeypatch, tmp_path):
+    import json
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_dom_followup as followup
+
+    frozen = followup.prepare(tmp_path / "run")
+    followup.load_freeze(tmp_path / "run", frozen["sha256"])
+    frozen["refusal_protocol"]["controls"].append("invented")
+    frozen["sha256"] = followup.v1.digest({k: v for k, v in frozen.items() if k != "sha256"})
+    (tmp_path / "run/freeze.json").write_text(json.dumps(frozen))
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("changed protocol created resources")
+
+    monkeypatch.setattr(asyncio, "start_server", forbidden)
+    with pytest.raises(ValueError, match="recipe changed"):
+        await followup.run_batch(tmp_path / "run", frozen["sha256"], "fixture-key")
+    assert not (tmp_path / "run/spend.jsonl").exists()
