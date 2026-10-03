@@ -244,3 +244,44 @@ async def test_governed_client_does_not_export_payload_through_global_sdk_wrappe
     finally:
         await context.runtime.aclose()
     assert len(requests) == 1 and traced == []
+
+
+async def test_host_json_model_owns_credentials_and_cleanup(monkeypatch):
+    from tank_backend.llm.model_transport import ChatCompletionsRoute
+
+    sent, closed = [], []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            sent.append(request)
+            return httpx.Response(200, json={
+                "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
+                "value": "selected",
+            })
+
+        async def aclose(self):
+            closed.append(True)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+    )
+    ctx.runtime.configure_json_model(
+        "task", ChatCompletionsRoute(
+            "https://offline.invalid/v1/chat/completions", "test", "key", max_output_tokens=10,
+        ), credential="secret",
+    )
+    model = ctx.runtime.json_model
+    assert model is not None
+    assert sent == closed == []
+    result = await model.request({
+        "model": "test", "messages": [{"role": "user", "content": "choose"}], "max_tokens": 10,
+    })
+    assert result["value"] == "selected"
+    assert sent[0].headers["authorization"] == "Bearer secret"
+    assert ctx.budget.total_tokens == 5
+    await ctx.runtime.aclose()
+    assert closed == [True]
+    with pytest.raises(SubAgentStopped):
+        await model.request({})
+    assert len(sent) == 1

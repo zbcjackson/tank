@@ -1145,3 +1145,48 @@ async def test_governed_stream_close_during_header_handoff_releases_response():
         await client.close()
     assert released == [True]
     assert len(transport.records) == 1
+
+
+async def test_non_chat_route_uses_shared_http_accounting():
+    """A second wire protocol shares host accounting without Chat fields."""
+    from tank_backend.llm.model_transport import TaskModelTransport
+
+    class ChoiceRoute:
+        url = "https://decision.test/v1/choose"
+        credential_ref = "decision"
+        operation = "choice"
+
+        def validate(self, request):
+            assert request.method == "POST"
+
+        def is_streaming(self, request):
+            return False
+
+        def read_usage(self, response):
+            return response.json()["inputs"], response.json()["outputs"]
+
+    sent, audits = [], []
+
+    async def audit(record):
+        audits.append(record)
+
+    async def provider(request):
+        sent.append(request)
+        return httpx.Response(200, json={"inputs": 7, "outputs": 0, "choice": "a"})
+
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        audit=audit,
+    )
+    transport = TaskModelTransport(
+        "task", context, routes=(ChoiceRoute(),), credentials={"decision": "host-secret"},
+        inner=httpx.MockTransport(provider),
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        response = await client.post(ChoiceRoute.url, json={"state": "current"})
+    assert response.json()["choice"] == "a"
+    assert len(sent) == 1
+    assert sent[0].headers["Authorization"] == "Bearer host-secret"
+    assert context.budget.total_tokens == 7
+    assert {record.operation for record in audits} == {"choice"}
+    assert len({record.call_id for record in audits}) == 1

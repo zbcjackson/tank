@@ -69,6 +69,20 @@ def get_model_call(task_id: str) -> ModelCallRecord | None:
     return record if record is not None and record.task_id == task_id else None
 
 
+class ModelRoute(Protocol):
+    """Trusted wire adapter; the host owns destinations, credentials and dispatch."""
+
+    @property
+    def url(self) -> str: ...
+    @property
+    def credential_ref(self) -> str: ...
+    @property
+    def operation(self) -> str: ...
+    def validate(self, request: httpx.Request) -> None: ...
+    def is_streaming(self, request: httpx.Request) -> bool: ...
+    def read_usage(self, response: httpx.Response) -> tuple[int, int]: ...
+
+
 @dataclass
 class _CallState:
     started: float
@@ -78,6 +92,7 @@ class _CallState:
     outputs: int | None = None
     response: httpx.Response | None = None
     streaming: bool = False
+    route: ModelRoute | None = None
 
 
 @dataclass(frozen=True)
@@ -110,6 +125,16 @@ class ChatCompletionsRoute:
         }:
             raise ValueError("provider parameters cannot override core model fields")
         object.__setattr__(self, "extra_parameters", copy.deepcopy(self.extra_parameters))
+
+    @property
+    def operation(self) -> str:
+        return "chat_completions"
+
+    def is_streaming(self, request: httpx.Request) -> bool:
+        return json_object(request.content).get("stream") is True
+
+    def read_usage(self, response: httpx.Response) -> tuple[int, int]:
+        return read_usage(response)
 
     def validate(self, request: httpx.Request) -> None:
         if request.method != "POST" or len(request.content) > self.max_upload_bytes:
@@ -197,7 +222,7 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         context: SubAgentContext,
         *,
         policy: ModelCallPolicy | None = None,
-        routes: tuple[ChatCompletionsRoute, ...],
+        routes: tuple[ModelRoute, ...],
         credentials: dict[str, str],
         inner: httpx.AsyncBaseTransport,
     ) -> None:
@@ -247,7 +272,8 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
             self._context.observe(
                 "model_call", task_id=self._task_id, call_id=call_id, phase="started",
             )
-            streaming = await self._prepare(request, call_id)
+            state.route = self._route(request)
+            streaming = await self._prepare(request, call_id, state.route)
             if streaming:
                 return await self._start_stream(request, call_id, state, settled)
             return await self._request(request, call_id, state)
@@ -273,7 +299,8 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         try:
             if not self._context.runtime.audit_failed:
                 await self._context.runtime.write_audit(ExecutionRecord(
-                    record.task_id, record.call_id, "chat_completions", record.status,
+                    record.task_id, record.call_id,
+                    state.route.operation if state.route else "model", record.status,
                     category="model", phase="finished", prompt_tokens=record.prompt_tokens,
                     completion_tokens=record.completion_tokens, elapsed_ms=record.elapsed_ms,
                 ))
@@ -282,26 +309,30 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
             self._context.observe("model_call", phase="finished", **asdict(record))
         return record
 
-    async def _prepare(self, request: httpx.Request, call_id: str) -> bool:
-        self._context.check("network")
-        if self._closed:
-            raise SubAgentStopped("transport_closed")
+    def _route(self, request: httpx.Request) -> ModelRoute:
         route = next((route for route in self._routes if route.url == str(request.url)), None)
         if route is None:
             raise ValueError("model destination not approved")
+        return route
+
+    async def _prepare(
+        self, request: httpx.Request, call_id: str, route: ModelRoute,
+    ) -> bool:
+        self._context.check("network")
+        if self._closed:
+            raise SubAgentStopped("transport_closed")
         route.validate(request)
         request.headers["Accept-Encoding"] = "identity"
         request.headers["Authorization"] = "Bearer " + self._credentials[route.credential_ref]
         if self._policy is not None:
             self._policy.reserve(call_id, request)
-        return json_object(request.content).get("stream") is True
-
+        return route.is_streaming(request)
 
     async def _send(
         self, request: httpx.Request, call_id: str, state: _CallState,
     ) -> httpx.Response:
         await self._context.runtime.write_audit(ExecutionRecord(
-            self._task_id, call_id, "chat_completions", "not_sent",
+            self._task_id, call_id, state.route.operation if state.route else "model", "not_sent",
             category="model", phase="prepared",
         ))
         capture = self._context.model_capture
@@ -313,7 +344,7 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                 raise
         self._context.check("network")
         await self._context.runtime.write_audit(ExecutionRecord(
-            self._task_id, call_id, "chat_completions", "unknown",
+            self._task_id, call_id, state.route.operation if state.route else "model", "unknown",
             category="model", phase="dispatch",
         ))
         # Audit writes are await boundaries: recheck immediately before sending.
@@ -372,20 +403,20 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                 if operation not in done:
                     raise asyncio.CancelledError("task cancelled during model request")
                 response = operation.result()
-                inputs, outputs = read_usage(response)
+                inputs, outputs = self._route(request).read_usage(response)
             except BaseException:
                 if state.sent:
                     inputs = outputs = None
                     # Cancellation may win the waiter race after a complete response arrived.
                     if operation.done() and not operation.cancelled():
                         with suppress(Exception):
-                            inputs, outputs = read_usage(operation.result())
+                            inputs, outputs = self._route(request).read_usage(operation.result())
                     if inputs is None and state.response is not None:
                         with suppress(Exception):
                             encoding = state.response.headers.get("content-encoding", "identity")
                             if (encoding == "identity"
                                     and len(state.response.content) <= 2_000_000):
-                                inputs, outputs = read_usage(state.response)
+                                inputs, outputs = self._route(request).read_usage(state.response)
                     self._record_usage(call_id, state, inputs, outputs)
                 else:
                     if self._policy is not None:
