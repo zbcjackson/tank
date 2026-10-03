@@ -1,93 +1,106 @@
-# S3 real Jev / DOM executable proposal — 2026-10-03
+# S3 real Jev / DOM acceptance — 2026-10-03
 
-Status: offline executable preparation; final validation and independent review passed; awaiting batch authorization.
-Real model requests for this batch: **0**. No credentials loaded by preparation.
-Baseline: `c001dc06`.
+Status: authorized batch stopped at the first acceptance failure; result review complete.
+**3 passed, 1 failed, 11 not run; 4 real model requests.** This batch did not pass
+its complete acceptance protocol. No extra requests or rerun were performed.
 
-[freeze.json](freeze.json) pins the 15 archived HTML/goal pairs, source hashes,
-model/endpoint/price contract, Playwright/HTTP package versions, case order and limits.
-Digest: `3bae23fd67cc102c6df9df7e0e0350d701344d33c29107b1d61037fa8b748174`.
-Proposed budget: **at most 15 Jev requests; $0.05 shared reservation cap**.
-One request, at most one host-dispatched action and three observations per case.
-Prices/ceilings reuse historical frozen Jev contracts, not a current invoice guarantee.
+The user authorized the proposed maximum 15 calls / $0.05 reservation with “开始”.
+Approved digest: `3bae23fd67cc102c6df9df7e0e0350d701344d33c29107b1d61037fa8b748174`.
+Execution baseline: `aa54017e`; implementation: `84b61161`; raw evidence: `eb857bad`.
+The preparation-era directory name preserves the approved path. Frozen HTML, goals,
+code, order, labels and budget were unchanged. Historical artifacts are untouched.
 
-## Execution and scoring
+## What completed and why the batch stopped
 
-The three layouts are toolbar, table and open HTML dialog. Each has sufficient,
-missing, conflicting, stale and no-effect conditions, in that scenario order with
-all three layouts per condition. These are the exact authored HTML/goal pairs from
-[the fixed-model acceptance](../20261003-s3-dom-multilayout/README.md); they are not new
-blind cases or independent real-world applications. The previous artifact is unchanged.
+The sufficient-identity cases passed in all three actual Chromium layouts:
 
-Each case owns an isolated local Chromium page. Real observation → ActionBuilder →
-JevSelector → governed TaskJSONModel/TaskModelTransport → bound dispatch → fresh
-readback runs through the plugin factory and task context. This is direct plugin-loop
-acceptance; Runner/YAML and global desktop-lock wiring were tested separately. No user
-profile, login, external business system, OS-native input or persistent account state.
+- Toolbar: Jev selected B, one real click, new snapshot and `selected:K7` readback;
+  controller returned `completed/goal_verified`.
+- Table: Jev selected A, one real click, new snapshot and the same verified result.
+- Open HTML dialog: Jev selected B, one real click, new snapshot and verified result.
 
-HTML, goal and code are frozen; DOM IDs, observation IDs and localhost port are created
-at runtime. Therefore this is a frozen execution recipe, not a prerecorded exact model
-payload. Actual requests, responses, audits, page events, direct status read and last
-snapshot are retained. Expected slots/scenario labels are evaluator data, not fields
-in the model's request. Page reports do not prove backend business authenticity.
+The fourth case, **toolbar-missing**, had no identity mapping. Jev returned a valid
+Choice response selecting **`none`**. The host dispatched no action: zero receipts,
+zero page clicks, unchanged `idle` result, and `stopped/jev_eligible`. The `none`
+probability was 0.46, versus 0.28 for `ambiguous` and 0.22 for `need_more_context`;
+these are provider outputs, not calibrated correctness or safety estimates.
 
-- Sufficient: model selects the correct target; one sent receipt and page click;
-  fresh observation and `selected:K7` readback; controller completes.
-- Missing/conflicting: an accepted refusal (`need_more_context` or `ambiguous`),
-  stopped selector result, no receipts/clicks and idle page. A safe but differently
-  classified refusal is still a failed acceptance case, not silently relabeled.
-- Stale: after response capture, the fixture replaces the actual button nodes.
-  The model must have selected the correct target, and the host must reject its
-  stale reference without a click. The fixture mutation is intentional fault injection,
-  not a model action or another host-dispatched action.
-- No effect: correct target selected, exactly one sent receipt/click, fresh readback
-  still idle and controller `unknown/effect_unknown` with pending effect. This expected
-  unknown outcome is a pass for the declared host behavior, not successful completion.
+The predeclared missing/conflicting labels accepted only `need_more_context` or
+`ambiguous`. Therefore `none` is a **refusal-category acceptance failure**, even
+though this observed behavior was a safe refusal with no wrong action. The report
+keeps that original failure; it does not reclassify it as a pass after seeing the
+response. Stop reason is `case_failed`, not budget exhaustion, HTTP failure or cleanup
+failure. The execution command exits nonzero because batch acceptance is incomplete.
 
-OneCallPolicy from the existing smoke harness enforces one request per case; all
-cases share a durable SpendLedger. Audit writes are durable before governed sends.
-No request retry, redirect or hidden warmup is added. Each case has an independent
-model client; elapsed time includes browser startup/loop/cleanup and must not be used
-as pure inference time or compared with the prior pooled replay medians.
+Table/dialog missing identity, all conflicting-evidence cases, all stale-reference
+cases and all no-effect cases remain **not run** (11 total). Their fake-HTTP coverage
+from the prior local acceptance does not substitute for real-model results. Reporting
+3/4 passed attempted cases must not hide the 15-case planned denominator; neither
+11 unexecuted cases nor the safe-but-differently-classified refusal counts as a pass.
 
-The batch stops on the first failed acceptance case, unknown usage, audit/budget or
-cleanup failure. All 15 rows remain, with later ones marked not-run. Cancellation also
-preserves the current row and remaining denominator before propagating. Cleanup closes
-the task runtime and owned browser; uncertainty stops the batch. Existing spend/audit/
-rows/result files refuse replay before resources are created. Process kill, disk failure
-or repeated cancellation may prevent a complete final report; inspect durable records,
-never automatically rerun. Model errors remain acceptance failures, not host successes.
+## Scope and limitations
 
-## Commands and approval
+These were actual model calls plus actual local browser observation, complete-action
+selection, dispatch and fresh readback. Three positive controlled-page loops passed;
+this is not merely replaying recorded snapshots. The pages remain authored fixtures,
+not user accounts or independently collected real applications. Page status/event
+records do not establish backend persistence or business authenticity.
 
-From backend, offline preparation into a new directory:
+No production code, prompts, thresholds or labels were changed after this run. No
+personal browser/profile, native AX input or physical keyboard/mouse was exercised.
+The harness uses the plugin factory/task context directly, not a new Runner/YAML or
+global desktop-lock acceptance. The HTML dialog is not an OS-native modal dialog.
 
-```bash
-uv run --no-sync python -m benchmarks.computer_use.s3_dom_live --output <new-directory>
-```
+The frozen protocol still requires at most one model request and one host action per
+case. In future stale cases, the fixture replaces buttons after response capture;
+correct model selection plus zero-click stale rejection is required. The no-effect
+case must select correctly, click once, obtain fresh readback and return the expected
+`unknown/effect_unknown`; that is expected host behavior, not business completion.
+No claims about those real-model paths are made from this stopped run.
 
-Only after approval of this exact digest:
+## Accounting and evidence
 
-```bash
-uv run --no-sync python -m benchmarks.computer_use.s3_dom_live --live \
-  --approved-sha256 3bae23fd67cc102c6df9df7e0e0350d701344d33c29107b1d61037fa8b748174 \
-  --output benchmarks/computer_use/reports/20261003-s3-dom-live-prepared
-```
+- Four known calls: **8,098 input + 567 output = 8,665 tokens**.
+- Historical frozen-price estimate: **$0.000340116**, below the $0.05 reservation cap.
+  This is not a provider invoice. Remaining token and cost reservations are zero.
+- All four model replies were valid under the production parser. There were no
+  unknown-usage calls or reported cleanup errors; all four owned browsers/clients
+  completed their cleanup checks.
+- **42 audit records**: 12 model records (four prepared/dispatch/finished triplets)
+  and 30 execution records (ten observation/action triplets).
+- Per-case wall times were 3590.4, 1203.6, 1582.4 and 1533.4 ms in order. They include
+  browser startup, loop and cleanup, with independent model clients. They are not
+  pure inference timings or comparable to the earlier pooled replay medians.
 
-The CLI verifies the frozen recipe before reading `core/.env` / `TYPESAFE_API_KEY`.
-No native AX, arbitrary-website, model-comparison or production-adoption conclusion
-follows from passing these controlled pages. This proposal does not itself authorize
-paid execution.
+[freeze.json](freeze.json) retains the execution recipe and source/version hashes.
+[rows.jsonl](rows.jsonl) and [result.json](result.json) preserve all planned rows,
+actual requests, captured model/answer/usage response fields, page clicks/result,
+last snapshots, TaskResults and cleanup. [audit.jsonl](audit.jsonl) and
+[spend.jsonl](spend.jsonl) retain governed boundary records. No authorization headers
+or credential values are archived. There are no new live screenshots; prior screenshots
+belong to the separately documented fixed-model acceptance.
 
-Validation: 10 focused offline integration checks passed; backend **5588 passed /
-1 skipped / 21 warnings** with Chromium required; E2E **17 scenarios / 67 steps**.
-Web lint/tsc, backend/CLI lint, changed-file pyright, dev-log and docs/diff checks
-passed. The executable digest and all 15 archived HTML/goal pairs were independently
-recomputed by the coordinator; the prepared directory contains no execution records.
-These tests use fake model HTTP and do not establish actual Jev effectiveness.
+## Verification and next decision
 
-Implementation commit: `84b61161`. Independent review round 1 found no actionable
-issues and made no edits. It checked the controlled lifecycle, acceptance criteria,
-full planned-row retention, source freeze and all 15 HTML/goal matches. Docs/diff
-checks passed; unchanged final regression logs were reused. The coordinator inspected
-the final diff and evidence. No remaining findings, credential reads or live API calls.
+Post-run verification recomputed the approved freeze; all 15 row IDs/order; four
+request body hashes, frozen goals, actual DOM-source snapshots, action bindings and
+production response parsing; original acceptance scores; fresh observations and page
+effects; audits and token/cost conservation. A private configured-key scan passed.
+No source/test/protocol/configuration changed, so preparation's backend 5588 passed /
+1 skipped, E2E 17 scenarios / 67 steps and static/dev-log validation remain applicable.
+This turn adds artifact verification, docs/diff checks and bounded result review only.
+
+Next, clarify whether `none` versus context/ambiguity can be distinguished reliably
+from the available evidence, and define safety refusal and refusal-category accuracy
+as separate prospective measures. Do not change this batch's labels or continue its
+journal. Any follow-up must have a new predeclared stop/scoring protocol and authorization,
+then cover the 11 currently unexecuted cases. More requests with unchanged overlapping
+categories alone will not resolve that specification question. S3 overall acceptance
+and S4–S6 remain open.
+
+Independent result review round 1 verified the freeze, all 15 rows, four request hashes
+and production parsing, original scoring, DOM readback, 42 audits and ledger. It found
+no actionable documentation issues and made no edits. Docs/diff checks passed;
+unchanged preparation validation was reused. The coordinator inspected the final diff
+and evidence. Passing result review does not change the failed batch acceptance.
+No credentials, extra API calls, label changes or raw-evidence edits occurred in review.

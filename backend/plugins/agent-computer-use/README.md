@@ -288,12 +288,14 @@ identity cases check handling of scripted refusals, not automatic host business 
 Page values and page click logs do not establish external persistence. Native AX input,
 real accounts, arbitrary websites and actual-model multilayout acceptance remain separate.
 
-The [real Jev DOM batch proposal](../../benchmarks/computer_use/reports/20261003-s3-dom-live-prepared/README.md)
+The [real Jev DOM batch result](../../benchmarks/computer_use/reports/20261003-s3-dom-live-prepared/README.md)
 reuses those 15 archived HTML/goal pairs, but collects fresh DOM observations and uses
 the actual configured Jev transport at execution. Preparation and pytest remain offline
 with respect to the model. It allows at most one request and one host action per case,
-with a shared 15-request / $0.05 cap, and stops on the first acceptance failure. Its
+with a shared 15-request / $0.05 cap, and stops on the first acceptance failure. The
+approved run made four calls: three normal loops passed, then a safe `none` refusal
+failed the frozen missing-identity category criterion; eleven cases remain unexecuted. Its
 fixed `no_effect` case can pass only with the correct selection, one click, fresh
-readback and the expected unknown result. Paid execution needs separate approval.
+readback and the expected unknown result. New paid batches need separate approval.
 This harness uses the plugin factory and task context directly; it is not another
 Runner/YAML, global desktop-lock or native AX acceptance.
