@@ -1,0 +1,39 @@
+{
+  "baseline": "7d65d058",
+  "scope": "real isolated Chromium; fake model HTTP; no native AX or paid calls",
+  "source_sha256": {
+    "backend/plugins/agent-computer-use/tests/test_dom.py": "02b2b8625394032b69e027e39547278cddd5b641fccef5445a4462390265c7b3",
+    "backend/plugins/agent-computer-use/src/agent_computer_use/channels/dom.py": "a27b054865eb5cc02a9b8b3ffc85006eb3ea16646730fb367595444f9a5ab39f",
+    "backend/plugins/agent-computer-use/src/agent_computer_use/controller.py": "5b20cf38dd3f090d2c41f572266c7bf4e0b9f3b1148f98590bd6cff84bfae6eb",
+    "backend/plugins/agent-computer-use/src/agent_computer_use/action_builder.py": "1768b133350bc6634d2bf2b536c7b26498b2a6bdfb9c7552e4cac70efedba7d5",
+    "backend/plugins/agent-computer-use/src/agent_computer_use/jev.py": "1b5ba18d0f35b3d1f1e87f6b36898825ad3a5cfbf5735ac7b18b7bd62549aeb5",
+    "backend/plugins/agent-computer-use/src/agent_computer_use/contracts.py": "e34181c23761414e2911e2d765f33ba285dd9c8d0e9395b15c30d3cb6aed315f"
+  },
+  "artifacts_sha256": {
+    "raw/dialog-conflicting.json": "b2e940fa0fc139b9954d027ca136cfdc2b48ae586f973a2a1cf4cea0e07fe725",
+    "raw/dialog-missing.json": "685da1e2e20876d758d6c52656a825d6405db41d85b9d3f87031ece6e0492df2",
+    "raw/dialog-no_effect.json": "e03f15004d3b697f122ff31a4e726051103aa4a30db7a204eb5f48b541a521ae",
+    "raw/dialog-stale.json": "e118e9d81102c50969b6a3be09a2c1566929a75c97ec5a14e55dc6de651d664f",
+    "raw/dialog-sufficient.json": "e130b72a28ebee693f1e622e1beef574b8000bb9b53aba0b93c3d6687ca816df",
+    "raw/dialog-sufficient.png": "4a802c0bcf875a51f4d1a52aa7816cda6a5a3a490906a563014bbe1eb012794b",
+    "raw/table-conflicting.json": "4c25d5517df0d86200fd773f0f7395ef3342a645277fac68ff7ae0793ee62594",
+    "raw/table-missing.json": "3550bd4861dad5adba5a66a803a3ed6a5e19669b1d81b2efe4260b56c362f3da",
+    "raw/table-no_effect.json": "006f99f80d8572976520a26745c9e468bf5380742d1364e49e43193b49c55427",
+    "raw/table-stale.json": "acd48e2fad8373d0b4a95872cbecd34938b5832b20251637c92056ed04a2ecb5",
+    "raw/table-sufficient.json": "fe47a05bb98a752b7b9d74792e78d57b66f07df1b165900c41396c13176be1b0",
+    "raw/table-sufficient.png": "9926c6b57d6dbb49a9b5952ee17c873d65a44877c0bfad2d2a71aad2801e3473",
+    "raw/toolbar-conflicting.json": "7672df3e76c2afe60c9048737aeda776821ef385d6bf9baa4f6b7f5b0411d1c2",
+    "raw/toolbar-missing.json": "af5abc3d2844f73840df2ff00bb9cfaef8b100c6bd4a312814759cdc79d45f72",
+    "raw/toolbar-no_effect.json": "ca88d90af50a7e95420789b356db4eadc76d995a5f846778689e7fade532ec31",
+    "raw/toolbar-stale.json": "71c4e9f1ce18ad4b95ee7a222f09a711ff4518e7d45800f1b53274e6610953f0",
+    "raw/toolbar-sufficient.json": "deb101b7dbdba6962bf909acd186b49f0d3defb5c1a9acabe0b0775d1d2895ef",
+    "raw/toolbar-sufficient.png": "d9569a16a2dc11c05fac9c5780d6c66c39095688c5f3a92438bafb4590b41d08"
+  },
+  "cases": 15,
+  "statuses": {
+    "stopped": 9,
+    "unknown": 3,
+    "completed": 3
+  },
+  "recorded_page_clicks": 6
+}
