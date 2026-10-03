@@ -1,0 +1,3771 @@
+{
+  "revision": "s3-replay-v1",
+  "cases": [
+    {
+      "id": "editor-save",
+      "split": "calibration",
+      "layout_family": "editor-save",
+      "category": "semantic",
+      "gold": {
+        "target_ref": "e0"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Store the document",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Store the document",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Save",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Cancel",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "dialog-print",
+      "split": "calibration",
+      "layout_family": "dialog-print",
+      "category": "semantic",
+      "gold": {
+        "target_ref": "e1"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "打印文件",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "打印文件",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "取消",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "打印",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "contact-email",
+      "split": "calibration",
+      "layout_family": "contact-email",
+      "category": "ambiguity",
+      "gold": {
+        "control": "ambiguous"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Email address",
+          "scope": "page",
+          "inputs": [
+            {
+              "key": "text",
+              "value": "alice@example.test"
+            }
+          ],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "fill",
+              "role": "textbox",
+              "label": "Email address",
+              "input_key": "text",
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "textbox",
+              "label": "Work email",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "textbox",
+              "label": "Office email",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e0",
+              "operation": "fill",
+              "value": "alice@example.test"
+            },
+            {
+              "id": "a1",
+              "target_ref": "e1",
+              "operation": "fill",
+              "value": "alice@example.test"
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "export-name",
+      "split": "calibration",
+      "layout_family": "export-name",
+      "category": "fill",
+      "gold": {
+        "target_ref": "e1"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Output file name",
+          "scope": "page",
+          "inputs": [
+            {
+              "key": "text",
+              "value": "report.pdf"
+            }
+          ],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "fill",
+              "role": "textbox",
+              "label": "Output file name",
+              "input_key": "text",
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "textbox",
+              "label": "Directory",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "textbox",
+              "label": "文件名",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e0",
+              "operation": "fill",
+              "value": "report.pdf"
+            },
+            {
+              "id": "a1",
+              "target_ref": "e1",
+              "operation": "fill",
+              "value": "report.pdf"
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "settings-exact",
+      "split": "calibration",
+      "layout_family": "settings-exact",
+      "category": "exact",
+      "gold": {
+        "target_ref": "e0"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Apply",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Apply",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Apply",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Cancel",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "rules_unique",
+          "total_candidates": 1,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "toolbar-no-target",
+      "split": "calibration",
+      "layout_family": "toolbar-no-target",
+      "category": "none",
+      "gold": {
+        "control": "none"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Save this document",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Save this document",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Cancel",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Delete",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "file-discard",
+      "split": "calibration",
+      "layout_family": "file-discard",
+      "category": "risk",
+      "gold": {
+        "target_ref": "e0"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Discard unsaved edits without deleting the file",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Discard unsaved edits without deleting the file",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Discard changes",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Delete file",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "account-context",
+      "split": "calibration",
+      "layout_family": "account-context",
+      "category": "context",
+      "gold": {
+        "control": "need_more_context"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Continue with the account authorized by the user, identity not supplied",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Continue with the account authorized by the user, identity not supplied",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Alice",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Bob",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "chart-visual",
+      "split": "calibration",
+      "layout_family": "chart-visual",
+      "category": "complex",
+      "gold": {
+        "control": "escalate"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Read the trend from a chart image which is not in this text observation",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Read the trend from a chart image which is not in this text observation",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Open chart",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Hide legend",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "draft-missing",
+      "split": "calibration",
+      "layout_family": "draft-missing",
+      "category": "missing",
+      "gold": {
+        "gate": "missing_parameters"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Message",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "fill",
+              "role": "textbox",
+              "label": "Message",
+              "input_key": "text",
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "textbox",
+              "label": "Message",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "textbox",
+              "label": "Subject",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [],
+          "reason": "missing_parameters",
+          "total_candidates": 0,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "modal-duplicate",
+      "split": "calibration",
+      "layout_family": "modal-duplicate",
+      "category": "duplicate",
+      "gold": {
+        "gate": "ambiguous_target"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Confirm",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Confirm",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Confirm",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Confirm",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [],
+          "reason": "ambiguous_target",
+          "total_candidates": 0,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "list-overflow",
+      "split": "calibration",
+      "layout_family": "list-overflow",
+      "category": "recall",
+      "gold": {
+        "target_ref": "e32"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Choose the final report",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Choose the final report",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Item 00",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Item 01",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e2",
+              "role": "button",
+              "label": "Item 02",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e3",
+              "role": "button",
+              "label": "Item 03",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e4",
+              "role": "button",
+              "label": "Item 04",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e5",
+              "role": "button",
+              "label": "Item 05",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e6",
+              "role": "button",
+              "label": "Item 06",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e7",
+              "role": "button",
+              "label": "Item 07",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e8",
+              "role": "button",
+              "label": "Item 08",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e9",
+              "role": "button",
+              "label": "Item 09",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e10",
+              "role": "button",
+              "label": "Item 10",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e11",
+              "role": "button",
+              "label": "Item 11",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e12",
+              "role": "button",
+              "label": "Item 12",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e13",
+              "role": "button",
+              "label": "Item 13",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e14",
+              "role": "button",
+              "label": "Item 14",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e15",
+              "role": "button",
+              "label": "Item 15",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e16",
+              "role": "button",
+              "label": "Item 16",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e17",
+              "role": "button",
+              "label": "Item 17",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e18",
+              "role": "button",
+              "label": "Item 18",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e19",
+              "role": "button",
+              "label": "Item 19",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e20",
+              "role": "button",
+              "label": "Item 20",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e21",
+              "role": "button",
+              "label": "Item 21",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e22",
+              "role": "button",
+              "label": "Item 22",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e23",
+              "role": "button",
+              "label": "Item 23",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e24",
+              "role": "button",
+              "label": "Item 24",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e25",
+              "role": "button",
+              "label": "Item 25",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e26",
+              "role": "button",
+              "label": "Item 26",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e27",
+              "role": "button",
+              "label": "Item 27",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e28",
+              "role": "button",
+              "label": "Item 28",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e29",
+              "role": "button",
+              "label": "Item 29",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e30",
+              "role": "button",
+              "label": "Item 30",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e31",
+              "role": "button",
+              "label": "Item 31",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e32",
+              "role": "button",
+              "label": "ZZ final report",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e26",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e30",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a2",
+              "target_ref": "e11",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a3",
+              "target_ref": "e5",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a4",
+              "target_ref": "e12",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a5",
+              "target_ref": "e3",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a6",
+              "target_ref": "e28",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a7",
+              "target_ref": "e16",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a8",
+              "target_ref": "e4",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a9",
+              "target_ref": "e13",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a10",
+              "target_ref": "e18",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a11",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a12",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a13",
+              "target_ref": "e24",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a14",
+              "target_ref": "e8",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a15",
+              "target_ref": "e10",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a16",
+              "target_ref": "e9",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a17",
+              "target_ref": "e14",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a18",
+              "target_ref": "e29",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a19",
+              "target_ref": "e22",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a20",
+              "target_ref": "e15",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a21",
+              "target_ref": "e31",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a22",
+              "target_ref": "e7",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a23",
+              "target_ref": "e19",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a24",
+              "target_ref": "e6",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a25",
+              "target_ref": "e23",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a26",
+              "target_ref": "e20",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a27",
+              "target_ref": "e25",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a28",
+              "target_ref": "e17",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a29",
+              "target_ref": "e21",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a30",
+              "target_ref": "e2",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a31",
+              "target_ref": "e27",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 33,
+          "truncated": true
+        }
+      }
+    },
+    {
+      "id": "invoice-submit",
+      "split": "holdout",
+      "layout_family": "invoice-submit",
+      "category": "semantic",
+      "gold": {
+        "target_ref": "e1"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Send the invoice",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Send the invoice",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Cancel",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Submit invoice",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "booking-reserve",
+      "split": "holdout",
+      "layout_family": "booking-reserve",
+      "category": "semantic",
+      "gold": {
+        "target_ref": "e0"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "预订所选行程",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "预订所选行程",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "确认预订",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "返回",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "delivery-address",
+      "split": "holdout",
+      "layout_family": "delivery-address",
+      "category": "ambiguity",
+      "gold": {
+        "control": "ambiguous"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Shipping address",
+          "scope": "page",
+          "inputs": [
+            {
+              "key": "text",
+              "value": "42 Example Road"
+            }
+          ],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "fill",
+              "role": "textbox",
+              "label": "Shipping address",
+              "input_key": "text",
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "textbox",
+              "label": "Home address",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "textbox",
+              "label": "Residential address",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e0",
+              "operation": "fill",
+              "value": "42 Example Road"
+            },
+            {
+              "id": "a1",
+              "target_ref": "e1",
+              "operation": "fill",
+              "value": "42 Example Road"
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "search-product",
+      "split": "holdout",
+      "layout_family": "search-product",
+      "category": "fill",
+      "gold": {
+        "target_ref": "e0"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Product search query",
+          "scope": "page",
+          "inputs": [
+            {
+              "key": "text",
+              "value": "blue mug"
+            }
+          ],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "fill",
+              "role": "textbox",
+              "label": "Product search query",
+              "input_key": "text",
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "textbox",
+              "label": "商品搜索",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "textbox",
+              "label": "Coupon",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e1",
+              "operation": "fill",
+              "value": "blue mug"
+            },
+            {
+              "id": "a1",
+              "target_ref": "e0",
+              "operation": "fill",
+              "value": "blue mug"
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "preferences-exact",
+      "split": "holdout",
+      "layout_family": "preferences-exact",
+      "category": "exact",
+      "gold": {
+        "target_ref": "e1"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "保存设置",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "保存设置",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "取消",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "保存设置",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "rules_unique",
+          "total_candidates": 1,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "music-no-target",
+      "split": "holdout",
+      "layout_family": "music-no-target",
+      "category": "none",
+      "gold": {
+        "control": "none"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Export playlist as a file",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Export playlist as a file",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Play",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Remove",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "subscription-pause",
+      "split": "holdout",
+      "layout_family": "subscription-pause",
+      "category": "risk",
+      "gold": {
+        "target_ref": "e1"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Pause the subscription without permanently closing the account",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Pause the subscription without permanently closing the account",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Delete account",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Pause subscription",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "workspace-context",
+      "split": "holdout",
+      "layout_family": "workspace-context",
+      "category": "context",
+      "gold": {
+        "control": "need_more_context"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Select the user-authorized workspace, but no workspace identity is supplied",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Select the user-authorized workspace, but no workspace identity is supplied",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "North team",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "South team",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "photo-visual",
+      "split": "holdout",
+      "layout_family": "photo-visual",
+      "category": "complex",
+      "gold": {
+        "control": "escalate"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Identify which photograph contains a cat; photographs are absent from the text observation",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Identify which photograph contains a cat; photographs are absent from the text observation",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Photo A",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Photo B",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 2,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "reply-missing",
+      "split": "holdout",
+      "layout_family": "reply-missing",
+      "category": "missing",
+      "gold": {
+        "gate": "missing_parameters"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Reply body",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "fill",
+              "role": "textbox",
+              "label": "Reply body",
+              "input_key": "text",
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "textbox",
+              "label": "Reply body",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "textbox",
+              "label": "Title",
+              "actions": [
+                "fill"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [],
+          "reason": "missing_parameters",
+          "total_candidates": 0,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "wizard-duplicate",
+      "split": "holdout",
+      "layout_family": "wizard-duplicate",
+      "category": "duplicate",
+      "gold": {
+        "gate": "ambiguous_target"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Next",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Next",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Next",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Next",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [],
+          "reason": "ambiguous_target",
+          "total_candidates": 0,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "catalog-overflow",
+      "split": "holdout",
+      "layout_family": "catalog-overflow",
+      "category": "recall",
+      "gold": {
+        "target_ref": "e32"
+      },
+      "public": {
+        "goal": {
+          "schema_version": 1,
+          "objective": "Choose the archived invoice",
+          "scope": "page",
+          "inputs": [],
+          "milestones": [
+            {
+              "id": "step",
+              "operation": "click",
+              "role": "button",
+              "label": "Choose the archived invoice",
+              "input_key": null,
+              "postcondition": {
+                "key": "done",
+                "value": "yes"
+              }
+            }
+          ],
+          "completion": [
+            {
+              "key": "done",
+              "value": "yes"
+            }
+          ]
+        },
+        "snapshot": {
+          "observation_id": "obs",
+          "scope": "page",
+          "generation": 1,
+          "elements": [
+            {
+              "ref": "e0",
+              "role": "button",
+              "label": "Row 00",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e1",
+              "role": "button",
+              "label": "Row 01",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e2",
+              "role": "button",
+              "label": "Row 02",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e3",
+              "role": "button",
+              "label": "Row 03",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e4",
+              "role": "button",
+              "label": "Row 04",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e5",
+              "role": "button",
+              "label": "Row 05",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e6",
+              "role": "button",
+              "label": "Row 06",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e7",
+              "role": "button",
+              "label": "Row 07",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e8",
+              "role": "button",
+              "label": "Row 08",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e9",
+              "role": "button",
+              "label": "Row 09",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e10",
+              "role": "button",
+              "label": "Row 10",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e11",
+              "role": "button",
+              "label": "Row 11",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e12",
+              "role": "button",
+              "label": "Row 12",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e13",
+              "role": "button",
+              "label": "Row 13",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e14",
+              "role": "button",
+              "label": "Row 14",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e15",
+              "role": "button",
+              "label": "Row 15",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e16",
+              "role": "button",
+              "label": "Row 16",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e17",
+              "role": "button",
+              "label": "Row 17",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e18",
+              "role": "button",
+              "label": "Row 18",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e19",
+              "role": "button",
+              "label": "Row 19",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e20",
+              "role": "button",
+              "label": "Row 20",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e21",
+              "role": "button",
+              "label": "Row 21",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e22",
+              "role": "button",
+              "label": "Row 22",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e23",
+              "role": "button",
+              "label": "Row 23",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e24",
+              "role": "button",
+              "label": "Row 24",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e25",
+              "role": "button",
+              "label": "Row 25",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e26",
+              "role": "button",
+              "label": "Row 26",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e27",
+              "role": "button",
+              "label": "Row 27",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e28",
+              "role": "button",
+              "label": "Row 28",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e29",
+              "role": "button",
+              "label": "Row 29",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e30",
+              "role": "button",
+              "label": "Row 30",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e31",
+              "role": "button",
+              "label": "Row 31",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            },
+            {
+              "ref": "e32",
+              "role": "button",
+              "label": "ZZ archived invoice",
+              "actions": [
+                "click"
+              ],
+              "enabled": true,
+              "kind": "control",
+              "source": "fixture",
+              "value": "",
+              "focused": null,
+              "ancestors": [],
+              "bounds": null
+            }
+          ],
+          "facts": [],
+          "complete": true,
+          "ready": true
+        },
+        "actions": {
+          "binding": {
+            "goal_id": "goal",
+            "goal_version": 1,
+            "observation_id": "obs",
+            "scope": "page",
+            "generation": 1,
+            "candidate_set_id": "candidates"
+          },
+          "actions": [
+            {
+              "id": "a0",
+              "target_ref": "e0",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a1",
+              "target_ref": "e2",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a2",
+              "target_ref": "e7",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a3",
+              "target_ref": "e22",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a4",
+              "target_ref": "e3",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a5",
+              "target_ref": "e30",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a6",
+              "target_ref": "e14",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a7",
+              "target_ref": "e18",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a8",
+              "target_ref": "e16",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a9",
+              "target_ref": "e17",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a10",
+              "target_ref": "e9",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a11",
+              "target_ref": "e20",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a12",
+              "target_ref": "e12",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a13",
+              "target_ref": "e15",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a14",
+              "target_ref": "e8",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a15",
+              "target_ref": "e1",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a16",
+              "target_ref": "e25",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a17",
+              "target_ref": "e23",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a18",
+              "target_ref": "e5",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a19",
+              "target_ref": "e28",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a20",
+              "target_ref": "e31",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a21",
+              "target_ref": "e29",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a22",
+              "target_ref": "e27",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a23",
+              "target_ref": "e21",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a24",
+              "target_ref": "e26",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a25",
+              "target_ref": "e19",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a26",
+              "target_ref": "e10",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a27",
+              "target_ref": "e6",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a28",
+              "target_ref": "e11",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a29",
+              "target_ref": "e4",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a30",
+              "target_ref": "e24",
+              "operation": "click",
+              "value": null
+            },
+            {
+              "id": "a31",
+              "target_ref": "e13",
+              "operation": "click",
+              "value": null
+            }
+          ],
+          "reason": "jev_eligible",
+          "total_candidates": 33,
+          "truncated": true
+        }
+      }
+    }
+  ],
+  "models": {
+    "jev": {
+      "model": "jev-1.13.0",
+      "url": "https://api.typesafe.ai/v1/systemone",
+      "input_ceiling": 65536,
+      "output_ceiling": 65536,
+      "input_price": 42,
+      "output_price": 0
+    },
+    "qwen": {
+      "model": "qwen3.7-flash-2026-07-15",
+      "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      "input_ceiling": 991808,
+      "output_ceiling": 128,
+      "input_price": 165,
+      "output_price": 660
+    }
+  },
+  "stages": [
+    "d2",
+    "action"
+  ],
+  "arms": [
+    "rules",
+    "jev",
+    "qwen"
+  ],
+  "thresholds": [
+    0.0,
+    0.5,
+    0.7,
+    0.9,
+    1.01
+  ],
+  "dataset_sha256": "f060c340dd18f96eb39a8f5d00f30cc3ed5968a880ca6367376f5f41f6c214cb",
+  "code_hashes": {
+    "s3_replay.py": "4fa75f644512b779d19093ba7be630077f109376ea091f6cffc3c1692e2c3f7f",
+    "action_builder.py": "1768b133350bc6634d2bf2b536c7b26498b2a6bdfb9c7552e4cac70efedba7d5",
+    "contracts.py": "e34181c23761414e2911e2d765f33ba285dd9c8d0e9395b15c30d3cb6aed315f",
+    "jev.py": "ba02080c8fd2e7912e43f6aee0bc28a0b1dd07d1597dc4a29fc5c1a087b5d0f0",
+    "model_transport.py": "991c27c1ca04f14f7430801429142d1f1b5f2c23fdec305451b99b801cff6121",
+    "task_json_model.py": "bdf5f257b1ea94d744e17ebfc5322cfddf92602ebe74b55ea5880f0d2f1c2bb4",
+    "model_policy.py": "7984765a653934d92b7e8f0502673288782957aa163406deb75b9b26ffb37d8d",
+    "spend_ledger.py": "29bf380aa71252d2664f1c172625965af094b340a555978d75b481cdc2dc0664"
+  },
+  "nano_usd_limit": 250000000,
+  "request_limit": 64,
+  "sha256": "9bfed6bbe775859db0fd80f6d0adc91accdebd187d217b6fc8707f45d7ed327c"
+}

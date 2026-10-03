@@ -1409,6 +1409,48 @@ Jev 集中测试 **298 passed**、强制 Chromium **32 passed / 零 skip**，doc
 下一批冻结 D2/完整 ActionSet 数据，比较规则、Jev、廉价生成式选择器；本次 3 例
 不得充当校准或泛化结论。生产默认、原生桌面执行及恢复范围不变。
 
+#### S3 第三批：冻结对照回放准备（2026-10-03，准备验收完成，待真实批次授权）
+
+基线 `22857d4a`。本批准备 24 个合成样本（12 calibration / 12 holdout，
+布局族不交叉），覆盖当前 click/fill 模板的 D2 目标选择和完整绑定动作选择。
+真实 API 批次尚未授权；上次 3 次冒烟授权不扩展到本批。
+
+1. 冻结目标/观察/候选和独立 gold；候选构造不读取 gold。保留候选漏召回、
+   无目标、歧义、补上下文/升级、重复与截断边界，并区分宿主拒绝与模型拒绝。
+2. 共用同一公开输入比较 rules、固定 Jev 与固定廉价 Qwen；使用已有受控
+   TaskJSONModel/transport/SpendLedger，不执行桌面动作，不从核心导入 benchmark。
+3. 校准仅看 calibration：固定阈值网格，零误动作优先、其后最大覆盖；holdout
+   只按锁定阈值评分。小样本不能据此自动采用或切换生产策略。
+4. **Tests**：TDD 覆盖冻结 hash/输入一致性/无真值外发/候选漏召回分离、
+   真实 transport + fake HTTP 的双协议用量/未知停批/零重试、坏回复计入分母、
+   校准不读取 holdout、篡改冻结拒绝。默认 prepare 不能发送请求。
+5. **最终验证**：执行 §10 完整 Verification Checklist 全部适用项，并完成
+   最多三轮 code-reviewer review-and-refactor。然后提交具体冻结摘要、模型端点、
+   请求上限和预算，单列请求真实付费批次授权。
+
+第三批准备产物：[冻结配置与执行提案](../../../backend/benchmarks/computer_use/reports/20261003-s3-replay-prepared/README.md)。
+固定模型 Jev `jev-1.13.0` 和现有廉价对照 `qwen3.7-flash-2026-07-15`；
+24 样本 × 2 阶段 × 3 臂保留 144 行。规则命中与宿主拒绝不发模型请求，
+实际可准入上限 64 次（各 32），共享预留上限 $0.25。Qwen 温度 0、128 输出 tokens、
+关闭思考；使用官方全上下文上限与最高价格档作保守预留。只发送合成文字。
+Jev 按阶段/类别独立锁定阈值；不以小样本校准自动采用策略。真实批次尚未执行。
+实现与 fake HTTP 回归已完成。追加回归发现并修复审计失败未停整批的问题，
+现确认一次审计失败即整批停止、零 HTTP 发送。最终后端全量 **5517 passed /
+1 skipped / 21 warnings**（`/tmp/tank-s3-replay-final-backend.log`）；E2E **17 场景 /
+67 步**（`/tmp/tank-s3-replay-e2e.log`，生产 parser 未再变化，复用该结果）。
+定向 Jev/replay **55 passed**；backend/CLI lint、改动 Python pyright、web lint/tsc、
+开发服务重载检查、docs/diff check 通过。协议与生成物未改，协议检查不适用。
+实现提交 `9d7dff1f`。独立 code-reviewer 第 1 轮确认 R1：10 个非截断正例的
+正确控件均为快照首项 e0，可形成位置捷径。已先红后绿平衡正例位置/ref：整体 5:5，
+calibration 3:2、holdout 2:3；各正例类别跨 split 均衡。修复提交 `6756d5d3`。
+第 2 轮由评审者自行复核修复，无新增或遗留问题，停止评审。
+最终定向 **56 passed**；后端全量 **5518 passed / 1 skipped / 21 warnings**
+（`/tmp/tank-s3-replay-review-backend.log`）；E2E **17 场景 / 67 步**
+（`/tmp/tank-s3-replay-review-e2e.log`），全部适用静态检查、开发服务日志、docs/diff
+检查通过。协调者已核对修复 diff、日志与未执行的重新冻结产物。
+最终 digest `9bfed6bbe775859db0fd80f6d0adc91accdebd187d217b6fc8707f45d7ed327c`。
+本批准备验收完成，真实请求数仍为 0；真实对照/校准仍待单列授权，不标记 S3 完成。
+
 ### S4：多步目标、按需 Advisor 与恢复闭环
 
 - 接入统一语义命令面、真实生成模型消息序列化、视觉 GroundingAdapter 风格能力；

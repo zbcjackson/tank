@@ -969,3 +969,14 @@ Use `TANK_REQUIRE_CHROMIUM=1` to require the optional browser extra and executab
 
 The explicitly paid harness and frozen evidence are documented in
 [the S3 smoke record](benchmarks/computer_use/reports/20261003-s3-jev-smoke/README.md).
+
+
+## S3 frozen selector replay
+
+`plugins/agent-computer-use/tests/test_jev.py` additionally tests the benchmark
+[replay harness](benchmarks/computer_use/s3_replay.py): deterministic frozen inputs,
+no label leakage, paired public requests, malformed reply denominators, shared
+usage/unknown-stop behavior, audit journals, freeze tamper rejection and held-out
+threshold application. The full test suite uses fake HTTP; no paid calls run.
+[The prepared protocol](benchmarks/computer_use/fixtures/s3/README.md) describes the
+synthetic-data limits. Live execution requires a separately approved freeze digest.
