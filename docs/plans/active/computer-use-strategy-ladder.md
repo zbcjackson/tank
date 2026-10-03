@@ -1,6 +1,7 @@
 > 状态：进行中（2026-09-30：S0 验收通过；S1 离线/合成验收与 S2 管理 Chromium 本地验收完成；S3–S6、原生桌面执行/恢复及生产采用仍待验收）。
 
 > 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
+> 2026-10-03：S3 首批受控 JSON/Jev Choice 显式装配及 fake HTTP 闭环验收完成；Runner/YAML 装配、冻结回放和校准仍待完成。
 > 完整目标设计尚未全部实现、尚未完成整体实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
 
 # 计划：Computer Use 子代理的宿主循环与策略阶梯（S0–S6）
@@ -1323,6 +1324,40 @@ docs check、diff check 通过。未变化文件复用此前类型检查证据�
    要求进行至多三轮 review-and-refactor，核对最终 diff、测试证据与提交。
 
 ### S3：Jev 动作决策与校准
+
+#### S3 第一批：受控 Choice 接入（2026-10-03，离线接入验收完成）
+
+基线 `68483a9a`。本批完成宿主 JSON 模型服务、协议适配和 Computer Use
+选择器的离线接入切片；仅通过显式宿主装配运行。没有生产配置开关、付费调用、
+校准收益结论或 S3 整阶段完成声明。沿用生产默认。
+
+1. 将已有 model transport 的协议校验/用量读取提取为窄 route 契约，保留
+   Chat Completions 的真实发送、审计、取消、捕获和结算路径。
+2. 宿主管理 JSON 模型端点/凭据/资源；插件实现固定版本 Jev Choice 协议及
+   当前快照/完整动作候选映射，保留四类显式拒绝选项。
+3. **Tests**：逐条 TDD 验证真实 HTTP 边界（fake provider）、共享账本、
+   零配额零发送、审计失败、撤权/取消/超时、未知用量、非法回复、无隐式重试，
+   以及 Controller/Adapter 的动作与清理闭环；不使用真实私人桌面或付费 API。
+4. **最终验证**：执行本计划 §10 完整 Verification Checklist 的全部适用项，
+   然后执行仓库要求的 code-reviewer review-and-refactor，最多三轮。
+
+协议依据：[TypeSafe 官方 HTTP API](https://docs.typesafe.ai/api)。仅实现 Choice；
+Score/Noul、Runner/YAML 装配、冻结回放及校准仍待后续 S3 批次。
+
+评审前验证：核心实现 `a402ca88`，Jev 选择器 `145e1f9d`。新增 Jev fake HTTP /
+Controller / Adapter 测试 43 项通过；后端全量 **5483 passed / 1 skipped / 21 warnings**
+（`/tmp/tank-s3-first-backend.log`），E2E **17 场景 / 67 步**
+（`/tmp/tank-s3-first-e2e.log`）。backend core/tests/plugins lint、CLI lint、
+所有改动 Python 文件 pyright、web lint 与 `tsc -b --noEmit`、开发服务重载检查、
+docs check 和 diff check 通过。协议契约及生成物未改，协议同步检查不适用。
+未调用真实 Jev、未运行付费回放；上述结果不证明模型准确率或效率收益。
+独立 code-reviewer 按 `agents/code-reviewer.md` 执行 review-and-refactor 第 1 轮，
+覆盖基线 `68483a9a` 至上述两提交及文档变更，无可操作或遗留问题，未修改代码，
+立即停止评审。评审者独立重跑新增/受影响集中测试 **145 passed**，docs/diff check
+通过；源码未变，复用上述全量/E2E/静态检查证据。协调者已核对最终 diff 与日志。
+本批离线接入验收完成，S3 整阶段仍 active；下一批需宿主配置/Runner 装配与
+冻结回放校准，真实模型/原生桌面/恢复/生产采用仍未验收。
+
 
 - 接入一个显式 Jev provider；hosted 或本地择一，不同时要求两个部署形态。
   协议/类型不因部署形态而绕过预算、拒绝选项和版本绑定。

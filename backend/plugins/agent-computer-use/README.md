@@ -160,3 +160,34 @@ also has a real Chromium contract scenario and requires this extra/browser for
 `cd test && pnpm test`. It exercises Runner/config/results and stop boundaries
 in an isolated process, not browser-agent transport through the chat WebSocket.
 No paid model call or personal browser input is part of S2 acceptance.
+
+## S3 first slice: explicitly assembled Jev Choice
+
+`JevChoiceRoute` and `JevSelector` implement the Choice subset of the
+[official TypeSafe HTTP contract](https://docs.typesafe.ai/api). A trusted host
+must explicitly call `context.runtime.configure_json_model(task_id, route,
+credential=...)` and inject `JevSelector(version)` into the controller. The route
+is immutable, uses an exact HTTPS destination and credential reference, and
+requires a fixed `jev-X.Y.Z` version. The selector never receives credentials or
+creates a client. There is no Runner/YAML wiring or production activation yet;
+this programmatic seam is the offline acceptance path, not a supported user setup.
+
+The host's lazy `TaskJSONModel` uses the same transport as text models: actual
+HTTP admission, call IDs, audit, capture, usage accounting, cancellation and
+cleanup are shared. No retry or redirect is enabled. Jev parses its own
+input/output usage; malformed/missing usage remains unknown. An injected strict
+experiment policy retains reservations and stops subsequent calls. Default
+production accounting remains record-only, not a prepaid cost cap.
+
+The selector sends only the current structured snapshot, goal and bound whole
+ActionSet, with explicit none/ambiguous/need_more_context/escalate choices. It
+rejects incomplete or stale evidence, mismatched model versions, unknown choices,
+invalid distributions and invalid confidence. Distribution sum tolerance is 0.02
+for wire rounding; it is not an acceptance-confidence threshold or calibration
+claim. Rules still bypass the model. Model results cannot change action arguments,
+permissions or completion evidence. Only Choice is implemented; Score/Noul,
+provider availability evaluation, frozen replay comparisons and calibration remain
+S3 work. No paid requests or real model quality measurements were made.
+
+Run the fake HTTP and Controller/Adapter acceptance from `backend/`:
+`uv run --no-sync pytest plugins/agent-computer-use/tests/test_jev.py -q`.

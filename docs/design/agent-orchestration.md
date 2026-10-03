@@ -459,3 +459,16 @@ the parent as a terminal outcome; it does not start a fresh run on agent_reply.
 The legacy chat-history resume path rejects extension agents because it cannot
 restore plugin progress, the original grant or cumulative budgets. Built-in
 LLM agents retain the existing ask_user/waiting behavior.
+
+
+### Explicit JSON model assembly (S3 first slice)
+
+A trusted host may additionally assemble `TaskRuntime.configure_json_model` with
+an immutable protocol route and resolved credential. The optional borrowed
+`json_model.request()` service sends bounded, non-streaming JSON through the same
+TaskModelTransport and original context/ledger as the text model. Route adapters
+validate protocol requests and normalize usage; core does not parse Jev fields.
+Audit records use the selected route's operation name. The runtime owns client
+cleanup and refuses model replacement or task rebinding. Protocol adapters do not
+receive credentials. This is an explicit programmatic seam; Runner/YAML model
+selection, live Jev activation and recovery are not implemented by this slice.
