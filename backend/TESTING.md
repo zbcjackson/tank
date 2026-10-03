@@ -980,3 +980,14 @@ usage/unknown-stop behavior, audit journals, freeze tamper rejection and held-ou
 threshold application. The full test suite uses fake HTTP; no paid calls run.
 [The prepared protocol](benchmarks/computer_use/fixtures/s3/README.md) describes the
 synthetic-data limits. Live execution requires a separately approved freeze digest.
+
+
+## S3 v2 diagnostics
+
+The existing `plugins/agent-computer-use/tests/test_jev.py` now also covers
+[s3_replay_v2](benchmarks/computer_use/s3_replay_v2.py): binary abstention scoring,
+compact inputs, counterbalanced target positions, cold/pool ownership, missing trace
+values, real localhost HTTP keep-alive reuse, frozen HTTP versions, audit/usage stop,
+cleanup-failure evidence and cancellation. Model endpoints are fake in these tests;
+only the keep-alive test opens a loopback socket. No paid API or desktop action runs.
+[V2 protocol](benchmarks/computer_use/fixtures/s3-v2/README.md) states timing limits.
