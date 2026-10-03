@@ -1050,3 +1050,14 @@ HTML, actual requests/responses, audit, results and final snapshots) and three p
 screenshots. Existing filenames are refused. Without that variable artifacts use each
 test's temporary directory. Actual browser connection closure is checked; retained
 Python Browser objects are not mistaken for still-connected browser processes.
+
+## S3 real-model DOM execution preparation
+
+`test_dom.py` adds ten checks for `benchmarks/computer_use/s3_dom_live.py`, with real
+isolated Chromium and fake model HTTP. They cover the full 15-case workflow, wrong
+selection, invalid response, HTTP failure without retry, unknown usage, cancellation,
+audit/budget rejection, reported cleanup failure and offline/tampered-freeze rejection.
+Every stopped batch retains all 15 planned rows. HTML and goals are reused from the
+archived fixed-model acceptance; the live request is built from newly observed DOM.
+The live CLI requires an approved executable digest before loading the credential.
+No paid model requests run during these tests.

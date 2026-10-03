@@ -1782,6 +1782,39 @@ Chromium 可用，新增 15 项无 skip；E2E **17 场景 / 67 步**
 docs/diff check 通过，复用实现验证日志；协调者核对最终 diff 与证据。
 这完成本批固定模型边界的本地验收，真实模型多布局及原生 AX 输入仍未验收。
 
+#### S3 第十四批：真实 Jev 多布局执行准备（2026-10-03，验收与评审完成，待付费授权）
+
+基线 `c001dc06`。复用已验收的 15 个真实页面 HTML/goal，新增独立冻结的真实调用
+入口；实时 DOM UUID/观察不能预制，因此冻结页面、目标、源码、依赖、顺序及预算，
+运行时记录实际快照和完整 payload。每例一次 Jev、最多一次动作，合计至多 15 请求。
+
+1. 直接使用插件工厂/Controller/TaskRuntime/JevSelector，不引入 Runner 行为变更。
+   仅隔离本地 Chromium 页面，单源限制；不访问用户账户或原生 AX 输入。
+2. 共享预算/逐例一次请求闸门，持久化审计/用量/捕获；任一验收失败、未知用量、
+   审计或清理异常停止后保留全部计划分母。允许预声明的 no_effect=unknown 通过。
+3. stale 场景在响应捕获后替换节点，验证派发前拒绝；新响应必须选中正确目标，
+   不能仅凭 stopped 状态算通过。其它条件同样同时核对模型选择、实际点击和读回。
+4. **Tests**：真实 Chromium + fake HTTP 先红后绿验证 15 例闭环、实际响应绑定、
+   漂移/重跑拒绝、未知用量/取消/错误选择/审计/预算停批与全分母保存。
+5. **最终 Verification Checklist**：§10 全部适用：web lint/tsc、backend lint/
+   全量 pytest/修改文件 pyright、CLI lint、开发日志、E2E、docs check；协议未改，
+   同步检查不适用。最多三轮独立 review-and-refactor；冻结后单列申请付费授权。
+
+10 项新增定向测试通过。全量后端 **5588 passed / 1 skipped / 21 warnings**
+（`/tmp/tank-s3-dom-live-backend.log`，强制 Chromium），E2E **17 场景 / 67 步**
+（`/tmp/tank-s3-dom-live-e2e.log`）；web lint/tsc、backend/CLI lint、改动文件
+pyright、开发日志、docs/diff check 均通过。协议未改，同步检查不适用。
+本批没有真实模型请求；旧归档 HTML/goal 与新提案逐项一致。提案 digest
+`3bae23fd67cc102c6df9df7e0e0350d701344d33c29107b1d61037fa8b748174`，
+[完整可执行方案](../../../backend/benchmarks/computer_use/reports/20261003-s3-dom-live-prepared/README.md)
+最多 15 次请求，$0.05 共享预留。实模型可见的 DOM 引用会在运行时生成，不能把冻结
+执行配方称作已冻结的实际请求字节；原始实际请求/响应将在获批执行后记录。
+
+实现提交 `84b61161`。独立 code-reviewer 第 1 轮无可操作问题，未改文件，立即
+停止；核对调用/动作/清理边界、通过条件、全分母与覆盖拒绝，独立验证 digest 和
+15 份 HTML/goal 对应。docs/diff check 通过，复用最终完整验证日志；协调者核对
+最终 diff 与证据。没有真实模型调用或凭据读取，等待本批单列授权。
+
 ### S4：多步目标、按需 Advisor 与恢复闭环
 
 - 接入统一语义命令面、真实生成模型消息序列化、视觉 GroundingAdapter 风格能力；
