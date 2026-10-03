@@ -991,3 +991,14 @@ values, real localhost HTTP keep-alive reuse, frozen HTTP versions, audit/usage 
 cleanup-failure evidence and cancellation. Model endpoints are fake in these tests;
 only the keep-alive test opens a loopback socket. No paid API or desktop action runs.
 [V2 protocol](benchmarks/computer_use/fixtures/s3-v2/README.md) states timing limits.
+
+
+## S3 v3 refusal factors
+
+The existing `plugins/agent-computer-use/tests/test_jev.py` additionally tests
+[s3_replay_v3](benchmarks/computer_use/s3_replay_v3.py): legacy/2x2 input isolation,
+constant candidates/host contract, rejection of structured oracle markers, evidence-
+aware scoring, counterbalanced order, tamper refusal, complete-grid contrasts and
+fake HTTP through the reused guarded call. Unknown usage, mandatory audit failure,
+cancellation and journal reuse are covered without paid calls. See
+[the v3 protocol](benchmarks/computer_use/fixtures/s3-v3/README.md) for scoring limits.
