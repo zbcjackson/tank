@@ -431,6 +431,24 @@ def test_replay_freezes_public_inputs_separately_from_gold(tmp_path):
     assert module["load_freeze"](tmp_path / "prepared", freeze["sha256"]) == freeze
 
 
+def test_replay_positive_targets_are_counterbalanced():
+    """Neither the first snapshot control nor e0 should encode the correct answer."""
+    from collections import Counter, defaultdict
+
+    module = replay_module()
+    cases = module["freeze_inputs"]()["cases"]
+    positions, references = defaultdict(Counter), defaultdict(Counter)
+    for case in cases:
+        if "target_ref" not in case["gold"] or case["category"] == "recall":
+            continue
+        target = case["gold"]["target_ref"]
+        elements = case["public"]["snapshot"]["elements"]
+        positions[case["category"]][next(i for i, e in enumerate(elements) if e["ref"] == target)] += 1
+        references[case["category"]][target] += 1
+    assert positions and all(counts[0] == counts[1] > 0 for counts in positions.values())
+    assert all(counts["e0"] == counts["e1"] > 0 for counts in references.values())
+
+
 def test_replay_gold_cannot_change_candidates_and_truncation_is_separate(tmp_path):
     from copy import deepcopy
 
@@ -511,7 +529,8 @@ def test_replay_applies_locked_threshold_to_holdout(tmp_path):
     module = replay_module()
     freeze = module["prepare"](tmp_path / "prepared")
     case = next(c for c in freeze["cases"] if c["split"] == "holdout" and c["category"] == "semantic")
-    action = next(a for a in case["public"]["actions"]["actions"] if a["target_ref"] == "e1")
+    action = next(a for a in case["public"]["actions"]["actions"]
+                  if a["target_ref"] != case["gold"]["target_ref"])
     row = {"case_id": case["id"], "category": case["category"],
            "split": "holdout", "stage": "action", "arm": "jev",
            "status": "returned", "choice": action["id"], "confidence": 0.6,

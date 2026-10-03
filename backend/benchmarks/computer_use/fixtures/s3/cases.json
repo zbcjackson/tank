@@ -96,7 +96,7 @@
           {
             "ref": "e0",
             "role": "button",
-            "label": "打印",
+            "label": "取消",
             "actions": [
               "click"
             ]
@@ -104,7 +104,7 @@
           {
             "ref": "e1",
             "role": "button",
-            "label": "取消",
+            "label": "打印",
             "actions": [
               "click"
             ]
@@ -114,7 +114,7 @@
         "complete": true
       },
       "gold": {
-        "target_ref": "e0"
+        "target_ref": "e1"
       }
     },
     {
@@ -224,7 +224,7 @@
           {
             "ref": "e0",
             "role": "textbox",
-            "label": "文件名",
+            "label": "Directory",
             "actions": [
               "fill"
             ]
@@ -232,7 +232,7 @@
           {
             "ref": "e1",
             "role": "textbox",
-            "label": "Directory",
+            "label": "文件名",
             "actions": [
               "fill"
             ]
@@ -242,7 +242,7 @@
         "complete": true
       },
       "gold": {
-        "target_ref": "e0"
+        "target_ref": "e1"
       }
     },
     {
@@ -995,7 +995,7 @@
           {
             "ref": "e0",
             "role": "button",
-            "label": "Submit invoice",
+            "label": "Cancel",
             "actions": [
               "click"
             ]
@@ -1003,7 +1003,7 @@
           {
             "ref": "e1",
             "role": "button",
-            "label": "Cancel",
+            "label": "Submit invoice",
             "actions": [
               "click"
             ]
@@ -1013,7 +1013,7 @@
         "complete": true
       },
       "gold": {
-        "target_ref": "e0"
+        "target_ref": "e1"
       }
     },
     {
@@ -1239,7 +1239,7 @@
           {
             "ref": "e0",
             "role": "button",
-            "label": "保存设置",
+            "label": "取消",
             "actions": [
               "click"
             ]
@@ -1247,7 +1247,7 @@
           {
             "ref": "e1",
             "role": "button",
-            "label": "取消",
+            "label": "保存设置",
             "actions": [
               "click"
             ]
@@ -1257,7 +1257,7 @@
         "complete": true
       },
       "gold": {
-        "target_ref": "e0"
+        "target_ref": "e1"
       }
     },
     {
@@ -1355,7 +1355,7 @@
           {
             "ref": "e0",
             "role": "button",
-            "label": "Pause subscription",
+            "label": "Delete account",
             "actions": [
               "click"
             ]
@@ -1363,7 +1363,7 @@
           {
             "ref": "e1",
             "role": "button",
-            "label": "Delete account",
+            "label": "Pause subscription",
             "actions": [
               "click"
             ]
@@ -1373,7 +1373,7 @@
         "complete": true
       },
       "gold": {
-        "target_ref": "e0"
+        "target_ref": "e1"
       }
     },
     {
