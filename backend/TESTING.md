@@ -1033,3 +1033,20 @@ usage invalid replies, unknown usage/HTTP failure/cancellation stops, zero-send 
 and budget rejection, cleanup failures, existing-artifact refusal, tampered recipe
 rejection and scoring from frozen labels despite changed later source reads. All 48
 planned rows survive controlled stop paths. No real model requests run in pytest.
+
+## S3 real DOM multilayout control-loop acceptance
+
+The existing `test_dom.py` adds 15 real-Chromium cases: toolbar, table and open HTML
+dialog layouts, each with sufficient identity, missing identity, conflicting reports,
+replacement after selection and click-without-observable-effect scenarios. Only model
+HTTP is replaced. Actual snapshots enter JevSelector/TaskModelTransport; real click
+handlers and page-event logs independently check dispatch and fresh effect readback.
+Scripted refusal controls cause zero dispatch; this does not test actual model refusal
+or independent host verification of missing/conflicting business facts.
+
+Run with `TANK_REQUIRE_CHROMIUM=1 uv run --no-sync pytest plugins/agent-computer-use/tests/test_dom.py -k real_dom_multilayout -q`.
+Set `TANK_DOM_EVIDENCE_DIR` to a new output directory to retain 15 JSON records (source
+HTML, actual requests/responses, audit, results and final snapshots) and three positive
+screenshots. Existing filenames are refused. Without that variable artifacts use each
+test's temporary directory. Actual browser connection closure is checked; retained
+Python Browser objects are not mistaken for still-connected browser processes.

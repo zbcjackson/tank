@@ -270,7 +270,20 @@ or production acceptance. No additional live requests are part of this change.
 The [first new synthetic holdout preparation](../../benchmarks/computer_use/fixtures/s3-holdout/README.md)
 now contains 24 label-separated scenarios and 48 paired planned Jev requests. It
 uses the actual production payload builder; its six domains share one two-row layout.
-No model responses have been collected. The separately frozen `s3_holdout_live` adapter
-now connects these requests to host transport, budgets and audit; see the protocol's
-governed executable entry. A new executable digest requires its own approval before
+The separately frozen `s3_holdout_live` adapter connects these requests to host
+transport, budgets and audit. The [approved execution](../../benchmarks/computer_use/reports/20261003-s3-holdout-live-prepared/README.md)
+returned 48 valid responses; both arms scored 24/24, with no measured correctness
+advantage for the contract. New executable batches require their own approval before
 paid execution. This is not production acceptance.
+
+### Real DOM multilayout acceptance
+
+[The local acceptance record](../../benchmarks/computer_use/reports/20261003-s3-dom-multilayout/README.md)
+exercises real isolated Chromium across toolbar, table and HTML-dialog layouts. It
+checks DOM-origin snapshot serialization, complete-action selection, bound dispatch,
+fresh effect readback, stale-reference rejection and no replay of an unverified effect.
+Model HTTP uses fixed fixture responses, so these are integration/control-boundary
+results, not new evidence of Jev accuracy or production adoption. Missing/conflicting
+identity cases check handling of scripted refusals, not automatic host business validation.
+Page values and page click logs do not establish external persistence. Native AX input,
+real accounts, arbitrary websites and actual-model multilayout acceptance remain separate.
