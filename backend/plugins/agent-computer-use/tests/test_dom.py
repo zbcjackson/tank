@@ -15,6 +15,34 @@ from tank_backend.agents.subagent import (
 )
 
 
+def multilayout_html(layout: str, scenario: str) -> str:
+    """Real DOM fixture; page effects are independent of the fake model response."""
+    desired_slot = "A" if layout == "table" else "B"
+    controls = []
+    for slot in ("A", "B"):
+        identity = "K7" if slot == desired_slot else "K2"
+        effect = f"window.clicks.push('{slot}');"
+        if scenario != "no_effect":
+            effect += f"document.querySelector('[aria-label=Result]').textContent='selected:{identity}';"
+        button = f'<button onclick="{effect}">执行 {slot}</button>'
+        fact = "" if scenario == "missing" else (
+            f'<span role="status" aria-label="Identity {slot}">{identity}</span>')
+        if layout == "table":
+            controls.append(f"<tr><td>{fact}</td><td>{button}</td></tr>")
+        else:
+            controls.append(f"<section>{fact}{button}</section>")
+    report = '<output aria-label="Result">idle</output>'
+    if scenario == "conflicting":
+        report += f'<output aria-label="Secondary identity {desired_slot}">K2</output>'
+    if layout == "toolbar":
+        content = '<nav role="toolbar" aria-label="Actions" style="display:flex;gap:60px">' + "".join(controls) + '</nav>' + report
+    elif layout == "table":
+        content = '<table style="margin:40px;border:1px solid"><tbody>' + "".join(controls) + '</tbody></table>' + report
+    else:
+        content = '<dialog open style="width:400px">' + "".join(controls) + report + '</dialog>'
+    return '<!doctype html><meta charset="utf-8"><script>window.clicks=[];</script>' + content
+
+
 @pytest.fixture
 async def site() -> AsyncIterator[str]:
     html = b'''<label>Name <input id="name"></label>
@@ -25,6 +53,10 @@ async def site() -> AsyncIterator[str]:
     async def respond(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         request = await reader.readuntil(b"\r\n\r\n")
         body = html
+        if request.startswith(b"GET /multilayout/"):
+            path = request.split(b" ", 2)[1].decode()
+            _, _, layout, scenario = path.split("/")
+            body = multilayout_html(layout, scenario).encode()
         if request.startswith(b"GET /frame"):
             child = html.decode()
             if b"/frame-nested" in request.splitlines()[0]:
@@ -561,3 +593,121 @@ def test_smoke_refuses_a_second_request_in_one_case():
         policy.reserve("two", request)
     assert ledger.snapshot()["batch"]["admitted_requests"] == 1
     ledger.close()
+
+
+@pytest.mark.parametrize("layout", ["toolbar", "table", "dialog"])
+@pytest.mark.parametrize("scenario", ["sufficient", "missing", "conflicting", "stale", "no_effect"])
+async def test_real_dom_multilayout_selection_readback(
+    site, chromium_required, monkeypatch, tmp_path, layout, scenario,
+):
+    import json
+    from dataclasses import asdict
+    from typing import cast
+
+    import httpx
+    from agent_computer_use.channels.dom import ManagedChromiumChannel
+    from agent_computer_use.contracts import snapshot_json
+    from agent_computer_use.factory import create_subagent
+    from agent_computer_use.jev import JevChoiceRoute
+
+    source_html = multilayout_html(layout, scenario)
+    desired_slot = "A" if layout == "table" else "B"
+    captured, audits, closed = [], [], []
+    agent = create_subagent({"browser": {"scope": "managed-page",
+                                         "url": f"{site}multilayout/{layout}/{scenario}"},
+                             "selector": "jev"})
+    browser = cast(ManagedChromiumChannel, agent.controller.source)
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            payload = json.loads(request.content)
+            snapshot = payload["state"]["snapshot"]
+            assert snapshot["complete"] and snapshot["ready"]
+            assert all(e["source"] == "dom" for e in snapshot["elements"])
+            facts = {f["key"]: f["value"] for f in snapshot["facts"]}
+            assert facts["status:Result"] == "idle"
+            assert payload["state"]["evidence_contract"]["output_effect"] == "proposal_only"
+            criteria = payload["questions"]["next_action"]["criteria"]
+            if scenario == "missing":
+                assert not any(key.startswith("status:Identity") for key in facts)
+                choice = "need_more_context"
+            elif scenario == "conflicting":
+                assert facts[f"status:Secondary identity {desired_slot}"] != facts[f"status:Identity {desired_slot}"]
+                choice = "ambiguous"
+            else:
+                matches = [slot for slot in ("A", "B") if facts[f"status:Identity {slot}"] == "K7"]
+                assert matches == [desired_slot]
+                ref = next(e["ref"] for e in snapshot["elements"] if e["label"] == f"执行 {matches[0]}")
+                choice = next(key for key, value in criteria.items()
+                              if isinstance(value, dict) and value["target_ref"] == ref)
+            response = {"model": "jev-1.13.0", "answers": {"next_action": {
+                "type": "choice", "choice": choice, "confidence": 1,
+                "probabilities": {key: int(key == choice) for key in criteria},
+            }}, "usage": {"input_tokens": 12, "output_tokens": 0}}
+            captured.append({"request": payload, "response": response})
+            if scenario == "stale":
+                assert browser.page is not None
+                await browser.page.get_by_role("button", name=f"执行 {desired_slot}", exact=True).evaluate(
+                    "el => el.replaceWith(el.cloneNode(true))")
+            return httpx.Response(200, json=response)
+
+        async def aclose(self):
+            closed.append(True)
+
+    async def audit(record):
+        audits.append(asdict(record))
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    ctx = SubAgentContext(SubAgentAuthorization(frozenset({"desktop", "network"})),
+                          SubAgentBudget(), asyncio.Event(), audit=audit)
+    ctx.runtime.configure_json_model("dom-task", JevChoiceRoute(
+        "https://offline.invalid/v1/systemone", "jev-1.13.0", "jev"), credential="fixture-only-key")
+    task_goal = GoalContract.from_input({
+        "schema_version": 1, "scope": "managed-page", "objective": "执行身份 K7 对应的项目",
+        "inputs": [{"key": "identity", "value": "K7"}],
+        "milestones": [{"id": "activate", "operation": "click", "role": "button",
+                        "label": "执行目标", "postcondition": {"key": "status:Result", "value": "selected:K7"}}],
+        "completion": [{"key": "status:Result", "value": "selected:K7"}],
+    })
+    try:
+        outputs = [o async for o in agent.run(SubAgentRequest(
+            "select target", "", "dom-task", task_goal.model_dump(mode="json")), ctx)]
+        result = outputs[-1].metadata["task_result"]
+        assert browser.page is not None
+        effects = await browser.page.evaluate("window.clicks")
+        displayed = await browser.page.get_by_role("status", name="Result", exact=True).text_content()
+        assert len(captured) == 1 and ctx.budget.total_tokens == 12
+        assert browser.previous is not None
+        if scenario == "sufficient":
+            assert result["status"] == "completed" and result["reason"] == "goal_verified"
+            assert effects == [desired_slot] and displayed == "selected:K7"
+            assert browser.previous.observation_id != captured[0]["request"]["state"]["snapshot"]["observation_id"]
+            assert len(agent.controller.receipts) == 1
+        elif scenario == "no_effect":
+            assert result["status"] == "unknown" and result["reason"] == "effect_unknown"
+            assert result["details"]["pending_effect"] is True
+            assert effects == [desired_slot] and displayed == "idle"
+            assert len(agent.controller.receipts) == 1
+        else:
+            assert result["status"] == "stopped"
+            if scenario == "stale":
+                assert result["reason"] == "stale_reference"
+            assert effects == [] and displayed == "idle" and not agent.controller.receipts
+        screenshot = await browser.page.screenshot() if scenario == "sufficient" else None
+        evidence = {"layout": layout, "scenario": scenario, "model_http": "fixed_fake",
+                    "source_html": source_html, "calls": captured, "task_result": result,
+                    "last_snapshot": snapshot_json(browser.previous), "page_clicks": effects,
+                    "page_result": displayed, "audit": audits}
+    finally:
+        await agent.aclose()
+        await ctx.runtime.aclose()
+    assert browser.closed and browser.browser is not None
+    assert not browser.browser.is_connected() and closed == [True]
+    evidence["browser_closed"] = True
+    destination = Path(os.environ.get("TANK_DOM_EVIDENCE_DIR", str(tmp_path)))
+    destination.mkdir(parents=True, exist_ok=True)
+    with (destination / f"{layout}-{scenario}.json").open("x") as file:
+        json.dump(evidence, file, ensure_ascii=False, indent=2)
+    if screenshot is not None:
+        with (destination / f"{layout}-{scenario}.png").open("xb") as file:
+            file.write(screenshot)
