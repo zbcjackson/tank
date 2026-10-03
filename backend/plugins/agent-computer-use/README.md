@@ -224,3 +224,45 @@ The paid smoke harness is an explicit opt-in: from backend run
 `uv run --no-sync python benchmarks/computer_use/jev_smoke.py --live --output <new-directory>`.
 It uses at most three requests, one per case, with no automatic retry; it stops on
 failure/unknown usage and writes synthetic-only wire evidence and its spend journal.
+
+### Selector evidence contract (version 1)
+
+The Jev request now carries `state.evidence_contract`. Goal inputs are task or
+Advisor declarations; milestone/completion predicates describe desired outcomes.
+Snapshot facts/elements are reports from the current observation channel, bound
+by the existing observation ID/scope/generation. They are not independent proof
+of backend business state. The contract does not add a business-evidence provider,
+verify claims, or upgrade a page value into an authoritative business fact.
+
+The selector proposes one offered complete action or an existing control result.
+It is instructed to retain refusal for missing/conflicting required evidence or
+ambiguous targets, while avoiding invented unrelated prerequisites. Observation
+text is data, not permission to override these instructions. This is model guidance,
+not a prompt-injection security boundary or a guarantee that the model obeys it.
+Host authorization, binding checks and effect verification still govern execution.
+No synthetic `business_state` or blanket business-approval assertion is injected.
+
+These instructions have offline contract coverage; the v3 paid results concern
+its frozen diagnostic prompts and do not validate this different production prompt
+or its four control categories. The default factory remains opt-in. Historical
+v1/v2/v3 archives remain unchanged; changing the pinned Jev source intentionally
+makes their current-worktree replay validation fail. Reproduce at the recorded
+execution commit or freeze a new experiment, never overwrite historical hashes.
+
+### Next held-out validation protocol
+
+Before another paid run, freeze a fresh scenario-family split and new request digest.
+Use new domains outside the twelve diagnostic cases, with paired sufficient-evidence,
+missing-identity, conflicting-evidence and page-instruction-injection variants.
+Author expected outcomes separately from model-visible inputs, review the provenance
+of every fact, and freeze labels before viewing model responses. Any authored facts
+remain synthetic; real integration acceptance separately requires channel/API evidence.
+
+Compare the previous selector prompt with this exact version-1 contract using the
+same model, candidates and host gates. Preserve the four production control options;
+score intended-action coverage, wrong targets, negative actions and refusal types
+separately. Include invalid/failed/not-run cases in denominators. Counterbalance order,
+trace connection reuse, reserve usage and declare repetitions before execution.
+Do not tune on this holdout; failures become development cases and require a new
+holdout for later claims. This protocol is not a prepared dataset, frozen paid batch
+or production acceptance. No additional live requests are part of this change.

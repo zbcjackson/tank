@@ -1002,3 +1002,13 @@ aware scoring, counterbalanced order, tamper refusal, complete-grid contrasts an
 fake HTTP through the reused guarded call. Unknown usage, mandatory audit failure,
 cancellation and journal reuse are covered without paid calls. See
 [the v3 protocol](benchmarks/computer_use/fixtures/s3-v3/README.md) for scoring limits.
+
+## Selector evidence contract
+
+`test_jev.py` checks the actual governed HTTP payload keeps task/Advisor declarations
+and desired outcomes separate from conflicting current observation reports, sends
+only the new snapshot on the next request, and preserves `need_more_context` output.
+Existing Controller tests verify all four refusal controls prevent dispatch and
+successful proposals require effect verification. These fake-HTTP checks establish
+serialization and control handling, not model obedience or business authenticity.
+The held-out protocol is in the plugin README; no paid calls run during tests.

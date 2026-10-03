@@ -1613,6 +1613,40 @@ v3 digest `66e3ac7c14f1d42b0fffb95bb17eef379d5e684bab34e9b82c0d9c791fb73ef1`。
 第 2 轮自检无遗留问题，停止评审；这两处修正由评审者自行复核。docs/diff check
 通过，未读取密钥、重跑模型或修改原始证据。协调者核对最终 diff 与验证证据。
 
+#### S3 第九批：selector 证据与职责契约（2026-10-03，离线验收与评审完成）
+
+基线 `48167005`。将 v3 的诊断落实为现有 Jev 输入的明确职责说明，而非注入
+合成业务事实或宣称已完成业务校验。保持现有四类控制输出与宿主执行边界。
+
+1. 为当前 selector 请求声明版本化 evidence contract：goal 的输入/预期结果是
+   任务声明，snapshot 的 facts 是当前观察通道报告，均不能自动升级为业务验证。
+   模型只匹配提供的完整动作；需要的身份/视觉证据缺失、歧义或输入冲突时保留拒绝。
+2. 明确 proposal-only 与执行时宿主重检，不声称 desktop 权限已验证业务条件；
+   页面文本不得覆盖此契约。没有可信业务来源时不伪造 enriched business_state。
+3. 新留出验证方案：使用未见过的场景族，成对包含事实充分/身份缺失/冲突/页面指令
+   注入；冻结输入和独立评分后才调用模型。当前仅准备协议，不新增付费批次。
+4. **Tests**：先红后绿检验真实受控 HTTP 请求中的来源分离、期望值不变成观察事实、
+   下一次请求只使用新快照，以及控制输出继续阻止动作。现有停止/审计/预算测试复用。
+5. **最终 Verification Checklist**：执行 §10 全部适用项目：web lint/tsc、backend
+   lint/全量 pytest/修改文件 pyright、CLI lint、开发服务日志、E2E、docs check；
+   协议未改则同步检查不适用。完成最多三轮 code-reviewer review-and-refactor。
+
+旧 v1/v2/v3 原始证据及冻结文件不改。Jev 源码 hash 改变后，旧 freeze 的当前代码
+重放校验应失败；历史证据仍对应各自执行基线，新实验必须新冻结。
+
+实现提交 `61139b43`。两项新增请求契约回归先红后绿；全量后端 **5545 passed /
+1 skipped / 21 warnings**（`/tmp/tank-s3-contract-backend.log`），E2E **17 场景 /
+67 步**（`/tmp/tank-s3-contract-e2e.log`）；web lint/tsc、backend/CLI lint、修改文件
+pyright、开发服务日志、docs/diff check 全通过。协议未改，同步检查不适用。
+已确认三版历史 freeze 均拒绝当前修改后的源码，归档原始证据未变。
+这只验收请求来源说明和控制处理，不证明模型遵循提示或新增了业务事实验证能力。
+新留出协议见插件 README；数据集及付费批次尚未准备，也未发送新模型请求。
+
+独立 code-reviewer 第 1 轮 review-and-refactor 无可操作问题，未修改文件，立即停止。
+评审核对契约/既有控制边界/新测试及能力声明，独立确认历史 freeze 拒绝、docs/diff
+check，读取并复用上述全量验证日志。协调者已核对最终 diff 与验证证据。没有新付费
+调用；业务事实验证器与新留出数据集仍待后续实现。
+
 ### S4：多步目标、按需 Advisor 与恢复闭环
 
 - 接入统一语义命令面、真实生成模型消息序列化、视觉 GroundingAdapter 风格能力；
