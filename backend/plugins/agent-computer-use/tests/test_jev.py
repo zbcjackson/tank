@@ -1167,3 +1167,58 @@ def test_v3_contrasts_are_predefined_and_require_complete_responses(monkeypatch)
     assert c['jev']['interaction']['positive_action_delta'] == 1
     rows[0]['status']='invalid'
     assert m['contrasts'](rows) is None
+
+
+async def test_selector_distinguishes_declared_goals_from_observed_facts(monkeypatch):
+    from dataclasses import replace
+
+    from agent_computer_use.contracts import Fact
+
+    async def respond(request):
+        return httpx.Response(200, json=reply(request, "need_more_context"))
+
+    ctx, selector, sent, _ = setup(monkeypatch, respond)
+    goal, snapshot, actions = selection()
+    goal = goal.model_copy(update={"inputs": (Fact(key="saved", value="yes"),)})
+    snapshot = replace(snapshot, facts=(Fact(key="saved", value="no"),))
+    try:
+        decision = await selector.choose(goal, snapshot, actions, ctx)
+        state = json.loads(sent[0].content)["state"]
+        contract = state["evidence_contract"]
+        assert contract["schema_version"] == 1
+        assert contract["output_effect"] == "proposal_only"
+        assert contract["sources"]["goal.inputs"] == "task_or_advisor_declarations"
+        assert contract["sources"]["goal.completion"] == "desired_outcomes"
+        assert contract["sources"]["snapshot.facts"] == "current_observation_channel_reports"
+        assert contract["business_validation"] == "not_established_by_this_contract"
+        assert state["goal"]["inputs"] == [{"key": "saved", "value": "yes"}]
+        assert state["snapshot"]["facts"] == [{"key": "saved", "value": "no"}]
+        assert "business_state" not in state
+        assert decision.choice == "need_more_context"
+    finally:
+        await ctx.runtime.aclose()
+
+
+async def test_selector_request_uses_only_current_observation_evidence(monkeypatch):
+    from dataclasses import replace
+
+    from agent_computer_use.contracts import Fact
+
+    async def respond(request):
+        return httpx.Response(200, json=reply(request, "need_more_context"))
+
+    ctx, selector, sent, _ = setup(monkeypatch, respond)
+    goal, snapshot, actions = selection()
+    try:
+        await selector.choose(goal, replace(snapshot, facts=(Fact(key="old", value="private"),)), actions, ctx)
+        current = replace(snapshot, observation_id="obs2", generation=2,
+                          facts=(Fact(key="new", value="reported"),))
+        current_actions = replace(actions, binding=replace(actions.binding, observation_id="obs2", generation=2))
+        await selector.choose(goal, current, current_actions, ctx)
+        state = json.loads(sent[1].content)["state"]
+        assert state["evidence_contract"]["sources"]["snapshot.facts"] == "current_observation_channel_reports"
+        assert state["snapshot"]["facts"] == [{"key": "new", "value": "reported"}]
+        assert "private" not in sent[1].content.decode()
+        assert state["binding"]["observation_id"] == "obs2"
+    finally:
+        await ctx.runtime.aclose()
