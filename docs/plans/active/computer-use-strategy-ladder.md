@@ -1683,6 +1683,40 @@ pyright、开发服务日志、docs/diff check 通过；协议未改，同步检
 并以 AST 比较验证生产 payload 提取前后相同。docs/diff check 通过，复用实现后
 完整验证日志。协调者核对最终 diff 与证据；没有遗留问题、模型请求或凭据访问。
 
+#### S3 第十一批：留出集受控执行器（2026-10-03，验收与评审完成，待付费授权）
+
+基线 `05a85dcf`。复用冻结的 24 场景和独立标签，将 48 个完整 payload 接入真实
+TaskModelTransport / BenchmarkModelPolicy / SpendLedger 与生产 parse_choice。
+不改提示词、数据或历史准备文件；新增执行器单独冻结源码、HTTP 版本和执行方案。
+
+1. 单一共享 Jev 连接池，每请求独立上下文/授权/审计；无重试、重定向或隐式预热。
+2. 完整 48 行计划分母；未知用量/审计失败/预算/取消停止后保留未执行行。
+   保留原始请求响应、用量、trace 与评分；拒绝覆盖已有 journal。
+3. **Tests**：真实 transport + fake HTTP，验证精确 payload、全量评分/对照、审计与
+   用量守恒、限额零发送、未知用量/取消停批、清理失败与冻结篡改。
+4. 准备默认离线；只有 --live + 已批准 digest 才加载 TYPESAFE_API_KEY。
+   本批不发真实请求，最终新冻结方案单列请求付费授权。
+5. **最终 Verification Checklist**：§10 全部适用步骤，web lint/tsc、backend
+   lint/全量 pytest/修改文件 pyright、CLI lint、运行时日志、E2E、docs check；
+   协议未改则同步检查不适用。最多三轮独立 code-reviewer review-and-refactor。
+
+新增 11 项定向回归通过；冻结后再次读取标签会改变评分的回归先红后绿，改为只用
+已校验的内存冻结标签/动作。最终后端 **5563 passed / 1 skipped / 21 warnings**
+（`/tmp/tank-s3-holdout-live-final-backend.log`），E2E **17 场景 / 67 步**
+（`/tmp/tank-s3-holdout-live-e2e.log`）；web lint/tsc、backend/CLI lint、修改文件
+pyright、开发日志、docs/diff check 全通过。协议未改，同步检查不适用。
+初轮 5562 项通过后新增一项回归，因此重新执行了最终全量。
+
+可执行 digest `2db565e335907efdedbd276d4b82b6e7060534c7b155782fc394516f007ca192`。
+[完整执行提案](../../../backend/benchmarks/computer_use/reports/20261003-s3-holdout-live-prepared/README.md)
+固定 48 次 Jev 请求、$0.25 共享预留；旧准备集摘要仍可验证，请求/标签/顺序完全一致。
+本批真实请求为 0；完成独立评审后，按本计划单列请求新可执行批次授权。
+
+实现提交 `5f13f7a3`。独立 code-reviewer 第 1 轮无可操作问题，未改文件，立即
+停止；核对生命周期、停止/清理及记录边界，独立验证新旧摘要、全部 payload/标签/
+顺序/模型/预算一致、冻结动作与绑定重建。docs/diff check 通过，复用最终验证日志。
+协调者核对最终 diff 与证据，无遗留问题。仍未发送真实 API 请求，等待新批次授权。
+
 ### S4：多步目标、按需 Advisor 与恢复闭环
 
 - 接入统一语义命令面、真实生成模型消息序列化、视觉 GroundingAdapter 风格能力；

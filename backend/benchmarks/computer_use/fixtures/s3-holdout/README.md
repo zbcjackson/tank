@@ -1,7 +1,7 @@
 # S3 synthetic holdout preparation — 2026-10-03
 
-Status: offline dataset and paired request preparation; no model responses observed.
-This is not an executable paid batch or production acceptance.
+Status: dataset and governed executor prepared; no model responses observed.
+Only the separately frozen executable entry below can run an approved paid batch.
 
 ## Dataset and independent labels
 
@@ -65,8 +65,55 @@ of old v1/v2/v3 freezes; their raw artifacts and recorded execution commits stay
 The prospective recipe is **48 Jev requests, $0.25 reservation cap**, one shared
 provider pool, measured new/reused connections, no hidden warmups or retries. Model,
 ceiling and price values are the historical frozen contracts, not freshly verified
-provider pricing. There is deliberately no `--live` entry point yet. A subsequent
-executor must wire the exact production requests to governed transport/ledger/audit,
-retain every planned row, stop on unknown usage/audit failure, and re-freeze its final
-source before seeking batch-specific execution approval. This preparation digest is
-not a paid-run authorization. No extra approval is needed to inspect the offline data.
+provider pricing. The original preparation module has no `--live` entry point. The
+companion executor described below supplies governed transport/ledger/audit and a
+separate freeze. The original preparation digest is not a paid-run authorization.
+No extra approval is needed to inspect the offline data.
+
+## Governed executable entry
+
+`s3_holdout_live.py` now implements the separately frozen execution adapter. The
+original `s3_holdout.py` entry and preparation-only artifact remain unchanged.
+The executable freeze adds its source, the reused trace helper source, HTTP versions
+and connection settings. It keeps the original inputs, labels, model and 48-call order.
+
+From backend, prepare a new executable directory (no credentials/network):
+
+```bash
+uv run --no-sync python -m benchmarks.computer_use.s3_holdout_live --output <new-directory>
+```
+
+Only after batch-specific approval of that new digest:
+
+```bash
+uv run --no-sync python -m benchmarks.computer_use.s3_holdout_live --live \
+  --approved-sha256 <executable-digest> --output <prepared-directory>
+```
+
+The live CLI validates the freeze before loading `core/.env` / `TYPESAFE_API_KEY`.
+Requests use the frozen payload, production Jev route/parser and TaskModelTransport.
+A single pool is borrowed by independent per-request contexts; the experiment alone
+closes the pool. Shared ledger reservations enforce 48 requests and $0.25. Prices and
+ceilings remain the explicitly historical frozen contracts, not an invoice guarantee.
+No retries, redirects, hidden warmups, browser actions or threshold changes occur.
+
+Every report retains all 48 planned rows, including not-run rows after unknown usage,
+audit failure, budget refusal or cancellation. Request fields appear only for attempted
+calls; the boundary audit distinguishes admitted/sent calls from pre-send rejection.
+Known-usage invalid decisions are recorded as invalid and the batch can continue;
+unknown usage stops the batch. `completed` means the schedule finished without a
+stop/cleanup failure, not that replies were valid or actions correct. Compare the
+status counts before interpreting scores. All original control categories remain.
+
+Per-arm/per-condition summaries keep planned denominators, refusal categories and
+observed-reuse timings. Paired count contrasts are emitted only for a complete valid
+response grid; they may still be present after a pool cleanup failure, which remains
+explicit and makes `completed` false. These are descriptive deltas, not statistical
+significance tests. Scores use the in-memory frozen labels/actions after validation;
+subsequent source edits cannot silently change the scoring reference.
+
+Existing spend, audit, row or result artifacts refuse execution before client creation.
+The runner keeps raw responses, audit/spend journals and cleanup errors; it cannot
+promise a complete final report after process kill, disk failure or repeated cancellation.
+Those conditions require inspection of durable records, not automatic retry. Repeated
+execution in the same directory is prohibited.

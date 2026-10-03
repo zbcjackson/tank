@@ -1024,3 +1024,12 @@ admission and four control outcomes remain covered by existing integration tests
 See [the holdout protocol](benchmarks/computer_use/fixtures/s3-holdout/README.md).
 These tests establish preparation contracts, not model effectiveness; no live executor
 or business-evidence provider is added.
+
+## S3 holdout governed execution
+
+`test_jev.py` adds 11 fake-HTTP execution checks for `s3_holdout_live.py`: exact frozen
+payloads, production four-control parsing, shared ledger/audit conservation, known-
+usage invalid replies, unknown usage/HTTP failure/cancellation stops, zero-send audit
+and budget rejection, cleanup failures, existing-artifact refusal, tampered recipe
+rejection and scoring from frozen labels despite changed later source reads. All 48
+planned rows survive controlled stop paths. No real model requests run in pytest.

@@ -270,6 +270,7 @@ or production acceptance. No additional live requests are part of this change.
 The [first new synthetic holdout preparation](../../benchmarks/computer_use/fixtures/s3-holdout/README.md)
 now contains 24 label-separated scenarios and 48 paired planned Jev requests. It
 uses the actual production payload builder; its six domains share one two-row layout.
-No model responses have been collected, and the live execution adapter is not yet
-implemented. This supersedes the protocol's earlier “not a prepared dataset” status;
-it still does not constitute a frozen executable paid batch or production acceptance.
+No model responses have been collected. The separately frozen `s3_holdout_live` adapter
+now connects these requests to host transport, budgets and audit; see the protocol's
+governed executable entry. A new executable digest requires its own approval before
+paid execution. This is not production acceptance.
