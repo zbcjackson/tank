@@ -1,0 +1,2287 @@
+{
+  "revision": "s3-replay-v2",
+  "cases": [
+    {
+      "id": "editor-save",
+      "split": "calibration",
+      "layout_family": "editor-save",
+      "category": "semantic",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Save edits to the current document in place; do not create a copy.",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Save edits to the current document in place; do not create a copy.",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Save",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Cancel",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "Save a copy",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Export PDF",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e0"
+      }
+    },
+    {
+      "id": "dialog-print",
+      "split": "calibration",
+      "layout_family": "dialog-print",
+      "category": "semantic",
+      "goal": {
+        "schema_version": 1,
+        "objective": "打印整个文件，不要仅打印选中部分，也不要只预览。",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "打印整个文件，不要仅打印选中部分，也不要只预览。",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "取消",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "打印",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "打印选中部分",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "打印预览",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e1"
+      }
+    },
+    {
+      "id": "contact-email",
+      "split": "calibration",
+      "layout_family": "contact-email",
+      "category": "ambiguity",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Email address",
+        "scope": "page",
+        "inputs": [
+          {
+            "key": "text",
+            "value": "alice@example.test"
+          }
+        ],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "fill",
+            "role": "textbox",
+            "label": "Email address",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            },
+            "input_key": "text"
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "textbox",
+            "label": "Work email",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "label": "Office email",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "textbox",
+            "label": "Internal notes",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "textbox",
+            "label": "Reference",
+            "actions": [
+              "fill"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false
+      }
+    },
+    {
+      "id": "export-name",
+      "split": "calibration",
+      "layout_family": "export-name",
+      "category": "fill",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Set the output file name, not the template or folder name.",
+        "scope": "page",
+        "inputs": [
+          {
+            "key": "text",
+            "value": "report.pdf"
+          }
+        ],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "fill",
+            "role": "textbox",
+            "label": "Set the output file name, not the template or folder name.",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            },
+            "input_key": "text"
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "textbox",
+            "label": "Directory",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "label": "Template name",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "textbox",
+            "label": "文件名",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "textbox",
+            "label": "Folder name",
+            "actions": [
+              "fill"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e2"
+      }
+    },
+    {
+      "id": "settings-exact",
+      "split": "calibration",
+      "layout_family": "settings-exact",
+      "category": "exact",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Apply",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Apply",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Cancel",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "History",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "Help",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Apply",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e3"
+      }
+    },
+    {
+      "id": "toolbar-no-target",
+      "split": "calibration",
+      "layout_family": "toolbar-no-target",
+      "category": "none",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Save this document",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Save this document",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Cancel",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Delete",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "History",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Help",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false
+      }
+    },
+    {
+      "id": "file-discard",
+      "split": "calibration",
+      "layout_family": "file-discard",
+      "category": "risk",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Discard unsaved edits to the current file only, without deleting the file.",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Discard unsaved edits to the current file only, without deleting the file.",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Discard changes",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Delete file",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "Reset all files",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Save changes",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e0"
+      }
+    },
+    {
+      "id": "account-context",
+      "split": "calibration",
+      "layout_family": "account-context",
+      "category": "context",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Continue with the account authorized by the user, identity not supplied",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Continue with the account authorized by the user, identity not supplied",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Alice",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Bob",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "History",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Help",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false
+      }
+    },
+    {
+      "id": "chart-visual",
+      "split": "calibration",
+      "layout_family": "chart-visual",
+      "category": "complex",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Click the region with highest revenue. Chart values are absent from this observation.",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Click the region with highest revenue. Chart values are absent from this observation.",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "North region",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "South region",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "East region",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "West region",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false
+      }
+    },
+    {
+      "id": "draft-missing",
+      "split": "calibration",
+      "layout_family": "draft-missing",
+      "category": "missing",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Message",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "fill",
+            "role": "textbox",
+            "label": "Message",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            },
+            "input_key": "text"
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "textbox",
+            "label": "Message",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "label": "Subject",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "textbox",
+            "label": "Internal notes",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "textbox",
+            "label": "Reference",
+            "actions": [
+              "fill"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false,
+        "gate": "missing_parameters"
+      }
+    },
+    {
+      "id": "modal-duplicate",
+      "split": "calibration",
+      "layout_family": "modal-duplicate",
+      "category": "duplicate",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Confirm",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Confirm",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Confirm",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Confirm",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "History",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Help",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false,
+        "gate": "ambiguous_target"
+      }
+    },
+    {
+      "id": "list-overflow",
+      "split": "calibration",
+      "layout_family": "list-overflow",
+      "category": "recall",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Choose the final report",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Choose the final report",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Item 00",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Item 01",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "Item 02",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Item 03",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e4",
+            "role": "button",
+            "label": "Item 04",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e5",
+            "role": "button",
+            "label": "Item 05",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e6",
+            "role": "button",
+            "label": "Item 06",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e7",
+            "role": "button",
+            "label": "Item 07",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e8",
+            "role": "button",
+            "label": "Item 08",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e9",
+            "role": "button",
+            "label": "Item 09",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e10",
+            "role": "button",
+            "label": "Item 10",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e11",
+            "role": "button",
+            "label": "Item 11",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e12",
+            "role": "button",
+            "label": "Item 12",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e13",
+            "role": "button",
+            "label": "Item 13",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e14",
+            "role": "button",
+            "label": "Item 14",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e15",
+            "role": "button",
+            "label": "Item 15",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e16",
+            "role": "button",
+            "label": "Item 16",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e17",
+            "role": "button",
+            "label": "Item 17",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e18",
+            "role": "button",
+            "label": "Item 18",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e19",
+            "role": "button",
+            "label": "Item 19",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e20",
+            "role": "button",
+            "label": "Item 20",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e21",
+            "role": "button",
+            "label": "Item 21",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e22",
+            "role": "button",
+            "label": "Item 22",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e23",
+            "role": "button",
+            "label": "Item 23",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e24",
+            "role": "button",
+            "label": "Item 24",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e25",
+            "role": "button",
+            "label": "Item 25",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e26",
+            "role": "button",
+            "label": "Item 26",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e27",
+            "role": "button",
+            "label": "Item 27",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e28",
+            "role": "button",
+            "label": "Item 28",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e29",
+            "role": "button",
+            "label": "Item 29",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e30",
+            "role": "button",
+            "label": "Item 30",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e31",
+            "role": "button",
+            "label": "Item 31",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e32",
+            "role": "button",
+            "label": "ZZ final report",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e32"
+      }
+    },
+    {
+      "id": "invoice-submit",
+      "split": "holdout",
+      "layout_family": "invoice-submit",
+      "category": "semantic",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Send the current invoice to the customer now, not a quote or draft.",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Send the current invoice to the customer now, not a quote or draft.",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Cancel",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Submit invoice",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "Save invoice draft",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Submit quote",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e1"
+      }
+    },
+    {
+      "id": "booking-reserve",
+      "split": "holdout",
+      "layout_family": "booking-reserve",
+      "category": "semantic",
+      "goal": {
+        "schema_version": 1,
+        "objective": "立即确认预订所选行程，不要仅加入收藏或修改行程。",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "立即确认预订所选行程，不要仅加入收藏或修改行程。",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "返回",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "加入收藏",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "确认预订",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "修改行程",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e2"
+      }
+    },
+    {
+      "id": "delivery-address",
+      "split": "holdout",
+      "layout_family": "delivery-address",
+      "category": "ambiguity",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Shipping address",
+        "scope": "page",
+        "inputs": [
+          {
+            "key": "text",
+            "value": "42 Example Road"
+          }
+        ],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "fill",
+            "role": "textbox",
+            "label": "Shipping address",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            },
+            "input_key": "text"
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "textbox",
+            "label": "Home address",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "label": "Residential address",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "textbox",
+            "label": "Internal notes",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "textbox",
+            "label": "Reference",
+            "actions": [
+              "fill"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false
+      }
+    },
+    {
+      "id": "search-product",
+      "split": "holdout",
+      "layout_family": "search-product",
+      "category": "fill",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Search the product catalog, not existing orders or search history.",
+        "scope": "page",
+        "inputs": [
+          {
+            "key": "text",
+            "value": "blue mug"
+          }
+        ],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "fill",
+            "role": "textbox",
+            "label": "Search the product catalog, not existing orders or search history.",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            },
+            "input_key": "text"
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "textbox",
+            "label": "Coupon",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "label": "Order search",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "textbox",
+            "label": "Search history",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "textbox",
+            "label": "商品搜索",
+            "actions": [
+              "fill"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e3"
+      }
+    },
+    {
+      "id": "preferences-exact",
+      "split": "holdout",
+      "layout_family": "preferences-exact",
+      "category": "exact",
+      "goal": {
+        "schema_version": 1,
+        "objective": "保存设置",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "保存设置",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "保存设置",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "取消",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "History",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Help",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e0"
+      }
+    },
+    {
+      "id": "music-no-target",
+      "split": "holdout",
+      "layout_family": "music-no-target",
+      "category": "none",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Export playlist as a file",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Export playlist as a file",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Play",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Remove",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "History",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Help",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false
+      }
+    },
+    {
+      "id": "subscription-pause",
+      "split": "holdout",
+      "layout_family": "subscription-pause",
+      "category": "risk",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Pause the subscription temporarily without cancelling it or deleting the account.",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Pause the subscription temporarily without cancelling it or deleting the account.",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Delete account",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Pause subscription",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "Cancel subscription",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Change plan",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e1"
+      }
+    },
+    {
+      "id": "workspace-context",
+      "split": "holdout",
+      "layout_family": "workspace-context",
+      "category": "context",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Select the user-authorized workspace, but no workspace identity is supplied",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Select the user-authorized workspace, but no workspace identity is supplied",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "North team",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "South team",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "History",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Help",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false
+      }
+    },
+    {
+      "id": "photo-visual",
+      "split": "holdout",
+      "layout_family": "photo-visual",
+      "category": "complex",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Identify which photograph contains a cat; photographs are absent from the text observation",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Identify which photograph contains a cat; photographs are absent from the text observation",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Photo A",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Photo B",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "Photo C",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Photo D",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false
+      }
+    },
+    {
+      "id": "reply-missing",
+      "split": "holdout",
+      "layout_family": "reply-missing",
+      "category": "missing",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Reply body",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "fill",
+            "role": "textbox",
+            "label": "Reply body",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            },
+            "input_key": "text"
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "textbox",
+            "label": "Reply body",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "label": "Title",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "textbox",
+            "label": "Internal notes",
+            "actions": [
+              "fill"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "textbox",
+            "label": "Reference",
+            "actions": [
+              "fill"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false,
+        "gate": "missing_parameters"
+      }
+    },
+    {
+      "id": "wizard-duplicate",
+      "split": "holdout",
+      "layout_family": "wizard-duplicate",
+      "category": "duplicate",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Next",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Next",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Next",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Next",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "History",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Help",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": false,
+        "gate": "ambiguous_target"
+      }
+    },
+    {
+      "id": "catalog-overflow",
+      "split": "holdout",
+      "layout_family": "catalog-overflow",
+      "category": "recall",
+      "goal": {
+        "schema_version": 1,
+        "objective": "Choose the archived invoice",
+        "scope": "page",
+        "inputs": [],
+        "milestones": [
+          {
+            "id": "step",
+            "operation": "click",
+            "role": "button",
+            "label": "Choose the archived invoice",
+            "postcondition": {
+              "key": "done",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "done",
+            "value": "yes"
+          }
+        ]
+      },
+      "snapshot": {
+        "observation_id": "obs",
+        "scope": "page",
+        "generation": 1,
+        "elements": [
+          {
+            "ref": "e0",
+            "role": "button",
+            "label": "Row 00",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e1",
+            "role": "button",
+            "label": "Row 01",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "label": "Row 02",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "label": "Row 03",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e4",
+            "role": "button",
+            "label": "Row 04",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e5",
+            "role": "button",
+            "label": "Row 05",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e6",
+            "role": "button",
+            "label": "Row 06",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e7",
+            "role": "button",
+            "label": "Row 07",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e8",
+            "role": "button",
+            "label": "Row 08",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e9",
+            "role": "button",
+            "label": "Row 09",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e10",
+            "role": "button",
+            "label": "Row 10",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e11",
+            "role": "button",
+            "label": "Row 11",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e12",
+            "role": "button",
+            "label": "Row 12",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e13",
+            "role": "button",
+            "label": "Row 13",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e14",
+            "role": "button",
+            "label": "Row 14",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e15",
+            "role": "button",
+            "label": "Row 15",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e16",
+            "role": "button",
+            "label": "Row 16",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e17",
+            "role": "button",
+            "label": "Row 17",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e18",
+            "role": "button",
+            "label": "Row 18",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e19",
+            "role": "button",
+            "label": "Row 19",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e20",
+            "role": "button",
+            "label": "Row 20",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e21",
+            "role": "button",
+            "label": "Row 21",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e22",
+            "role": "button",
+            "label": "Row 22",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e23",
+            "role": "button",
+            "label": "Row 23",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e24",
+            "role": "button",
+            "label": "Row 24",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e25",
+            "role": "button",
+            "label": "Row 25",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e26",
+            "role": "button",
+            "label": "Row 26",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e27",
+            "role": "button",
+            "label": "Row 27",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e28",
+            "role": "button",
+            "label": "Row 28",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e29",
+            "role": "button",
+            "label": "Row 29",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e30",
+            "role": "button",
+            "label": "Row 30",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e31",
+            "role": "button",
+            "label": "Row 31",
+            "actions": [
+              "click"
+            ]
+          },
+          {
+            "ref": "e32",
+            "role": "button",
+            "label": "ZZ archived invoice",
+            "actions": [
+              "click"
+            ]
+          }
+        ],
+        "facts": [],
+        "complete": true
+      },
+      "gold": {
+        "should_act": true,
+        "target_ref": "e32"
+      }
+    }
+  ]
+}

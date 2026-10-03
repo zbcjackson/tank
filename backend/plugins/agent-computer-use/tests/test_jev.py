@@ -618,3 +618,282 @@ async def test_replay_audit_failure_stops_entire_batch(monkeypatch, tmp_path):
                                          {"jev": "fake", "qwen": "fake"})
     assert failed and sent == []
     assert report["spend"]["stop_reason"] == "audit_failed"
+
+
+def replay_v2(monkeypatch):
+    import runpy
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    return runpy.run_module("benchmarks.computer_use.s3_replay_v2", run_name="replay_v2_test")
+
+
+def test_v2_scores_actionability_separately(monkeypatch):
+    m = replay_v2(monkeypatch)
+    positive = {"should_act": True, "target_ref": "e2"}
+    negative = {"should_act": False}
+    actions = [{"id": "a0", "target_ref": "e2"}, {"id": "a1", "target_ref": "e3"}]
+    assert m["score"](positive, actions, "a0", "returned")["target_correct"] is True
+    wrong = m["score"](positive, actions, "a1", "returned")
+    assert wrong["actionability_correct"] and wrong["wrong_action"]
+    refusal = m["score"](positive, actions, "abstain", "returned")
+    assert refusal["false_refusal"] and not refusal["decision_correct"]
+    assert m["score"](negative, actions, "abstain", "returned")["decision_correct"]
+    assert not m["score"](negative, actions, None, "invalid")["decision_correct"]
+
+
+async def test_v2_trace_reuses_real_http_pool_without_closing_borrowed_pool(monkeypatch):
+    m = replay_v2(monkeypatch)
+    from tank_backend.llm.model_transport import ChatCompletionsRoute, TaskModelTransport
+
+    connections, calls, closed = [], [], []
+
+    async def serve(reader, writer):
+        connections.append(True)
+        try:
+            while True:
+                headers = await reader.readuntil(b"\r\n\r\n")
+                length = next(int(line.split(b":", 1)[1]) for line in headers.splitlines()
+                              if line.lower().startswith(b"content-length:"))
+                await reader.readexactly(length)
+                calls.append(True)
+                body = b'{"usage":{"prompt_tokens":1,"completion_tokens":0,"total_tokens":1}}'
+                writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                             + f"Content-Length: {len(body)}\r\n\r\n".encode() + body)
+                await writer.drain()
+        except asyncio.IncompleteReadError:
+            pass
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    class Pool(httpx.AsyncHTTPTransport):
+        async def aclose(self):
+            closed.append(True)
+            await super().aclose()
+
+    server = await asyncio.start_server(serve, "127.0.0.1", 0)
+    url = f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}/chat/completions"
+    pool = Pool()
+    probes = []
+    try:
+        for i in range(2):
+            probe = m["TraceProbe"]()
+            probes.append(probe)
+            ctx = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
+                                  SubAgentBudget(), asyncio.Event())
+            guard = TaskModelTransport(str(i), ctx,
+                routes=(ChatCompletionsRoute(url, "test", "key", allow_http=True),),
+                credentials={"key": "test-secret"}, inner=m["TraceLease"](pool, probe))
+            async with httpx.AsyncClient(transport=guard) as client:
+                await client.post(url, json={"model": "test", "max_tokens": 10,
+                                           "messages": [{"role": "user", "content": "test"}]})
+            await ctx.runtime.aclose()
+            assert closed == []
+        assert len(connections) == 1 and len(calls) == 2
+        assert [probe.summary()["connection"] for probe in probes] == ["new", "reused"]
+        assert probes[0].summary()["tcp_ms"] is not None
+        assert probes[1].summary()["tcp_ms"] is None
+        assert "test-secret" not in json.dumps([p.summary() for p in probes])
+    finally:
+        await pool.aclose()
+        server.close()
+        await server.wait_closed()
+    assert closed == [True]
+
+
+async def test_v2_missing_trace_is_unknown_not_zero(monkeypatch):
+    probe = replay_v2(monkeypatch)["TraceProbe"]()
+    assert probe.summary()["connection"] == "unknown"
+    assert probe.summary()["headers_complete_ms"] is None
+    await probe.trace("connection.connect_tcp.started", {"secret": "DO_NOT_LOG"})
+    await probe.trace("connection.connect_tcp.failed", {"exception": "DO_NOT_LOG"})
+    assert probe.summary()["tcp_ms"] is None
+    assert "DO_NOT_LOG" not in json.dumps(probe.summary())
+
+
+def test_v2_freeze_compact_inputs_and_disjoint_evidence(monkeypatch, tmp_path):
+    m = replay_v2(monkeypatch)
+    f = m["prepare"](tmp_path / "prepared")
+    assert len(f["cases"]) == 24 and f["request_limit"] == 64
+    for c in f["cases"]:
+        q = c["question"]
+        assert '"gold"' not in json.dumps(q)
+        assert '"target_ref"' not in json.dumps(q)
+        assert '"binding"' not in json.dumps(q)
+        assert "abstain" in q["criteria"]
+        assert not {"none", "ambiguous", "need_more_context", "escalate"} & q["criteria"].keys()
+    chart = next(c for c in f["cases"] if c["id"] == "chart-visual")
+    assert "Open chart" not in json.dumps(chart["question"])
+    assert m["load_freeze"](tmp_path / "prepared", f["sha256"]) == f
+
+
+@pytest.mark.parametrize("fail", [False, True])
+async def test_v2_batch_uses_pools_and_governance(monkeypatch, tmp_path, fail):
+    m = replay_v2(monkeypatch)
+    f = m["prepare"](tmp_path / "prepared")
+    sent, created, closed = [], [], []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        def __init__(self, **kwargs):
+            created.append(self)
+
+        async def handle_async_request(self, request):
+            data = json.loads(request.content)
+            sent.append(data)
+            if fail:
+                return httpx.Response(529)
+            if "questions" in data:
+                criteria = data["questions"]["next_action"]["criteria"]
+                return httpx.Response(200, json={"model": "jev-1.13.0", "answers": {
+                    "next_action": {"type": "choice", "choice": "abstain", "confidence": 1,
+                                    "probabilities": {key: float(key == "abstain") for key in criteria}},
+                }, "usage": {"input_tokens": 10, "output_tokens": 0}})
+            return httpx.Response(200, json={"model": m["v1"].MODELS["qwen"]["model"], "choices": [{
+                "finish_reason": "stop", "message": {"content": '{"choice":"abstain"}'},
+            }], "usage": {"prompt_tokens": 10, "completion_tokens": 1, "total_tokens": 11}})
+
+        async def aclose(self):
+            closed.append(self)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    result = await m["run_replay"](tmp_path / "prepared", f["sha256"],
+                                     {"jev": "fake-secret", "qwen": "fake-secret"})
+    assert len(result["rows"]) == 144
+    assert len(sent) == (1 if fail else 64)
+    assert len(created) == len(closed) == (1 if fail else 34)
+    assert len({id(p) for p in closed}) == len(closed)
+    assert bool(result["spend"]["stop_reason"]) == fail
+    assert "fake-secret" not in json.dumps(result)
+    if not fail:
+        assert result["spend"]["batch"]["known_tokens"] == 32 * 21
+        for row in result["rows"]:
+            if row["status"] == "returned":
+                assert row["timing"]["connection"] == "unknown"
+        for case in f["cases"]:
+            rows = [r for r in result["rows"] if r["case_id"] == case["id"]]
+            assert len({r["public_sha256"] for r in rows}) == 1
+    with pytest.raises(FileExistsError):
+        await m["run_replay"](tmp_path / "prepared", f["sha256"], {"jev": "fake", "qwen": "fake"})
+
+
+async def test_v2_audit_failure_blocks_all_sends(monkeypatch, tmp_path):
+    m = replay_v2(monkeypatch)
+    f = m["prepare"](tmp_path / "prepared")
+    append = m["v1"].append_json
+    failed, sent = [], []
+
+    def fail_audit(file, value):
+        if str(file.name).endswith('audit.jsonl') and not failed:
+            failed.append(True)
+            raise OSError('audit failed')
+        append(file, value)
+
+    async def provider(request):
+        sent.append(request)
+        return httpx.Response(529)
+
+    monkeypatch.setattr(m["v1"], "append_json", fail_audit)
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda **kwargs: httpx.MockTransport(provider))
+    r = await m["run_replay"](tmp_path / "prepared", f["sha256"], {"jev": "fake", "qwen": "fake"})
+    assert failed and sent == [] and r["spend"]["stop_reason"] == "audit_failed"
+
+
+def test_v2_positions_and_gold_are_not_exposed(monkeypatch, tmp_path):
+    from collections import Counter
+    from copy import deepcopy
+
+    m = replay_v2(monkeypatch)
+    f = m["prepare"](tmp_path / "prepared")
+    positions = Counter(c["gold"]["target_ref"] for c in f["cases"]
+                        if c["gold"].get("target_ref") in {"e0", "e1", "e2", "e3"})
+    assert set(positions) == {"e0", "e1", "e2", "e3"}
+    assert max(positions.values()) - min(positions.values()) <= 1
+    c = f["cases"][0]
+    changed = deepcopy(c)
+    changed["gold"] = {"should_act": False}
+    assert m["question"](c["public"]) == m["question"](changed["public"])
+    path = tmp_path / 'prepared/freeze.json'
+    f["httpcore"] = "unexpected"
+    path.write_text(json.dumps(f))
+    with pytest.raises(ValueError, match='Frozen'):
+        m["load_freeze"](tmp_path / 'prepared', f["sha256"])
+
+
+@pytest.mark.parametrize('choice', ['none', 'a999'])
+def test_v2_rejects_unoffered_choice(monkeypatch, choice):
+    m = replay_v2(monkeypatch)
+    data = {"model": "jev-1.13.0", "answers": {"next_action": {
+        "type": "choice", "choice": choice, "confidence": 1,
+        "probabilities": {"a0": 0, "abstain": 1},
+    }}}
+    with pytest.raises(ValueError):
+        m["parse_response"]('jev', data, {'a0': {}, 'abstain': 'refuse'})
+
+
+async def test_v2_cleanup_failure_keeps_paid_row_and_stops(monkeypatch, tmp_path):
+    m = replay_v2(monkeypatch)
+    f = m["prepare"](tmp_path / "prepared")
+    sent = []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            sent.append(request)
+            q = json.loads(request.content)['questions']['next_action']['criteria']
+            return httpx.Response(200, json={"model":"jev-1.13.0", "answers":{"next_action":{
+                "type":"choice", "choice":"abstain", "confidence":1,
+                "probabilities":{key:float(key=='abstain') for key in q},
+            }}, "usage":{"input_tokens":10,"output_tokens":0}})
+
+        async def aclose(self):
+            raise OSError('cleanup failed')
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda **kwargs: HTTP())
+    r = await m['run_replay'](tmp_path/'prepared', f['sha256'], {'jev':'fake','qwen':'fake'})
+    assert len(sent) == 1 and not r['completed']
+    assert r['rows'][1]['usage']['total_tokens'] == 10
+    assert r['rows'][1]['cleanup'] == 'unknown'
+    assert r['spend']['stop_reason'] == 'cleanup_failed'
+
+
+async def test_v2_cancel_preserves_call_and_stops_pool(monkeypatch, tmp_path):
+    m = replay_v2(monkeypatch)
+    f = m['prepare'](tmp_path/'prepared')
+    started, ended, closed = asyncio.Event(), asyncio.Event(), []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+                raise AssertionError("unreachable")
+            finally:
+                ended.set()
+
+        async def aclose(self):
+            closed.append(True)
+
+    monkeypatch.setattr(httpx, 'AsyncHTTPTransport', lambda **kwargs: HTTP())
+    task = asyncio.create_task(m['run_replay'](tmp_path/'prepared', f['sha256'],
+                                               {'jev':'fake','qwen':'fake'}))
+    await asyncio.wait_for(started.wait(), 2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    r = json.loads((tmp_path/'prepared/result.json').read_text())
+    assert ended.is_set() and closed == [True]
+    assert not r['completed'] and r['rows'][-1]['status'] == 'cancelled'
+    assert r['rows'][-1]['usage']['unknown_calls'] == 1
+
+
+async def test_v2_phase_names_do_not_claim_first_byte_or_inference(monkeypatch):
+    p = replay_v2(monkeypatch)['TraceProbe']()
+    for name in ('connection.start_tls.started', 'connection.start_tls.complete',
+                 'http11.receive_response_headers.started', 'http11.receive_response_headers.complete',
+                 'http11.receive_response_body.started', 'http11.receive_response_body.complete'):
+        await p.trace(name, {'headers': {'Authorization': 'DO_NOT_LOG'}})
+    s = p.summary()
+    assert s['tls_ms'] >= 0 and s['headers_wait_ms'] >= 0 and s['body_receive_ms'] >= 0
+    assert s['headers_complete_ms'] <= s['body_complete_ms']
+    assert 'ttfb_ms' not in s and 'inference_ms' not in s
+    assert 'DO_NOT_LOG' not in json.dumps(s)
