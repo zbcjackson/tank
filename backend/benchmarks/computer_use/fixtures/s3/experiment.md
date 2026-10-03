@@ -1,6 +1,8 @@
 # Frozen model comparison proposal
 
-2026-10-03 — prepared, real batch not yet authorized or run.
+2026-10-03 — original frozen proposal. The user subsequently approved this batch;
+[the execution record](../../reports/20261003-s3-replay-prepared/README.md) records
+its one completed run. The settings below were not changed after seeing results.
 
 - Jev: `jev-1.13.0`, `https://api.typesafe.ai/v1/systemone`, credential environment
   reference `TYPESAFE_API_KEY`.
