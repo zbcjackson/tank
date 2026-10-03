@@ -1,0 +1,28 @@
+{
+  "freeze_sha256": "9bfed6bbe775859db0fd80f6d0adc91accdebd187d217b6fc8707f45d7ed327c",
+  "thresholds": {
+    "d2/ambiguity": 1.01,
+    "d2/complex": 0.9,
+    "d2/context": 1.01,
+    "d2/duplicate": 1.01,
+    "d2/exact": 1.01,
+    "d2/fill": 0.0,
+    "d2/missing": 1.01,
+    "d2/none": 1.01,
+    "d2/recall": 1.01,
+    "d2/risk": 0.0,
+    "d2/semantic": 0.0,
+    "action/ambiguity": 1.01,
+    "action/complex": 0.9,
+    "action/context": 1.01,
+    "action/duplicate": 1.01,
+    "action/exact": 1.01,
+    "action/fill": 0.0,
+    "action/missing": 1.01,
+    "action/none": 1.01,
+    "action/recall": 1.01,
+    "action/risk": 0.0,
+    "action/semantic": 0.0
+  },
+  "calibration_sha256": "7adbf1c448d485badc72ea2cd1c9fda3155907201af8015f813c2025ad6b26d6"
+}
