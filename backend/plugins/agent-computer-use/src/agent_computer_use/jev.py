@@ -117,27 +117,35 @@ class JevSelector:
             }},
         }
         response = await model.request(payload)
-        answers = response.get("answers")
-        if (response.get("model") != version or not isinstance(answers, dict)
-                or set(answers) != {"next_action"}
-                or not isinstance(answers.get("next_action"), dict)):
-            raise SubAgentStopped("invalid_decision")
-        answer = answers["next_action"]
-        choice = answer.get("choice")
-        probabilities = answer.get("probabilities")
-        if (answer.get("type") != "choice" or not isinstance(choice, str)
-                or choice not in criteria or not probability(answer.get("confidence"))
-                or not isinstance(probabilities, dict) or set(probabilities) != set(criteria)
-                or not all(probability(value) for value in probabilities.values())
-                or not math.isclose(sum(probabilities.values()), 1.0, abs_tol=0.02)
-                or probabilities[choice] != max(probabilities.values())):
-            raise SubAgentStopped("invalid_decision")
-        for control in CONTROLS:
-            if choice == control:
-                return DecisionResult(actions.binding, control)
-        if isinstance(choice, str) and any(action.id == choice for action in actions.actions):
-            return DecisionResult(actions.binding, "candidate", choice)
+        return parse_choice(response, actions, version)
+
+
+def parse_choice(
+    response: dict[str, object], actions: ActionSet, version: str,
+) -> DecisionResult:
+    """Validate a Jev wire decision after host accounting; shared by frozen replay."""
+    criteria = {action.id for action in actions.actions} | set(CONTROLS)
+    answers = response.get("answers")
+    if (response.get("model") != version or not isinstance(answers, dict)
+            or set(answers) != {"next_action"}
+            or not isinstance(answers.get("next_action"), dict)):
         raise SubAgentStopped("invalid_decision")
+    answer = answers["next_action"]
+    choice = answer.get("choice")
+    probabilities = answer.get("probabilities")
+    if (answer.get("type") != "choice" or not isinstance(choice, str)
+            or choice not in criteria or not probability(answer.get("confidence"))
+            or not isinstance(probabilities, dict) or set(probabilities) != set(criteria)
+            or not all(probability(value) for value in probabilities.values())
+            or not math.isclose(sum(probabilities.values()), 1.0, abs_tol=0.02)
+            or probabilities[choice] != max(probabilities.values())):
+        raise SubAgentStopped("invalid_decision")
+    for control in CONTROLS:
+        if choice == control:
+            return DecisionResult(actions.binding, control)
+    if isinstance(choice, str) and any(action.id == choice for action in actions.actions):
+        return DecisionResult(actions.binding, "candidate", choice)
+    raise SubAgentStopped("invalid_decision")
 
 
 def probability(value: object) -> bool:
