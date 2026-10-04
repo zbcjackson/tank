@@ -959,7 +959,7 @@ for configuration, supported DOM semantics and the limits of page-fact verificat
 
 ## S3 configured Jev integration
 
-`core/tests/test_subagent.py` covers named JSON profiles, extension-only agent
+`core/tests/test_subagent.py` covers core decision profiles, extension-only agent
 references, network approval and refusal before the SubAgent factory. The plugin's
 `test_dom.py` exercises YAML → Runner → real managed Chromium with fake HTTP,
 including nested observation facts, structured completion and resource cleanup.
@@ -1087,3 +1087,20 @@ and forced fallback (42/54 captured requests), zero model calls on rules, cost a
 planned denominators, paired rows, cancellation/unknown/audit/cleanup stops and recipe
 tampering. The decision-rule tests reject apparent savings from failure, a slower
 cost-only tradeoff, or no displacement of F. No pytest model calls are paid.
+
+
+## S3-M core Jev SDK migration
+
+`test_task_model.py` verifies the real official TypeSafe SDK over the shared task
+transport, task-owned cleanup, token accounting, no retry on 429/503, no redirect,
+and explicit configuration overriding SDK environment defaults. Old JSON config
+and agent references fail with migration guidance. `test_subagent.py` exercises a
+non-GUI decision caller without a provider plugin and checks credential isolation
+and failures before the SubAgent factory.
+
+Existing `test_jev.py` hard-stop/invalid-reply/shared-ledger cases now use the real
+SDK; `test_dom.py` covers Runner/YAML/Chromium and both direct/fallback strategies.
+Only the network boundary is fake. Historical protocol diagnostic replays retain a
+benchmark-only raw client; current smoke/DOM/strategy execution uses the SDK.
+Frozen recipes detect code changes; do not edit source while a frozen-recipe test
+is running. No S4 behavior or paid requests are part of this regression.

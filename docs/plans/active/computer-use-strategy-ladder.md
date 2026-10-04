@@ -1,8 +1,8 @@
-> 状态：进行中（2026-10-04：S0–S2 按各自范围完成；S3 修订后的 R1–R4 验收收口，48 次真实策略对照未证明净收益，Jev 保持默认禁用；新增 S3-M 核心 SDK 迁移待实施，S4 目标驱动动作设计已调整、尚未实现，S5–S6 未完成）。
+> 状态：进行中（2026-10-04：S0–S2 按各自范围完成；S3 修订后的 R1–R4 验收收口，48 次真实策略对照未证明净收益，Jev 保持默认禁用；S3-M 核心 SDK 迁移验收完成，S4 目标驱动动作设计已调整、尚未实现，S5–S6 未完成）。
 
 > 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
 > 2026-10-03 当前决策：S3 按下文“当前计划”收口，验证 Jev 作为可回退策略环节的边际价值。历史批次按原协议的判分保留；`conflicting` 三例预期缺少充分任务契约支持，不作为 Jev 错误或宿主缺陷证据，不据此新增身份一致性拦截。
-> 2026-10-04 设计调整：Jev 定义为核心模型，配置、官方 SDK、协议和连接由核心管理；移除 `model_route` 插件扩展列入 S3-M。插件仅经核心决策接口提交问题和候选。插件自行定义的模型仍由插件管理，不要求为其注册核心模型类型。此处是目标设计，当前代码尚未迁移，S3 原始评估结论不变。
+> 2026-10-04 设计调整：Jev 定义为核心模型，配置、官方 SDK、协议和连接由核心管理；移除 `model_route` 插件扩展列入 S3-M。插件仅经核心决策接口提交问题和候选。插件自行定义的模型仍由插件管理，不要求为其注册核心模型类型。S3-M 已按该边界实现，最终验收见实施记录；S3 原始评估结论不变。
 > 2026-10-04 动作选择调整：S4 不再要求上游预列每一步 operation/role。宿主根据当前 UI 能力与已绑定输入构造可混合 click/fill 的完整候选，Jev 选择下一动作，逐步观察并核验目标；Advisor 仅处理明确的信息/规划/生成/视觉缺口。当前代码仍为 v1 里程碑执行，详见 §4.6；新设计见 §4.7 和 S4-R1–R4。
 > 完整目标设计尚未全部实现、尚未完成整体实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
 
@@ -248,8 +248,10 @@ Jev 的 provider 配置、固定版本、凭据、官方 SDK、HTTP 客户端和
 方法名在 S3-M 实施时确定，插件不依赖底层 SDK，以便未来在核心内部替换模型库。
 核心不理解 click/fill 或 GoalContract；这些作为普通结构化证据与选项交给模型。
 
-**当前实现仍是**插件 `JevSelector/JevChoiceRoute` → 核心 `TaskJSONModel` → 公共 transport。
-S3-M 将迁移供应商部分；旧评估使用旧实现的事实和分数保持不变。
+**当前实现（S3-M）**：插件 `JevSelector` → 核心 `TaskDecisionModel.choose` → 官方
+TypeSafe SDK → httpx2/httpx 薄适配 → 公共 transport。插件不再提供 JevChoiceRoute；
+该请求边界适配位于核心，与 ChatCompletionsRoute 共用治理。旧评估使用原 HTTP 实现的
+事实和分数保持不变，实验目录内保留历史原始协议回放客户端。
 
 ### 2.5 依赖方向复核：抽象与具体实现
 
@@ -2193,10 +2195,10 @@ DOM 事实与读回、审计及账本，无可操作文档问题，未改文件�
 check 通过，复用准备期完整验证；协调者核对最终 diff 与证据。本批主要验收仍失败，
 结果记录评审通过不改变 2/1/8 结论；未追加调用或修改原始证据。
 
-### S3-M：Jev 核心 SDK 迁移（2026-10-04，已计划未实现）
+### S3-M：Jev 核心 SDK 迁移（2026-10-04，验收完成）
 
 这是 S3 收口后的架构迁移，先于 S4 实施；不重开 S3 收益验收、不改原始结果或生产默认。
-本次用户请求仅更新 backlog/计划与设计，下面代码工作尚未执行。
+用户随后授权实施 S3-M，明确不开始 S4。以下范围已实现并完成最终验收。
 
 1. **核心接口与配置**：在现有 AppConfig/模型配置入口内增加决策能力的命名 profile，
    复用凭据解析；文本与决策共用配置归属、任务关联、关闭和用量原则，保留能力差异。
@@ -2232,8 +2234,43 @@ Chromium feature，不新建同域 feature。覆盖官方 SDK + fake HTTP 的请
 
 **最终步骤**：执行 §10 完整 Verification Checklist 全部适用项及最多三轮独立
 review-and-refactor 后提交；需 live SDK 冒烟时先冻结小批参数和调用上限，沿用会话授权范围，
-超出范围再确认，不因 SDK 迁移自动追加一轮 S3 能力评测。本次 docs-only 仅做 docs/diff check
-和独立文档评审。实现完成后才更新现行 design 文档，将 S3-M 标记验收。
+超出范围再确认，不因 SDK 迁移自动追加一轮 S3 能力评测。本次为代码迁移，须完整运行适用验收并独立评审；现行 design 文档已同步实际实现。
+
+#### S3-M 实施记录（2026-10-04）
+
+基线 `de2bd04b`。核心新增 `DecisionModelProfile` / `TaskDecisionModel`，配置为
+`decision_models`，agent 通过 `decision-model` 引用；核心 config.yaml 提供 Jev 命名配置，
+仅声明不触发请求。官方 `typesafe-sdk==0.7.2` 负责请求和响应类型；httpx2 transport
+通过薄适配复用 TaskModelTransport 的发送边界。模型服务也由非 GUI 测试子代理调用，
+不包含 UI 领域知识。插件不配置模型版本/端点/密钥，不注册供应商 extension。
+
+移除核心旧 JSON profile/TaskJSONModel 及插件 `model_route`/工厂。旧字段给出明确迁移
+错误，不静默回退。内部 ModelRoute 同时服务 Chat Completions 与 Jev，保留为核心实现。
+历史 raw replay 的客户端/判分保留在 benchmarks，生产没有回指依赖；当前 smoke/DOM/
+配对执行入口迁移 SDK。既有 reports、fixture 数据和冻结哈希未改；旧批准不能用于新源码，
+复现旧请求须使用记录中的旧 Git revision。没有追加真实模型调用，也不以旧耗时替 SDK 背书。
+
+TDD 先验证核心接口和旧字段拒绝为红，再实现；核心/Runner/Jev 定向回归 297 项通过。
+新增 302/429/503 禁重定向/重试、配置覆盖 SDK 环境默认值的断言纳入最终全量。
+一次浏览器冻结测试因同轮编辑参与冻结的源码而拒绝运行，未改判分/放宽冻结；
+源码稳定后完整重跑。候选构造、v1 milestones、四个控制结果、规则与 F 回退语义未改。
+S4 的目标契约/混合动作/Advisor 明确未开始。
+
+最终源码稳定后的全量回归：后端 **5629 passed / 1 skipped / 21 warnings**
+（`/tmp/tank-s3m-backend.log`，强制 Chromium，350.53 秒）；E2E **17 场景 / 67 步通过**
+（`/tmp/tank-s3m-e2e.log`）。web lint/tsc、backend/CLI lint、全部改动 Python 文件
+pyright（含测试与实验工具）、开发服务日志、依赖锁文件 `uv lock --check --offline`、
+docs/diff check 均通过；未修改协议契约或生成物，同步检查不适用。
+
+实现提交 `934f87d9`。独立 review-and-refactor 第 1 轮发现 API 兼容性问题：移除旧
+`json_model` 调用面后仍声明 runtime API 1，会让旧插件通过准入后才失败。修复提交
+`8e610bee` 升级核心和当前插件至 API 2，旧 API 1 在 factory 导入前拒绝；回归先红后绿。
+第 2 轮复核无遗留问题，停止评审；修复由评审者自检，协调者已核对差异和验证记录。
+修复后最终后端 **5630 passed / 1 skipped / 21 warnings**（344.94 秒，
+`/tmp/tank-s3m-review-backend.log`），E2E **17 场景 / 67 步通过**
+（`/tmp/tank-s3m-review-e2e.log`）。全部适用 lint/type/dev-log/docs/diff 检查通过；
+9 个历史/当前 benchmark 模块入口 `--help` 正常。评审首次默认沙箱阻止浏览器/监听，
+随后具备所需权限的完整验证通过。S3-M 收口，无付费模型调用；S4 明确未开始。
 
 ### S4：目标驱动的下一动作选择、按需 Advisor 与恢复（待实现）
 

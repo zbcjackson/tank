@@ -763,3 +763,20 @@ open shadow root 标记范围不完整。语义命名仅覆盖 aria-labelledby/a
 真实本地浏览器测试及配置见
 [插件说明](../../backend/plugins/agent-computer-use/README.md#s2-managed-chromium)。
 这不代表 AX 实机动作、Jev/Advisor、同进程恢复或生产采用已验收。
+
+
+## Core-owned Jev decision service (S3-M, 2026-10-04)
+
+Computer Use now borrows `context.runtime.decision_model.choose(...)` from core.
+Core owns the named `decision_models` profile, fixed Jev version, environment key,
+TypeSafe SDK, protocol validation and transport lifecycle. The plugin manifest
+registers only its SubAgent; no `model_route` extension remains. UI evidence and
+whole-action candidate construction stay in the plugin; core decisions have no
+computer-operation knowledge. See [core model assembly](agent-orchestration.md#core-decision-model-assembly-s3-m-2026-10-04).
+
+Current control remains schema-v1 milestones with predeclared click/fill and
+bound inputs, exact-label rules, Jev choice and opt-in same-candidate F fallback.
+The core SDK service preserves the four explicit non-action choices and hard-stop
+behavior. This does not implement S4's goal-only contracts, mixed-operation choices
+or Advisor planning. Production defaults and the historical S3 no-net-gain conclusion
+remain unchanged; prior raw HTTP results do not establish SDK latency or savings.

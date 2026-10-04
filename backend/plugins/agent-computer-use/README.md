@@ -163,25 +163,35 @@ No paid model call or personal browser input is part of S2 acceptance.
 
 ## S3: explicitly configured Jev Choice
 
-`JevChoiceRoute` and `JevSelector` implement the Choice subset of the
-[official TypeSafe HTTP contract](https://docs.typesafe.ai/api). A trusted host
-must explicitly call `context.runtime.configure_json_model(task_id, route,
-credential=...)` and inject `JevSelector(version)` into the controller. The route
-is immutable, uses an exact HTTPS destination and credential reference, and
-requires a fixed `jev-X.Y.Z` version. The selector never receives credentials or
-creates a client. Runner can now perform this assembly from the named `json_models`
-profile selected by an extension agent's `json-model` field. Network permission is
-included in the task approval; missing profiles/credentials or wrong route types
-are rejected before the SubAgent factory. Core resolves `credential_env` from the
-host environment (`core/.env` is loaded by the normal server startup). The secret
-is never part of the plugin config or protocol factory arguments.
+Jev is a core-managed decision model. Core uses the official `typesafe-sdk==0.7.2`
+async client; the plugin only constructs the UI choice question and consumes
+`context.runtime.decision_model.choose(state=..., instructions=..., options=...)`.
+The returned `ChoiceResult` contains choice, confidence and probabilities, not an
+SDK response or executable tool call. No provider URL, credential, SDK or model
+version is configured inside `JevSelector`.
 
-The host's lazy `TaskJSONModel` uses the same transport as text models: actual
-HTTP admission, call IDs, audit, capture, usage accounting, cancellation and
-cleanup are shared. No retry or redirect is enabled. Jev parses its own
-input/output usage; malformed/missing usage remains unknown. An injected strict
-experiment policy retains reservations and stops subsequent calls. Default
-production accounting remains record-only, not a prepaid cost cap.
+Runner resolves an extension agent's `decision-model: <name>` against core
+`decision_models` profiles (provider/url/model/credential_env) before creating the
+SubAgent. Only `typesafe` with a fixed `jev-X.Y.Z` version is supported by this
+capability. Core resolves the selected environment key (`core/.env` is loaded by
+normal server startup), owns the lazy SDK/client and closes it with the task.
+Unknown profiles, invalid provider configuration and missing credentials fail
+before the agent factory. Existing text `model: <name>` profiles remain separate
+capabilities under the same core configuration and task lifecycle.
+
+The SDK's httpx2 transport is bridged into the existing TaskModelTransport, so
+actual sends, audit, capture, cancellation and token usage share the original
+context/ledger with text calls. SDK retries and redirects are disabled. Invalid
+choices retain known usage; missing/malformed usage stays unknown. An injected
+strict experiment policy retains reservations and stops subsequent calls;
+production accounting remains record-only by default.
+
+`json_models` and agent `json-model` are retired with explicit migration errors:
+rename them to `decision_models` / `decision-model`, replace the profile's
+`extension: agent-computer-use:jev` with `provider: typesafe`. The `model_route`
+plugin extension and production TaskJSONModel were removed. Internal core routes
+remain because ordinary Chat Completions and Jev still need request-boundary
+checks and usage parsing; they are not plugin configuration.
 
 The selector sends only the current structured snapshot, goal and bound whole
 ActionSet, with explicit none/ambiguous/need_more_context/escalate choices. It
@@ -189,32 +199,33 @@ rejects incomplete or stale evidence, mismatched model versions, unknown choices
 invalid distributions and invalid confidence. Distribution sum tolerance is 0.02
 for wire rounding; it is not an acceptance-confidence threshold or calibration
 claim. Rules still bypass the model. Model results cannot change action arguments,
-permissions or completion evidence. Only Choice is implemented; Score/Noul,
-provider availability evaluation, frozen replay comparisons and calibration remain
-S3 work. Three real synthetic smoke cases passed; this is service integration
-evidence, not a model-quality or calibration result. See the
+permissions or completion evidence. Only Choice is implemented. S3
+bounded strategy evaluation is complete without a net-benefit adoption result;
+Score/Noul and S4 goal planning are not part of this SDK migration. The historical
+three-case smoke used the previous raw HTTP implementation. See the
 [smoke record](../../benchmarks/computer_use/reports/20261003-s3-jev-smoke/README.md).
 
 Run the fake HTTP and Controller/Adapter acceptance from `backend/`:
 `uv run --no-sync pytest plugins/agent-computer-use/tests/test_jev.py -q`.
 
 
-Merge [config.example.yaml](config.example.yaml) into the host configuration and
-explicitly select an agent definition such as:
+Merge [config.example.yaml](config.example.yaml) into the host configuration. The
+Jev profile is defined in [core/config.yaml](../../core/config.yaml); configure
+TYPESAFE_API_KEY in the host environment. For a different host config see the
+[core setup guide](../../DEVELOPMENT.md#core-decision-models). Explicitly select an agent definition such as:
 
 ```yaml
 ---
 name: computer-use-ladder
 extension: agent-computer-use:agent
-json-model: jev
+decision-model: jev
 ---
 Complete the structured task goal within its approved scope.
 ```
 
-Enable the `agent-computer-use` plugin through the existing plugin manager. Its
-`jev` extension is a `model_route`, separate from the `agent` SubAgent extension.
-The private config `selector: jev` borrows the host's configured fixed model
-version. Without this selector, the existing rule-only behavior remains. Merely
+Enable the `agent-computer-use:agent` SubAgent through the existing plugin manager.
+No provider extension is registered. The private config `selector: jev` borrows
+the configured core decision capability. Without this selector, the existing rule-only behavior remains. Merely
 having `TYPESAFE_API_KEY` in the environment does not enable Jev or change the
 production agent. A structured `task_input` goal is still required.
 
@@ -326,7 +337,7 @@ follow-up record for the preserved 2-pass/1-fail/8-not-run outcome and limitatio
 Explicit browser configuration accepts `selector: llm` (rules then F/H3) or
 `selector: jev-fallback` (rules then Jev, then F only after a valid non-action/J3).
 The extension agent definition must name the approved text model with `model: <profile>`;
-J3 also names its Jev profile with `json-model: <profile>`. Existing `selector: jev`
+J3 also names its Jev profile with `decision-model: <profile>`. Existing `selector: jev`
 and rule-only configurations retain their behavior. Production defaults are unchanged.
 
 F borrows `context.runtime.model.complete`, receives the same semantic question and
@@ -343,3 +354,19 @@ false}` override for this comparison; other extra body/header overrides remain r
 The value is copied at assembly and validated at the HTTP boundary. This is not a
 full planning/visual Advisor or S4 recovery implementation. See the
 [strategy pilot protocol](../../benchmarks/computer_use/fixtures/s3-strategy/README.md).
+
+
+### S3-M SDK migration and historical evidence
+
+The current smoke, real-DOM and paired strategy harnesses use the core SDK service.
+Older protocol/connection diagnostic replays retain a benchmark-only raw HTTP
+client in `benchmarks/computer_use/legacy_json_model.py`; it is not a production
+service or selectable plugin model. Their request/response parser exists solely
+for historical replay semantics. Core never imports it.
+
+Existing report directories and frozen digests are unchanged. A changed source
+recipe requires a new freeze; use the recorded historical Git revision to reproduce
+an old recipe. Old raw HTTP timing is not SDK timing. No new paid batch is needed
+for the migration's fake-HTTP/Chromium acceptance. Candidate generation, milestone
+schema v1, rule matching, four control results and explicit F fallback are unchanged;
+S4 has not started.

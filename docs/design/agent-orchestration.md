@@ -435,10 +435,11 @@ inline images, tool messages and SSE. All requests require an output token limit
 SSE lines, preventing buffered SDK frames from bypassing cancellation. Partial
 responses without validated usage remain unknown; close and settlement occur once.
 The host resolves `AgentDefinition.model` against named LLM profiles before
-plugin execution. API version 1 is checked before factory/resource creation.
-SubAgent instances borrow host model services. Separately registered model_route
-factories receive public endpoint/model metadata only; neither those factories nor
-the agent configuration receives credentials or creates transports. Legacy manifest
+plugin execution. API version 2 is checked before factory/resource creation;
+explicit API 1 declarations are rejected after removal of the JSON model capability.
+SubAgent instances borrow core model services. Decision profiles are resolved by
+core, without a provider extension factory. Neither SDK clients nor credentials
+are exposed through the plugin's decision interface. Legacy manifest
 capability-injection fields and the engine path remain removed.
 Task clients close with the runtime; a bound ordinary LLM borrows its host pool.
 BenchmarkTaskPolicy supplies request limits, spend admission and raw HTTP capture,
@@ -462,20 +463,31 @@ restore plugin progress, the original grant or cumulative budgets. Built-in
 LLM agents retain the existing ask_user/waiting behavior.
 
 
-### Explicit JSON model assembly (S3)
+### Core decision model assembly (S3-M, 2026-10-04)
 
-A trusted host may additionally assemble `TaskRuntime.configure_json_model` with
-an immutable protocol route and resolved credential. The optional borrowed
-`json_model.request()` service sends bounded, non-streaming JSON through the same
-TaskModelTransport and original context/ledger as the text model. Route adapters
-validate protocol requests and normalize usage; core does not parse Jev fields.
-Audit records use the selected route's operation name. The runtime owns client
-cleanup and refuses model replacement or task rebinding. Protocol adapters do not
-receive credentials. Extension definitions can select `json-model: <name>` from
-host `json_models` profiles. Each profile specifies a `model_route` extension,
-exact HTTPS URL, fixed model and credential environment-variable name. Runner
-adds network approval and resolves only the selected credential before the agent
-factory; core verifies the route matches the profile. Plugins receive neither the
-key nor environment access through this interface. Jev protocol construction stays
-in its plugin factory; the core does not import plugin code. Recovery remains
-unsupported. No model is enabled just because a key exists in the environment.
+`TaskRuntime.configure_decision_model` installs a core `TaskDecisionModel` from a
+validated `DecisionModelProfile` and host-resolved credential. The borrowed service
+exposes `choose(state, instructions, options)` as keyword arguments and returns a
+`ChoiceResult`; text models retain `complete(messages)`. Both use the same task
+context/ledger and runtime-owned cleanup, without forcing decisions into chat syntax.
+
+Agent definitions select `decision-model: <name>` from AppConfig `decision_models`.
+Profiles contain provider (`typesafe`), exact HTTPS `/v1/systemone` URL, fixed Jev
+version and credential environment-variable name. Runner adds network capability
+and resolves the selected profile before the agent factory. Core uses the official
+TypeSafe async SDK with retries disabled. A thin httpx2-to-httpx bridge retains the
+existing actual-send checks, audit/capture, cancellation and usage settlement.
+SDK wire types and core request-binding checks reject malformed/unoffered answers;
+known usage is preserved even when selection is invalid. The plugin owns the UI
+question and candidate binding, not Jev protocol parsing or configuration.
+
+The `model_route` plugin extension, JSON profile registry lookup and production
+TaskJSONModel are removed. `json_models` / `json-model` produce migration errors;
+use `decision_models` / `decision-model` with `provider: typesafe` instead of an
+extension reference. Internal core ModelRoute remains shared with Chat Completions;
+it is not a public plugin extension or solely a token counter.
+
+Historical protocol replay has a benchmark-only raw client, with no core import
+back to experiments. Historical artifacts and frozen approvals are unchanged;
+new code cannot silently run under an old recipe. This migration changes model
+ownership, not S3 selection semantics; S4 goal-driven actions remain unimplemented.

@@ -167,6 +167,30 @@ root with `docker compose up -d`. If tracing is not needed for a test, set
 `LANGFUSE_TRACING_ENABLED=false` and restart the backend. A configured but
 unavailable Langfuse service produces trace export and media upload errors.
 
+### Core decision models
+
+Core manages Jev through the official TypeSafe SDK. `core/config.yaml` includes
+an opt-in `decision_models.jev` profile; add `TYPESAFE_API_KEY` to `core/.env` when
+using it. An extension agent references it with `decision-model: jev`; ordinary
+text `model:` references still select `llm` profiles. A configured profile alone
+never invokes the provider and does not change the default agent.
+
+For a custom host config:
+
+```yaml
+decision_models:
+  jev:
+    provider: typesafe
+    url: https://api.typesafe.ai/v1/systemone
+    model: jev-1.13.0
+    credential_env: TYPESAFE_API_KEY
+```
+
+Old `json_models` / `json-model` fields are rejected with migration guidance.
+Replace them with `decision_models` / `decision-model` and replace the profile's
+`extension` field with `provider: typesafe`. No provider plugin is required.
+Core owns SDK resources and usage; callers only submit choice questions.
+
 ## Running the Server
 
 ### Development Mode
