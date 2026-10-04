@@ -127,7 +127,8 @@ class TestPluginManifest:
         assert manifest.extensions == []
 
 
-def test_incompatible_task_runtime_api_refuses_before_factory_import(monkeypatch):
+@pytest.mark.parametrize("runtime_api", [1, 999])
+def test_incompatible_task_runtime_api_refuses_before_factory_import(monkeypatch, runtime_api):
     import importlib
 
     from tank_backend.plugin.registry import ExtensionRegistry
@@ -136,7 +137,7 @@ def test_incompatible_task_runtime_api_refuses_before_factory_import(monkeypatch
     monkeypatch.setattr(importlib, "import_module", lambda name: imported.append(name))
     registry = ExtensionRegistry()
     registry.register("future", ExtensionManifest(
-        "agent", "subagent", "future_plugin:create", runtime_api=999,
+        "agent", "subagent", "future_plugin:create", runtime_api=runtime_api,
     ))
     with pytest.raises(ValueError, match="runtime API"):
         registry.instantiate("future:agent", {})
@@ -160,9 +161,9 @@ def test_runtime_api_declaration_survives_manifest_loading(tmp_path):
     path = tmp_path / "plugin.yaml"
     path.write_text(yaml.safe_dump({
         "name": "sample", "extensions": [{
-            "name": "agent", "type": "subagent", "factory": "sample:create", "runtime_api": 1,
+            "name": "agent", "type": "subagent", "factory": "sample:create", "runtime_api": 2,
         }],
     }))
     extension = read_manifest_from_yaml(path).extensions[0]
-    assert extension.runtime_api == 1
+    assert extension.runtime_api == 2
     extension.check_runtime_api()

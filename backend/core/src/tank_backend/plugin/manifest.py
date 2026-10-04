@@ -11,7 +11,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 MANIFEST_FILENAME = "plugin.yaml"
-TASK_RUNTIME_API_VERSION = 1
+TASK_RUNTIME_API_VERSION = 2
 
 
 @dataclass(frozen=True)
