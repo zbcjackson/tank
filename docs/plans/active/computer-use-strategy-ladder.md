@@ -1,7 +1,8 @@
-> 状态：进行中（2026-10-04：S0–S2 按各自范围完成；S3 修订后的 R1–R4 验收收口，48 次真实策略对照未证明净收益，Jev 保持默认禁用；S4–S6 未完成）。
+> 状态：进行中（2026-10-04：S0–S2 按各自范围完成；S3 修订后的 R1–R4 验收收口，48 次真实策略对照未证明净收益，Jev 保持默认禁用；新增 S3-M 核心 SDK 迁移待实施，S4–S6 未完成）。
 
 > 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
 > 2026-10-03 当前决策：S3 按下文“当前计划”收口，验证 Jev 作为可回退策略环节的边际价值。历史批次按原协议的判分保留；`conflicting` 三例预期缺少充分任务契约支持，不作为 Jev 错误或宿主缺陷证据，不据此新增身份一致性拦截。
+> 2026-10-04 设计调整：Jev 定义为核心模型，配置、官方 SDK、协议和连接由核心管理；移除 `model_route` 插件扩展列入 S3-M。插件仅经核心决策接口提交问题和候选。插件自行定义的模型仍由插件管理，不要求为其注册核心模型类型。此处是目标设计，当前代码尚未迁移，S3 原始评估结论不变。
 > 完整目标设计尚未全部实现、尚未完成整体实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
 
 # 计划：Computer Use 子代理的宿主循环与策略阶梯（S0–S6）
@@ -177,14 +178,16 @@ flowchart TD
     A --> C[ComputerUseSubAgent / Controller]
     C --> O[ObservationManager：AX / OCR / DOM]
     C --> D[DecisionRouter：规则与决策策略]
-    D --> J[JevDecision：单次决策请求]
-    D --> L[LLMAdvisor：单次生成请求]
+    D --> J[JevDecision：构造领域选择题]
+    D --> L[LLMAdvisor：构造领域生成请求]
+    J --> K[核心决策模型服务：Jev 官方 SDK]
+    L --> M[核心文本模型服务]
     C --> E[ActionExecutor / EffectVerifier]
 ```
 
 插件内部按职责组织：`agent.py` 对接 SubAgent；`controller.py` 持有目标循环；
 `observation.py`、`action_builder.py`、`decision_router.py`、`executor.py`、
-`verifier.py` 提供领域服务；`jev_decision.py` 和 `llm_advisor.py` 适配模型；
+`verifier.py` 提供领域服务；`jev_decision.py` 和 `llm_advisor.py` 构造领域问题并调用核心模型接口；
 `contracts.py` 放小型数据契约；`channels/` 放新 DOM/OCR 适配器。
 这里只确定职责边界，按实际规模拆文件，不先造通用 D1–D5 框架。
 取消此前 `tools/computer_ladder.py` 作为混合入口的落点：策略控制器不继承 BaseTool，
@@ -221,28 +224,29 @@ SubAgentContext 是运行时注入入口，插件按构造参数只向内部组�
 Brain 只接通用委派与结果通知。若启用“GUI 统一委派”策略，按 computer 工具类别限制
 主代理的直接调用；不把 Jev/AX 路由写进 Brain，语音回复打断与后台任务停止保持区分。
 
-### 2.4 JevDecision：有预算的单次决策适配
+### 2.4 JevDecision：领域决策与核心模型服务（2026-10-04 目标设计）
 
-`jev_decision.py` 提供 `choose(goal_state, snapshot, action_set) → DecisionResult`；
-一次 choose 在通过前置校验后最多发送一次 Jev API 请求，拒绝/预算不足时可以零请求。
-它没有 observe-act 循环，也不执行 UI、拆目标或自行改用 LLM。
+插件侧 `choose(goal_state, snapshot, action_set) → DecisionResult` 负责当前界面的决策语义；
+Jev 的 provider 配置、固定版本、凭据、官方 SDK、HTTP 客户端和响应协议归核心。
+领域选择器没有独立 observe-act 循环，不执行 UI，也不自行改用其它供应商。
+一次 choose 最多请求一次 Jev，不能调用时零请求；回退由明确的领域策略管理。
 
-一次调用的协作顺序（公共治理由核心执行，Jev 适配器只构造/解析协议）：
+1. 插件检查当前里程碑、观察及候选绑定，构造状态、问题和完整动作选项；
+   none/ambiguous/need_more_context/escalate 是调用方提供的选项，不是 Jev 固有动作。
+2. 插件调用核心提供的任务绑定决策接口；核心按命名 profile 装配 Jev 官方异步 SDK，
+   处理配置、模型/端点、凭据和资源。插件不传供应商 URL/key/版本或原始 HTTP JSON。
+3. 核心负责 SDK 请求与响应适配、任务状态检查、单次发送、用量记录和可选实验结算；
+   协议错误仍记录已知用量。返回类型明确的选择结果与统计，不泄漏 SDK/HTTP 对象。
+4. 插件检查选项仍属于当前 ActionSet，并绑定原目标/观察版本；宿主执行器检查当前
+   引用后派发。模型只提出建议，动作成功必须由新观察和后置条件核验。
 
-1. 校验输入版本/候选 ID，取已获准外发的有界状态视图，构造 state/questions，
-   显式加入 none/ambiguous/need_more_context/escalate 控制选项。
-2. 向核心受控模型服务提交请求；核心生成唯一 request id，检查授权/期限/取消及共享额度，
-   预留后发送一次请求。客户端连接由核心管理，SDK/HTTP 隐式重试关闭。
-3. 适配器校验真实 usage 和决策回复，核心结算用量；即使决策格式无效也必须结算已知用量。
-   答案属于本次候选/控制选项且结算成功后，才返回可供控制器使用的决策及原目标/观察/候选版本。
-4. 对无效响应、不可用或未知用量返回明确错误/受控停止；不伪造模型的 ambiguous。
+接口按能力提供文本生成和有限选择，统一 profile 引用、生命周期、错误及用量记录；
+不把 Jev 强行包装成聊天输出，不为未来 Score/Noul 或框架替换先造大接口。
+方法名在 S3-M 实施时确定，插件不依赖底层 SDK，以便未来在核心内部替换模型库。
+核心不理解 click/fill 或 GoalContract；这些作为普通结构化证据与选项交给模型。
 
-`DecisionRouter` 判断是否适合调用及如何处理决策结果；Jev 原始统计字段只在适配层解析，
-由插件装配的校准策略生成带原因的接受/拒绝结果，不在 Router 中写供应商字段分支。
-`ComputerUseController` 决定补观察、升级或终止；
-`ActionExecutor` 在最终派发前再次验证状态和授权。
-Jev 的领域 payload 与协议解析首期可放在同一小模块；HTTP 发送、连接所有权及治理复用
-核心服务，不另建插件私有客户端生命周期。
+**当前实现仍是**插件 `JevSelector/JevChoiceRoute` → 核心 `TaskJSONModel` → 公共 transport。
+S3-M 将迁移供应商部分；旧评估使用旧实现的事实和分数保持不变。
 
 ### 2.5 依赖方向复核：抽象与具体实现
 
@@ -256,7 +260,7 @@ Jev 的领域 payload 与协议解析首期可放在同一小模块；HTTP 发�
 1. **Router 与模型实现**：Router 依赖小型结构化选择契约 `choose(...) → DecisionResult`；
    Advisor 保留独立 `assist(...) → AdvisorResult` 契约。JevDecision 与测试 fake 实现前者，
    LLMAdvisor 实现后者；插件工厂选择并注入实现，不由 Controller/Runner 判断 provider 名称。
-   Jev 请求字段、答案解析和供应商错误归适配器；校准策略由工厂注入，按模型/问题/任务族
+   Jev 请求字段、SDK 答案解析和供应商错误归核心适配器；领域校准策略由工厂注入，按模型/问题/任务族
    校准后给出接受/拒绝及原因，Router 处理这些领域结果。原始分布保留作诊断，不能成为
    高层遍历 `answers.*.confidence` 的依赖；错误、模型弃权和宿主拒绝仍分开记录。
    规则/结构化选择/生成建议的分支本身是领域策略，可以保留。
@@ -277,10 +281,10 @@ Jev 的领域 payload 与协议解析首期可放在同一小模块；HTTP 发�
    不支持的完成条件返回 unknown/需补充，不能执行 LLM 生成的任意核验代码。
 5. **协议与共享治理**：现有 LLM 是 Chat Completions 客户端，见
    [complete_response](../../../backend/core/src/tank_backend/llm/llm.py)；
-   Jev 是独立的 state/questions 协议适配器，不继承 LLM，也不在 LLM 中加 Jev 分支。
+   Jev 是核心内独立的 SDK 决策适配器，不继承聊天 LLM；普通 LLM 与 Jev 均由核心配置及装配。
    两者复用已有任务授权、取消、预算和观察事件契约；共享治理不代表共享请求/响应 schema。
    通用预算接口接收已校验的请求额度与用量，不解析 Jev/ChatCompletion 原始 JSON。
-   协议适配器向核心受控调用入口提交请求，核心在真实 transport 边界准入/捕获/结算；
+   核心协议适配器在 SDK 的实际发送边界接入准入/捕获/结算；
    不能仅靠插件调用后报告 USAGE。具体配置与生命周期见 §2.6。
 6. **实验设施与生产依赖**：当前
    [SpendSession](../../../backend/core/src/tank_backend/benchmarks/spend_http.py) 的请求白名单和
@@ -311,7 +315,11 @@ Jev 的领域 payload 与协议解析首期可放在同一小模块；HTTP 发�
 [现行设计](../../design/computer-use.md#s0-保留调用方与出口清单2026-09-30)。
 以下仍包含 S4/S6 的恢复及真实通道目标；不能将 S0 核心接线验收视为全阶段完成。
 
-核心拥有公共规则、状态和机制；插件只提供领域策略、协议解析、原生适配和效果证据。
+核心拥有公共规则、状态和机制。模型归属遵循“谁定义、谁管理”：核心定义的模型
+（包括 Jev）由核心持有配置、SDK、协议和连接；插件只借用模型调用接口。插件自行定义的
+模型由插件管理自己的配置/SDK/资源，不必成为核心 provider 或 `model_route` 扩展；
+任务内调用仍按既有插件契约接入停止、用量和资源清理，管理归属不意味着重复任务账本。
+Computer Use 插件保留领域问题、策略、原生适配和效果证据。
 复用现有 ToolApprovalPolicy、审批执行器、AllowlistExecutor、SubAgentAdapter、WorkerStore
 和账本原语，必要时最小提取到核心中立模块。Runner 只装配/管理生命周期，不增长成
 认识 Jev、AX、OCR 或应用流程的巨型控制器；生产核心不导入插件包或 benchmarks。
@@ -345,7 +353,7 @@ Jev 的领域 payload 与协议解析首期可放在同一小模块；HTTP 发�
    取消等待不能改写为 not_sent；核心保存回执，插件负责只读核验业务效果。
 2. **模型调用与唯一记账**：核心统一请求 ID、准入、并发、真实 HTTP 发送计数、取消、
    捕获与用量记录。生产默认只统计，累计 token/费用预留和 trial/batch 是显式注入的
-   benchmark 策略；旧用户 token_budget 配置仅作兼容。Jev/LLM 适配器只负责协议请求构造、原始响应
+   benchmark 策略；旧用户 token_budget 配置仅作兼容。核心 Jev/LLM 适配器负责协议请求构造、原始响应
    usage 校验与语义结果解析，向核心提交类型明确的用量；账本不解析供应商 JSON。
    SDK 隐式重试必须关闭，所有实际尝试都经过发送边界，零配额零发送。模型结果只有
    在协议校验和用量记录后才交给控制器；显式实验策略还需结算，未知用量保留预留并停止批次。
@@ -353,7 +361,7 @@ Jev 的领域 payload 与协议解析首期可放在同一小模块；HTTP 发�
    任务与实验批次上限可组合，同一请求关联各账本结算，不能各自产生不一致的调用身份。
 3. **配置、凭据与数据范围**：插件校验领域配置；核心校验批准的 provider/模型版本/
    端点、数据类别、上传大小、凭据引用及回退范围，解析密钥并提供受控客户端。
-   插件正常接口只使用凭据引用，不在配置快照/日志/进度中复制密钥。重定向、SDK 辅助
+   使用核心模型的插件只引用命名 profile，不接触凭据引用解析或密钥；插件自有模型自行管理其凭据，不在配置快照/日志/进度中复制密钥。重定向、SDK 辅助
    请求及回退也须经过目的地政策，不能只核验初始 URL。插件标记文本/图像等数据类别，
    核心统一准入、脱敏和产物保存/清理策略；无法识别的类别拒绝外发，不能假装通用脱敏
    能识别所有屏幕秘密。浏览器导航、下载等网络/文件效果必须另声明并走对应策略；
@@ -620,6 +628,54 @@ Jev 不生成任意文本，不取得执行权限；LLM 不通过更换模型扩
 - **点击保存后超时**：回执表明可能已派发，进入只读效果协调；
   确认本次保存完成则推进，证据不足且到达上限则报告未知，不换模型再次点击保存。
 
+### 4.6 当前 Jev 用法复核（2026-10-04，现状与后续分开）
+
+**当前决策内容**：`decision_question` 发送完整 GoalContract、Snapshot、binding 和证据说明；
+只问一个 `next_action` Choice。问题是“在所给完整动作中选一个，或选一个控制结果”。
+ActionBuilder 先用当前里程碑的 operation/role 过滤控件，用已提供的 input_key 绑定 fill 值。
+因此当前不是从所有工具中自主决定下一步，也不是 Jev 自己生成填写内容；在一次选择中，
+候选通常是同一操作和固定参数下的不同目标。当前 payload 虽含完整目标，但没有单列当前
+里程碑 ID/索引和已完成步骤，这是多步目标扩展前应补齐的语义信息，不能仅靠候选倒推。
+
+**选项形态**：候选 key 是本次生成的动作 ID，值包含完整 `id/target_ref/operation/value`；
+通过 snapshot 找到控件名称与状态。另外四项是 `none`、`ambiguous`、`need_more_context`、
+`escalate`。模型回复不是可直接执行的任意工具调用：宿主必须查回本次候选，验证绑定及
+引用后才调用 DOM/原生执行器。当前真实受控范围支持 click/fill，没有任意 shell、生成文本、
+全局键盘操作或批量工具序列授权；这些不能由“下一动作选择”名称推定已支持。
+
+**当前循环**：observe → 检查完成 → 构造当前里程碑候选 → 规则或模型选动作 →
+派发 → observe 核验 → 推进里程碑。规则命中时不问 Jev；派发后最多两次只读观察仍
+未证实效果就返回 unknown，不再次选择并重放。在 `jev-fallback` 模式下四种有效控制
+结果都进入同候选 F；它们目前不是自动补观察、补规划的四条恢复分支，F 也退出则结束。
+只用 `jev` 模式时没有 F；SDK 迁移先保持这些已验证语义。
+
+**现有实例：关闭优惠邮件但保留安全提醒，然后应用**。
+初次 DOM 观察有两个可用按钮“取消营销订阅”“停用安全提醒”，以及禁用的“应用”；
+两个提醒状态均为 on。当前里程碑已指定 click/button，目标文字为“关闭优惠邮件”，
+规则不能精确匹配。Jev 的动作选项是 `click(ref_取消营销订阅)`、`click(ref_停用安全提醒)`
+及四个控制选项；禁用的“应用”不入候选。Jev 选前者，宿主执行；新观察确认优惠邮件
+off、安全提醒 on 且“应用”启用。下一里程碑精确匹配“应用”，规则直接点击，重新观察
+确认 Applied=yes 和完整目标后结束。该 S3 fixture 每臂重复三次，J3 每次只需一次 Jev。
+
+**填写实例**：已给定“显示名称=Ada，再保存”，当前里程碑是 fill/textbox 且参数 Ada
+已绑定。页面唯一“显示名称”文本框时规则直接 fill，无模型。如果当前里程碑标签与
+页面多个文本框不精确匹配，候选可为 `fill(ref_A, "Ada")`、`fill(ref_B, "Ada")`；Jev
+只能选择目标，不能把 Ada 改为另一内容，也不能在本轮改成 click。后者是机制示例，
+不是声称 S3 已做真实 Jev 填写歧义对照；缺少 Ada 则先返回需参数，不让 Jev 编造。
+
+**评价与调整方向**：有限、可执行、可核验的候选选择适合作为策略的一环；它能减少
+逐步生成工具参数和视觉定位的需求，但当前作用更接近“已规划步骤的语义目标选择”。
+任务步骤与完成条件由上游/测试先给定，不等于自主完成自然语言任务。候选未召回、值未
+提供、任务需新规划/视觉或没有可靠核验时，此机制不能独立解决；不把这些错误归给选择模型。
+S3 已表明串行 Jev→F 对明确退出任务增加成本与等待，不应无条件把每个决定都交给 Jev。
+
+迁移后、扩展 S4 前先定义显式的 current_step / completed_steps 语义投影，并让候选的
+可读名称、角色、操作、绑定值自包含；原生引用与执行版本继续由宿主管理。新增模型上下文
+和按原因处理弃权属于独立行为变更，须分别测试/冻结，不修改 S3 数据。不能仅凭模型的
+`need_more_context` 自动再观察：必须有具体可补证据；真正缺用户输入时返回用户，需规划
+时交 Advisor；只有候选证据完整而模型未解决的选择才考虑同候选 F。每个分支先定义可观察
+条件及回归，避免再扩大拒绝标签竞赛。Jev 保持 opt-in，不由本次归属迁移提高采用范围。
+
 ## 5. 观察、通道与截图点击如何选择
 
 ### 5.1 能力探测不必等到 LLM 启动应用
@@ -769,14 +825,14 @@ ladder 属于该子代理内部策略，不加入 GroundingConfig 的 mode 枚�
 
 - `control_policy = adaptive`：规则优先，适用时 Jev，按需 Advisor，是新架构的目标模式。
 - `control_policy = llm_only`：规则可直接处理的步骤照旧，其余由 Advisor 判断，作为同宿主对照。
-- `decision_profile`：声明 provider/模型版本/端点/凭据引用/数据范围及上限；插件校验
-  Jev 领域字段，核心解析并绑定获准的模型调用服务。
+- `decision_profile`：仅引用核心命名模型配置。provider/模型版本/端点/凭据与能力声明
+  在核心统一模型配置入口管理，核心校验并装配官方 SDK；插件不注册 Jev 路由或校验供应商字段。
 - `advisor_profile`：生成模型配置引用，经核心受控模型服务复用 LLMProfile/LLM 客户端；
   Runner 不解析 Jev 等领域协议，模型配置解析放在核心的配置/调用服务中。
 
 以上均为待实现字段。沿用生产默认，不凭环境变量中有密钥就启用 hosted Jev。
-adaptive 启动须明确决策配置和数据授权；不能把 Jev 当作 ChatCompletion 模型硬塞入现有
-llm profile。已授权运行中服务不可用时，按明确的 fallback 配置使用 Advisor；
+adaptive 启动须明确决策配置和数据授权；统一模型配置不等于统一成 ChatCompletion 协议，
+核心以能力区分文本生成与决策配置。已授权运行中服务不可用时，按明确的 fallback 配置使用 Advisor；
 规则仍能完成则无需模型，否则返回受限结果。不得偷偷更换外发目的地或模型版本。
 
 ### 7.2 共享预算与协议
@@ -794,7 +850,7 @@ TaskSession 引用 SubAgentContext 的任务账本，并向 Goal、Action、Oper
 Advisor 次数、证据补充次数、连续无进展次数和只读协调时间；S5 前冻结并做敏感性分析，
 不把这些初始数值写成通用最优值。
 
-Jev hosted 协议按官方 `/v1/systemone` 的 state + questions map 实现，
+Jev hosted 协议由核心官方 SDK 适配器对接 `/v1/systemone` 的 state + questions，
 Choice/Score/Noul 与各自统计字段分别映射；首期只实现实际需要的类型。
 none/ambiguous/escalate 等属于宿主定义的候选控制选项。
 固定模型版本，禁止 SDK 隐式重试；先 fake HTTP 检查真实请求与错误路径。
@@ -2074,6 +2130,48 @@ S3 整体验收及 S4–S6 仍未完成。
 DOM 事实与读回、审计及账本，无可操作文档问题，未改文件后立即停止。docs/diff
 check 通过，复用准备期完整验证；协调者核对最终 diff 与证据。本批主要验收仍失败，
 结果记录评审通过不改变 2/1/8 结论；未追加调用或修改原始证据。
+
+### S3-M：Jev 核心 SDK 迁移（2026-10-04，已计划未实现）
+
+这是 S3 收口后的架构迁移，先于 S4 实施；不重开 S3 收益验收、不改原始结果或生产默认。
+本次用户请求仅更新 backlog/计划与设计，下面代码工作尚未执行。
+
+1. **核心接口与配置**：在现有 AppConfig/模型配置入口内增加决策能力的命名 profile，
+   复用凭据解析；文本与决策共用配置归属、任务关联、关闭和用量原则，保留能力差异。
+   Computer Use 只声明需要的核心 profile 并提交问题/候选，不含 Jev URL/key/版本。
+   未配置、能力不匹配或版本无效在资源创建前拒绝；核心不导入插件的 GoalContract。
+2. **核心 Jev SDK**：使用官方 `typesafe-sdk` 的[异步客户端](https://docs.typesafe.ai/sdk/python/api/clients/async)，锁定依赖版本；验证它的
+   httpx2 客户端/transport 与现有 httpx 管理链如何衔接，不假定可直接替换。
+   SDK 负责官方请求/响应类型，核心做最薄适配；禁隐式重试与额外调用，客户端/连接
+   由核心拥有并清理。归一化模型结果、供应商用量与错误，不保留重复手写 HTTP 客户端。
+3. **移除插件模型扩展**：删除 manifest 的 `jev/type:model_route` 和 Jev `create_route`，
+   移走 `JevChoiceRoute`/原始响应解析等供应商逻辑。核心配置不再依赖 extension registry；
+   插件只保留 UI 证据/候选构造、返回选项绑定和执行策略。旧 `json_models.extension` /
+   `json-model` 配置及消费方明确迁移并更新样例，旧格式清晰拒绝或提供有限迁移提示，
+   不保留两套长期装配路径。
+4. **收缩旧抽象并迁移调用方**：`ModelRoute` 当前同时服务 Jev 和 ChatCompletions，
+   且负责请求校验、端点/模型限制、流式识别、usage 解析，不只是计数。
+   `type:model_route` 注册与插件依赖移除；内部协议边界仅在核心 SDK/普通 LLM 仍需要时
+   私有保留或简化，不能盲删影响 TaskModel / Runner LLM 的治理。评估删除无剩余消费者的
+   TaskJSONModel/JSON profile 装配；不为保留类而叠加 SDK。迁移当前 Runner/测试/实验入口；
+   保留历史冻结源码和产物，不改旧哈希或用新实现冒充原实测，必要时显式记录重放版本边界。
+5. **语义等价与后续决策**：第一批保留 S3 的候选、四个控制选项、硬停止与显式回退行为，
+   确认新核心服务可由另一非 GUI 调用方复用。第二批才按 §4.6 补当前步骤上下文、可读候选
+   和可检验的退出/补证据/Advisor 分流；不得用核心迁移暗中改变费用对照和评分标准。
+   LiteLLM / LangChain 替换研究已登记 [backlog](../../backlog.md)，不是本迁移依赖。
+
+**Tests**：按 TDD 复用现有 core 模型/配置/Runner、插件 test_jev/test_dom 和 managed
+Chromium feature，不新建同域 feature。覆盖官方 SDK + fake HTTP 的请求/响应与实际发送数、
+模型能力不匹配、密钥隔离、单次记账、已知/未知用量、禁重试、取消/deadline/关闭后零发送、
+零额度、必需审计失败和资源关闭；覆盖普通聊天/流式工具调用不退化、非 GUI 核心决策调用、
+规则零模型、合法 Jev 候选、弃权回退 F、结果过期/不在候选时零 UI 派发，以及 fill 固定参数。
+上下文投影/分流另测当前步骤明确、后置条件非已观察事实、合理退出不强制二次付费、补证据
+无进展有界、需要生成时才请求 Advisor。离线通过不宣称 SDK 更快或净收益改变。
+
+**最终步骤**：执行 §10 完整 Verification Checklist 全部适用项及最多三轮独立
+review-and-refactor 后提交；需 live SDK 冒烟时先冻结小批参数和调用上限，沿用会话授权范围，
+超出范围再确认，不因 SDK 迁移自动追加一轮 S3 能力评测。本次 docs-only 仅做 docs/diff check
+和独立文档评审。实现完成后才更新现行 design 文档，将 S3-M 标记验收。
 
 ### S4：多步目标、按需 Advisor 与恢复闭环
 
