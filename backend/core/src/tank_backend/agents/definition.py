@@ -68,14 +68,14 @@ class AgentDefinition:
     model: str | None = None
     extension: str | None = None
     grounding: GroundingConfig | None = None
-    json_model: str | None = None
+    decision_model: str | None = None
 
     def __post_init__(self) -> None:
-        if self.json_model is not None and (
-            not self.extension or not isinstance(self.json_model, str)
-            or not self.json_model.strip()
+        if self.decision_model is not None and (
+            not self.extension or not isinstance(self.decision_model, str)
+            or not self.decision_model.strip()
         ):
-            raise ValueError("json-model requires an extension and a nonempty profile name")
+            raise ValueError("decision-model requires an extension and a nonempty profile name")
         if self.grounding is not None and self.extension:
             raise ValueError("grounding is only supported by the built-in agent")
         if self.extension is not None and (
@@ -105,6 +105,9 @@ def parse_agent_file(path: Path) -> AgentDefinition:
     name = fm.get("name")
     if not name:
         raise ValueError(f"Missing required field 'name' in {path}")
+
+    if "json-model" in fm:
+        raise ValueError("json-model is retired; use decision-model with a core profile")
 
     if "engine" in fm:
         raise ValueError("engine is unsupported; use a SubAgent extension")
@@ -148,7 +151,7 @@ def parse_agent_file(path: Path) -> AgentDefinition:
         model=fm.get("model"),
         extension=fm.get("extension"),
         grounding=grounding,
-        json_model=fm.get("json-model"),
+        decision_model=fm.get("decision-model"),
     )
 
 

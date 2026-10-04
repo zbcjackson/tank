@@ -17,9 +17,9 @@ from .subagent import SubAgentCleanupError, SubAgentStopped
 from .task_resources import TaskResources, consume_exception
 
 if TYPE_CHECKING:
-    from ..llm.model_transport import ModelRoute
+    from ..llm.decision_profile import DecisionModelProfile
+    from ..llm.jev_model import TaskDecisionModel
     from ..llm.profile import LLMProfile
-    from ..llm.task_json_model import TaskJSONModel
     from ..llm.task_model import TaskModel
     from .base import AgentOutput
     from .subagent import SubAgentContext
@@ -68,7 +68,7 @@ class TaskRuntime:
     ) -> None:
         self._context = context
         self._model: TaskModel | None = None
-        self._json_model: TaskJSONModel | None = None
+        self._decision_model: TaskDecisionModel | None = None
         self._task_id: str | None = None
         self._operations: dict[str, object] = {}
         self._records: deque[ExecutionRecord] = deque(maxlen=128)
@@ -195,21 +195,21 @@ class TaskRuntime:
         self._model = model
 
     @property
-    def json_model(self) -> TaskJSONModel | None:
-        return self._json_model
+    def decision_model(self) -> TaskDecisionModel | None:
+        return self._decision_model
 
-    def configure_json_model(
-        self, task_id: str, route: ModelRoute, *, credential: str,
+    def configure_decision_model(
+        self, task_id: str, profile: DecisionModelProfile, *, credential: str,
     ) -> None:
         """Explicit host assembly; no plugin configuration or credentials are inferred."""
-        from ..llm.task_json_model import TaskJSONModel
+        from ..llm.jev_model import TaskDecisionModel
 
         self.bind(task_id)
-        if self._json_model is not None:
-            raise ValueError("task JSON model is already configured")
-        model = TaskJSONModel(task_id, self._context, route, credential)
-        self.own("task-json-model", model.aclose)
-        self._json_model = model
+        if self._decision_model is not None:
+            raise ValueError("task decision model is already configured")
+        model = TaskDecisionModel(task_id, self._context, profile, credential)
+        self.own("task-decision-model", model.aclose)
+        self._decision_model = model
 
     @property
     def records(self) -> tuple[ExecutionRecord, ...]:

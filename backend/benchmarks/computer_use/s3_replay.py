@@ -35,11 +35,12 @@ def digest(value: object) -> str:
 
 def code_hashes() -> dict[str, str]:
     from agent_computer_use import contracts, jev
-    from tank_backend.llm import model_transport, task_json_model
+    from tank_backend.llm import model_transport, jev_model, decision_profile
+    from benchmarks.computer_use import legacy_json_model as task_json_model
     from tank_backend.benchmarks import model_policy, spend_ledger
 
     paths = [Path(__file__), Path(inspect.getfile(ActionBuilder))]
-    paths.extend(Path(inspect.getfile(module)) for module in (contracts, jev, model_transport, task_json_model,
+    paths.extend(Path(inspect.getfile(module)) for module in (contracts, jev, model_transport, task_json_model, jev_model, decision_profile,
                                                            model_policy, spend_ledger))
     return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
@@ -162,7 +163,8 @@ async def run_replay(
     import asyncio
     import time
 
-    from agent_computer_use.jev import JevChoiceRoute, parse_choice
+    from tank_backend.llm.jev_model import JevChoiceRoute
+    from benchmarks.computer_use.legacy_json_model import parse_choice, TaskJSONModel
     from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
     from tank_backend.agents.task_runtime import ExecutionRecord
     from tank_backend.benchmarks.model_policy import BenchmarkModelPolicy
@@ -228,9 +230,8 @@ async def run_replay(
                                          config["url"], config["model"], arm, max_output_tokens=128,
                                          extra_parameters={"enable_thinking": False},
                                      ))
-                            ctx.runtime.configure_json_model(trial, route, credential=credentials[arm])
-                            model = ctx.runtime.json_model
-                            assert model is not None
+                            model = TaskJSONModel(trial, ctx, route, credentials[arm])
+                            ctx.runtime.own("legacy-json-replay", model.aclose)
                             request: dict[str, Any] = (
                                 {"model": config["model"], "state": question["state"],
                                  "questions": {"next_action": {"type": "choice",

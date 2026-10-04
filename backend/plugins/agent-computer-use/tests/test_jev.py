@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from typing import cast
 
 import httpx
 import pytest
@@ -36,7 +37,8 @@ def reply(request, choice=None):
 
 
 def setup(monkeypatch, respond, *, context=None):
-    from agent_computer_use.jev import JevChoiceRoute, JevSelector
+    from agent_computer_use.jev import JevSelector
+    from tank_backend.llm.decision_profile import DecisionModelProfile
 
     sent, closed = [], []
 
@@ -53,11 +55,11 @@ def setup(monkeypatch, respond, *, context=None):
         SubAgentAuthorization(frozenset({"network", "desktop"})),
         SubAgentBudget(), asyncio.Event(),
     )
-    ctx.runtime.configure_json_model(
-        "task", JevChoiceRoute("https://offline.invalid/v1/systemone", "jev-1.13.0", "jev"),
+    ctx.runtime.configure_decision_model(
+        "task", DecisionModelProfile("typesafe", "https://offline.invalid/v1/systemone", "jev-1.13.0", "jev"),
         credential="host-secret",
     )
-    return ctx, JevSelector("jev-1.13.0"), sent, closed
+    return ctx, JevSelector(), sent, closed
 
 
 async def test_choice_is_bound_to_whole_action_and_accounted_once(monkeypatch):
@@ -127,12 +129,10 @@ async def test_invalid_decisions_never_escape_but_usage_is_retained(monkeypatch,
 
 @pytest.mark.parametrize("model", ["", "jev-latest", "jev-preview", "other", "jev-1.13.0\n"])
 def test_model_must_be_an_explicit_version(model):
-    from agent_computer_use.jev import JevChoiceRoute, JevSelector
+    from tank_backend.llm.decision_profile import DecisionModelProfile
 
     with pytest.raises(ValueError):
-        JevChoiceRoute("https://offline.invalid/v1/systemone", model, "jev")
-    with pytest.raises(ValueError):
-        JevSelector(model)
+        DecisionModelProfile("typesafe", "https://offline.invalid/v1/systemone", model, "jev")
 
 
 @pytest.mark.parametrize("invalid", ["incomplete", "binding", "empty", "truncated"])
@@ -348,13 +348,13 @@ async def test_text_and_jev_share_the_original_task_ledger(monkeypatch):
     assert closed == [True, True]
 
 
-@pytest.mark.parametrize("invalid", ["empty_name", "long_name", "instructions", "state", "stream"])
+@pytest.mark.parametrize("invalid", ["empty_name", "long_name", "instructions", "state", "description"])
 async def test_invalid_wire_request_is_refused_before_http(monkeypatch, invalid):
     async def respond(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=reply(request))
 
     ctx, _, sent, _ = setup(monkeypatch, respond)
-    model = ctx.runtime.json_model
+    model = ctx.runtime.decision_model
     assert model is not None
     payload = {"model": "jev-1.13.0", "state": {}, "questions": {"next_action": {
         "type": "choice", "instructions": "Choose", "criteria": {"a": "Action"},
@@ -369,10 +369,12 @@ async def test_invalid_wire_request_is_refused_before_http(monkeypatch, invalid)
     elif invalid == "state":
         payload["state"] = True
     else:
-        payload["stream"] = True
+        question["criteria"] = {"a": 123}
     try:
         with pytest.raises(ValueError):
-            await model.request(payload)
+            await model.choose(state=cast(dict[str, object], payload["state"]),
+                               instructions=question["instructions"],
+                               options=question["criteria"])
         assert sent == []
     finally:
         await ctx.runtime.aclose()
@@ -415,7 +417,10 @@ def replay_module():
     import runpy
     from pathlib import Path
 
-    return runpy.run_path(str(Path(__file__).parents[3] / "benchmarks/computer_use/s3_replay.py"))
+    with pytest.MonkeyPatch.context() as patch:
+        patch.syspath_prepend(str(Path(__file__).parents[3]))
+        import benchmarks.computer_use.legacy_json_model  # noqa: F401
+        return runpy.run_path(str(Path(__file__).parents[3] / "benchmarks/computer_use/s3_replay.py"))
 
 
 def test_replay_freezes_public_inputs_separately_from_gold(tmp_path):

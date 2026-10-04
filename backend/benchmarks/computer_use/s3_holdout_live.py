@@ -16,7 +16,8 @@ from typing import Any, TextIO
 import httpx
 from agent_computer_use.contracts import ActionSet
 from pydantic import TypeAdapter
-from agent_computer_use.jev import JevChoiceRoute, parse_choice
+from tank_backend.llm.jev_model import JevChoiceRoute
+from benchmarks.computer_use.legacy_json_model import parse_choice
 from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
 from tank_backend.agents.task_runtime import ExecutionRecord
 from tank_backend.benchmarks.model_policy import BenchmarkModelPolicy

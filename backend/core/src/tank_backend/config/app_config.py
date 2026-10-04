@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ..audio.input.types import SegmenterConfig
-from ..llm.json_profile import JSONModelProfile, parse_json_profiles
+from ..llm.decision_profile import DecisionModelProfile, parse_decision_profiles
 from ..llm.profile import LLMProfile, resolve_profile
 
 if TYPE_CHECKING:
@@ -163,7 +163,7 @@ class AppConfig:
     # Raw config dict — kept for backward-compat ``get_section()``
     _raw: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
-    json_models: dict[str, JSONModelProfile] = field(default_factory=dict)
+    decision_models: dict[str, DecisionModelProfile] = field(default_factory=dict)
 
     # ── Factories ─────────────────────────────────────────────────
 
@@ -186,6 +186,8 @@ class AppConfig:
         Raises ``ConfigError`` on any validation failure.
         """
         try:
+            if "json_models" in raw:
+                raise ConfigError("json_models is retired; use core decision_models profiles")
             llm_profiles = _parse_llm_profiles(raw.get("llm", {}))
             if "default" not in llm_profiles:
                 available = list(llm_profiles.keys())
@@ -195,7 +197,7 @@ class AppConfig:
 
             return cls(
                 llm_profiles=llm_profiles,
-                json_models=parse_json_profiles(raw.get("json_models", {})),
+                decision_models=parse_decision_profiles(raw.get("decision_models", {})),
                 brain=parse_section(BrainConfig, raw.get("brain")),
                 echo_guard=parse_section(EchoGuardConfig, raw.get("echo_guard")),
                 assistant=parse_section(AssistantConfig, raw.get("assistant")),

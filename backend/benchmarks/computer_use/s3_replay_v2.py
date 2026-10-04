@@ -149,7 +149,7 @@ def parse_response(arm: str, data: dict[str, Any], options: dict[str, Any]) -> t
     if arm == "qwen":
         return v1.parse_qwen(data, options, v1.MODELS[arm]["model"]), None
     import math
-    from agent_computer_use.jev import probability
+    from benchmarks.computer_use.legacy_json_model import probability
 
     answers = data.get("answers")
     if (data.get("model") != v1.MODELS[arm]["model"] or not isinstance(answers, dict)
@@ -185,7 +185,7 @@ async def call_once(
     case: dict[str, Any], row: dict[str, Any], pool: httpx.AsyncBaseTransport,
     credential: str, policy: Any, audit_file: Any,
 ) -> bool:
-    from agent_computer_use.jev import JevChoiceRoute
+    from tank_backend.llm.jev_model import JevChoiceRoute
     from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
     from tank_backend.agents.task_runtime import ExecutionRecord
     from tank_backend.llm.model_transport import ChatCompletionsRoute, TaskModelTransport

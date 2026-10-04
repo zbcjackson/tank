@@ -498,9 +498,9 @@ async def test_yaml_runner_jev_clicks_and_verifies_real_dom(
     api_key: unused
     model: unused
     base_url: https://offline.invalid/v1
-json_models:
+decision_models:
   decision:
-    extension: agent-computer-use:jev
+    provider: typesafe
     url: https://offline.invalid/v1/systemone
     model: jev-1.13.0
     credential_env: TEST_JEV_KEY
@@ -516,7 +516,7 @@ subagents:
     definition_path.write_text('''---
 name: ladder
 extension: agent-computer-use:agent
-json-model: decision
+decision-model: decision
 ---
 Save name.
 ''')
@@ -608,7 +608,7 @@ async def test_real_dom_multilayout_selection_readback(
     from agent_computer_use.channels.dom import ManagedChromiumChannel
     from agent_computer_use.contracts import snapshot_json
     from agent_computer_use.factory import create_subagent
-    from agent_computer_use.jev import JevChoiceRoute
+    from tank_backend.llm.decision_profile import DecisionModelProfile
 
     source_html = multilayout_html(layout, scenario)
     desired_slot = "A" if layout == "table" else "B"
@@ -660,7 +660,7 @@ async def test_real_dom_multilayout_selection_readback(
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
     ctx = SubAgentContext(SubAgentAuthorization(frozenset({"desktop", "network"})),
                           SubAgentBudget(), asyncio.Event(), audit=audit)
-    ctx.runtime.configure_json_model("dom-task", JevChoiceRoute(
+    ctx.runtime.configure_decision_model("dom-task", DecisionModelProfile("typesafe",
         "https://offline.invalid/v1/systemone", "jev-1.13.0", "jev"), credential="fixture-only-key")
     task_goal = GoalContract.from_input({
         "schema_version": 1, "scope": "managed-page", "objective": "执行身份 K7 对应的项目",
@@ -986,12 +986,12 @@ async def test_runner_candidate_strategy_returns_to_rules(site, chromium_require
     config = AppConfig.from_raw_dict({
         "llm": {"default": {"api_key": "fixture-f", "model": "f-model", "base_url": "https://offline.invalid/v1",
                             "max_tokens": 128, "extra_body": {"enable_thinking": False}}},
-        "json_models": {"jev": {"extension": "agent-computer-use:jev", "url": "https://offline.invalid/v1/systemone",
+        "decision_models": {"jev": {"provider": "typesafe", "url": "https://offline.invalid/v1/systemone",
                                  "model": "jev-1.13.0", "credential_env": "S3_TEST_JEV_KEY"}},
         "subagents": {"agent-computer-use:agent": {"config": {"browser": {"scope": "managed-page", "url": site},
                                                               "selector": mode}}}})
     definition_file = tmp_path / "strategy.md"
-    definition_file.write_text("---\nname: strategy\nextension: agent-computer-use:agent\nmodel: default\njson-model: jev\n---\nUse the declared task.\n")
+    definition_file.write_text("---\nname: strategy\nextension: agent-computer-use:agent\nmodel: default\ndecision-model: jev\n---\nUse the declared task.\n")
     definition = parse_agent_file(definition_file)
     runner = AgentRunner(MagicMock(), MagicMock(), Bus(), ToolApprovalPolicy(computer_mode="allow"),
                         PendingToolCallStore(), {definition.name: definition}, registry=registry,

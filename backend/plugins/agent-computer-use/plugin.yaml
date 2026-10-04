@@ -7,6 +7,3 @@ extensions:
     runtime_api: 1
     factory: agent_computer_use:create_subagent
     permissions: [desktop, network]
-  - name: jev
-    type: model_route
-    factory: agent_computer_use.jev:create_route

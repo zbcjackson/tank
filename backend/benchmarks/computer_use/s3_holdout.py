@@ -20,7 +20,7 @@ from agent_computer_use.contracts import (
     GoalModel,
     Snapshot,
 )
-from agent_computer_use.jev import Control, choice_payload
+from agent_computer_use.jev import Control, decision_question
 from pydantic import TypeAdapter, model_validator
 
 from benchmarks.computer_use import s3_replay as v1
@@ -85,7 +85,7 @@ def build_case(case: Case) -> tuple[Snapshot, ActionSet]:
 
 def requests(case: Case) -> dict[str, dict[str, object]]:
     snapshot, actions = build_case(case)
-    current = choice_payload(case.goal, snapshot, actions, v1.MODELS["jev"]["model"])
+    current = {"model": v1.MODELS["jev"]["model"], **decision_question(case.goal, snapshot, actions)}
     legacy = copy.deepcopy(current)
     state = legacy["state"]
     questions = legacy["questions"]

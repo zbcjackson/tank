@@ -246,47 +246,6 @@ async def test_governed_client_does_not_export_payload_through_global_sdk_wrappe
     assert len(requests) == 1 and traced == []
 
 
-async def test_host_json_model_owns_credentials_and_cleanup(monkeypatch):
-    from tank_backend.llm.model_transport import ChatCompletionsRoute
-
-    sent, closed = [], []
-
-    class HTTP(httpx.AsyncBaseTransport):
-        async def handle_async_request(self, request):
-            sent.append(request)
-            return httpx.Response(200, json={
-                "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
-                "value": "selected",
-            })
-
-        async def aclose(self):
-            closed.append(True)
-
-    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
-    ctx = SubAgentContext(
-        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
-    )
-    ctx.runtime.configure_json_model(
-        "task", ChatCompletionsRoute(
-            "https://offline.invalid/v1/chat/completions", "test", "key", max_output_tokens=10,
-        ), credential="secret",
-    )
-    model = ctx.runtime.json_model
-    assert model is not None
-    assert sent == closed == []
-    result = await model.request({
-        "model": "test", "messages": [{"role": "user", "content": "choose"}], "max_tokens": 10,
-    })
-    assert result["value"] == "selected"
-    assert sent[0].headers["authorization"] == "Bearer secret"
-    assert ctx.budget.total_tokens == 5
-    await ctx.runtime.aclose()
-    assert closed == [True]
-    with pytest.raises(SubAgentStopped):
-        await model.request({})
-    assert len(sent) == 1
-
-
 async def test_text_model_allows_only_pinned_non_thinking_flag(model_stack):
     context, profile, _, requests, _ = model_stack
     await context.runtime.aclose()
@@ -316,3 +275,100 @@ def test_text_model_rejects_unapproved_generation_parameters(extra):
         ctx.runtime.configure_model(
             "task", LLMProfile("f", "key", "f", "https://offline.invalid/v1", extra_body=extra),
         )
+
+
+async def test_core_decision_model_uses_official_sdk_and_original_ledger(monkeypatch):
+    from typesafe_sdk import AsyncTypeSafeClient
+
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+
+    calls, sdk_calls, closed = [], [], []
+    original = AsyncTypeSafeClient.system_one
+
+    async def system_one(self, *args, **kwargs):
+        sdk_calls.append(True)
+        return await original(self, *args, **kwargs)
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            calls.append(request)
+            return httpx.Response(200, json={
+                "model": "jev-1.13.0", "answers": {"next_action": {
+                    "type": "choice", "choice": "billing", "confidence": 1.0,
+                    "probabilities": {"billing": 1.0, "technical": 0.0},
+                }}, "usage": {"input_tokens": 9, "output_tokens": 2},
+            })
+
+        async def aclose(self):
+            closed.append(True)
+
+    monkeypatch.setattr(AsyncTypeSafeClient, "system_one", system_one)
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    ctx = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
+                          SubAgentBudget(), asyncio.Event())
+    ctx.runtime.configure_decision_model("task", DecisionModelProfile(
+        "typesafe", "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_KEY",
+    ), credential="host-secret")
+    model = ctx.runtime.decision_model
+    assert model is not None
+    assert calls == sdk_calls == closed == []
+    result = await model.choose(state={"ticket": "charged twice"}, instructions="Route ticket",
+                                options={"billing": "Billing", "technical": "Technical"})
+    assert result.choice == "billing" and result.confidence == 1.0
+    assert ctx.budget.total_tokens == 11 and ctx.budget.call_count == 1
+    assert len(calls) == len(sdk_calls) == 1
+    assert calls[0].headers["authorization"] == "Bearer host-secret"
+    assert json.loads(calls[0].content)["questions"]["next_action"]["criteria"] == {
+        "billing": "Billing", "technical": "Technical",
+    }
+    await ctx.runtime.aclose()
+    assert closed == [True]
+    with pytest.raises(SubAgentStopped):
+        await model.choose(state={}, instructions="Route", options={"a": "A"})
+    assert len(calls) == 1
+
+
+def test_legacy_json_model_configuration_is_explicitly_rejected(tmp_path):
+    from tank_backend.agents.definition import parse_agent_file
+    from tank_backend.config.app_config import AppConfig, ConfigError
+
+    with pytest.raises(ConfigError, match="decision_models"):
+        AppConfig.from_raw_dict({"llm": {"default": {"api_key": "x", "model": "x"}},
+                                 "json_models": {}})
+    path = tmp_path / "legacy.md"
+    path.write_text("---\nname: legacy\nextension: fake:agent\njson-model: old\n---\nTask")
+    with pytest.raises(ValueError, match="decision-model"):
+        parse_agent_file(path)
+
+
+@pytest.mark.parametrize("status", [302, 429, 503])
+async def test_decision_sdk_has_no_hidden_retry_or_redirect(monkeypatch, status):
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+
+    sent = []
+
+    async def respond(request):
+        sent.append(request)
+        return httpx.Response(status, headers={"location": "https://other.invalid/"},
+                              json={"error": "provider-private-message"})
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda: httpx.MockTransport(respond))
+    monkeypatch.setenv("TYPESAFE_BASE_URL", "https://other.invalid")
+    monkeypatch.setenv("TYPESAFE_DEFAULT_MODEL", "jev-latest")
+    ctx = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
+                          SubAgentBudget(), asyncio.Event())
+    ctx.runtime.configure_decision_model("task", DecisionModelProfile(
+        "typesafe", "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_KEY",
+    ), credential="secret")
+    try:
+        assert ctx.runtime.decision_model is not None
+        with pytest.raises(SubAgentStopped) as error:
+            await ctx.runtime.decision_model.choose(state={}, instructions="Choose",
+                                                    options={"a": "A"})
+        assert "provider-private-message" not in str(error.value)
+        assert len(sent) == 1
+        assert str(sent[0].url) == "https://offline.invalid/v1/systemone"
+        assert json.loads(sent[0].content)["model"] == "jev-1.13.0"
+        assert len(ctx.budget.unknown_calls) == 1
+    finally:
+        await ctx.runtime.aclose()

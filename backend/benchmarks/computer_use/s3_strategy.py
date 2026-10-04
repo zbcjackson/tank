@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tank_backend.llm.decision_profile import DecisionModelProfile
+
 import asyncio
 import hashlib
 import inspect
@@ -97,6 +99,8 @@ def freeze_inputs() -> dict[str, Any]:
         "lifecycle": "fresh isolated browser and lazy task-owned clients per trial; no warmups/retries",
         "playwright": version("playwright"),
         "httpx": version("httpx"),
+        "httpx2": version("httpx2"),
+        "typesafe-sdk": version("typesafe-sdk"),
         "httpcore": version("httpcore"),
         "scope": "authored workflow-inspired local pages; supplied structured goals; no production-adoption claim",
         "decision_rule": {
@@ -265,9 +269,9 @@ async def run_trial(
         )
         if row["arm"] == "J3":
             j = MODELS["jev"]
-            ctx.runtime.configure_json_model(
+            ctx.runtime.configure_decision_model(
                 row["trial"],
-                jev.JevChoiceRoute(j["url"], j["model"], "jev"),
+                DecisionModelProfile("typesafe", j["url"], j["model"], "jev"),
                 credential=credentials["jev"],
             )
         async for event in instance.run(

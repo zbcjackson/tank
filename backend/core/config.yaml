@@ -7,6 +7,15 @@
 # Use "extension: plugin-name:ext-name" to reference a specific extension.
 # Set "enabled: false" or remove the section entirely to disable a feature.
 
+# Core-owned decision models. A profile is used only when an agent explicitly
+# selects decision-model: jev; merely configuring it never starts a request.
+decision_models:
+  jev:
+    provider: typesafe
+    url: https://api.typesafe.ai/v1/systemone
+    model: jev-1.13.0
+    credential_env: TYPESAFE_API_KEY
+
 llm:
   default:
     api_key: ${DEEPSEEK_API_KEY}

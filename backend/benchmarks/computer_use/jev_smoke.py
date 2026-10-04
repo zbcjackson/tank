@@ -112,7 +112,7 @@ async def run_smoke(output: Path) -> dict[str, Any]:
     for extension in manifest.extensions:
         registry.register(manifest.plugin_name, extension)
     definition = AgentDefinition("smoke", "", "Synthetic save task",
-                                 extension="agent-computer-use:agent", json_model="jev")
+                                 extension="agent-computer-use:agent", decision_model="jev")
     active_case = CASES[0]
 
     async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -137,7 +137,7 @@ async def run_smoke(output: Path) -> dict[str, Any]:
     config = AppConfig.from_raw_dict({
         "llm": {"default": {"api_key": "unused", "model": "unused",
                              "base_url": "https://unused.invalid/v1"}},
-        "json_models": {"jev": {"extension": "agent-computer-use:jev", "url": ENDPOINT,
+        "decision_models": {"jev": {"provider": "typesafe", "url": ENDPOINT,
                                 "model": MODEL, "credential_env": "TYPESAFE_API_KEY"}},
         "subagents": {"agent-computer-use:agent": {"config": {
             "browser": {"scope": "smoke", "url": url}, "selector": "jev",

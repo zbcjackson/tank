@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tank_backend.llm.decision_profile import DecisionModelProfile
+
 import asyncio
 import hashlib
 import inspect
@@ -140,7 +142,7 @@ async def run_case(
     started = time.monotonic()
     row["status"] = "started"
     try:
-        ctx.runtime.configure_json_model(case["id"], jev.JevChoiceRoute(smoke.ENDPOINT, smoke.MODEL, "jev"),
+        ctx.runtime.configure_decision_model(case["id"], DecisionModelProfile("typesafe", smoke.ENDPOINT, smoke.MODEL, "jev"),
                                          credential=credential)
         async for event in instance.run(SubAgentRequest("local DOM acceptance", "", case["id"], case["goal"]), ctx):
             if "task_result" in event.metadata:
