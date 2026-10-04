@@ -81,6 +81,15 @@ class JevChoiceRoute:
         return inputs, outputs
 
 
+def check_eligible(goal: GoalContract, snapshot: Snapshot, actions: ActionSet) -> None:
+    binding = actions.binding
+    if (not snapshot.ready or not snapshot.complete or actions.truncated or not actions.actions
+            or actions.reason != "jev_eligible" or snapshot.scope != goal.scope
+            or binding.scope != snapshot.scope or binding.observation_id != snapshot.observation_id
+            or binding.generation != snapshot.generation):
+        raise SubAgentStopped("ineligible_decision")
+
+
 class JevSelector:
     def __init__(self, model: str | None = None) -> None:
         if model is not None:
@@ -92,12 +101,7 @@ class JevSelector:
         context: SubAgentContext,
     ) -> DecisionResult:
         context.check("desktop")
-        binding = actions.binding
-        if (not snapshot.ready or not snapshot.complete or actions.truncated or not actions.actions
-                or actions.reason != "jev_eligible" or snapshot.scope != goal.scope
-                or binding.scope != snapshot.scope or binding.observation_id != snapshot.observation_id
-                or binding.generation != snapshot.generation):
-            raise SubAgentStopped("ineligible_decision")
+        check_eligible(goal, snapshot, actions)
         model = context.runtime.json_model
         if model is None:
             raise SubAgentStopped("model_unavailable")
@@ -113,12 +117,18 @@ def choice_payload(
     goal: GoalContract, snapshot: Snapshot, actions: ActionSet, version: str,
 ) -> dict[str, object]:
     """Serialize an admitted selection; caller retains eligibility and authority checks."""
+    return {"model": version, **decision_question(goal, snapshot, actions)}
+
+
+def decision_question(
+    goal: GoalContract, snapshot: Snapshot, actions: ActionSet,
+) -> dict[str, object]:
+    """Same semantic question for native Choice and governed text selection."""
     criteria: dict[str, object] = {
         action.id: asdict(action) for action in actions.actions
     }
     criteria.update((key, value) for key, value in CONTROLS.items())
     return {
-        "model": version,
         "state": {"goal": goal.model_dump(mode="json"), "snapshot": snapshot_json(snapshot),
                   "binding": asdict(actions.binding),
                   "evidence_contract": {

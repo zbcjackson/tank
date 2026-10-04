@@ -6,7 +6,7 @@ from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 
 from .agent import ComputerUseSubAgent
 from .contracts import Action, Binding, DispatchReceipt, Snapshot
-from .controller import ComputerUseController
+from .controller import ComputerUseController, Selector
 
 
 class UnavailableChannel:
@@ -28,14 +28,20 @@ class UnavailableChannel:
 def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
     if config:
         if (set(config) - {"browser", "selector"} or not isinstance(config.get("browser"), dict)
-                or ("selector" in config and config["selector"] != "jev")):
+                or ("selector" in config and config["selector"] not in ("jev", "llm", "jev-fallback"))):
             raise ValueError("Only an explicit browser configuration is supported")
         from .channels.dom import BrowserConfig, ManagedChromiumChannel
 
         browser = ManagedChromiumChannel(BrowserConfig.model_validate(config["browser"]))
         from .jev import JevSelector
 
-        selector = JevSelector() if config.get("selector") == "jev" else None
+        selector: Selector | None = None
+        if config.get("selector") == "jev":
+            selector = JevSelector()
+        elif config.get("selector") in ("llm", "jev-fallback"):
+            from .model_selector import ModelSelector
+
+            selector = ModelSelector(use_jev=config["selector"] == "jev-fallback")
         return ComputerUseSubAgent(
             ComputerUseController(browser, browser, selector=selector), resources=(browser,),
         )

@@ -23,7 +23,10 @@ class TaskModel:
     ) -> None:
         context.check("network")
         if (
-            profile.extra_headers or profile.extra_body
+            profile.extra_headers or (profile.extra_body and not (
+                set(profile.extra_body) == {"enable_thinking"}
+                and profile.extra_body["enable_thinking"] is False
+            ))
             or not isinstance(profile.api_key, str) or not profile.api_key.strip()
             or (profile.temperature is not None and (
                 isinstance(profile.temperature, bool)
@@ -31,9 +34,12 @@ class TaskModel:
             ))
         ):
             raise ValueError("profile is incompatible with the task text model service")
+        self._extra_body: dict[str, object] = (
+            {"enable_thinking": False} if profile.extra_body else {}
+        )
         self._route = ChatCompletionsRoute(
             profile.base_url.rstrip("/") + "/chat/completions", profile.model,
-            profile.name, max_output_tokens=profile.max_tokens,
+            profile.name, max_output_tokens=profile.max_tokens, extra_parameters=self._extra_body,
         )
         self._context = context
         self._task_id = task_id
@@ -66,7 +72,7 @@ class TaskModel:
                 self._llm = LLM(
                     api_key="host-managed", model=self._route.model,
                     base_url=str(client.base_url), temperature=self._temperature,
-                    max_tokens=maximum, client=client,
+                    max_tokens=maximum, client=client, extra_body=self._extra_body.copy(),
                 )
                 self._client = client
             except BaseException:

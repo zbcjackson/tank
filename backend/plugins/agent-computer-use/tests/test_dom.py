@@ -938,3 +938,188 @@ async def test_dom_followup_freeze_rejects_changed_protocol_before_resources(mon
     with pytest.raises(ValueError, match="recipe changed"):
         await followup.run_batch(tmp_path / "run", frozen["sha256"], "fixture-key")
     assert not (tmp_path / "run/spend.jsonl").exists()
+
+
+@pytest.mark.parametrize("mode", ["llm", "jev-fallback"])
+async def test_runner_candidate_strategy_returns_to_rules(site, chromium_required, monkeypatch, tmp_path, mode):
+    import json
+    import httpx
+    from unittest.mock import MagicMock
+    from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
+    from tank_backend.agents.definition import parse_agent_file
+    from tank_backend.agents.resources import DesktopResource
+    from tank_backend.agents.runner import AgentRunner
+    from tank_backend.config.app_config import AppConfig
+    from tank_backend.pipeline.bus import Bus
+    from tank_backend.plugin.manifest import read_manifest_from_yaml
+    from tank_backend.plugin.registry import ExtensionRegistry
+
+    calls, events, audits = [], [], []
+    class Observer:
+        def on_event(self, kind, metadata):
+            events.append((kind, metadata))
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            data = json.loads(request.content)
+            calls.append(data)
+            if "questions" in data:
+                criteria = data["questions"]["next_action"]["criteria"]
+                return httpx.Response(200, json={"model": "jev-1.13.0", "answers": {"next_action": {
+                    "type": "choice", "choice": "none", "confidence": 1,
+                    "probabilities": {k: int(k == "none") for k in criteria}}},
+                    "usage": {"input_tokens": 12, "output_tokens": 0}})
+            question = json.loads(data["messages"][1]["content"])
+            choice = next(k for k, v in question["questions"]["next_action"]["criteria"].items() if isinstance(v, dict))
+            assert data["enable_thinking"] is False
+            return httpx.Response(200, json={"id": "f", "object": "chat.completion", "created": 1,
+                "model": "f-model", "choices": [{"index": 0, "finish_reason": "stop",
+                "message": {"role": "assistant", "content": json.dumps({"choice": choice})}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12}})
+    async def audit(record):
+        audits.append(record)
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    monkeypatch.setenv("S3_TEST_JEV_KEY", "fixture-key")
+    registry = ExtensionRegistry()
+    manifest = read_manifest_from_yaml(Path(__file__).parents[1] / "plugin.yaml")
+    for extension in manifest.extensions:
+        registry.register(manifest.plugin_name, extension)
+    config = AppConfig.from_raw_dict({
+        "llm": {"default": {"api_key": "fixture-f", "model": "f-model", "base_url": "https://offline.invalid/v1",
+                            "max_tokens": 128, "extra_body": {"enable_thinking": False}}},
+        "json_models": {"jev": {"extension": "agent-computer-use:jev", "url": "https://offline.invalid/v1/systemone",
+                                 "model": "jev-1.13.0", "credential_env": "S3_TEST_JEV_KEY"}},
+        "subagents": {"agent-computer-use:agent": {"config": {"browser": {"scope": "managed-page", "url": site},
+                                                              "selector": mode}}}})
+    definition_file = tmp_path / "strategy.md"
+    definition_file.write_text("---\nname: strategy\nextension: agent-computer-use:agent\nmodel: default\njson-model: jev\n---\nUse the declared task.\n")
+    definition = parse_agent_file(definition_file)
+    runner = AgentRunner(MagicMock(), MagicMock(), Bus(), ToolApprovalPolicy(computer_mode="allow"),
+                        PendingToolCallStore(), {definition.name: definition}, registry=registry,
+                        app_config=config, desktop_resource=DesktopResource())
+    # A deterministic control-flow probe, not an effectiveness benchmark:
+    # save the initial empty field, then edit it without saving again.
+    task = goal().model_dump(mode="json")
+    save = task["milestones"][1]
+    save["label"] = "保存当前名称"
+    save["postcondition"]["value"] = ""
+    task["milestones"] = [save, task["milestones"][0]]
+    task["completion"] = [{"key": "status:Result", "value": ""}, {"key": "textbox:Name", "value": "小明"}]
+    outputs = [o async for o in runner.run_agent(definition, [], task_id="strategy-task", task_input=task,
+        authorization=SubAgentAuthorization(frozenset({"desktop", "network"})), observer=Observer(), audit=audit)]
+    result = next(o.metadata["task_result"] for o in outputs if "task_result" in o.metadata)
+    assert result["status"] == "completed" and result["cleanup"] == "confirmed"
+    assert len(result["details"]["receipts"]) == 2
+    assert len(calls) == (2 if mode == "jev-fallback" else 1)
+    routes = [m["reason"] for k, m in events if k == "computer_use_route"]
+    assert routes == ["jev_eligible", "rules_unique"]
+    assert len([a for a in audits if a.category == "model" and a.phase == "finished"]) == len(calls)
+
+
+@pytest.mark.parametrize("force_fallback", [False, True])
+async def test_s3_strategy_pairs_governed_tasks_and_counts_fallback(chromium_required, monkeypatch, tmp_path, force_fallback):
+    import json
+    import httpx
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_strategy as bench
+
+    calls = []
+    async def respond(request):
+        payload = json.loads(request.content)
+        calls.append(payload)
+        native = "questions" in payload
+        q = payload if native else json.loads(payload["messages"][1]["content"])
+        criteria = q["questions"]["next_action"]["criteria"]
+        objective = q["state"]["goal"]["objective"]
+        target = next((label for word,label in [('外观','界面与显示'),('草稿','保存进度'),('优惠','取消营销订阅'),('收据','查看支付凭证')] if word in objective), None)
+        if target is None or (native and force_fallback):
+            choice = "none"
+        else:
+            ref = next(e["ref"] for e in q["state"]["snapshot"]["elements"] if e["label"] == target)
+            choice = next(k for k,v in criteria.items() if isinstance(v,dict) and v["target_ref"] == ref)
+        if native:
+            return httpx.Response(200,json={"model":"jev-1.13.0","answers":{"next_action":{
+                "type":"choice","choice":choice,"confidence":1,"probabilities":{k:int(k==choice) for k in criteria}}},
+                "usage":{"input_tokens":12,"output_tokens":0}})
+        assert payload["enable_thinking"] is False
+        return httpx.Response(200,json={"id":"f","object":"chat.completion","created":1,
+            "model":bench.MODELS['f']['model'],"choices":[{"index":0,"finish_reason":"stop",
+            "message":{"role":"assistant","content":json.dumps({'choice':choice})}}],
+            "usage":{"prompt_tokens":10,"completion_tokens":2,"total_tokens":12}})
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            return await respond(request)
+    monkeypatch.setattr(httpx,'AsyncHTTPTransport',HTTP)
+    f=bench.prepare(tmp_path/'run')
+    result=await bench.run_batch(tmp_path/'run',f['sha256'],{'jev':'fixture-j','f':'fixture-f'})
+    assert result['completed'] and len(result['rows']) == 48
+    assert len(result['paired']) == 24
+    assert all(r['accepted'] and r['cleanup_confirmed'] for r in result['rows'])
+    assert len(calls) == (54 if force_fallback else 42)
+    assert result['spend']['batch']['known_tokens'] == len(calls)*12
+    assert result['spend']['batch']['reserved_tokens'] == 0
+    for row in result['rows']:
+        if row['case_id'] in ('profile-name','compact-view'):
+            assert not row['calls']
+    assert result['summary']['H3']['f_calls'] == 18
+    assert result['summary']['J3']['f_calls'] == (18 if force_fallback else 6)
+    assert result['summary']['J3']['jev_calls'] == 18
+    with pytest.raises(FileExistsError):
+        await bench.run_batch(tmp_path/'run',f['sha256'],{'jev':'fixture-j','f':'fixture-f'})
+
+
+@pytest.mark.parametrize("failure", ["unknown", "cancelled", "audit", "cleanup"])
+async def test_s3_strategy_stops_operational_failures_with_full_denominator(chromium_required, monkeypatch, tmp_path, failure):
+    import json
+    import httpx
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_strategy as bench
+    sent=[]
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self,request):
+            sent.append(request)
+            if failure=='cancelled':
+                raise asyncio.CancelledError
+            return httpx.Response(503)
+    monkeypatch.setattr(httpx,'AsyncHTTPTransport',HTTP)
+    if failure=='cleanup':
+        original_close=bench.dom.ManagedChromiumChannel.aclose
+        async def bad_close(self):
+            await original_close(self)
+            raise RuntimeError('reported close failure')
+        monkeypatch.setattr(bench.dom.ManagedChromiumChannel,'aclose',bad_close)
+    if failure=='audit':
+        append=bench.v1.append_json
+        def broken(file,row):
+            if Path(file.name).name=='audit.jsonl':
+                raise OSError('required audit unavailable')
+            append(file,row)
+        monkeypatch.setattr(bench.v1,'append_json',broken)
+    f=bench.prepare(tmp_path/'run')
+    if failure=='cancelled':
+        with pytest.raises(asyncio.CancelledError):
+            await bench.run_batch(tmp_path/'run',f['sha256'],{'jev':'j','f':'f'})
+        result=json.loads((tmp_path/'run/result.json').read_text())
+    else:
+        result=await bench.run_batch(tmp_path/'run',f['sha256'],{'jev':'j','f':'f'})
+    assert not result['completed'] and len(result['rows'])==48
+    assert result['conclusion']=='incomplete_no_adoption_conclusion'
+    assert len((tmp_path/'run/rows.jsonl').read_text().splitlines())==48
+    assert len(sent)==(0 if failure in ('audit','cleanup') else 1)
+    assert result['spend']['stop_reason']
+
+
+async def test_s3_strategy_freeze_rejects_drift_without_resources(monkeypatch,tmp_path):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_strategy as bench
+    def forbidden(*args,**kwargs):
+        raise AssertionError('unexpected resource creation')
+    monkeypatch.setattr(asyncio,'start_server',forbidden)
+    f=bench.prepare(tmp_path/'run')
+    f['request_limit']=55
+    f['sha256']=bench.v1.digest({k:v for k,v in f.items() if k!='sha256'})
+    (tmp_path/'run/freeze.json').write_text(json.dumps(f))
+    with pytest.raises(ValueError,match='recipe changed'):
+        await bench.run_batch(tmp_path/'run',f['sha256'],{'jev':'j','f':'f'})
+    assert not (tmp_path/'run/spend.jsonl').exists()

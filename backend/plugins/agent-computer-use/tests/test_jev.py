@@ -1510,3 +1510,110 @@ async def test_holdout_live_scores_frozen_labels_without_second_source_read(monk
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
     result = await live.run_replay(tmp_path / "run", frozen["sha256"], "test-key")
     assert all(r["correct"] for r in result["rows"] if r["case_id"] == "h02")
+
+
+@pytest.mark.parametrize("mode,primary", [("llm", "none"), ("jev-fallback", "none"), ("jev-fallback", "candidate")])
+async def test_candidate_strategy_uses_shared_host_model_and_same_evidence(monkeypatch, mode, primary):
+    from agent_computer_use.model_selector import ModelSelector
+    from tank_backend.llm.profile import LLMProfile
+
+    calls = []
+    async def respond(request):
+        payload = json.loads(request.content)
+        calls.append(payload)
+        if "questions" in payload:
+            return httpx.Response(200, json=reply(request, None if primary == "candidate" else primary))
+        question = json.loads(payload["messages"][1]["content"])
+        choice = next(k for k, v in question["questions"]["next_action"]["criteria"].items() if isinstance(v, dict))
+        return httpx.Response(200, json={"id": "f", "object": "chat.completion", "created": 1,
+            "model": "f-model", "choices": [{"index": 0, "finish_reason": "stop",
+            "message": {"role": "assistant", "content": json.dumps({"choice": choice})}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12}})
+
+    ctx, _, _, _ = setup(monkeypatch, respond)
+    ctx.runtime.configure_model("task", LLMProfile("f", "f-key", "f-model", "https://offline.invalid/v1", max_tokens=128))
+    try:
+        goal, snapshot, actions = selection()
+        decision = await ModelSelector(use_jev=mode == "jev-fallback").choose(goal, snapshot, actions, ctx)
+        assert decision.choice == "candidate" and decision.binding == actions.binding
+        assert len(calls) == (2 if mode == "jev-fallback" and primary != "candidate" else 1)
+        assert ctx.budget.total_tokens == len(calls) * 12
+        if len(calls) == 2:
+            question = json.loads(calls[1]["messages"][1]["content"])
+            assert question == {k: v for k, v in calls[0].items() if k != "model"}
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("failure", ["unknown", "invalid", "revoked", "cancelled", "deadline", "budget"])
+async def test_candidate_strategy_never_falls_back_after_hard_failure(monkeypatch, failure):
+    from agent_computer_use.model_selector import ModelSelector
+    from tank_backend.llm.profile import LLMProfile
+    from tank_backend.agents.subagent import SubAgentStopped
+
+    async def respond(request):
+        data = reply(request, "none")
+        if failure == "unknown":
+            data.pop("usage")
+        elif failure == "invalid":
+            data["answers"]["next_action"]["confidence"] = True
+        elif failure == "revoked":
+            ctx.authorization.revoke()
+        elif failure == "deadline":
+            ctx.runtime.restrict_deadline(0)
+        elif failure == "budget":
+            ctx.budget.limit = 12
+        else:
+            ctx.cancel.set()
+        return httpx.Response(200, json=data)
+
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    ctx.runtime.configure_model("task", LLMProfile("f", "f-key", "f-model", "https://offline.invalid/v1", max_tokens=128))
+    try:
+        with pytest.raises((SubAgentStopped, asyncio.CancelledError, TimeoutError)):
+            await ModelSelector(use_jev=True).choose(*selection(), ctx)
+        assert len(sent) == 1
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("change,expected", [
+    ({"elapsed_ms": 110, "nano_usd": 50}, "no_net_gain_demonstrated_keep_disabled"),
+    ({"elapsed_ms": 90, "nano_usd": 100}, "limited_pilot_gain_not_production_adoption"),
+    ({"accepted": 23}, "quality_gate_failed_keep_disabled"),
+    ({"unexpected_actions": 1}, "quality_gate_failed_keep_disabled"),
+    ({"finished": 20}, "incomplete_no_adoption_conclusion"),
+    ({"f_calls": 18, "elapsed_ms": 80, "nano_usd": 50}, "no_net_gain_demonstrated_keep_disabled"),
+])
+def test_strategy_conclusion_does_not_reward_failed_or_wasteful_paths(monkeypatch, change, expected):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s3_strategy as bench
+    h = {"finished": 24, "accepted": 24, "unexpected_actions": 0, "elapsed_ms": 100,
+         "nano_usd": 100, "f_calls": 18, "jev_calls": 0}
+    j = {**h, "f_calls": 6, "jev_calls": 18, **change}
+    assert bench.conclusion({"H3": h, "J3": j}, True) == expected
+
+
+@pytest.mark.parametrize("bad", ['{"choice":"invented"}', '{"choice":"none","extra":1}',
+                                 '{"choice":"none","choice":"ambiguous"}', 'not-json'])
+async def test_fallback_rejects_bad_choice_without_additional_calls(monkeypatch, bad):
+    from agent_computer_use.model_selector import ModelSelector
+    from tank_backend.llm.profile import LLMProfile
+    from tank_backend.agents.subagent import SubAgentStopped
+    async def respond(request):
+        data = json.loads(request.content)
+        if "questions" in data:
+            return httpx.Response(200, json=reply(request, "none"))
+        return httpx.Response(200, json={"id":"f","object":"chat.completion","created":1,
+            "model":"f-model","choices":[{"index":0,"finish_reason":"stop",
+            "message":{"role":"assistant","content":bad}}],
+            "usage":{"prompt_tokens":10,"completion_tokens":2,"total_tokens":12}})
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    ctx.runtime.configure_model("task", LLMProfile("f","key","f-model","https://offline.invalid/v1",max_tokens=128))
+    try:
+        with pytest.raises(SubAgentStopped, match="invalid_decision"):
+            await ModelSelector(use_jev=True).choose(*selection(),ctx)
+        assert len(sent)==2 and ctx.budget.total_tokens==24
+    finally:
+        await ctx.runtime.aclose()

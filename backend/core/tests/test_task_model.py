@@ -285,3 +285,34 @@ async def test_host_json_model_owns_credentials_and_cleanup(monkeypatch):
     with pytest.raises(SubAgentStopped):
         await model.request({})
     assert len(sent) == 1
+
+
+async def test_text_model_allows_only_pinned_non_thinking_flag(model_stack):
+    context, profile, _, requests, _ = model_stack
+    await context.runtime.aclose()
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+    )
+    configured = replace(profile, extra_body={"enable_thinking": False})
+    ctx.runtime.configure_model("task", configured)
+    configured.extra_body["enable_thinking"] = True
+    try:
+        assert ctx.runtime.model is not None
+        assert await ctx.runtime.model.complete([{"role": "user", "content": "hello"}]) == "ready"
+        assert json.loads(requests[-1].content)["enable_thinking"] is False
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("extra", [
+    {"enable_thinking": True}, {"enable_thinking": 0},
+    {"enable_thinking": False, "max_tokens": 999}, {"other": False},
+])
+def test_text_model_rejects_unapproved_generation_parameters(extra):
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+    )
+    with pytest.raises(ValueError):
+        ctx.runtime.configure_model(
+            "task", LLMProfile("f", "key", "f", "https://offline.invalid/v1", extra_body=extra),
+        )

@@ -65,14 +65,14 @@ When('the isolated managed Chromium contract is exercised',
   async function (this: TankWorld) {
     const {stdout} = await promisify(execFile)('uv', [
       'run', '--no-sync', 'pytest', 'plugins/agent-computer-use/tests/test_dom.py', '-q',
-      '-k', 'browser_config_through_real_runner or controller_native_dispatch or stop_during',
+      '-k', 'browser_config_through_real_runner or controller_native_dispatch or stop_during or runner_candidate_strategy',
     ], {cwd: resolve(process.cwd(), '../backend'), timeout: 30000,
       env: {...process.env, TANK_REQUIRE_CHROMIUM: '1'}});
     results.set(this, stdout);
   });
 
-Then('the managed Chromium contract passes without model calls or personal browser access',
+Then('the managed Chromium contract passes without paid model calls or personal browser access',
   function (this: TankWorld) {
-    assert.match(results.get(this) ?? '', /11 passed/);
+    assert.match(results.get(this) ?? '', /13 passed/);
     assert.doesNotMatch(results.get(this) ?? '', /\d+ skipped/);
   });
