@@ -1072,3 +1072,18 @@ and tampered-protocol rejection. The shared executor's original entry still defa
 to its original strict evaluator; the previous operational failure tests remain active.
 No paid requests run during tests. The new protocol preserves category misses in
 separate fields instead of silently relabeling them as correct classifications.
+
+## S3 bounded F fallback and paired strategy pilot
+
+`test_jev.py` verifies identical semantic inputs through real host Jev/text transports,
+Jev-direct and F fallback, strict single-choice parsing, shared usage and hard-stop
+propagation. `test_task_model.py` covers the sole allowed non-thinking flag, immutable
+assembly and rejected parameter overrides. `test_dom.py` runs YAML/Runner → both host
+models → real Chromium, including F completion followed by a rule step; the existing
+managed Chromium cucumber scenario now exercises these two cases as well.
+
+The same domain tests exercise the 48-trial H3/J3 pilot with fake HTTP, direct success
+and forced fallback (42/54 captured requests), zero model calls on rules, cost and full
+planned denominators, paired rows, cancellation/unknown/audit/cleanup stops and recipe
+tampering. The decision-rule tests reject apparent savings from failure, a slower
+cost-only tradeoff, or no displacement of F. No pytest model calls are paid.

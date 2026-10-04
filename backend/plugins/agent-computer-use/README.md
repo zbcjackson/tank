@@ -320,3 +320,26 @@ reached its page postcondition. That action failed the predeclared conflict crit
 so eight cases remain unexecuted. The result exposes that page-effect verification
 alone does not establish identity-evidence consistency before dispatch. See the
 follow-up record for the preserved 2-pass/1-fail/8-not-run outcome and limitations.
+
+### Bounded generative selection and Jev fallback (S3)
+
+Explicit browser configuration accepts `selector: llm` (rules then F/H3) or
+`selector: jev-fallback` (rules then Jev, then F only after a valid non-action/J3).
+The extension agent definition must name the approved text model with `model: <profile>`;
+J3 also names its Jev profile with `json-model: <profile>`. Existing `selector: jev`
+and rule-only configurations retain their behavior. Production defaults are unchanged.
+
+F borrows `context.runtime.model.complete`, receives the same semantic question and
+whole action candidates as Jev, and may only return one offered ID/control. It creates
+no client, tool loop, action arguments or new authority. Both calls use the original
+context/usage/deadline. Each selector invocation permits at most one Jev and one F;
+subsequent milestones return to normal host routing. Both refusing yields a controlled
+stop; unavailable candidates/parameters remain outside this bounded selector's domain.
+Unknown usage, invalid replies, revocation, cancellation and other hard stops propagate
+without fallback. Stage/choice events expose routing without credentials.
+
+The host text service permits only the optional fixed `extra_body: {enable_thinking:
+false}` override for this comparison; other extra body/header overrides remain rejected.
+The value is copied at assembly and validated at the HTTP boundary. This is not a
+full planning/visual Advisor or S4 recovery implementation. See the
+[strategy pilot protocol](../../benchmarks/computer_use/fixtures/s3-strategy/README.md).

@@ -1,0 +1,644 @@
+{
+  "revision": "s3-strategy-1",
+  "cases": [
+    {
+      "id": "profile-name",
+      "family": "profile-name",
+      "kind": "complete",
+      "rule_only": true,
+      "rationale": "Exact textbox/button labels and supplied value; rules must fill and save without a model.",
+      "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><label>显示名称<input oninput=\"window.events.push('填写名称')\"></label><button onclick=\"window.events.push('保存');document.querySelector('[aria-label=Result]').textContent='saved:'+document.querySelector('input').value\">保存</button><output aria-label=\"Result\">idle</output>",
+      "goal": {
+        "schema_version": 1,
+        "objective": "将显示名称设为 Ada 并保存。",
+        "scope": "strategy",
+        "inputs": [
+          {
+            "key": "name",
+            "value": "Ada"
+          }
+        ],
+        "milestones": [
+          {
+            "id": "fill",
+            "operation": "fill",
+            "role": "textbox",
+            "label": "显示名称",
+            "input_key": "name",
+            "postcondition": {
+              "key": "textbox:显示名称",
+              "value": "Ada"
+            }
+          },
+          {
+            "id": "save",
+            "operation": "click",
+            "role": "button",
+            "label": "保存",
+            "postcondition": {
+              "key": "status:Result",
+              "value": "saved:Ada"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "status:Result",
+            "value": "saved:Ada"
+          }
+        ]
+      },
+      "expected": {
+        "events": [
+          "填写名称",
+          "保存"
+        ],
+        "result": "saved:Ada"
+      }
+    },
+    {
+      "id": "compact-view",
+      "family": "compact-view",
+      "kind": "complete",
+      "rationale": "Exact visible label: rules must handle this with zero model calls.",
+      "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><button onclick=\"window.events.push('紧凑视图');document.querySelector('[aria-label=Result]').textContent='compact';\">紧凑视图</button><button onclick=\"window.events.push('宽松视图');document.querySelector('[aria-label=Result]').textContent='spacious';\">宽松视图</button><output aria-label=\"Result\">idle</output></main>",
+      "rule_only": true,
+      "goal": {
+        "schema_version": 1,
+        "objective": "将列表切换为紧凑视图。",
+        "scope": "strategy",
+        "milestones": [
+          {
+            "id": "select",
+            "operation": "click",
+            "role": "button",
+            "label": "紧凑视图",
+            "postcondition": {
+              "key": "status:Result",
+              "value": "compact"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "status:Result",
+            "value": "compact"
+          }
+        ]
+      },
+      "expected": {
+        "events": [
+          "紧凑视图"
+        ],
+        "result": "compact"
+      }
+    },
+    {
+      "id": "appearance-preferences",
+      "family": "appearance-preferences",
+      "kind": "complete",
+      "rationale": "Common preferences navigation: unambiguous semantic alias rather than a hidden identity rule.",
+      "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><h1 role=\"heading\" aria-label=\"页面\">设置中心</h1><button onclick=\"window.events.push('界面与显示');document.querySelector('[aria-label=Result]').textContent='appearance';\">界面与显示</button><button onclick=\"window.events.push('登录与密码');document.querySelector('[aria-label=Result]').textContent='security';\">登录与密码</button><output aria-label=\"Result\">idle</output></main>",
+      "rule_only": false,
+      "goal": {
+        "schema_version": 1,
+        "objective": "打开外观偏好设置，不进入账户安全设置。",
+        "scope": "strategy",
+        "milestones": [
+          {
+            "id": "select",
+            "operation": "click",
+            "role": "button",
+            "label": "外观偏好设置",
+            "postcondition": {
+              "key": "status:Result",
+              "value": "appearance"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "status:Result",
+            "value": "appearance"
+          }
+        ]
+      },
+      "expected": {
+        "events": [
+          "界面与显示"
+        ],
+        "result": "appearance"
+      }
+    },
+    {
+      "id": "save-draft",
+      "family": "save-draft",
+      "kind": "complete",
+      "rationale": "Draft workflow with an explicit no-publication constraint and visible distinct alternatives.",
+      "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><h1 role=\"heading\" aria-label=\"页面\">草稿编辑</h1><output aria-label=\"当前稿件\">周报草稿，尚未发布</output><button onclick=\"window.events.push('保存进度');document.querySelector('[aria-label=Result]').textContent='draft';\">保存进度</button><button onclick=\"window.events.push('发布内容');document.querySelector('[aria-label=Result]').textContent='published';\">发布内容</button><output aria-label=\"Result\">idle</output></main>",
+      "rule_only": false,
+      "goal": {
+        "schema_version": 1,
+        "objective": "暂存这份草稿供以后继续编辑，不公开发布。",
+        "scope": "strategy",
+        "milestones": [
+          {
+            "id": "select",
+            "operation": "click",
+            "role": "button",
+            "label": "暂存草稿",
+            "postcondition": {
+              "key": "status:Result",
+              "value": "draft"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "status:Result",
+            "value": "draft"
+          }
+        ]
+      },
+      "expected": {
+        "events": [
+          "保存进度"
+        ],
+        "result": "draft"
+      }
+    },
+    {
+      "id": "marketing-preferences",
+      "family": "marketing-preferences",
+      "kind": "complete",
+      "rationale": "One semantic decision followed by exact-label Apply; checks return to host rules.",
+      "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><output aria-label=\"优惠邮件\">on</output><output aria-label=\"安全提醒\">on</output><button onclick=\"window.events.push('取消营销订阅');document.querySelector('[aria-label=优惠邮件]').textContent='off';document.querySelector('[aria-label=Result]').textContent='marketing-off';document.querySelector('#apply').disabled=false;\">取消营销订阅</button><button onclick=\"window.events.push('停用安全提醒');document.querySelector('[aria-label=安全提醒]').textContent='off';document.querySelector('[aria-label=Result]').textContent='security-off';\">停用安全提醒</button><button id=\"apply\" disabled onclick=\"window.events.push('应用');document.querySelector('[aria-label=Applied]').textContent='yes'\">应用</button><output aria-label=\"Applied\">no</output><output aria-label=\"Result\">idle</output></main>",
+      "rule_only": false,
+      "goal": {
+        "schema_version": 1,
+        "objective": "仅关闭优惠邮件，保留安全提醒，然后应用设置。",
+        "scope": "strategy",
+        "milestones": [
+          {
+            "id": "select",
+            "operation": "click",
+            "role": "button",
+            "label": "关闭优惠邮件",
+            "postcondition": {
+              "key": "status:Result",
+              "value": "marketing-off"
+            }
+          },
+          {
+            "id": "apply",
+            "operation": "click",
+            "role": "button",
+            "label": "应用",
+            "postcondition": {
+              "key": "status:Applied",
+              "value": "yes"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "status:Result",
+            "value": "marketing-off"
+          },
+          {
+            "key": "status:Applied",
+            "value": "yes"
+          },
+          {
+            "key": "status:优惠邮件",
+            "value": "off"
+          },
+          {
+            "key": "status:安全提醒",
+            "value": "on"
+          }
+        ]
+      },
+      "expected": {
+        "events": [
+          "取消营销订阅",
+          "应用"
+        ],
+        "result": "marketing-off"
+      }
+    },
+    {
+      "id": "view-receipt",
+      "family": "view-receipt",
+      "kind": "complete",
+      "rationale": "Read-only receipt navigation; no real payment or refund service exists.",
+      "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><h1 role=\"heading\" aria-label=\"页面\">付款详情</h1><output aria-label=\"当前付款\">订单 P204，已支付</output><button onclick=\"window.events.push('查看支付凭证');document.querySelector('[aria-label=Result]').textContent='receipt';\">查看支付凭证</button><button onclick=\"window.events.push('申请退回款项');document.querySelector('[aria-label=Result]').textContent='refund';\">申请退回款项</button><output aria-label=\"Result\">idle</output></main>",
+      "rule_only": false,
+      "goal": {
+        "schema_version": 1,
+        "objective": "在当前付款详情页面查看这笔付款的收据，不申请退款。",
+        "scope": "strategy",
+        "milestones": [
+          {
+            "id": "select",
+            "operation": "click",
+            "role": "button",
+            "label": "查看付款收据",
+            "postcondition": {
+              "key": "status:Result",
+              "value": "receipt"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "status:Result",
+            "value": "receipt"
+          }
+        ]
+      },
+      "expected": {
+        "events": [
+          "查看支付凭证"
+        ],
+        "result": "receipt"
+      }
+    },
+    {
+      "id": "missing-record-name",
+      "family": "missing-record-name",
+      "kind": "exit",
+      "rationale": "No displayed record names; explicit task forbids probing. Any valid non-action control is an appropriate exit.",
+      "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><button onclick=\"window.events.push('记录 A');document.querySelector('[aria-label=Result]').textContent='opened-a';\">记录 A</button><button onclick=\"window.events.push('记录 B');document.querySelector('[aria-label=Result]').textContent='opened-b';\">记录 B</button><output aria-label=\"Result\">idle</output></main>",
+      "rule_only": false,
+      "goal": {
+        "schema_version": 1,
+        "objective": "只打开当前列表中能确认名称为季度复盘的记录。若名称未提供则停止并请求补充，不打开未知记录探查。",
+        "scope": "strategy",
+        "milestones": [
+          {
+            "id": "select",
+            "operation": "click",
+            "role": "button",
+            "label": "季度复盘",
+            "postcondition": {
+              "key": "status:Result",
+              "value": "requested-feature"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "status:Result",
+            "value": "requested-feature"
+          }
+        ]
+      },
+      "expected": {
+        "events": [],
+        "result": "idle"
+      }
+    },
+    {
+      "id": "unavailable-pdf",
+      "family": "unavailable-pdf",
+      "kind": "exit",
+      "rationale": "Complete offered controls have no PDF action; explicit task forbids extra navigation.",
+      "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><button onclick=\"window.events.push('更换主题');document.querySelector('[aria-label=Result]').textContent='theme';\">更换主题</button><button onclick=\"window.events.push('清空筛选');document.querySelector('[aria-label=Result]').textContent='filters';\">清空筛选</button><output aria-label=\"Result\">idle</output></main>",
+      "rule_only": false,
+      "goal": {
+        "schema_version": 1,
+        "objective": "选择当前页面提供的导出 PDF 功能；如果没有该功能则停止，不通过其他按钮尝试寻找。",
+        "scope": "strategy",
+        "milestones": [
+          {
+            "id": "select",
+            "operation": "click",
+            "role": "button",
+            "label": "导出 PDF",
+            "postcondition": {
+              "key": "status:Result",
+              "value": "requested-feature"
+            }
+          }
+        ],
+        "completion": [
+          {
+            "key": "status:Result",
+            "value": "requested-feature"
+          }
+        ]
+      },
+      "expected": {
+        "events": [],
+        "result": "idle"
+      }
+    }
+  ],
+  "models": {
+    "jev": {
+      "model": "jev-1.13.0",
+      "url": "https://api.typesafe.ai/v1/systemone",
+      "input_ceiling": 65536,
+      "output_ceiling": 65536,
+      "input_price": 42,
+      "output_price": 0
+    },
+    "f": {
+      "model": "qwen3.7-flash-2026-07-15",
+      "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      "input_ceiling": 991808,
+      "output_ceiling": 128,
+      "input_price": 165,
+      "output_price": 660
+    }
+  },
+  "schedule": [
+    {
+      "case_id": "profile-name",
+      "repeat": 0,
+      "arm": "H3"
+    },
+    {
+      "case_id": "profile-name",
+      "repeat": 0,
+      "arm": "J3"
+    },
+    {
+      "case_id": "compact-view",
+      "repeat": 0,
+      "arm": "J3"
+    },
+    {
+      "case_id": "compact-view",
+      "repeat": 0,
+      "arm": "H3"
+    },
+    {
+      "case_id": "appearance-preferences",
+      "repeat": 0,
+      "arm": "H3"
+    },
+    {
+      "case_id": "appearance-preferences",
+      "repeat": 0,
+      "arm": "J3"
+    },
+    {
+      "case_id": "save-draft",
+      "repeat": 0,
+      "arm": "J3"
+    },
+    {
+      "case_id": "save-draft",
+      "repeat": 0,
+      "arm": "H3"
+    },
+    {
+      "case_id": "marketing-preferences",
+      "repeat": 0,
+      "arm": "H3"
+    },
+    {
+      "case_id": "marketing-preferences",
+      "repeat": 0,
+      "arm": "J3"
+    },
+    {
+      "case_id": "view-receipt",
+      "repeat": 0,
+      "arm": "J3"
+    },
+    {
+      "case_id": "view-receipt",
+      "repeat": 0,
+      "arm": "H3"
+    },
+    {
+      "case_id": "missing-record-name",
+      "repeat": 0,
+      "arm": "H3"
+    },
+    {
+      "case_id": "missing-record-name",
+      "repeat": 0,
+      "arm": "J3"
+    },
+    {
+      "case_id": "unavailable-pdf",
+      "repeat": 0,
+      "arm": "J3"
+    },
+    {
+      "case_id": "unavailable-pdf",
+      "repeat": 0,
+      "arm": "H3"
+    },
+    {
+      "case_id": "profile-name",
+      "repeat": 1,
+      "arm": "J3"
+    },
+    {
+      "case_id": "profile-name",
+      "repeat": 1,
+      "arm": "H3"
+    },
+    {
+      "case_id": "compact-view",
+      "repeat": 1,
+      "arm": "H3"
+    },
+    {
+      "case_id": "compact-view",
+      "repeat": 1,
+      "arm": "J3"
+    },
+    {
+      "case_id": "appearance-preferences",
+      "repeat": 1,
+      "arm": "J3"
+    },
+    {
+      "case_id": "appearance-preferences",
+      "repeat": 1,
+      "arm": "H3"
+    },
+    {
+      "case_id": "save-draft",
+      "repeat": 1,
+      "arm": "H3"
+    },
+    {
+      "case_id": "save-draft",
+      "repeat": 1,
+      "arm": "J3"
+    },
+    {
+      "case_id": "marketing-preferences",
+      "repeat": 1,
+      "arm": "J3"
+    },
+    {
+      "case_id": "marketing-preferences",
+      "repeat": 1,
+      "arm": "H3"
+    },
+    {
+      "case_id": "view-receipt",
+      "repeat": 1,
+      "arm": "H3"
+    },
+    {
+      "case_id": "view-receipt",
+      "repeat": 1,
+      "arm": "J3"
+    },
+    {
+      "case_id": "missing-record-name",
+      "repeat": 1,
+      "arm": "J3"
+    },
+    {
+      "case_id": "missing-record-name",
+      "repeat": 1,
+      "arm": "H3"
+    },
+    {
+      "case_id": "unavailable-pdf",
+      "repeat": 1,
+      "arm": "H3"
+    },
+    {
+      "case_id": "unavailable-pdf",
+      "repeat": 1,
+      "arm": "J3"
+    },
+    {
+      "case_id": "profile-name",
+      "repeat": 2,
+      "arm": "H3"
+    },
+    {
+      "case_id": "profile-name",
+      "repeat": 2,
+      "arm": "J3"
+    },
+    {
+      "case_id": "compact-view",
+      "repeat": 2,
+      "arm": "J3"
+    },
+    {
+      "case_id": "compact-view",
+      "repeat": 2,
+      "arm": "H3"
+    },
+    {
+      "case_id": "appearance-preferences",
+      "repeat": 2,
+      "arm": "H3"
+    },
+    {
+      "case_id": "appearance-preferences",
+      "repeat": 2,
+      "arm": "J3"
+    },
+    {
+      "case_id": "save-draft",
+      "repeat": 2,
+      "arm": "J3"
+    },
+    {
+      "case_id": "save-draft",
+      "repeat": 2,
+      "arm": "H3"
+    },
+    {
+      "case_id": "marketing-preferences",
+      "repeat": 2,
+      "arm": "H3"
+    },
+    {
+      "case_id": "marketing-preferences",
+      "repeat": 2,
+      "arm": "J3"
+    },
+    {
+      "case_id": "view-receipt",
+      "repeat": 2,
+      "arm": "J3"
+    },
+    {
+      "case_id": "view-receipt",
+      "repeat": 2,
+      "arm": "H3"
+    },
+    {
+      "case_id": "missing-record-name",
+      "repeat": 2,
+      "arm": "H3"
+    },
+    {
+      "case_id": "missing-record-name",
+      "repeat": 2,
+      "arm": "J3"
+    },
+    {
+      "case_id": "unavailable-pdf",
+      "repeat": 2,
+      "arm": "J3"
+    },
+    {
+      "case_id": "unavailable-pdf",
+      "repeat": 2,
+      "arm": "H3"
+    }
+  ],
+  "request_limit": 54,
+  "nano_usd_limit": 250000000,
+  "source_sha256": {
+    "s3_replay.py": "4fa75f644512b779d19093ba7be630077f109376ea091f6cffc3c1692e2c3f7f",
+    "action_builder.py": "1768b133350bc6634d2bf2b536c7b26498b2a6bdfb9c7552e4cac70efedba7d5",
+    "contracts.py": "e34181c23761414e2911e2d765f33ba285dd9c8d0e9395b15c30d3cb6aed315f",
+    "jev.py": "db7178b6cad3b20e35705a38bf3d85c8efa48f8406907edfc1e33bb49a4c2ac2",
+    "model_transport.py": "991c27c1ca04f14f7430801429142d1f1b5f2c23fdec305451b99b801cff6121",
+    "task_json_model.py": "bdf5f257b1ea94d744e17ebfc5322cfddf92602ebe74b55ea5880f0d2f1c2bb4",
+    "model_policy.py": "7984765a653934d92b7e8f0502673288782957aa163406deb75b9b26ffb37d8d",
+    "spend_ledger.py": "29bf380aa71252d2664f1c172625965af094b340a555978d75b481cdc2dc0664",
+    "plugins/agent-computer-use/src/agent_computer_use/action_builder.py": "1768b133350bc6634d2bf2b536c7b26498b2a6bdfb9c7552e4cac70efedba7d5",
+    "plugins/agent-computer-use/src/agent_computer_use/agent.py": "0dc2da689fdce2708c21b55aac38cbd20199cc05c3c56f9c5cfaf67e6deb1b11",
+    "plugins/agent-computer-use/src/agent_computer_use/contracts.py": "e34181c23761414e2911e2d765f33ba285dd9c8d0e9395b15c30d3cb6aed315f",
+    "plugins/agent-computer-use/src/agent_computer_use/controller.py": "5b20cf38dd3f090d2c41f572266c7bf4e0b9f3b1148f98590bd6cff84bfae6eb",
+    "plugins/agent-computer-use/src/agent_computer_use/factory.py": "73b57bab86ac273de9fd2e0a7dac1975150a69624a5da82475cf1f8e202e7ba5",
+    "plugins/agent-computer-use/src/agent_computer_use/jev.py": "db7178b6cad3b20e35705a38bf3d85c8efa48f8406907edfc1e33bb49a4c2ac2",
+    "plugins/agent-computer-use/src/agent_computer_use/model_selector.py": "4dde98b3c36a121e45a5edf1e90a3ec0e522f1c4a43222e7ac7064aecba4e01f",
+    "plugins/agent-computer-use/src/agent_computer_use/channels/dom.py": "a27b054865eb5cc02a9b8b3ffc85006eb3ea16646730fb367595444f9a5ab39f",
+    "core/src/tank_backend/agents/subagent.py": "13f74aeb64e2ec4e6d52bce4d35a0227cc6431c1ec51f2573988fe20887b264c",
+    "core/src/tank_backend/agents/task_runtime.py": "91966f2947ebd667f8674d9fbf3639f8af5f69644e1c672ed4cd110fae5b4f40",
+    "core/src/tank_backend/llm/task_model.py": "d2a83edfed0014888acb80a7bc4bfec73630e8b3119d75d9dc41c754e5eb5cd8",
+    "s3_strategy.py": "4083822e2083c09ce3c7c168ac6ee2d77054adabfc818c9d97ca03e752dcb8ac",
+    "cases.json": "106681fbf5890cedad3e1d5347cfbb763efee077125066254923e645d204ee69"
+  },
+  "f_parameters": {
+    "temperature": 0,
+    "max_tokens": 128,
+    "enable_thinking": false
+  },
+  "lifecycle": "fresh isolated browser and lazy task-owned clients per trial; no warmups/retries",
+  "playwright": "1.58.0",
+  "httpx": "0.28.1",
+  "httpcore": "1.0.9",
+  "scope": "authored workflow-inspired local pages; supplied structured goals; no production-adoption claim",
+  "decision_rule": {
+    "minimum_gain": 0.1,
+    "minimum_f_calls_avoided": 1,
+    "success_regression_allowed": 0,
+    "unexpected_actions_allowed": 0,
+    "all_predeclared_outcomes_required": true,
+    "benefit": "time improves >=10% without cost regression OR cost improves >=10% without time regression",
+    "interpretation": "descriptive paired pilot only; insufficient evidence retains default-disabled"
+  },
+  "stop_policy": "operational failure stops; known semantic errors on fully observed disposable fixtures are recorded and continue",
+  "sha256": "a36f7630a20e504ab795751f3afcee32d5b5e912b9e3cfeff75114c6572ad16b"
+}
