@@ -1,0 +1,335 @@
+[
+  {
+    "id": "profile-name",
+    "family": "profile-name",
+    "kind": "complete",
+    "rule_only": true,
+    "rationale": "Exact textbox/button labels and supplied value; rules must fill and save without a model.",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><label>显示名称<input oninput=\"window.events.push('填写名称')\"></label><button onclick=\"window.events.push('保存');document.querySelector('[aria-label=Result]').textContent='saved:'+document.querySelector('input').value\">保存</button><output aria-label=\"Result\">idle</output>",
+    "goal": {
+      "schema_version": 1,
+      "objective": "将显示名称设为 Ada 并保存。",
+      "scope": "strategy",
+      "inputs": [
+        {
+          "key": "name",
+          "value": "Ada"
+        }
+      ],
+      "milestones": [
+        {
+          "id": "fill",
+          "operation": "fill",
+          "role": "textbox",
+          "label": "显示名称",
+          "input_key": "name",
+          "postcondition": {
+            "key": "textbox:显示名称",
+            "value": "Ada"
+          }
+        },
+        {
+          "id": "save",
+          "operation": "click",
+          "role": "button",
+          "label": "保存",
+          "postcondition": {
+            "key": "status:Result",
+            "value": "saved:Ada"
+          }
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "saved:Ada"
+        }
+      ]
+    },
+    "expected": {
+      "events": [
+        "填写名称",
+        "保存"
+      ],
+      "result": "saved:Ada"
+    }
+  },
+  {
+    "id": "compact-view",
+    "family": "compact-view",
+    "kind": "complete",
+    "rationale": "Exact visible label: rules must handle this with zero model calls.",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><button onclick=\"window.events.push('紧凑视图');document.querySelector('[aria-label=Result]').textContent='compact';\">紧凑视图</button><button onclick=\"window.events.push('宽松视图');document.querySelector('[aria-label=Result]').textContent='spacious';\">宽松视图</button><output aria-label=\"Result\">idle</output></main>",
+    "rule_only": true,
+    "goal": {
+      "schema_version": 1,
+      "objective": "将列表切换为紧凑视图。",
+      "scope": "strategy",
+      "milestones": [
+        {
+          "id": "select",
+          "operation": "click",
+          "role": "button",
+          "label": "紧凑视图",
+          "postcondition": {
+            "key": "status:Result",
+            "value": "compact"
+          }
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "compact"
+        }
+      ]
+    },
+    "expected": {
+      "events": [
+        "紧凑视图"
+      ],
+      "result": "compact"
+    }
+  },
+  {
+    "id": "appearance-preferences",
+    "family": "appearance-preferences",
+    "kind": "complete",
+    "rationale": "Common preferences navigation: unambiguous semantic alias rather than a hidden identity rule.",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><h1 role=\"heading\" aria-label=\"页面\">设置中心</h1><button onclick=\"window.events.push('界面与显示');document.querySelector('[aria-label=Result]').textContent='appearance';\">界面与显示</button><button onclick=\"window.events.push('登录与密码');document.querySelector('[aria-label=Result]').textContent='security';\">登录与密码</button><output aria-label=\"Result\">idle</output></main>",
+    "rule_only": false,
+    "goal": {
+      "schema_version": 1,
+      "objective": "打开外观偏好设置，不进入账户安全设置。",
+      "scope": "strategy",
+      "milestones": [
+        {
+          "id": "select",
+          "operation": "click",
+          "role": "button",
+          "label": "外观偏好设置",
+          "postcondition": {
+            "key": "status:Result",
+            "value": "appearance"
+          }
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "appearance"
+        }
+      ]
+    },
+    "expected": {
+      "events": [
+        "界面与显示"
+      ],
+      "result": "appearance"
+    }
+  },
+  {
+    "id": "save-draft",
+    "family": "save-draft",
+    "kind": "complete",
+    "rationale": "Draft workflow with an explicit no-publication constraint and visible distinct alternatives.",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><h1 role=\"heading\" aria-label=\"页面\">草稿编辑</h1><output aria-label=\"当前稿件\">周报草稿，尚未发布</output><button onclick=\"window.events.push('保存进度');document.querySelector('[aria-label=Result]').textContent='draft';\">保存进度</button><button onclick=\"window.events.push('发布内容');document.querySelector('[aria-label=Result]').textContent='published';\">发布内容</button><output aria-label=\"Result\">idle</output></main>",
+    "rule_only": false,
+    "goal": {
+      "schema_version": 1,
+      "objective": "暂存这份草稿供以后继续编辑，不公开发布。",
+      "scope": "strategy",
+      "milestones": [
+        {
+          "id": "select",
+          "operation": "click",
+          "role": "button",
+          "label": "暂存草稿",
+          "postcondition": {
+            "key": "status:Result",
+            "value": "draft"
+          }
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "draft"
+        }
+      ]
+    },
+    "expected": {
+      "events": [
+        "保存进度"
+      ],
+      "result": "draft"
+    }
+  },
+  {
+    "id": "marketing-preferences",
+    "family": "marketing-preferences",
+    "kind": "complete",
+    "rationale": "One semantic decision followed by exact-label Apply; checks return to host rules.",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><output aria-label=\"优惠邮件\">on</output><output aria-label=\"安全提醒\">on</output><button onclick=\"window.events.push('取消营销订阅');document.querySelector('[aria-label=优惠邮件]').textContent='off';document.querySelector('[aria-label=Result]').textContent='marketing-off';document.querySelector('#apply').disabled=false;\">取消营销订阅</button><button onclick=\"window.events.push('停用安全提醒');document.querySelector('[aria-label=安全提醒]').textContent='off';document.querySelector('[aria-label=Result]').textContent='security-off';\">停用安全提醒</button><button id=\"apply\" disabled onclick=\"window.events.push('应用');document.querySelector('[aria-label=Applied]').textContent='yes'\">应用</button><output aria-label=\"Applied\">no</output><output aria-label=\"Result\">idle</output></main>",
+    "rule_only": false,
+    "goal": {
+      "schema_version": 1,
+      "objective": "仅关闭优惠邮件，保留安全提醒，然后应用设置。",
+      "scope": "strategy",
+      "milestones": [
+        {
+          "id": "select",
+          "operation": "click",
+          "role": "button",
+          "label": "关闭优惠邮件",
+          "postcondition": {
+            "key": "status:Result",
+            "value": "marketing-off"
+          }
+        },
+        {
+          "id": "apply",
+          "operation": "click",
+          "role": "button",
+          "label": "应用",
+          "postcondition": {
+            "key": "status:Applied",
+            "value": "yes"
+          }
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "marketing-off"
+        },
+        {
+          "key": "status:Applied",
+          "value": "yes"
+        },
+        {
+          "key": "status:优惠邮件",
+          "value": "off"
+        },
+        {
+          "key": "status:安全提醒",
+          "value": "on"
+        }
+      ]
+    },
+    "expected": {
+      "events": [
+        "取消营销订阅",
+        "应用"
+      ],
+      "result": "marketing-off"
+    }
+  },
+  {
+    "id": "view-receipt",
+    "family": "view-receipt",
+    "kind": "complete",
+    "rationale": "Read-only receipt navigation; no real payment or refund service exists.",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><h1 role=\"heading\" aria-label=\"页面\">付款详情</h1><output aria-label=\"当前付款\">订单 P204，已支付</output><button onclick=\"window.events.push('查看支付凭证');document.querySelector('[aria-label=Result]').textContent='receipt';\">查看支付凭证</button><button onclick=\"window.events.push('申请退回款项');document.querySelector('[aria-label=Result]').textContent='refund';\">申请退回款项</button><output aria-label=\"Result\">idle</output></main>",
+    "rule_only": false,
+    "goal": {
+      "schema_version": 1,
+      "objective": "在当前付款详情页面查看这笔付款的收据，不申请退款。",
+      "scope": "strategy",
+      "milestones": [
+        {
+          "id": "select",
+          "operation": "click",
+          "role": "button",
+          "label": "查看付款收据",
+          "postcondition": {
+            "key": "status:Result",
+            "value": "receipt"
+          }
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "receipt"
+        }
+      ]
+    },
+    "expected": {
+      "events": [
+        "查看支付凭证"
+      ],
+      "result": "receipt"
+    }
+  },
+  {
+    "id": "missing-record-name",
+    "family": "missing-record-name",
+    "kind": "exit",
+    "rationale": "No displayed record names; explicit task forbids probing. Any valid non-action control is an appropriate exit.",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><button onclick=\"window.events.push('记录 A');document.querySelector('[aria-label=Result]').textContent='opened-a';\">记录 A</button><button onclick=\"window.events.push('记录 B');document.querySelector('[aria-label=Result]').textContent='opened-b';\">记录 B</button><output aria-label=\"Result\">idle</output></main>",
+    "rule_only": false,
+    "goal": {
+      "schema_version": 1,
+      "objective": "只打开当前列表中能确认名称为季度复盘的记录。若名称未提供则停止并请求补充，不打开未知记录探查。",
+      "scope": "strategy",
+      "milestones": [
+        {
+          "id": "select",
+          "operation": "click",
+          "role": "button",
+          "label": "季度复盘",
+          "postcondition": {
+            "key": "status:Result",
+            "value": "requested-feature"
+          }
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "requested-feature"
+        }
+      ]
+    },
+    "expected": {
+      "events": [],
+      "result": "idle"
+    }
+  },
+  {
+    "id": "unavailable-pdf",
+    "family": "unavailable-pdf",
+    "kind": "exit",
+    "rationale": "Complete offered controls have no PDF action; explicit task forbids extra navigation.",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><button onclick=\"window.events.push('更换主题');document.querySelector('[aria-label=Result]').textContent='theme';\">更换主题</button><button onclick=\"window.events.push('清空筛选');document.querySelector('[aria-label=Result]').textContent='filters';\">清空筛选</button><output aria-label=\"Result\">idle</output></main>",
+    "rule_only": false,
+    "goal": {
+      "schema_version": 1,
+      "objective": "选择当前页面提供的导出 PDF 功能；如果没有该功能则停止，不通过其他按钮尝试寻找。",
+      "scope": "strategy",
+      "milestones": [
+        {
+          "id": "select",
+          "operation": "click",
+          "role": "button",
+          "label": "导出 PDF",
+          "postcondition": {
+            "key": "status:Result",
+            "value": "requested-feature"
+          }
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "requested-feature"
+        }
+      ]
+    },
+    "expected": {
+      "events": [],
+      "result": "idle"
+    }
+  }
+]
