@@ -1123,3 +1123,15 @@ Experiment policies observe normalized SDK-call records; raw replay has one expl
 admission record per trial rather than the retired three transport audit phases.
 Do not compare the new suite count directly with older transport-test counts as an
 implementation-coverage metric. No paid model calls or S4 behavior are involved.
+
+
+## Model-call naming and SDK-owned HTTP defaults
+
+`test_decision_model.py` verifies that the official SDK receives no http_client or
+transport injection, owns lazy creation/close, and keeps the configured timeout and
+zero retries. Invalid credentials now allocate no HTTP client. The test-only network
+fixture preserves real SDK creation and substitutes only its external transport;
+production follows the SDK's default environment proxy/certificate behavior.
+Existing stream, request-budget, desktop and strategy tests use ModelResponseStream,
+TaskModelCallRunner and model_request/model_response names. Old report artifacts are
+unchanged. No paid model calls or S4 changes are part of this refactor.

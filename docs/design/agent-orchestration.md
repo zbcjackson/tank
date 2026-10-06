@@ -419,7 +419,7 @@ Runner override disables the definition's limit. These compatibility limits are
 checked after responses, not prepaid hard cost ceilings. Context window/compaction
 budgets and request `max_tokens` are separate capacity constraints.
 
-Task-bound models use `TaskModelCalls` around SDK invocations. It records one call ID
+Task-bound models use `TaskModelCallRunner` around model invocations. It records one call ID
 and known/unknown usage, checks task state before invocation and result delivery,
 joins cancellation, and checks each SDK stream event including already buffered ones.
 SDKs own HTTP serialization and SSE parsing. Ordinary LLM binding borrows the original
@@ -465,7 +465,7 @@ SubAgentContext. Its `choose(state=..., instructions=..., options=...)` returns
 counts are unknown. This service checks offered-choice membership and SDK-normalized
 answer statistics without reimplementing HTTP parsing.
 
-`TaskDecisionModel` composes this service with TaskModelCalls, preserving the same
+`TaskDecisionModel` composes this service with TaskModelCallRunner, preserving the same
 choose signature. TaskRuntime owns the standalone service and closes the task wrapper
 before it; borrowers do not own or close the underlying model. Standalone core callers
 can use DecisionModel directly. Text callers retain TaskModel.complete/LLM APIs.
@@ -483,3 +483,20 @@ not depend on telemetry delivery. Langfuse is not a budget or execution authorit
 Historical protocol replay is experiment-only and core has no reverse dependency.
 Old reports/freezes remain unchanged; the current SDK capture is explicitly labeled
 as normalized SDK parameters/results. UI candidate semantics and S4 status are unchanged.
+
+
+### Model-call names and native client ownership (2026-10-06)
+
+`ModelResponseStream` describes an asynchronously iterable, closable model response;
+it is primarily used by streaming chat, not Jev. `TaskModelCallRunner` is the shared
+internal runner for task-bound text/decision calls (and explicit experiment replay),
+not a model selector. Current experiment events are `model_request` / `model_response`
+with `capture_level: model_call`; they describe normalized call data, not wire traffic.
+Historical reports retain their original event names and frozen revisions.
+
+DecisionModel passes profile credentials, model, base URL, timeout=30 and zero retries
+to AsyncTypeSafeClient. It does not create or inject http_client/transport. The official
+SDK creates and closes its client and validates configuration before allocating it.
+The former trust_env=False override is removed: environment proxy/certificate settings
+follow SDK/library defaults. The pinned library currently defaults to no redirects;
+Tank no longer overrides that default. Task cancellation and usage semantics are unchanged.

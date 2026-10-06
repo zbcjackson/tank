@@ -665,3 +665,12 @@ sudo systemctl start tank-backend
 - Pydantic docs: https://docs.pydantic.dev/
 - pytest docs: https://docs.pytest.org/
 - OpenAI API docs: https://platform.openai.com/docs/
+
+
+### Jev HTTP defaults
+
+Jev uses the official SDK's own HTTP client. Tank passes a 30-second SDK timeout and
+zero retries, but does not inject an HTTP client or transport. Environment proxy and
+certificate settings now follow SDK defaults (`trust_env=True` in the pinned HTTP
+library), replacing the earlier explicit opt-out. The current library default does
+not follow redirects. Other model/replay client settings are unchanged.

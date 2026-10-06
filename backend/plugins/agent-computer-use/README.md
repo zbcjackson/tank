@@ -181,7 +181,8 @@ capabilities under the same core configuration and task lifecycle.
 
 Core `DecisionModel` calls the official SDK directly and works without a task.
 `TaskDecisionModel` borrows it, adding task checks, cancellation/deadline and the
-original usage ledger. SDK retries are disabled; no JevChoiceRoute, bridge,
+original usage ledger. SDK retries are disabled. The SDK owns its default HTTP client (including environment
+proxy/certificate behavior); no JevChoiceRoute, bridge,
 TaskModelTransport or custom SSE parser remains. Known usage survives invalid
 choices; unavailable usage is recorded as unknown. This is SDK-invocation accounting,
 not proof of the exact network-send phase. Experimental policy/capture hooks are
@@ -375,7 +376,7 @@ S4 has not started.
 
 ### SDK call simplification (2026-10-05)
 
-Current SDK captures use `capture_level: sdk_call` and `capture_status: sdk_returned`;
+Current model-call captures use `capture_level: model_call` and `capture_status: returned`;
 their request hash identifies normalized call parameters, not exact HTTP bytes.
 Raw historical replays use a small experiment-only HTTP client and explicit admission
 audit, without importing production route/transport machinery. Strict byte-level
@@ -383,3 +384,10 @@ protocol checks and three-phase wire audit are no longer production guarantees.
 Historical artifacts are unchanged and require their recorded revision to reproduce.
 The refactor does not change candidate generation, milestone v1 or F routing; S4
 is not started.
+
+
+Current experiment events are `model_request` / `model_response`, with
+`capture_level: model_call`. `TaskModelCallRunner` and `ModelResponseStream` are core
+implementation types, not additional plugin APIs. Jev receives no injected HTTP
+client; normal creation/close and default environment handling belong to its SDK.
+Old report files and their `sdk_*` labels are historical and are not rewritten.
