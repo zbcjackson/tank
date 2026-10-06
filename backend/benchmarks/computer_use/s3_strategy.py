@@ -16,7 +16,7 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Any, TextIO, cast
 
-import httpx
+from tank_backend.llm.model_data import ModelRequest
 from agent_computer_use import (
     action_builder,
     agent,
@@ -157,7 +157,7 @@ class TrialPolicy(BenchmarkModelPolicy):
         self.limits = {"jev": int(arm == "J3"), "f": 1}
         self.counts: Counter[str] = Counter()
 
-    def reserve(self, call_id: str, request: httpx.Request) -> None:
+    def reserve(self, call_id: str, request: ModelRequest) -> None:
         name = next(
             (n for n, m in MODELS.items() if m["url"] == str(request.url)), "unknown"
         )
@@ -172,22 +172,28 @@ class Capture:
     def __init__(self) -> None:
         self.calls: dict[str, dict[str, Any]] = {}
 
-    async def request(self, call_id: str, request: httpx.Request) -> None:
+    async def request(self, call_id: str, request: ModelRequest) -> None:
         self.calls[call_id] = {
-            "request": json.loads(request.content),
-            "request_sha256": hashlib.sha256(request.content).hexdigest(),
+            "capture_level": "sdk_call",
+            "request": request.parameters,
+            "request_sha256": v1.digest(request.parameters),
             "provider": next(
                 n for n, m in MODELS.items() if m["url"] == str(request.url)
             ),
         }
 
-    async def response(self, call_id: str, response: httpx.Response) -> None:
-        self.calls[call_id]["http_status"] = response.status_code
-        if response.is_success:
-            data = json.loads(await response.aread())
-            self.calls[call_id]["response"] = {
-                k: data.get(k) for k in ("model", "answers", "choices", "usage")
-            }
+    async def response(self, call_id: str, response: dict[str, Any]) -> None:
+        if "choice" in response:
+            response = {"model": self.calls[call_id]["request"]["model"],
+                        "answers": {"next_action": {"type": "choice", "choice": response["choice"],
+                            "confidence": response["confidence"], "probabilities": response["probabilities"]}},
+                        "usage": {"input_tokens": response["input_tokens"],
+                                  "output_tokens": response["output_tokens"]}}
+        self.calls[call_id]["capture_status"] = "sdk_returned"
+        data = response
+        self.calls[call_id]["response"] = {
+            k: data.get(k) for k in ("model", "answers", "choices", "usage")
+        }
 
 
 class Events:
@@ -271,7 +277,7 @@ async def run_trial(
             j = MODELS["jev"]
             ctx.runtime.configure_decision_model(
                 row["trial"],
-                DecisionModelProfile("typesafe", j["url"], j["model"], "jev"),
+                DecisionModelProfile(j["url"], j["model"], "jev"),
                 credential=credentials["jev"],
             )
         async for event in instance.run(

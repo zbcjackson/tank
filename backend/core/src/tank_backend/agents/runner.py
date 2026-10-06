@@ -37,7 +37,7 @@ from .task_observer import TaskObserver
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
-    from ..llm.model_transport import ModelCallPolicy, ModelCapture
+    from ..llm.model_call import ModelCallPolicy, ModelCapture
     from ..llm.profile import LLMProfile
     from ..pipeline.bus import Bus
     from ..tools.manager import ToolManager

@@ -21,7 +21,6 @@ from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
-import httpx
 from openai.types.chat import ChatCompletion
 
 from ..agents.approval import PendingToolCallStore
@@ -42,19 +41,16 @@ from ..pipeline.bus import Bus
 from ..plugin.registry import ExtensionRegistry
 from ..policy.verdict import AlwaysApproveResolver
 from ..tools.base import BaseTool, ToolInfo, ToolMetadata, ToolResult
-from ..tools.computer_grounding import grounding_call_id
 from ..tools.computer_use_common import BATCH_ACTIONS
 from ..tools.manager import ToolManager
 from .comparison_contract import ComparisonContract
 from .desktop_cleanup import MacOSInputCleanup
 from .request_budget import (
     RequestBudget,
-    RequestLimitExceeded,
     RequestLimits,
     active_request_budget,
 )
 from .spend_http import SpendControl, active_spend_session
-from .spend_ledger import SpendLimitExceeded
 from .trace import TraceSink
 
 if TYPE_CHECKING:
@@ -411,60 +407,9 @@ class SubAgentDriver:
         driver._request_budget = None
         driver._spend = spend
 
-        def observe_usage(usage: object) -> None:
-            session = active_spend_session.get()
-            if session is None or session.control is not spend:
-                raise SpendLimitExceeded("usage outside active spend trial")
-            session.settle(usage)
-
-        if spend is not None:
-            llm._inner.on_response_usage = observe_usage
-
-        async def capture_request(request: httpx.Request) -> None:
-            if request_limits is not None:
-                budget = active_request_budget.get()
-                if budget is None or budget is not driver._request_budget or not budget.active:
-                    raise RequestLimitExceeded("request outside active trial")
-                role = "locator" if grounding_call_id.get() is not None else "planner"
-                try:
-                    budget.reserve(role)
-                except RequestLimitExceeded:
-                    if spend is not None:
-                        spend.ledger.stop("request_limit")
-                    if driver._trace is not None:
-                        driver._trace.event("request_blocked", role=role, **budget.snapshot())
-                    raise
-            request_id = None
-            if spend is not None:
-                session = active_spend_session.get()
-                if session is None or session.control is not spend:
-                    raise SpendLimitExceeded("request outside active spend trial")
-                request_id = session.reserve(request)
-            if driver._trace is not None:
-                await driver._trace.capture_request(request, request_id=request_id)
-
-        async def capture_response(response: httpx.Response) -> None:
-            # Bind to the requesting trial, not whichever trial is current now.
-            binding = response.request.extensions.get("tank_benchmark_trace")
-            if binding is not None:
-                owner, _ = binding
-                if isinstance(owner, TraceSink):
-                    await owner.capture_response(response)
-            spend_binding = response.request.extensions.get("tank_spend")
-            if spend_binding is not None:
-                session, _ = spend_binding
-                await session.capture_response(response)
-
         def measured_llm(profile: LLMProfile) -> LLM:
             inner = create_llm_from_profile(profile)
-            if spend is not None:
-                inner.on_response_usage = observe_usage
-            if request_limits is not None:
-                inner.disable_retries()
-            if capture_request not in inner.client._client.event_hooks["request"]:
-                inner.client._client.event_hooks["request"].append(capture_request)
-            if capture_response not in inner.client._client.event_hooks["response"]:
-                inner.client._client.event_hooks["response"].append(capture_response)
+            inner.disable_retries()
             return cast(LLM, CountingLLM(inner, counter=llm))
 
         registry = None
@@ -507,18 +452,6 @@ class SubAgentDriver:
                 spend is not None and spend.ledger.record_only and enforce_agent_budget),
             configured_token_budget=configured_token_budget,
         )
-
-        # Built-in agents use this SDK client; SubAgent model calls use task capture.
-        if (
-            not agent_def.extension
-            and capture_request not in llm.client._client.event_hooks["request"]
-        ):
-            llm.client._client.event_hooks["request"].append(capture_request)
-        if (
-            not agent_def.extension
-            and capture_response not in llm.client._client.event_hooks["response"]
-        ):
-            llm.client._client.event_hooks["response"].append(capture_response)
 
         # Archive every screenshot the agent takes for offline diagnosis.
         for name in ("screenshot", "computer_batch"):
@@ -635,7 +568,9 @@ class SubAgentDriver:
                                   task_input=getattr(self, "_task_input", None))
             run_kwargs.update(deadline=time.monotonic() + timeout_s, observer=Observer(),
                               max_steps=max_steps)
-            task_policy = BenchmarkTaskPolicy(trace, self._request_budget, self._spend)
+            profiles = getattr(getattr(self._runner, "_app_config", None), "llm_profiles", {})
+            task_policy = BenchmarkTaskPolicy(trace, self._request_budget, self._spend,
+                secrets=tuple(p.api_key for p in profiles.values() if p.api_key))
             run_kwargs.update(model_policy=task_policy, model_capture=task_policy)
             outputs = self._runner.run_agent(self._agent_def, messages, **run_kwargs)
             try:

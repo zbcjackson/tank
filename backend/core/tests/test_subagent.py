@@ -1198,9 +1198,8 @@ async def test_supervisor_persists_native_audit_before_dispatch(stack, monkeypat
     ]
 
 
-@pytest.mark.parametrize("fail_phase", [None, "prepared", "dispatch", "finished"])
-async def test_supervisor_persists_model_intent_before_http_and_usage_after(
-    stack, monkeypatch, fail_phase,
+async def test_supervisor_model_calls_do_not_require_execution_audit(
+    stack, monkeypatch,
 ):
     from dataclasses import replace
 
@@ -1211,19 +1210,16 @@ async def test_supervisor_persists_model_intent_before_http_and_usage_after(
 
     fake, runner, supervisor, definition, store = stack
     before_http, errors = [], []
-    append = store.append_audit
 
     def append_or_fail(record):
-        if record.phase == fail_phase:
-            raise OSError("private-database-path")
-        append(record)
+        raise OSError("execution audit must not be invoked for a model")
 
     monkeypatch.setattr(store, "append_audit", append_or_fail)
 
     async def provider(request):
         records = store.audit_records(fake.request.task_id)
         before_http.extend(records)
-        assert [record.status for record in records] == ["not_sent", "unknown"]
+        assert records == []
         return httpx.Response(200, json={
             "id": "reply", "object": "chat.completion", "created": 1, "model": "test",
             "choices": [{"index": 0, "message": {"role": "assistant", "content": "ready"},
@@ -1239,7 +1235,7 @@ async def test_supervisor_persists_model_intent_before_http_and_usage_after(
     async def run(request, context):
         fake.request, fake.context = request, context
         assert context.runtime.model is not None
-        for _ in range(2 if fail_phase else 1):
+        for _ in range(2):
             try:
                 await context.runtime.model.complete(
                     [{"role": "user", "content": "private-prompt"}],
@@ -1254,22 +1250,10 @@ async def test_supervisor_persists_model_intent_before_http_and_usage_after(
         authorization=SubAgentAuthorization(frozenset({"network"})),
     )
     records = store.audit_records(result.task_id)
-    if fail_phase:
-        assert result.status == "unknown"
-        assert result.task_result["reason"] == "audit_failed"
-        assert result.task_result["cleanup"] == "confirmed"
-        assert errors == ["audit_failed", "audit_failed"]
-        assert fake.context.budget.total_tokens == (10 if fail_phase == "finished" else 0)
-        assert len(before_http) == (2 if fail_phase == "finished" else 0)
-        assert "private" not in str(result)
-        return
     assert result.status == "completed"
-    assert [record.phase for record in records] == ["prepared", "dispatch", "finished"]
-    assert len({record.call_id for record in records}) == 1
-    assert records[-1].call_id in fake.context.budget.call_ids
-    assert records[-1].prompt_tokens == 7 and records[-1].completion_tokens == 3
-    assert before_http == records[:2]
-    assert "private" not in repr(records)
+    assert records == [] and before_http == [] and errors == []
+    assert fake.context.budget.total_tokens == 20
+    assert fake.context.budget.call_count == 2
 
 
 async def test_output_quota_retains_partial_output_and_closes_the_task():
@@ -1323,7 +1307,7 @@ async def test_success_cannot_hide_an_unknown_native_effect(stack, monkeypatch):
 
 
 @pytest.mark.parametrize("caller", ["text", "computer_use", "llm"])
-@pytest.mark.parametrize("outcome", ["ok", "revoked", "audit_failure"])
+@pytest.mark.parametrize("outcome", ["ok", "revoked", "observer_failure"])
 async def test_retained_callers_share_governance(stack, monkeypatch, caller, outcome):
     """One acceptance contract over real Runner/SDK paths; only HTTP and OS are fake."""
     from pathlib import Path
@@ -1342,7 +1326,7 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
     from tank_backend.plugin.manifest import read_manifest_from_yaml
 
     _, runner, _, _, _ = stack
-    contexts, sent, audit_records, closed, actions = [], [], [], [], []
+    contexts, sent, audit_records, closed, actions, model_events = [], [], [], [], [], []
     grant = SubAgentAuthorization(frozenset({"desktop", "network", "filesystem", "shell"}))
     original_context = SubAgentContext
 
@@ -1355,13 +1339,19 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
 
     async def audit(record):
         audit_records.append(record)
-        if outcome == "audit_failure" and record.category == "model":
+        if record.category == "model":
             raise OSError("required audit unavailable")
+
+    class Observer:
+        def on_event(self, kind, metadata):
+            if kind == "model_call":
+                model_events.append(metadata)
+                if outcome == "observer_failure":
+                    raise RuntimeError("optional telemetry unavailable")
 
     class HTTP(httpx.AsyncBaseTransport):
         async def handle_async_request(self, request):
-            # Evidence must exist before the external boundary, not be added afterwards.
-            assert any(r.category == "model" and r.phase == "dispatch" for r in audit_records)
+            assert not any(r.category == "model" for r in audit_records)
             sent.append(request)
             body = json.loads(request.content)
             usage = {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10}
@@ -1451,20 +1441,21 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
     try:
         outputs = [item async for item in runner.run_agent(
             definition, [{"role": "user", "content": "Fill name"}], task_id="shared-task",
-            authorization=grant, audit=audit, task_input=task_input,
+            authorization=grant, audit=audit, observer=Observer(), task_input=task_input,
         )]
         assert len(contexts) == 1
         ctx = contexts[0]
         assert ctx.authorization is grant and ctx.runtime.task_id == "shared-task"
-        assert len(sent) == (0 if outcome == "audit_failure" else 1)
+        assert len(sent) == 1
         model_records = [r for r in audit_records if r.category == "model"]
-        assert len({r.call_id for r in model_records}) == 1
+        assert model_records == []
+        assert len({e["call_id"] for e in model_events}) == 1
         assert all(r.task_id == "shared-task" for r in audit_records)
         terminals = [o for o in outputs if o.type == AgentOutputType.DONE]
-        if outcome == "ok":
+        if outcome != "revoked":
             assert ctx.budget.total_tokens == 10 and len(ctx.budget.call_ids) == 1
-            assert model_records[-1].status == "returned"
-            assert model_records[-1].call_id in ctx.budget.call_ids
+            assert model_events[-1]["status"] == "returned"
+            assert model_events[-1]["call_id"] in ctx.budget.call_ids
             assert not any(o.metadata.get("status") == "error" for o in outputs)
             assert len(terminals) == 1
             if caller == "computer_use":
@@ -1500,7 +1491,6 @@ def test_decision_profile_and_agent_reference_load_from_yaml(tmp_path, monkeypat
     base_url: https://offline.invalid/v1
 decision_models:
   decision:
-    provider: typesafe
     url: https://offline.invalid/v1/systemone
     model: jev-1.13.0
     credential_env: TEST_DECISION_KEY
@@ -1556,7 +1546,7 @@ async def test_runner_assembles_core_decision_without_provider_extension(stack, 
     monkeypatch.setitem(sys.modules, "_subagent_test", SimpleNamespace(create=create))
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda: httpx.MockTransport(respond))
     runner._app_config.decision_models["decision"] = DecisionModelProfile(
-        "typesafe", "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_DECISION_KEY",
+        "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_DECISION_KEY",
     )
     definition = replace(definition, decision_model="decision")
     assert runner.extension_permissions(definition) == {"network"}
@@ -1577,7 +1567,7 @@ async def test_runner_assembles_core_decision_without_provider_extension(stack, 
 def test_decision_profile_rejects_invalid_configuration(invalid):
     from tank_backend.llm.decision_profile import parse_decision_profiles
 
-    values = {"provider": "typesafe", "url": "https://offline.invalid/v1/systemone",
+    values = {"url": "https://offline.invalid/v1/systemone",
               "model": "jev-1.13.0", "credential_env": "TEST_DECISION_KEY"}
     if invalid == "secret":
         values["api_key"] = "do-not-log"
@@ -1614,7 +1604,7 @@ async def test_decision_profile_failure_precedes_agent_factory(stack, monkeypatc
     monkeypatch.setitem(sys.modules, "_subagent_test", SimpleNamespace(create=create))
     if invalid != "missing_profile":
         runner._app_config.decision_models["decision"] = DecisionModelProfile(
-            "typesafe", "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_DECISION_KEY",
+            "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_DECISION_KEY",
         )
     if invalid == "missing_key":
         monkeypatch.delenv("TEST_DECISION_KEY")

@@ -11,7 +11,7 @@ from typing import NoReturn
 
 import httpx
 
-from ..llm.model_transport import json_object, parse_chat_usage
+from ..llm.model_data import json_object, parse_chat_usage
 from .spend_ledger import SpendLedger, SpendLimit, SpendLimitExceeded, TokenAllowance
 from .trace import TraceSink
 

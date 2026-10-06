@@ -185,10 +185,9 @@ async def call_once(
     case: dict[str, Any], row: dict[str, Any], pool: httpx.AsyncBaseTransport,
     credential: str, policy: Any, audit_file: Any,
 ) -> bool:
-    from tank_backend.llm.jev_model import JevChoiceRoute
     from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
     from tank_backend.agents.task_runtime import ExecutionRecord
-    from tank_backend.llm.model_transport import ChatCompletionsRoute, TaskModelTransport
+    from benchmarks.computer_use.legacy_json_model import TaskJSONModel
     from dataclasses import asdict
 
     async def audit(record: ExecutionRecord) -> None:
@@ -199,18 +198,13 @@ async def call_once(
                           model_policy=policy, audit=audit)
     arm = row["arm"]
     config = v1.MODELS[arm]
-    route = (JevChoiceRoute(config["url"], config["model"], arm) if arm == "jev" else
-             ChatCompletionsRoute(config["url"], config["model"], arm, max_output_tokens=128,
-                                  extra_parameters={"enable_thinking": False}))
     probe = TraceProbe()
-    transport = TaskModelTransport(row["trial"], ctx, routes=(route,),
-                                   credentials={arm: credential}, inner=TraceLease(pool, probe))
-    client = httpx.AsyncClient(transport=transport, timeout=30, trust_env=False, follow_redirects=False)
-    ctx.runtime.own("http-client", client.aclose)
+    client = TaskJSONModel(row["trial"], ctx, config["url"], config["model"], credential,
+                          transport=TraceLease(pool, probe))
+    ctx.runtime.own("raw-replay", client.aclose)
     row["request"] = payload(arm, case["question"])
     try:
-        response = await client.post(config["url"], json=row["request"])
-        data = response.json()
+        data = await client.request(row["request"])
         row["response"] = data
         row["choice"], row["p_abstain"] = parse_response(arm, data, case["question"]["criteria"])
         row["status"] = "returned"

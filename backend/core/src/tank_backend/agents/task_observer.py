@@ -39,7 +39,7 @@ class TaskObserver:
             payload.get("elapsed_ms"), payload.get("prompt_tokens"),
             payload.get("completion_tokens"),
         )
-        if payload.get("status") == "not_sent":
+        if payload.get("status") == "not_started":
             return
         usage = {"task_id": payload["task_id"], "call_id": payload["call_id"]}
         if payload.get("status") == "returned":

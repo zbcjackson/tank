@@ -20,21 +20,20 @@ def validate_version(model: str) -> None:
 
 @dataclass(frozen=True)
 class DecisionModelProfile:
-    provider: str
     url: str
     model: str
     credential_env: str
 
     def __post_init__(self) -> None:
         if any(not isinstance(v, str) or not v.strip() for v in
-               (self.provider, self.url, self.model, self.credential_env)):
+               (self.url, self.model, self.credential_env)):
             raise ValueError("Decision model fields must be nonempty strings")
         validate_version(self.model)
         url = httpx.URL(self.url)
-        if (self.provider != "typesafe" or url.scheme != "https" or not url.host
+        if (url.scheme != "https" or not url.host
                 or url.userinfo or url.query or url.fragment or url.path != "/v1/systemone"
                 or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", self.credential_env)):
-            raise ValueError("Decision model requires typesafe, its HTTPS endpoint and an env name")
+            raise ValueError("Decision model requires the Jev HTTPS endpoint and an env name")
 
 
 def parse_decision_profiles(raw: object) -> dict[str, DecisionModelProfile]:
@@ -43,9 +42,9 @@ def parse_decision_profiles(raw: object) -> dict[str, DecisionModelProfile]:
     profiles = {}
     for name, values in raw.items():
         if (not isinstance(name, str) or not name.strip() or not isinstance(values, dict)
-                or set(values) != {"provider", "url", "model", "credential_env"}):
+                or set(values) != {"url", "model", "credential_env"}):
             raise ValueError(
-                "decision_models entries require provider/url/model/credential_env only"
+                "decision_models entries require url/model/credential_env only"
             )
         profiles[name] = DecisionModelProfile(**values)
     return profiles

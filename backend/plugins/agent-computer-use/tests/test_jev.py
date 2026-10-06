@@ -56,7 +56,7 @@ def setup(monkeypatch, respond, *, context=None):
         SubAgentBudget(), asyncio.Event(),
     )
     ctx.runtime.configure_decision_model(
-        "task", DecisionModelProfile("typesafe", "https://offline.invalid/v1/systemone", "jev-1.13.0", "jev"),
+        "task", DecisionModelProfile("https://offline.invalid/v1/systemone", "jev-1.13.0", "jev"),
         credential="host-secret",
     )
     return ctx, JevSelector(), sent, closed
@@ -132,7 +132,7 @@ def test_model_must_be_an_explicit_version(model):
     from tank_backend.llm.decision_profile import DecisionModelProfile
 
     with pytest.raises(ValueError):
-        DecisionModelProfile("typesafe", "https://offline.invalid/v1/systemone", model, "jev")
+        DecisionModelProfile("https://offline.invalid/v1/systemone", model, "jev")
 
 
 @pytest.mark.parametrize("invalid", ["incomplete", "binding", "empty", "truncated"])
@@ -218,7 +218,7 @@ async def test_controller_adapter_verifies_effect_or_refuses_action(monkeypatch,
     assert len(sent) == 1
 
 
-@pytest.mark.parametrize("stop", ["revoked", "cancelled", "deadline", "audit", "zero_quota"])
+@pytest.mark.parametrize("stop", ["revoked", "cancelled", "deadline", "zero_quota"])
 async def test_host_blocks_before_sending(monkeypatch, stop):
     from tank_backend.agents.subagent import SubAgentStopped
     from tank_backend.benchmarks.model_policy import BenchmarkModelPolicy
@@ -227,15 +227,11 @@ async def test_host_blocks_before_sending(monkeypatch, stop):
     async def respond(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=reply(request))
 
-    async def bad_audit(record):
-        raise RuntimeError("audit unavailable")
-
     ledger = SpendLedger(SpendLimit(100, 100), request_limit=0, record_only=True)
     ledger.start_trial("trial", SpendLimit(100, 100))
     context = SubAgentContext(
         SubAgentAuthorization(frozenset({"desktop", "network"})),
         SubAgentBudget(), asyncio.Event(),
-        audit=bad_audit if stop == "audit" else None,
         model_policy=BenchmarkModelPolicy(ledger, ()) if stop == "zero_quota" else None,
     )
     ctx, selector, sent, _ = setup(monkeypatch, respond, context=context)
@@ -649,7 +645,6 @@ def test_v2_scores_actionability_separately(monkeypatch):
 
 async def test_v2_trace_reuses_real_http_pool_without_closing_borrowed_pool(monkeypatch):
     m = replay_v2(monkeypatch)
-    from tank_backend.llm.model_transport import ChatCompletionsRoute, TaskModelTransport
 
     connections, calls, closed = [], [], []
 
@@ -687,10 +682,7 @@ async def test_v2_trace_reuses_real_http_pool_without_closing_borrowed_pool(monk
             probes.append(probe)
             ctx = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
                                   SubAgentBudget(), asyncio.Event())
-            guard = TaskModelTransport(str(i), ctx,
-                routes=(ChatCompletionsRoute(url, "test", "key", allow_http=True),),
-                credentials={"key": "test-secret"}, inner=m["TraceLease"](pool, probe))
-            async with httpx.AsyncClient(transport=guard) as client:
+            async with httpx.AsyncClient(transport=m["TraceLease"](pool, probe)) as client:
                 await client.post(url, json={"model": "test", "max_tokens": 10,
                                            "messages": [{"role": "user", "content": "test"}]})
             await ctx.runtime.aclose()
@@ -1434,7 +1426,7 @@ async def test_holdout_live_governed_execution(monkeypatch, tmp_path, failure):
         assert sent == [by_id[r["case_id"]]["requests"][r["arm"]] for r in frozen["schedule"]]
         assert result["spend"]["batch"]["known_tokens"] == 48 * 12
         assert result["spend"]["batch"]["reserved_tokens"] == 0
-        assert len((tmp_path / "run/audit.jsonl").read_text().splitlines()) == 144
+        assert len((tmp_path / "run/audit.jsonl").read_text().splitlines()) == 48
         assert all(s["invalid_n" if failure == "invalid" else "returned_n"] == 6
                    for s in result["summary"].values())
     assert result["completed"] == (failure in (None, "invalid"))

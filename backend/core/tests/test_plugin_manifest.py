@@ -127,7 +127,7 @@ class TestPluginManifest:
         assert manifest.extensions == []
 
 
-@pytest.mark.parametrize("runtime_api", [1, 999])
+@pytest.mark.parametrize("runtime_api", [1, 2, 999])
 def test_incompatible_task_runtime_api_refuses_before_factory_import(monkeypatch, runtime_api):
     import importlib
 
@@ -161,9 +161,9 @@ def test_runtime_api_declaration_survives_manifest_loading(tmp_path):
     path = tmp_path / "plugin.yaml"
     path.write_text(yaml.safe_dump({
         "name": "sample", "extensions": [{
-            "name": "agent", "type": "subagent", "factory": "sample:create", "runtime_api": 2,
+            "name": "agent", "type": "subagent", "factory": "sample:create", "runtime_api": 3,
         }],
     }))
     extension = read_manifest_from_yaml(path).extensions[0]
-    assert extension.runtime_api == 2
+    assert extension.runtime_api == 3
     extension.check_runtime_api()

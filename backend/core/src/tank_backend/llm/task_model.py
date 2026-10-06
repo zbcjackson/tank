@@ -6,13 +6,12 @@ import math
 from collections.abc import Iterable
 
 import httpx
+from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
 from ..agents.subagent import SubAgentContext, SubAgentStopped
 from .llm import LLM
-from .model_transport import ChatCompletionsRoute, TaskModelTransport
 from .profile import LLMProfile
-from .task_client import TaskOpenAI
 
 
 class TaskModel:
@@ -37,44 +36,36 @@ class TaskModel:
         self._extra_body: dict[str, object] = (
             {"enable_thinking": False} if profile.extra_body else {}
         )
-        self._route = ChatCompletionsRoute(
-            profile.base_url.rstrip("/") + "/chat/completions", profile.model,
-            profile.name, max_output_tokens=profile.max_tokens, extra_parameters=self._extra_body,
-        )
+        url = httpx.URL(profile.base_url)
+        if (url.scheme != "https" or not url.host or url.userinfo or url.query or url.fragment
+                or type(profile.max_tokens) is not int or profile.max_tokens <= 0):
+            raise ValueError("Text model requires HTTPS and a positive output limit")
+        self._profile = profile
         self._context = context
         self._task_id = task_id
         self._credential = profile.api_key
         self._temperature = profile.temperature
-        self._client: TaskOpenAI | None = None
+        self._client: AsyncOpenAI | None = None
         self._llm: LLM | None = None
         self._closed = False
 
     async def complete(self, messages: Iterable[ChatCompletionMessageParam]) -> str:
-        """One text completion, accounted at HTTP before returning any result."""
+        """One text completion, accounted at the SDK call before returning any result."""
         self._context.check("network")
         if self._closed:
             raise SubAgentStopped("model_closed")
         if self._llm is None:
-            maximum = self._route.max_output_tokens
-            assert maximum is not None
-            transport = TaskModelTransport(
-                self._task_id, self._context, routes=(self._route,),
-                credentials={self._route.credential_ref: self._credential},
-                inner=httpx.AsyncHTTPTransport(),
-            )
-            http = httpx.AsyncClient(transport=transport, follow_redirects=False, trust_env=False)
+            profile = self._profile
+            http = httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(),
+                                     follow_redirects=False, trust_env=False)
             try:
-                client = TaskOpenAI(
-                    api_key="host-managed",
-                    base_url=self._route.url.removesuffix("chat/completions"),
-                    max_retries=0, http_client=http,
-                )
-                self._llm = LLM(
-                    api_key="host-managed", model=self._route.model,
-                    base_url=str(client.base_url), temperature=self._temperature,
-                    max_tokens=maximum, client=client, extra_body=self._extra_body.copy(),
-                )
-                self._client = client
+                self._client = AsyncOpenAI(api_key=self._credential, base_url=profile.base_url,
+                                           max_retries=0, http_client=http)
+                self._llm = LLM(api_key=self._credential, model=profile.model,
+                                base_url=profile.base_url, temperature=self._temperature,
+                                max_tokens=profile.max_tokens, client=self._client,
+                                extra_body=self._extra_body.copy()).bind_task(
+                                    self._context, self._task_id)
             except BaseException:
                 await http.aclose()
                 raise
@@ -96,5 +87,7 @@ class TaskModel:
     async def aclose(self) -> None:
         self._closed = True
         self._credential = ""
+        if self._llm is not None:
+            await self._llm.aclose()
         if self._client is not None:
             await self._client.close()

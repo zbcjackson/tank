@@ -500,7 +500,6 @@ async def test_yaml_runner_jev_clicks_and_verifies_real_dom(
     base_url: https://offline.invalid/v1
 decision_models:
   decision:
-    provider: typesafe
     url: https://offline.invalid/v1/systemone
     model: jev-1.13.0
     credential_env: TEST_JEV_KEY
@@ -536,7 +535,8 @@ Save name.
     assert len(results) == 1 and results[0]["status"] == "completed", outputs
     assert results[0]["cleanup"] == "confirmed"
     assert len(sent) == 1 and closed == [True]
-    assert any(record.operation == "jev_choice" and record.phase == "finished" for record in audits)
+    assert not any(record.category == "model" for record in audits)
+    assert any(record.operation == "computer_use.dispatch" for record in audits)
     assert "never-in-plugin-config" not in repr(outputs) + repr(audits)
 
 
@@ -578,7 +578,7 @@ async def test_frozen_jev_smoke_harness_with_fake_http(
 def test_smoke_refuses_a_second_request_in_one_case():
     import runpy
 
-    import httpx
+    from tank_backend.llm.model_data import ModelRequest
 
     from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, SpendLimitExceeded
 
@@ -586,7 +586,7 @@ def test_smoke_refuses_a_second_request_in_one_case():
     ledger = SpendLedger(SpendLimit(393216, 10_000_000), request_limit=3)
     ledger.start_trial("case", SpendLimit(131072, 3_000_000))
     policy = module["OneCallPolicy"](ledger)
-    request = httpx.Request("POST", module["ENDPOINT"], json={"model": module["MODEL"]})
+    request = ModelRequest(module["ENDPOINT"], module["MODEL"], {"model": module["MODEL"]})
     policy.reserve("one", request)
     policy.settle("one", 20, 0)
     with pytest.raises(SpendLimitExceeded, match="smoke_case_requests"):
@@ -660,7 +660,7 @@ async def test_real_dom_multilayout_selection_readback(
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
     ctx = SubAgentContext(SubAgentAuthorization(frozenset({"desktop", "network"})),
                           SubAgentBudget(), asyncio.Event(), audit=audit)
-    ctx.runtime.configure_decision_model("dom-task", DecisionModelProfile("typesafe",
+    ctx.runtime.configure_decision_model("dom-task", DecisionModelProfile(
         "https://offline.invalid/v1/systemone", "jev-1.13.0", "jev"), credential="fixture-only-key")
     task_goal = GoalContract.from_input({
         "schema_version": 1, "scope": "managed-page", "objective": "执行身份 K7 对应的项目",
@@ -986,7 +986,7 @@ async def test_runner_candidate_strategy_returns_to_rules(site, chromium_require
     config = AppConfig.from_raw_dict({
         "llm": {"default": {"api_key": "fixture-f", "model": "f-model", "base_url": "https://offline.invalid/v1",
                             "max_tokens": 128, "extra_body": {"enable_thinking": False}}},
-        "decision_models": {"jev": {"provider": "typesafe", "url": "https://offline.invalid/v1/systemone",
+        "decision_models": {"jev": {"url": "https://offline.invalid/v1/systemone",
                                  "model": "jev-1.13.0", "credential_env": "S3_TEST_JEV_KEY"}},
         "subagents": {"agent-computer-use:agent": {"config": {"browser": {"scope": "managed-page", "url": site},
                                                               "selector": mode}}}})
@@ -1012,7 +1012,8 @@ async def test_runner_candidate_strategy_returns_to_rules(site, chromium_require
     assert len(calls) == (2 if mode == "jev-fallback" else 1)
     routes = [m["reason"] for k, m in events if k == "computer_use_route"]
     assert routes == ["jev_eligible", "rules_unique"]
-    assert len([a for a in audits if a.category == "model" and a.phase == "finished"]) == len(calls)
+    assert not any(a.category == "model" for a in audits)
+    assert len([m for k, m in events if k == "model_call" and m["phase"] == "finished"]) == len(calls)
 
 
 @pytest.mark.parametrize("force_fallback", [False, True])

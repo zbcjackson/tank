@@ -35,12 +35,12 @@ def digest(value: object) -> str:
 
 def code_hashes() -> dict[str, str]:
     from agent_computer_use import contracts, jev
-    from tank_backend.llm import model_transport, jev_model, decision_profile
+    from tank_backend.llm import model_call, decision_model, task_decision_model, decision_profile
     from benchmarks.computer_use import legacy_json_model as task_json_model
     from tank_backend.benchmarks import model_policy, spend_ledger
 
     paths = [Path(__file__), Path(inspect.getfile(ActionBuilder))]
-    paths.extend(Path(inspect.getfile(module)) for module in (contracts, jev, model_transport, task_json_model, jev_model, decision_profile,
+    paths.extend(Path(inspect.getfile(module)) for module in (contracts, jev, model_call, task_json_model, decision_model, task_decision_model, decision_profile,
                                                            model_policy, spend_ledger))
     return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
@@ -163,14 +163,12 @@ async def run_replay(
     import asyncio
     import time
 
-    from tank_backend.llm.jev_model import JevChoiceRoute
     from benchmarks.computer_use.legacy_json_model import parse_choice, TaskJSONModel
     from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
     from tank_backend.agents.task_runtime import ExecutionRecord
     from tank_backend.benchmarks.model_policy import BenchmarkModelPolicy
     from tank_backend.benchmarks.spend_http import ContextWindowContract
     from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, TokenAllowance
-    from tank_backend.llm.model_transport import ChatCompletionsRoute
 
     freeze = load_freeze(output, approved_digest)
     if set(credentials) != {"jev", "qwen"} or not all(value.strip() for value in credentials.values()):
@@ -225,12 +223,8 @@ async def run_replay(
                                 asyncio.Event(), deadline=time.monotonic() + 45, model_policy=policy, audit=audit,
                             )
                             config = MODELS[arm]
-                            route = (JevChoiceRoute(config["url"], config["model"], arm)
-                                     if arm == "jev" else ChatCompletionsRoute(
-                                         config["url"], config["model"], arm, max_output_tokens=128,
-                                         extra_parameters={"enable_thinking": False},
-                                     ))
-                            model = TaskJSONModel(trial, ctx, route, credentials[arm])
+                            model = TaskJSONModel(trial, ctx, config["url"], config["model"],
+                                                  credentials[arm])
                             ctx.runtime.own("legacy-json-replay", model.aclose)
                             request: dict[str, Any] = (
                                 {"model": config["model"], "state": question["state"],
@@ -294,7 +288,7 @@ async def run_replay(
 
 
 def parse_qwen(response: dict[str, Any], options: dict[str, Any], model: str) -> str:
-    from tank_backend.llm.model_transport import json_object
+    from tank_backend.llm.model_data import json_object
 
     if response.get("model") != model:
         raise ValueError("unexpected model version")

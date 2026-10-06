@@ -11,7 +11,6 @@
 # selects decision-model: jev; merely configuring it never starts a request.
 decision_models:
   jev:
-    provider: typesafe
     url: https://api.typesafe.ai/v1/systemone
     model: jev-1.13.0
     credential_env: TYPESAFE_API_KEY

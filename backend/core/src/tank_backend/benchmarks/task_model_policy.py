@@ -5,20 +5,21 @@ from __future__ import annotations
 import json
 from typing import Literal
 
-import httpx
-
+from ..llm.model_data import ModelRequest
 from ..tools.computer_grounding import grounding_call_id
 from .model_policy import BenchmarkModelPolicy
 from .request_budget import RequestBudget, RequestLimitExceeded
 from .spend_http import SpendControl
-from .trace import TraceSink
+from .trace import TraceSink, image_hashes
 
 
 class BenchmarkTaskPolicy:
     def __init__(
         self, trace: TraceSink, budget: RequestBudget | None, spend: SpendControl | None,
+        *, secrets: tuple[str, ...] = (),
     ) -> None:
         self.trace, self.budget = trace, budget
+        self.secrets = secrets
         self.spend = BenchmarkModelPolicy(spend.ledger, spend.contracts) if spend else None
         self.active = True
         self._roles: dict[str, Literal["planner", "locator"]] = {}
@@ -31,7 +32,7 @@ class BenchmarkTaskPolicy:
         if self.spend is not None:
             self.spend.check()
 
-    def reserve(self, call_id: str, request: httpx.Request) -> None:
+    def reserve(self, call_id: str, request: ModelRequest) -> None:
         self.check()
         role = "locator" if grounding_call_id.get() else "planner"
         if self.budget is not None:
@@ -61,13 +62,20 @@ class BenchmarkTaskPolicy:
         if self.budget is not None:
             setattr(self.budget, role, getattr(self.budget, role) - 1)
 
-    async def request(self, call_id: str, request: httpx.Request) -> None:
+    async def request(self, call_id: str, request: ModelRequest) -> None:
         self.check()
-        await self.trace.capture_request(request, request_id=call_id)
+        self.trace.event("sdk_request", request_id=call_id, model=request.model,
+                         stream=bool(request.parameters.get("stream")),
+                         image_sha256=image_hashes(request.parameters),
+                         grounding_call_id=grounding_call_id.get())
 
-    async def response(self, call_id: str, response: httpx.Response) -> None:
+    async def response(self, call_id: str, response: dict[str, object]) -> None:
         self.check()
-        authorization = response.request.headers.get("authorization", "")
-        key = authorization.removeprefix("Bearer ") if authorization.startswith("Bearer ") else ""
-        redactions = tuple({key.encode(), json.dumps(key)[1:-1].encode()}) if key else ()
-        await self.trace.capture_response(response, redactions=redactions)
+        self.trace.event("sdk_response", request_id=call_id, result=self._redact(response))
+
+    def _redact(self, value: object) -> object:
+        text = json.dumps(value, ensure_ascii=False)
+        for secret in self.secrets:
+            if secret:
+                text = text.replace(json.dumps(secret, ensure_ascii=False)[1:-1], "[REDACTED]")
+        return json.loads(text)

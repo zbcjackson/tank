@@ -78,7 +78,7 @@ async def test_text_model_stopped_before_http_creation(model_stack, stop):
 
 
 @pytest.mark.parametrize(
-    "invalid", ["choices", "truncated", "refusal", "usage", "tool_calls", "function_call"],
+    "invalid", ["choices", "truncated", "refusal", "tool_calls", "function_call"],
 )
 async def test_invalid_model_reply_keeps_usage_and_stops(model_stack, invalid):
     context, _, payload, requests, released = model_stack
@@ -96,14 +96,30 @@ async def test_invalid_model_reply_keeps_usage_and_stops(model_stack, invalid):
             [{"id": "call", "type": "function", "function": function}]
             if invalid == "tool_calls" else function
         )
-    else:
-        payload.pop("usage")
     try:
         with pytest.raises(SubAgentStopped, match="model_error") as caught:
             await model.complete([{"role": "user", "content": "hello"}])
         assert "secret" not in str(caught.value)
-        assert context.budget.total_tokens == (0 if invalid == "usage" else 10)
-        assert len(context.budget.unknown_calls) == (1 if invalid == "usage" else 0)
+        assert context.budget.total_tokens == 10
+        assert not context.budget.unknown_calls
+    finally:
+        await context.runtime.aclose()
+    assert len(requests) == 1 and released == [True]
+
+
+@pytest.mark.parametrize("usage", ["missing", None])
+async def test_text_result_without_optional_usage_is_recorded_unknown(model_stack, usage):
+    context, _, payload, requests, released = model_stack
+    if usage == "missing":
+        payload.pop("usage")
+    else:
+        payload["usage"] = None
+    try:
+        assert context.runtime.model is not None
+        result = await context.runtime.model.complete([{"role": "user", "content": "hello"}])
+        assert result == "ready"
+        assert context.budget.total_tokens == 0
+        assert len(context.budget.unknown_calls) == 1
     finally:
         await context.runtime.aclose()
     assert len(requests) == 1 and released == [True]
@@ -220,7 +236,7 @@ async def test_shared_completion_preserves_task_request_and_single_accounting(
     assert len(requests) == 2 and released == [True]
 
 
-async def test_governed_client_does_not_export_payload_through_global_sdk_wrappers(
+async def test_task_client_preserves_standard_sdk_observability(
     model_stack, monkeypatch,
 ):
     from functools import wraps
@@ -243,7 +259,8 @@ async def test_governed_client_does_not_export_payload_through_global_sdk_wrappe
         assert response == "ready"
     finally:
         await context.runtime.aclose()
-    assert len(requests) == 1 and traced == []
+    assert len(requests) == len(traced) == 1
+    assert context.budget.call_count == 1
 
 
 async def test_text_model_allows_only_pinned_non_thinking_flag(model_stack):
@@ -307,7 +324,7 @@ async def test_core_decision_model_uses_official_sdk_and_original_ledger(monkeyp
     ctx = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
                           SubAgentBudget(), asyncio.Event())
     ctx.runtime.configure_decision_model("task", DecisionModelProfile(
-        "typesafe", "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_KEY",
+        "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_KEY",
     ), credential="host-secret")
     model = ctx.runtime.decision_model
     assert model is not None
@@ -358,7 +375,7 @@ async def test_decision_sdk_has_no_hidden_retry_or_redirect(monkeypatch, status)
     ctx = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
                           SubAgentBudget(), asyncio.Event())
     ctx.runtime.configure_decision_model("task", DecisionModelProfile(
-        "typesafe", "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_KEY",
+        "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_KEY",
     ), credential="secret")
     try:
         assert ctx.runtime.decision_model is not None

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
-
-from ..llm.model_transport import json_object
+from ..llm.model_data import ModelRequest
 from .spend_http import ContextWindowContract
 from .spend_ledger import SpendLedger, SpendLimitExceeded, TokenAllowance
 
@@ -23,8 +21,8 @@ class BenchmarkModelPolicy:
         if reason is not None:
             raise SpendLimitExceeded(reason)
 
-    def reserve(self, call_id: str, request: httpx.Request) -> None:
-        data = json_object(request.content)
+    def reserve(self, call_id: str, request: ModelRequest) -> None:
+        data = request.parameters
         if self.ledger.record_only:
             self.ledger.reserve(call_id, TokenAllowance(0, 0, 0, 0))
             return
@@ -33,7 +31,7 @@ class BenchmarkModelPolicy:
             item.url == str(request.url) and item.model == data.get("model")
         )), None)
         if (
-            contract is None or request.method != "POST"
+            contract is None
             or (maximum is None and contract.output_cap_required)
             or (maximum is not None and (
                 type(maximum) is not int or not 0 < maximum <= contract.allowance.output_tokens

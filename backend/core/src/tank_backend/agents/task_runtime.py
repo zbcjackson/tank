@@ -18,8 +18,8 @@ from .task_resources import TaskResources, consume_exception
 
 if TYPE_CHECKING:
     from ..llm.decision_profile import DecisionModelProfile
-    from ..llm.jev_model import TaskDecisionModel
     from ..llm.profile import LLMProfile
+    from ..llm.task_decision_model import TaskDecisionModel
     from ..llm.task_model import TaskModel
     from .base import AgentOutput
     from .subagent import SubAgentContext
@@ -202,12 +202,16 @@ class TaskRuntime:
         self, task_id: str, profile: DecisionModelProfile, *, credential: str,
     ) -> None:
         """Explicit host assembly; no plugin configuration or credentials are inferred."""
-        from ..llm.jev_model import TaskDecisionModel
+        from ..llm.task_decision_model import TaskDecisionModel
 
         self.bind(task_id)
         if self._decision_model is not None:
             raise ValueError("task decision model is already configured")
-        model = TaskDecisionModel(task_id, self._context, profile, credential)
+        from ..llm.decision_model import DecisionModel
+        self._context.check("network")
+        sdk_model = DecisionModel(profile, credential=credential)
+        self.own("decision-model", sdk_model.aclose)
+        model = TaskDecisionModel(task_id, self._context, sdk_model)
         self.own("task-decision-model", model.aclose)
         self._decision_model = model
 

@@ -1,72 +1,57 @@
-"""Historical raw replay client; production decision calls use the core SDK service."""
-
+"""Historical raw protocol replay only; production models use native SDK calls."""
 from __future__ import annotations
-
-import json
 import math
-
-from agent_computer_use.contracts import ActionSet, DecisionResult
-from agent_computer_use.jev import CONTROLS
-
+from uuid import uuid4
+from dataclasses import dataclass
 
 import httpx
-
+from agent_computer_use.contracts import ActionSet, DecisionResult
+from agent_computer_use.jev import CONTROLS
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
-from tank_backend.llm.model_transport import ModelRoute, TaskModelTransport, json_object
+from tank_backend.agents.task_runtime import ExecutionRecord
+from tank_backend.llm.model_call import TaskModelCalls
+from tank_backend.llm.model_data import ModelRequest, json_object, parse_chat_usage
 
+@dataclass(frozen=True)
+class _Response:
+    payload: dict[str, object]
+    input_tokens: int
+    output_tokens: int
 
 class TaskJSONModel:
-    """A trusted host installs one route; callers cannot replace its destination or key."""
-
-    def __init__(
-        self, task_id: str, context: SubAgentContext, route: ModelRoute, credential: str,
-    ) -> None:
-        context.check("network")
-        url = httpx.URL(route.url)
-        if (url.scheme != "https" or not url.host or url.userinfo or url.query or url.fragment
-                or not credential.strip() or not route.credential_ref):
-            raise ValueError("JSON model requires an exact HTTPS endpoint and credential")
-        self._task_id, self._context, self._route = task_id, context, route
-        self._credential = credential
-        self._client: httpx.AsyncClient | None = None
-        self._closed = False
-
-    @property
-    def model_name(self) -> str:
-        return self._route.model
+    def __init__(self, task_id: str, context: SubAgentContext, url: str, model: str,
+                 credential: str, *, transport: httpx.AsyncBaseTransport | None = None):
+        self.url, self.model, self.context, self.task_id = url, model, context, task_id
+        self.calls = TaskModelCalls(task_id, context)
+        self.client = httpx.AsyncClient(transport=transport or httpx.AsyncHTTPTransport(),
+            headers={"Authorization": "Bearer " + credential}, follow_redirects=False,
+            trust_env=False, timeout=30)
 
     async def request(self, payload: dict[str, object]) -> dict[str, object]:
-        self._context.check("network")
-        if self._closed:
-            raise SubAgentStopped("model_closed")
-        request = httpx.Request(
-            "POST", self._route.url, headers={"Content-Type": "application/json"},
-            content=json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8"),
-        )
-        self._route.validate(request)
-        if self._route.is_streaming(request):
-            raise ValueError("JSON model does not support streaming")
-        if self._client is None:
-            transport = TaskModelTransport(
-                self._task_id, self._context, routes=(self._route,),
-                credentials={self._route.credential_ref: self._credential},
-                inner=httpx.AsyncHTTPTransport(),
-            )
-            self._client = httpx.AsyncClient(
-                transport=transport, follow_redirects=False, trust_env=False, timeout=30,
-            )
-        try:
-            response = await self._client.send(request)
-            return json_object(response.content)
-        except Exception:
-            self._context.check("network")
-            raise SubAgentStopped("model_error", "JSON model request failed") from None
+        # Experimental admission remains outside production SDK bookkeeping.
+        await self.context.runtime.write_audit(ExecutionRecord(
+            self.task_id, uuid4().hex, "raw_replay", "not_sent", category="model", phase="prepared"))
+        self.context.check("network")
+        async def invoke() -> _Response:
+            response = await self.client.post(self.url, json=payload)
+            response.raise_for_status()
+            data = json_object(response.content)
+            usage = data.get("usage")
+            if self.url.endswith("systemone"):
+                if not isinstance(usage, dict):
+                    raise ValueError("unknown usage")
+                inputs, outputs = usage.get("input_tokens"), usage.get("output_tokens")
+                if type(inputs) is not int or type(outputs) is not int or inputs < 0 or outputs < 0:
+                    raise ValueError("unknown usage")
+            else:
+                inputs, outputs = parse_chat_usage(usage)
+            return _Response(data, inputs, outputs)
+        result = await self.calls.run(ModelRequest(self.url, self.model, payload), invoke)
+        return result.payload
 
     async def aclose(self) -> None:
-        self._closed = True
-        self._credential = ""
-        if self._client is not None:
-            await self._client.aclose()
+        await self.calls.aclose()
+        await self.client.aclose()
 
 
 def parse_choice(

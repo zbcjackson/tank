@@ -18,7 +18,7 @@ from ..core.token_usage import TokenUsageLedger
 from .base import AgentOutput
 
 if TYPE_CHECKING:
-    from ..llm.model_transport import ModelCallPolicy, ModelCapture
+    from ..llm.model_call import ModelCallPolicy, ModelCapture
     from ..policy.verdict import ApprovalResolver
     from .approval import ToolApprovalPolicy
     from .task_result import TaskResult

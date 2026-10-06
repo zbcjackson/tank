@@ -12,6 +12,7 @@ import asyncio
 import json as _json
 import logging
 from collections.abc import AsyncGenerator, Callable
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 from openai import (
@@ -372,7 +373,10 @@ class LLM:
         self.stream_options = stream_options
         self.extra_body = extra_body or {}
         self.extra_headers = extra_headers or {}
+        from .model_call import TaskModelCalls
+
         self._task_context: SubAgentContext | None = None
+        self._task_calls: TaskModelCalls | None = None
         self._retries_enabled = True
         self.on_response_usage: Callable[[CompletionUsage | None], None] | None = None
 
@@ -398,6 +402,8 @@ class LLM:
 
     async def aclose(self) -> None:
         """Close only a client created by this LLM; borrowed clients remain host-owned."""
+        if self._task_calls is not None:
+            await self._task_calls.aclose()
         if self._owns_client:
             await self.client.close()
 
@@ -409,8 +415,28 @@ class LLM:
 
     async def _create_with_retry(self, **api_kwargs: Any) -> Any:
         """Call chat.completions.create with exponential backoff on transient errors."""
-        if self._task_context is not None:
-            self._task_context.check("network")
+        if self._task_calls is not None:
+            from .model_data import ModelRequest
+
+            api_kwargs = deepcopy(api_kwargs)
+
+            parameters = {k: v for k, v in api_kwargs.items()
+                          if k not in {"name", "metadata", "trace_id", "parent_observation_id"}}
+            extra = parameters.pop("extra_body", {})
+            parameters = {**parameters, **extra}
+            request = ModelRequest(self.base_url.rstrip("/") + "/chat/completions",
+                                   self.model, parameters)
+            async def invoke() -> Any:
+                from ..observability.model_observation import call_metadata
+                kwargs = dict(api_kwargs)
+                if is_tracing_registered():
+                    kwargs["metadata"] = {
+                        **kwargs.get("metadata", {}), **(call_metadata.get() or {}),
+                    }
+                return await self.client.chat.completions.create(**kwargs)
+            if api_kwargs.get("stream"):
+                return self._task_calls.stream(request, invoke)
+            return await self._task_calls.run(request, invoke)
         if not self._retries_enabled:
             client = self.client.with_options(max_retries=0)
             return await client.chat.completions.create(**api_kwargs)
@@ -624,8 +650,7 @@ class LLM:
             # The kwargs are ONLY legal on a Langfuse-patched client —
             # the raw OpenAI SDK rejects ``name`` with a TypeError, so
             # gate on the tracing actually being registered.
-            if (trace_metadata and is_tracing_registered()
-                    and getattr(self.client, "task_governed", False) is not True):
+            if trace_metadata and is_tracing_registered():
                 if "trace_name" in trace_metadata:
                     api_kwargs["name"] = trace_metadata["trace_name"]
                 if "metadata" in trace_metadata:
@@ -672,66 +697,71 @@ class LLM:
 
             stream = await self._create_with_retry(**api_kwargs)
 
-            async for chunk in stream:
-                if chunk.usage:
-                    iteration_usage = chunk.usage
-                if not chunk.choices:
-                    continue
+            try:
+                async for chunk in stream:
+                    if chunk.usage:
+                        iteration_usage = chunk.usage
+                    if not chunk.choices:
+                        continue
 
-                finish_reason = chunk.choices[0].finish_reason or finish_reason
-                delta = chunk.choices[0].delta
+                    finish_reason = chunk.choices[0].finish_reason or finish_reason
+                    delta = chunk.choices[0].delta
 
-                # Handle reasoning/thinking content
-                reasoning = getattr(delta, "reasoning_content", None)
-                if not isinstance(reasoning, str) or not reasoning:
-                    reasoning = getattr(delta, "reasoning", None)
-                if isinstance(reasoning, str) and reasoning:
-                    full_reasoning += reasoning
-                    yield (
-                        UpdateType.THOUGHT, reasoning,
-                        {"turn": turn},
-                    )
-
-                # Handle regular content
-                if delta.content:
-                    full_content += delta.content
-                    yield (
-                        UpdateType.TEXT, delta.content,
-                        {"turn": turn},
-                    )
-
-                # Handle tool calls
-                if delta.tool_calls:
-                    for tc_delta in delta.tool_calls:
-                        idx = tc_delta.index
-                        if idx not in tool_calls_data:
-                            tool_calls_data[idx] = {
-                                "id": tc_delta.id or "",
-                                "name": (
-                                    tc_delta.function.name
-                                    if tc_delta.function and tc_delta.function.name
-                                    else ""
-                                ),
-                                "arguments": "",
-                            }
-                        else:
-                            if tc_delta.id:
-                                tool_calls_data[idx]["id"] = tc_delta.id
-                            if tc_delta.function and tc_delta.function.name:
-                                tool_calls_data[idx]["name"] = tc_delta.function.name
-
-                        if tc_delta.function and tc_delta.function.arguments:
-                            tool_calls_data[idx]["arguments"] += tc_delta.function.arguments
-
+                    # Handle reasoning/thinking content
+                    reasoning = getattr(delta, "reasoning_content", None)
+                    if not isinstance(reasoning, str) or not reasoning:
+                        reasoning = getattr(delta, "reasoning", None)
+                    if isinstance(reasoning, str) and reasoning:
+                        full_reasoning += reasoning
                         yield (
-                            UpdateType.TOOL, "",
-                            {
-                                "index": idx,
-                                "name": tool_calls_data[idx]["name"],
-                                "arguments": tool_calls_data[idx]["arguments"],
-                                "status": "calling", "turn": turn,
-                            },
+                            UpdateType.THOUGHT, reasoning,
+                            {"turn": turn},
                         )
+
+                    # Handle regular content
+                    if delta.content:
+                        full_content += delta.content
+                        yield (
+                            UpdateType.TEXT, delta.content,
+                            {"turn": turn},
+                        )
+
+                    # Handle tool calls
+                    if delta.tool_calls:
+                        for tc_delta in delta.tool_calls:
+                            idx = tc_delta.index
+                            if idx not in tool_calls_data:
+                                tool_calls_data[idx] = {
+                                    "id": tc_delta.id or "",
+                                    "name": (
+                                        tc_delta.function.name
+                                        if tc_delta.function and tc_delta.function.name
+                                        else ""
+                                    ),
+                                    "arguments": "",
+                                }
+                            else:
+                                if tc_delta.id:
+                                    tool_calls_data[idx]["id"] = tc_delta.id
+                                if tc_delta.function and tc_delta.function.name:
+                                    tool_calls_data[idx]["name"] = tc_delta.function.name
+
+                            if tc_delta.function and tc_delta.function.arguments:
+                                tool_calls_data[idx]["arguments"] += tc_delta.function.arguments
+
+                            yield (
+                                UpdateType.TOOL, "",
+                                {
+                                    "index": idx,
+                                    "name": tool_calls_data[idx]["name"],
+                                    "arguments": tool_calls_data[idx]["arguments"],
+                                    "status": "calling", "turn": turn,
+                                },
+                            )
+
+            finally:
+                if self._task_calls is not None:
+                    await stream.aclose()
 
             if self.on_response_usage is not None:
                 self.on_response_usage(iteration_usage)
@@ -769,7 +799,7 @@ class LLM:
             )
             call_metadata = {}
             if self._task_context is not None:
-                from .model_transport import get_model_call
+                from .model_call import get_model_call
 
                 call = get_model_call(self._task_context.runtime.task_id)
                 if call is not None:
@@ -1172,14 +1202,13 @@ class LLM:
             api_kwargs["extra_body"] = self.extra_body
         if tools is not None:
             api_kwargs["tools"] = tools
-        if (trace_metadata and is_tracing_registered()
-                    and getattr(self.client, "task_governed", False) is not True):
+        if trace_metadata and is_tracing_registered():
             if "trace_name" in trace_metadata:
                 api_kwargs["name"] = trace_metadata["trace_name"]
             if "metadata" in trace_metadata:
                 api_kwargs["metadata"] = trace_metadata["metadata"]
 
-        if not retry:
+        if not retry and self._task_calls is None:
             client = self.client.with_options(max_retries=0)
             response = await client.chat.completions.create(**api_kwargs)
         else:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
-from tank_backend.llm.model_transport import json_object
+from tank_backend.llm.model_data import json_object
 
 from .contracts import ActionSet, DecisionResult, GoalContract, Snapshot
 from .jev import CONTROLS, JevSelector, check_eligible, decision_question

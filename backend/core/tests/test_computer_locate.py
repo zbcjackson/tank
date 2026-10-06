@@ -252,22 +252,20 @@ async def test_runner_split_locates_current_image_and_dispatches_reference(
                 assert result.llm_calls == 5
                 assert result.non_gui_tools == ()
                 assert result.screenshots == 2
-                assert len([r for r in records if r["kind"] == "http_request"]) == 5
-                responses = [r for r in records if r["kind"] == "http_response"]
+                assert len([r for r in records if r["kind"] == "sdk_request"]) == 5
+                responses = [r for r in records if r["kind"] == "sdk_response"]
                 assert len(responses) == 5
-                assert all(r["body_state"] == "complete" for r in responses)
                 assert {r["request_id"] for r in responses} == {
-                    r["request_id"] for r in records if r["kind"] == "http_request"}
-                bodies = [(tmp_path / "trial" / r["file"]).read_bytes() for r in responses]
-                assert [json.loads(body)["object"] for body in bodies
-                        if body.startswith(b"{")] == ["chat.completion"]
+                    r["request_id"] for r in records if r["kind"] == "sdk_request"}
+                assert [r["result"]["object"] for r in responses
+                        if r["result"].get("object") == "chat.completion"] == ["chat.completion"]
                 outcomes = [r for r in records if r["kind"] == "grounding_outcome"]
                 assert len(outcomes) == 1 and outcomes[0]["outcome"] == "found"
                 call_id = outcomes[0]["call_id"]
-                requests_for_locate = [r for r in records if r["kind"] == "http_request"
+                requests_for_locate = [r for r in records if r["kind"] == "sdk_request"
                                        and r.get("grounding_call_id") == call_id]
                 assert len(requests_for_locate) == 1
-                assert len([r for r in records if r["kind"] == "http_request"
+                assert len([r for r in records if r["kind"] == "sdk_request"
                             and r.get("grounding_call_id") is not None]) == 1
                 assert len([r for r in records if r["kind"] == "grounding_usage"
                             and r["call_id"] == call_id]) == 1
@@ -407,13 +405,10 @@ async def test_benchmark_request_gate_covers_actual_clients(
     desktop, monkeypatch, tmp_path, mode, planner_cap, locator_cap, total_cap,
     fail_role, status, calls, clicks, spend_enabled,
 ):
-    import asyncio
-    from contextvars import copy_context
     from types import SimpleNamespace
 
-    from openai import APIConnectionError
-
     from tank_backend.agents.definition import GroundingConfig
+    from tank_backend.agents.subagent import SubAgentStopped
     from tank_backend.benchmarks import driver as driver_module
     from tank_backend.benchmarks.request_budget import RequestLimits, active_request_budget
     from tank_backend.benchmarks.spend_http import ContextWindowContract, SpendControl
@@ -422,14 +417,18 @@ async def test_benchmark_request_gate_covers_actual_clients(
     from tank_backend.llm.profile import LLMProfile
 
     manager, click, _ = desktop
-    sent, clients, contexts = [], [], []
+    sent, clients, bound_models = [], [], []
+    original_bind = llm_module.LLM.bind_task
+    def bind_task(self, context, task_id):
+        bound = original_bind(self, context, task_id)
+        bound_models.append(bound)
+        return bound
+    monkeypatch.setattr(llm_module.LLM, "bind_task", bind_task)
     planner_turn = 0
 
     def respond(request):
         nonlocal planner_turn
         body = json.loads(request.content)
-        if not contexts:
-            contexts.append(copy_context())
         sent.append(body)
         role = "planner" if body.get("stream") else "locator"
         if status != 200 and role == fail_role:
@@ -505,12 +504,10 @@ async def test_benchmark_request_gate_covers_actual_clients(
         if clicks:
             trace.close()
             first_trace = (tmp_path / "trial/trace.jsonl").read_bytes()
-            # A delayed request with its old task context must not consume a new allowance.
-            late = contexts[0].run(asyncio.create_task,
-                clients[0].with_options(max_retries=0).chat.completions.create(
-                    model="late", messages=[{"role": "user", "content": "late"}]))
-            with pytest.raises(APIConnectionError):
-                await late
+            # The task facade, not a free-standing raw SDK client, owns the stop boundary.
+            with pytest.raises(SubAgentStopped, match="runtime_closed"):
+                await bound_models[0].complete_response(
+                    [{"role": "user", "content": "late"}], retry=False)
             assert len(sent) == calls
             sent.clear()
             click.reset_mock()
@@ -536,7 +533,7 @@ async def test_benchmark_request_gate_covers_actual_clients(
     assert summary["total"] == calls
     assert summary["planner"] == sum(bool(b.get("stream")) for b in sent)
     assert summary["locator"] == sum(not b.get("stream") for b in sent)
-    assert len([r for r in records if r["kind"] == "http_request"]) == calls
+    assert len([r for r in records if r["kind"] == "sdk_request"]) == calls
     if not clicks and status == 200:
         assert result.stop_reason == "request_limit"
         assert summary["blocked"] is True
@@ -547,7 +544,7 @@ async def test_benchmark_request_gate_covers_actual_clients(
         assert len(snapshot["requests"]) == calls * (2 if clicks else 1)
         assert snapshot["batch"]["admitted_requests"] == calls * (2 if clicks else 1)
         for row in records:
-            if row["kind"] == "http_request":
+            if row["kind"] == "sdk_request":
                 assert row["request_id"] in snapshot["requests"]
         if status == 200:
             assert snapshot["batch"]["reserved_tokens"] == 0
@@ -1032,8 +1029,10 @@ async def test_integrated_runner_uses_one_model_and_independent_host_mapping(
                         '"location":', '"location": {}, "location":',
                     ))
                 if ending == "malformed":
-                    return stream(name, json.dumps(payload).replace(
-                        '"location": ', '"location": '))
+                    malformed = json.dumps(payload).replace('"location":', '"location"', 1)
+                    with pytest.raises(json.JSONDecodeError):
+                        json.loads(malformed)
+                    return stream(name, malformed)
                 return stream(name, payload, finish="length" if ending == "truncated" else None)
             # Recovered turn: the model reissues after the invalid-arguments error.
             assert "nothing was dispatched" in json.dumps(body["messages"])

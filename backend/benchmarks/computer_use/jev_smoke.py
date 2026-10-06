@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-import httpx
+from tank_backend.llm.model_data import ModelRequest
 from dotenv import load_dotenv
 
 from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
@@ -55,7 +55,7 @@ class OneCallPolicy(BenchmarkModelPolicy):
         ),))
         self.calls = 0
 
-    def reserve(self, call_id: str, request: httpx.Request) -> None:
+    def reserve(self, call_id: str, request: ModelRequest) -> None:
         if self.calls:
             self.ledger.stop("smoke_case_requests")
             raise SpendLimitExceeded("smoke_case_requests")
@@ -67,20 +67,26 @@ class Capture:
     def __init__(self) -> None:
         self.calls: dict[str, dict[str, Any]] = {}
 
-    async def request(self, call_id: str, request: httpx.Request) -> None:
+    async def request(self, call_id: str, request: ModelRequest) -> None:
         # Only synthetic JSON, never authorization headers or environment values.
         self.calls[call_id] = {
-            "request": json.loads(request.content),
-            "request_sha256": hashlib.sha256(request.content).hexdigest(),
+            "capture_level": "sdk_call",
+            "request": request.parameters,
+            "request_sha256": hashlib.sha256(json.dumps(request.parameters, sort_keys=True).encode()).hexdigest(),
         }
 
-    async def response(self, call_id: str, response: httpx.Response) -> None:
-        self.calls[call_id]["http_status"] = response.status_code
-        if response.is_success:
-            data = json.loads(await response.aread())
-            self.calls[call_id]["response"] = {
-                key: data.get(key) for key in ("model", "answers", "usage")
-            }
+    async def response(self, call_id: str, response: dict[str, Any]) -> None:
+        if "choice" in response:
+            response = {"model": self.calls[call_id]["request"]["model"],
+                        "answers": {"next_action": {"type": "choice", "choice": response["choice"],
+                            "confidence": response["confidence"], "probabilities": response["probabilities"]}},
+                        "usage": {"input_tokens": response["input_tokens"],
+                                  "output_tokens": response["output_tokens"]}}
+        self.calls[call_id]["capture_status"] = "sdk_returned"
+        data = response
+        self.calls[call_id]["response"] = {
+            key: data.get(key) for key in ("model", "answers", "usage")
+        }
 
 
 def goal(case: dict[str, Any]) -> dict[str, Any]:
@@ -137,7 +143,7 @@ async def run_smoke(output: Path) -> dict[str, Any]:
     config = AppConfig.from_raw_dict({
         "llm": {"default": {"api_key": "unused", "model": "unused",
                              "base_url": "https://unused.invalid/v1"}},
-        "decision_models": {"jev": {"provider": "typesafe", "url": ENDPOINT,
+        "decision_models": {"jev": {"url": ENDPOINT,
                                 "model": MODEL, "credential_env": "TYPESAFE_API_KEY"}},
         "subagents": {"agent-computer-use:agent": {"config": {
             "browser": {"scope": "smoke", "url": url}, "selector": "jev",

@@ -15,10 +15,26 @@ from typing import Any
 import httpx
 
 from ..agents.base import AgentOutput
-from ..llm.model_transport import ModelCaptureError
+from ..llm.model_call import ModelCaptureError
 from ..tools.computer_grounding import grounding_call_id
 
 _MAX_CONTENT_CHARS = 2000
+
+
+def image_hashes(body: dict[str, Any]) -> list[str]:
+    hashes: list[str] = []
+    for message in body.get("messages", []):
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if part.get("type") != "image_url":
+                continue
+            url = part.get("image_url", {}).get("url", "")
+            if url.startswith("data:") and ";base64," in url:
+                image = base64.b64decode(url.split(",", 1)[1])
+                hashes.append(hashlib.sha256(image).hexdigest())
+    return hashes
 
 
 class TraceSink:
@@ -89,18 +105,7 @@ class TraceSink:
         if self._file.closed:
             return
         body = json.loads(request.content)
-        hashes: list[str] = []
-        for message in body.get("messages", []):
-            content = message.get("content")
-            if not isinstance(content, list):
-                continue
-            for part in content:
-                if part.get("type") != "image_url":
-                    continue
-                url = part.get("image_url", {}).get("url", "")
-                if url.startswith("data:") and ";base64," in url:
-                    image = base64.b64decode(url.split(",", 1)[1])
-                    hashes.append(hashlib.sha256(image).hexdigest())
+        hashes = image_hashes(body)
         request_id = request_id or uuid.uuid4().hex
         request.extensions["tank_benchmark_trace"] = (self, request_id)
         self._pending[request_id] = None

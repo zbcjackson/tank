@@ -16,7 +16,6 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Any, TextIO, cast
 
-import httpx
 from agent_computer_use import action_builder, agent, contracts, controller, factory, jev
 from agent_computer_use.channels import dom
 from tank_backend.agents import subagent, task_runtime
@@ -80,9 +79,9 @@ class Capture(smoke.Capture):
         self.browser, self.stale = browser, stale
         self.mutation_applied = False
 
-    async def response(self, call_id: str, response: httpx.Response) -> None:
+    async def response(self, call_id: str, response: dict[str, Any]) -> None:
         await super().response(call_id, response)
-        if self.stale and response.is_success:
+        if self.stale:
             assert self.browser.page is not None
             await self.browser.page.locator("button").evaluate_all(
                 "els => els.forEach(el => el.replaceWith(el.cloneNode(true)))")
@@ -142,7 +141,7 @@ async def run_case(
     started = time.monotonic()
     row["status"] = "started"
     try:
-        ctx.runtime.configure_decision_model(case["id"], DecisionModelProfile("typesafe", smoke.ENDPOINT, smoke.MODEL, "jev"),
+        ctx.runtime.configure_decision_model(case["id"], DecisionModelProfile(smoke.ENDPOINT, smoke.MODEL, "jev"),
                                          credential=credential)
         async for event in instance.run(SubAgentRequest("local DOM acceptance", "", case["id"], case["goal"]), ctx):
             if "task_result" in event.metadata:

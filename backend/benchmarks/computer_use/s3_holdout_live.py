@@ -16,14 +16,13 @@ from typing import Any, TextIO
 import httpx
 from agent_computer_use.contracts import ActionSet
 from pydantic import TypeAdapter
-from tank_backend.llm.jev_model import JevChoiceRoute
 from benchmarks.computer_use.legacy_json_model import parse_choice
 from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
 from tank_backend.agents.task_runtime import ExecutionRecord
 from tank_backend.benchmarks.model_policy import BenchmarkModelPolicy
 from tank_backend.benchmarks.spend_http import ContextWindowContract
 from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, TokenAllowance
-from tank_backend.llm.model_transport import TaskModelTransport
+from benchmarks.computer_use.legacy_json_model import TaskJSONModel
 
 from benchmarks.computer_use import s3_holdout as dataset
 from benchmarks.computer_use import s3_replay as v1
@@ -104,16 +103,13 @@ async def call_once(
                           model_policy=policy, audit=audit)
     config = v1.MODELS["jev"]
     probe = v2.TraceProbe()
-    route = JevChoiceRoute(config["url"], config["model"], "jev")
-    transport = TaskModelTransport(row["trial"], ctx, routes=(route,),
-                                   credentials={"jev": credential}, inner=v2.TraceLease(pool, probe))
-    client = httpx.AsyncClient(transport=transport, timeout=30, trust_env=False, follow_redirects=False)
-    ctx.runtime.own("http-client", client.aclose)
+    client = TaskJSONModel(row["trial"], ctx, config["url"], config["model"], credential,
+                          transport=v2.TraceLease(pool, probe))
+    ctx.runtime.own("raw-replay", client.aclose)
     decision = None
     row["request"] = payload
     try:
-        response = await client.post(config["url"], json=payload)
-        row["response"] = response.json()
+        row["response"] = await client.request(payload)
         decision = parse_choice(row["response"], actions, config["model"])
         row["choice"] = decision.candidate_id if decision.choice == "candidate" else decision.choice
         row["status"] = "returned"

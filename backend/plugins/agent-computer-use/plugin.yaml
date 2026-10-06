@@ -4,6 +4,6 @@ description: Host loop with opt-in managed Chromium and host-governed Jev Choice
 extensions:
   - name: agent
     type: subagent
-    runtime_api: 2
+    runtime_api: 3
     factory: agent_computer_use:create_subagent
     permissions: [desktop, network]
