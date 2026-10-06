@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from ..agents.subagent import SubAgentContext
 from .llm import LLM
-from .model_call import TaskModelCalls
+from .model_call import TaskModelCallRunner
 
 
 def bind_llm(llm: LLM, context: SubAgentContext, task_id: str) -> LLM:
@@ -19,7 +19,7 @@ def bind_llm(llm: LLM, context: SubAgentContext, task_id: str) -> LLM:
                 stream_options=llm.stream_options, extra_body=llm.extra_body,
                 extra_headers=llm.extra_headers, client=llm.client.with_options(max_retries=0))
     bound._task_context = context
-    bound._task_calls = TaskModelCalls(task_id, context)
+    bound._task_calls = TaskModelCallRunner(task_id, context)
     bound.disable_retries()
     context.runtime.own("llm-" + uuid4().hex, bound.aclose)
     return bound

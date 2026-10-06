@@ -34,6 +34,15 @@ def install_typesafe_fake_http(monkeypatch):
 
     monkeypatch.setattr(httpx2, "AsyncHTTPTransport", SDKFake)
 
+    class Client(httpx2.AsyncClient):
+        def __init__(self, *args, **kwargs):
+            # Keep SDK-owned creation real and preserve SDK runtime type annotations.
+            if kwargs.get("transport") is None:
+                kwargs["transport"] = httpx2.AsyncHTTPTransport()
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(httpx2, "AsyncClient", Client)
+
 
 @pytest.fixture(autouse=True)
 def typesafe_http_fixture(monkeypatch):

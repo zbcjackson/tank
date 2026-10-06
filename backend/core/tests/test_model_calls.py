@@ -11,7 +11,7 @@ from tank_backend.agents.subagent import (
     SubAgentContext,
     SubAgentStopped,
 )
-from tank_backend.llm.model_call import TaskModelCalls, get_model_call
+from tank_backend.llm.model_call import TaskModelCallRunner, get_model_call
 from tank_backend.llm.model_data import ModelRequest
 
 
@@ -25,7 +25,7 @@ def setup(**kwargs):
     ctx = SubAgentContext(
         SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(), **kwargs
     )
-    return ctx, TaskModelCalls("task", ctx), ModelRequest("https://test.invalid", "test", {})
+    return ctx, TaskModelCallRunner("task", ctx), ModelRequest("https://test.invalid", "test", {})
 
 
 async def test_call_usage_and_events_are_once_per_invocation():

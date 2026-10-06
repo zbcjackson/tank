@@ -6,14 +6,14 @@ from copy import deepcopy
 
 from ..agents.subagent import SubAgentContext, SubAgentStopped
 from .decision_model import ChoiceResult, DecisionModel, DecisionModelError
-from .model_call import TaskModelCalls
+from .model_call import TaskModelCallRunner
 from .model_data import ModelRequest
 
 
 class TaskDecisionModel:
     def __init__(self, task_id: str, context: SubAgentContext, model: DecisionModel):
         self._model = model
-        self._calls = TaskModelCalls(task_id, context)
+        self._calls = TaskModelCallRunner(task_id, context)
 
     async def choose(
         self, *, state: dict[str, object], instructions: str, options: dict[str, object]

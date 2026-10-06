@@ -252,20 +252,20 @@ async def test_runner_split_locates_current_image_and_dispatches_reference(
                 assert result.llm_calls == 5
                 assert result.non_gui_tools == ()
                 assert result.screenshots == 2
-                assert len([r for r in records if r["kind"] == "sdk_request"]) == 5
-                responses = [r for r in records if r["kind"] == "sdk_response"]
+                assert len([r for r in records if r["kind"] == "model_request"]) == 5
+                responses = [r for r in records if r["kind"] == "model_response"]
                 assert len(responses) == 5
                 assert {r["request_id"] for r in responses} == {
-                    r["request_id"] for r in records if r["kind"] == "sdk_request"}
+                    r["request_id"] for r in records if r["kind"] == "model_request"}
                 assert [r["result"]["object"] for r in responses
                         if r["result"].get("object") == "chat.completion"] == ["chat.completion"]
                 outcomes = [r for r in records if r["kind"] == "grounding_outcome"]
                 assert len(outcomes) == 1 and outcomes[0]["outcome"] == "found"
                 call_id = outcomes[0]["call_id"]
-                requests_for_locate = [r for r in records if r["kind"] == "sdk_request"
+                requests_for_locate = [r for r in records if r["kind"] == "model_request"
                                        and r.get("grounding_call_id") == call_id]
                 assert len(requests_for_locate) == 1
-                assert len([r for r in records if r["kind"] == "sdk_request"
+                assert len([r for r in records if r["kind"] == "model_request"
                             and r.get("grounding_call_id") is not None]) == 1
                 assert len([r for r in records if r["kind"] == "grounding_usage"
                             and r["call_id"] == call_id]) == 1
@@ -533,7 +533,7 @@ async def test_benchmark_request_gate_covers_actual_clients(
     assert summary["total"] == calls
     assert summary["planner"] == sum(bool(b.get("stream")) for b in sent)
     assert summary["locator"] == sum(not b.get("stream") for b in sent)
-    assert len([r for r in records if r["kind"] == "sdk_request"]) == calls
+    assert len([r for r in records if r["kind"] == "model_request"]) == calls
     if not clicks and status == 200:
         assert result.stop_reason == "request_limit"
         assert summary["blocked"] is True
@@ -544,7 +544,7 @@ async def test_benchmark_request_gate_covers_actual_clients(
         assert len(snapshot["requests"]) == calls * (2 if clicks else 1)
         assert snapshot["batch"]["admitted_requests"] == calls * (2 if clicks else 1)
         for row in records:
-            if row["kind"] == "sdk_request":
+            if row["kind"] == "model_request":
                 assert row["request_id"] in snapshot["requests"]
         if status == 200:
             assert snapshot["batch"]["reserved_tokens"] == 0

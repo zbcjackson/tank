@@ -9,7 +9,7 @@ from agent_computer_use.contracts import ActionSet, DecisionResult
 from agent_computer_use.jev import CONTROLS
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 from tank_backend.agents.task_runtime import ExecutionRecord
-from tank_backend.llm.model_call import TaskModelCalls
+from tank_backend.llm.model_call import TaskModelCallRunner
 from tank_backend.llm.model_data import ModelRequest, json_object, parse_chat_usage
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class TaskJSONModel:
     def __init__(self, task_id: str, context: SubAgentContext, url: str, model: str,
                  credential: str, *, transport: httpx.AsyncBaseTransport | None = None):
         self.url, self.model, self.context, self.task_id = url, model, context, task_id
-        self.calls = TaskModelCalls(task_id, context)
+        self.calls = TaskModelCallRunner(task_id, context)
         self.client = httpx.AsyncClient(transport=transport or httpx.AsyncHTTPTransport(),
             headers={"Authorization": "Bearer " + credential}, follow_redirects=False,
             trust_env=False, timeout=30)

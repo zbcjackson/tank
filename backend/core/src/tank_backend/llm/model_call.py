@@ -1,4 +1,4 @@
-"""Task wrappers around SDK invocations, never around HTTP or SSE bytes."""
+"""Task lifetime and accounting for model calls, not HTTP or SSE bytes."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from .model_data import ModelRequest, model_payload, model_usage
 T = TypeVar("T")
 
 
-class SDKStream(Protocol):
+class ModelResponseStream(Protocol):
     def __aiter__(self) -> AsyncIterator[object]: ...
     async def close(self) -> None: ...
 
@@ -57,7 +57,7 @@ def get_model_call(task_id: str) -> ModelCallRecord | None:
 
 
 class _Call:
-    def __init__(self, owner: TaskModelCalls, request: ModelRequest):
+    def __init__(self, owner: TaskModelCallRunner, request: ModelRequest):
         self.owner, self.request = owner, request
         self.id = uuid4().hex
         self.started = time.monotonic()
@@ -128,15 +128,15 @@ class _Call:
             self.done.set()
 
 
-class TaskModelCalls:
-    """Task metadata and SDK lifecycle only; no credentials or provider protocol."""
+class TaskModelCallRunner:
+    """Task-scoped model calls; no credentials or provider protocol."""
 
     def __init__(self, task_id: str, context: SubAgentContext):
         context.runtime.bind(task_id)
         self.task_id, self.context = task_id, context
         self.closed = False
         self.active: set[asyncio.Future[Any]] = set()
-        self.streams: dict[SDKStream, _Call] = {}
+        self.streams: dict[ModelResponseStream, _Call] = {}
 
     def check(self) -> None:
         self.context.check("network")
@@ -194,12 +194,12 @@ class TaskModelCalls:
         return result
 
     async def stream(
-        self, request: ModelRequest, invoke: Callable[[], Awaitable[SDKStream]]
+        self, request: ModelRequest, invoke: Callable[[], Awaitable[ModelResponseStream]]
     ) -> AsyncGenerator[object, None]:
         call = _Call(self, request)
-        stream: SDKStream | None = None
+        stream: ModelResponseStream | None = None
 
-        async def open_stream() -> SDKStream:
+        async def open_stream() -> ModelResponseStream:
             nonlocal stream
             self.check()
             call.attempted = True

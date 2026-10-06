@@ -1,4 +1,4 @@
-"""Explicit experiment policy for the production model transport's narrow hooks."""
+"""Explicit experiment policy for model-call admission and usage."""
 
 from __future__ import annotations
 

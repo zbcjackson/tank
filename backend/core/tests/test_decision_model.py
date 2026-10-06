@@ -231,8 +231,12 @@ async def test_task_choice_capture_and_sdk_share_input_snapshot(monkeypatch):
         DecisionModelProfile("https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_KEY"),
         credential="secret",
     )
-    context = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
-                              SubAgentBudget(), asyncio.Event(), model_capture=Capture())
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})),
+        SubAgentBudget(),
+        asyncio.Event(),
+        model_capture=Capture(),
+    )
     task_model = TaskDecisionModel("task", context, model)
     try:
         result = await task_model.choose(state=state, instructions="Choose", options=options)
@@ -242,7 +246,7 @@ async def test_task_choice_capture_and_sdk_share_input_snapshot(monkeypatch):
         await model.aclose()
 
 
-async def test_sdk_construction_failure_closes_allocated_client(monkeypatch):
+async def test_invalid_sdk_configuration_allocates_no_http_client(monkeypatch):
     from typesafe_sdk import TypeSafeError
 
     from tank_backend.llm.decision_model import DecisionModel
@@ -264,8 +268,52 @@ async def test_sdk_construction_failure_closes_allocated_client(monkeypatch):
     try:
         with pytest.raises(TypeSafeError):
             await model.choose(state={}, instructions="Choose", options={"a": "A"})
-        assert len(clients) == 1 and clients[0].is_closed
+        assert clients == []
     finally:
         await model.aclose()
         for allocated in clients:
             await allocated.aclose()
+
+
+async def test_official_sdk_owns_default_http_client(monkeypatch):
+    from tank_backend.llm import decision_model as module
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+
+    clients, configurations = [], []
+    sdk_class, http_factory = module.AsyncTypeSafeClient, httpx2.AsyncClient
+
+    def sdk(**kwargs):
+        assert "http_client" not in kwargs and "transport" not in kwargs
+        configurations.append(kwargs)
+        return sdk_class(**kwargs)
+
+    def http(**kwargs):
+        assert "trust_env" not in kwargs and "follow_redirects" not in kwargs
+        assert kwargs.get("transport") is None
+        client = http_factory(**kwargs)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(module, "AsyncTypeSafeClient", sdk)
+    monkeypatch.setattr(httpx2, "AsyncClient", http)
+    monkeypatch.setattr(
+        httpx2,
+        "AsyncHTTPTransport",
+        lambda **kw: httpx2.MockTransport(lambda request: httpx2.Response(200, json=response())),
+    )
+    model = module.DecisionModel(
+        DecisionModelProfile("https://offline.invalid/v1/systemone", "jev-1.13.0", "KEY"),
+        credential="secret",
+    )
+    try:
+        assert clients == []
+        result = await model.choose(state={}, instructions="Choose", options={"a": "A", "b": "B"})
+        assert result.choice == "a"
+        assert len(clients) == len(configurations) == 1
+        assert configurations[0]["timeout"] == 30
+        assert configurations[0]["retry"].max_retries == 0
+        assert clients[0].trust_env and not clients[0].follow_redirects
+        assert not clients[0].is_closed
+    finally:
+        await model.aclose()
+    assert clients[0].is_closed

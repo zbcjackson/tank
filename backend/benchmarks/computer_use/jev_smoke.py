@@ -70,7 +70,7 @@ class Capture:
     async def request(self, call_id: str, request: ModelRequest) -> None:
         # Only synthetic JSON, never authorization headers or environment values.
         self.calls[call_id] = {
-            "capture_level": "sdk_call",
+            "capture_level": "model_call",
             "request": request.parameters,
             "request_sha256": hashlib.sha256(json.dumps(request.parameters, sort_keys=True).encode()).hexdigest(),
         }
@@ -82,7 +82,7 @@ class Capture:
                             "confidence": response["confidence"], "probabilities": response["probabilities"]}},
                         "usage": {"input_tokens": response["input_tokens"],
                                   "output_tokens": response["output_tokens"]}}
-        self.calls[call_id]["capture_status"] = "sdk_returned"
+        self.calls[call_id]["capture_status"] = "returned"
         data = response
         self.calls[call_id]["response"] = {
             key: data.get(key) for key in ("model", "answers", "usage")

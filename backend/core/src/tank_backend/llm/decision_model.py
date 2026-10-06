@@ -6,7 +6,6 @@ import math
 from dataclasses import dataclass
 from typing import cast
 
-import httpx2
 from typesafe_sdk import (
     AsyncTypeSafeClient,
     Choice,
@@ -66,23 +65,13 @@ class DecisionModel:
             criteria={k: cast(JSONContent, v) for k, v in options.items()},
         )
         if self._client is None:
-            http = httpx2.AsyncClient(
-                transport=httpx2.AsyncHTTPTransport(),
+            self._client = AsyncTypeSafeClient(
+                api_key=self._credential,
+                model=self.profile.model,
+                base_url=self.profile.url.removesuffix("/v1/systemone"),
                 timeout=30,
-                follow_redirects=False,
-                trust_env=False,
+                retry=RetryPolicy(max_retries=0),
             )
-            try:
-                self._client = AsyncTypeSafeClient(
-                    api_key=self._credential,
-                    model=self.profile.model,
-                    base_url=self.profile.url.removesuffix("/v1/systemone"),
-                    retry=RetryPolicy(max_retries=0),
-                    http_client=http,
-                )
-            except BaseException:
-                await http.aclose()
-                raise
         inputs = outputs = None
         with model_observation("decision.choose", self.profile.model) as observation:
             try:

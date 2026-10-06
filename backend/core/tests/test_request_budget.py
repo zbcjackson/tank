@@ -95,9 +95,10 @@ async def test_task_policy_correlates_sdk_usage_and_redacts_known_credentials(tm
         await context.runtime.aclose()
     trace.close()
     events=[json.loads(line) for line in (tmp_path/"trace.jsonl").read_text().splitlines()]
-    request=next(e for e in events if e["kind"]=="sdk_request")
-    response=next(e for e in events if e["kind"]=="sdk_response")
+    request=next(e for e in events if e["kind"]=="model_request")
+    response=next(e for e in events if e["kind"]=="model_response")
     assert request["request_id"]==response["request_id"]
+    assert request["capture_level"] == response["capture_level"] == "model_call"
     assert request["request_id"] in context.budget.call_ids
     assert "credential-value" not in json.dumps(events)
     assert result.choices[0].message.content=="provider text credential-value end"

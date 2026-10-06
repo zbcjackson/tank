@@ -373,10 +373,10 @@ class LLM:
         self.stream_options = stream_options
         self.extra_body = extra_body or {}
         self.extra_headers = extra_headers or {}
-        from .model_call import TaskModelCalls
+        from .model_call import TaskModelCallRunner
 
         self._task_context: SubAgentContext | None = None
-        self._task_calls: TaskModelCalls | None = None
+        self._task_calls: TaskModelCallRunner | None = None
         self._retries_enabled = True
         self.on_response_usage: Callable[[CompletionUsage | None], None] | None = None
 

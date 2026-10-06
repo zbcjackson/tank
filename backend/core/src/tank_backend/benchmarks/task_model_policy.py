@@ -1,4 +1,4 @@
-"""Experiment-owned limits and wire capture for governed task clients."""
+"""Experiment-owned limits and model-call records for task-bound models."""
 
 from __future__ import annotations
 
@@ -64,14 +64,16 @@ class BenchmarkTaskPolicy:
 
     async def request(self, call_id: str, request: ModelRequest) -> None:
         self.check()
-        self.trace.event("sdk_request", request_id=call_id, model=request.model,
+        self.trace.event("model_request", capture_level="model_call",
+                         request_id=call_id, model=request.model,
                          stream=bool(request.parameters.get("stream")),
                          image_sha256=image_hashes(request.parameters),
                          grounding_call_id=grounding_call_id.get())
 
     async def response(self, call_id: str, response: dict[str, object]) -> None:
         self.check()
-        self.trace.event("sdk_response", request_id=call_id, result=self._redact(response))
+        self.trace.event("model_response", capture_level="model_call",
+                         request_id=call_id, result=self._redact(response))
 
     def _redact(self, value: object) -> object:
         text = json.dumps(value, ensure_ascii=False)
