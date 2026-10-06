@@ -240,3 +240,32 @@ async def test_task_choice_capture_and_sdk_share_input_snapshot(monkeypatch):
     finally:
         await task_model.aclose()
         await model.aclose()
+
+
+async def test_sdk_construction_failure_closes_allocated_client(monkeypatch):
+    from typesafe_sdk import TypeSafeError
+
+    from tank_backend.llm.decision_model import DecisionModel
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+
+    clients = []
+    original = httpx2.AsyncClient
+
+    def client(**kwargs):
+        created = original(**kwargs)
+        clients.append(created)
+        return created
+
+    monkeypatch.setattr(httpx2, "AsyncClient", client)
+    model = DecisionModel(
+        DecisionModelProfile("https://offline.invalid/v1/systemone", "jev-1.13.0", "KEY"),
+        credential="invalid key",
+    )
+    try:
+        with pytest.raises(TypeSafeError):
+            await model.choose(state={}, instructions="Choose", options={"a": "A"})
+        assert len(clients) == 1 and clients[0].is_closed
+    finally:
+        await model.aclose()
+        for allocated in clients:
+            await allocated.aclose()
