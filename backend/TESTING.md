@@ -1091,8 +1091,8 @@ cost-only tradeoff, or no displacement of F. No pytest model calls are paid.
 
 ## S3-M core Jev SDK migration
 
-`test_task_model.py` verifies the real official TypeSafe SDK over the shared task
-transport, task-owned cleanup, token accounting, no retry on 429/503, no redirect,
+`test_task_model.py` verifies the real official TypeSafe SDK through task-call
+wrappers, task-owned cleanup, token accounting, no retry on 429/503, no redirect,
 and explicit configuration overriding SDK environment defaults. Old JSON config
 and agent references fail with migration guidance. `test_subagent.py` exercises a
 non-GUI decision caller without a provider plugin and checks credential isolation
@@ -1104,3 +1104,22 @@ Only the network boundary is fake. Historical protocol diagnostic replays retain
 benchmark-only raw client; current smoke/DOM/strategy execution uses the SDK.
 Frozen recipes detect code changes; do not edit source while a frozen-recipe test
 is running. No S4 behavior or paid requests are part of this regression.
+
+
+## SDK model-call simplification (2026-10-05)
+
+`test_model_transport.py` is retired with the removed HTTP-level contract; it is
+replaced by `test_model_calls.py` for invocation identity, known/unknown/error usage,
+parallel calls, cancellation/deadline, late results, paused/closed streams, SDK
+buffered chunks, borrowed-client ownership and repeated-cancellation cleanup.
+`test_decision_model.py` covers standalone official SDK use with no task context and
+Langfuse disabled/failing at enter/update/exit. Existing task/Runner/Chromium tests
+continue to exercise real SDKs with fake external HTTP.
+
+Old raw-protocol/size/redirect-interception and model execution-audit assertions
+were removed because those guarantees are no longer part of production model calls.
+SDK retries/configuration and UI/tool execution audit retain separate coverage.
+Experiment policies observe normalized SDK-call records; raw replay has one explicit
+admission record per trial rather than the retired three transport audit phases.
+Do not compare the new suite count directly with older transport-test counts as an
+implementation-coverage metric. No paid model calls or S4 behavior are involved.

@@ -130,18 +130,20 @@ is rejected. Results are delivered after cleanup; cleanup failure preserves
 received evidence as unknown and quarantines the desktop. Extension agents cannot
 resume through the legacy chat-history path, which would reset task authority
 and budgets.
-Runner binds ordinary task LLMs and the optional SubAgent text model to
-TaskModelTransport for shared HTTP admission, usage and audit. Computer Use
-registers its operations with TaskRuntime. The host resolves `AgentDefinition.model`
-from named LLM profiles before plugin creation; plugins borrow `TaskModel.complete()`.
-Named core `decision_models` profiles and extension-only `decision-model` references
-assemble the official TypeSafe SDK through TaskDecisionModel. Plugins borrow its
-`choose()` capability without provider configuration or credentials; no model_route
-extension is registered. The SDK transport shares task admission, usage, audit and
-cleanup with ordinary text calls. Retired JSON configuration is explicitly rejected.
-Runtime API 2 is checked before factory creation; explicitly declared API 1 plugins
-must migrate from the removed JSON model capability to the core decision service. Legacy engine dispatch and
-provider-specific model declarations/transports have been removed. See
+Runner binds ordinary task LLMs and the optional SubAgent text model at the SDK
+invocation level for cancellation, deadlines and shared token accounting. SDKs own
+HTTP and streaming parsing; there are no custom model routes/transports or SSE
+byte interceptors. Computer Use still registers its UI operations with TaskRuntime,
+including their independent execution audit and reference checks.
+
+Named core `decision_models` profiles contain URL, fixed Jev model and credential
+reference; agents select `decision-model: <name>`. `DecisionModel` owns the official
+SDK and has no task dependency. `TaskDecisionModel` borrows it and adds task context,
+using the same `choose()` signature and normalized `ChoiceResult` with usage.
+The runtime closes its models; a bound ordinary LLM borrows its owner's client.
+Runtime API 3 rejects explicit API 1/2 declarations before factory creation because
+the former HTTP-hook contract is gone. Langfuse and task observer telemetry are
+optional; model telemetry failure does not gate UI/SDK execution. See the
 [Computer Use plugin](plugins/agent-computer-use/README.md) for current capabilities.
 
 The Brain delegates to an AgentGraph that runs a single ChatAgent with access to all tools. The LLM decides which tools to call naturally — no routing overhead.

@@ -166,32 +166,33 @@ No paid model call or personal browser input is part of S2 acceptance.
 Jev is a core-managed decision model. Core uses the official `typesafe-sdk==0.7.2`
 async client; the plugin only constructs the UI choice question and consumes
 `context.runtime.decision_model.choose(state=..., instructions=..., options=...)`.
-The returned `ChoiceResult` contains choice, confidence and probabilities, not an
+The returned `ChoiceResult` contains choice, confidence, probabilities and optional input/output token counts, not an
 SDK response or executable tool call. No provider URL, credential, SDK or model
 version is configured inside `JevSelector`.
 
 Runner resolves an extension agent's `decision-model: <name>` against core
-`decision_models` profiles (provider/url/model/credential_env) before creating the
-SubAgent. Only `typesafe` with a fixed `jev-X.Y.Z` version is supported by this
+`decision_models` profiles (url/model/credential_env) before creating the
+SubAgent. Only Jev with a fixed `jev-X.Y.Z` version is supported by this
 capability. Core resolves the selected environment key (`core/.env` is loaded by
 normal server startup), owns the lazy SDK/client and closes it with the task.
-Unknown profiles, invalid provider configuration and missing credentials fail
+Unknown profiles, invalid model configuration and missing credentials fail
 before the agent factory. Existing text `model: <name>` profiles remain separate
 capabilities under the same core configuration and task lifecycle.
 
-The SDK's httpx2 transport is bridged into the existing TaskModelTransport, so
-actual sends, audit, capture, cancellation and token usage share the original
-context/ledger with text calls. SDK retries and redirects are disabled. Invalid
-choices retain known usage; missing/malformed usage stays unknown. An injected
-strict experiment policy retains reservations and stops subsequent calls;
-production accounting remains record-only by default.
+Core `DecisionModel` calls the official SDK directly and works without a task.
+`TaskDecisionModel` borrows it, adding task checks, cancellation/deadline and the
+original usage ledger. SDK retries are disabled; no JevChoiceRoute, bridge,
+TaskModelTransport or custom SSE parser remains. Known usage survives invalid
+choices; unavailable usage is recorded as unknown. This is SDK-invocation accounting,
+not proof of the exact network-send phase. Experimental policy/capture hooks are
+explicit and receive model-call parameters/results, not HTTP objects.
 
-`json_models` and agent `json-model` are retired with explicit migration errors:
-rename them to `decision_models` / `decision-model`, replace the profile's
-`extension: agent-computer-use:jev` with `provider: typesafe`. The `model_route`
-plugin extension and production TaskJSONModel were removed. Internal core routes
-remain because ordinary Chat Completions and Jev still need request-boundary
-checks and usage parsing; they are not plugin configuration.
+Langfuse and existing task events provide optional observability; failures do not
+block production model calls. UI/desktop operations retain their separate required
+audit and dispatch checks. `json_models` / `json-model` remain retired: use
+`decision_models` / `decision-model` and remove `extension`/`provider` from the
+profile. The single decision implementation does not need a provider discriminator.
+Runtime API is now 3; older declared versions are rejected before plugin creation.
 
 The selector sends only the current structured snapshot, goal and bound whole
 ActionSet, with explicit none/ambiguous/need_more_context/escalate choices. It
@@ -351,7 +352,7 @@ without fallback. Stage/choice events expose routing without credentials.
 
 The host text service permits only the optional fixed `extra_body: {enable_thinking:
 false}` override for this comparison; other extra body/header overrides remain rejected.
-The value is copied at assembly and validated at the HTTP boundary. This is not a
+The value is copied at assembly and passed to the SDK. This is not a
 full planning/visual Advisor or S4 recovery implementation. See the
 [strategy pilot protocol](../../benchmarks/computer_use/fixtures/s3-strategy/README.md).
 
@@ -370,3 +371,15 @@ an old recipe. Old raw HTTP timing is not SDK timing. No new paid batch is neede
 for the migration's fake-HTTP/Chromium acceptance. Candidate generation, milestone
 schema v1, rule matching, four control results and explicit F fallback are unchanged;
 S4 has not started.
+
+
+### SDK call simplification (2026-10-05)
+
+Current SDK captures use `capture_level: sdk_call` and `capture_status: sdk_returned`;
+their request hash identifies normalized call parameters, not exact HTTP bytes.
+Raw historical replays use a small experiment-only HTTP client and explicit admission
+audit, without importing production route/transport machinery. Strict byte-level
+protocol checks and three-phase wire audit are no longer production guarantees.
+Historical artifacts are unchanged and require their recorded revision to reproduce.
+The refactor does not change candidate generation, milestone v1 or F routing; S4
+is not started.

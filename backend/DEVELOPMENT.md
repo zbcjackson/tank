@@ -180,16 +180,24 @@ For a custom host config:
 ```yaml
 decision_models:
   jev:
-    provider: typesafe
     url: https://api.typesafe.ai/v1/systemone
     model: jev-1.13.0
     credential_env: TYPESAFE_API_KEY
 ```
 
 Old `json_models` / `json-model` fields are rejected with migration guidance.
-Replace them with `decision_models` / `decision-model` and replace the profile's
-`extension` field with `provider: typesafe`. No provider plugin is required.
-Core owns SDK resources and usage; callers only submit choice questions.
+Replace them with `decision_models` / `decision-model`, removing the old profile's
+`extension` or `provider` field. There is one decision implementation (Jev), so no
+provider selector or provider plugin is required. Core owns SDK resources; task
+wrappers account usage. Runtime-API declarations must be 3 for the SDK-call contract.
+Callers only submit choice questions; they never configure HTTP transports.
+
+`DecisionModel` can also be used by a core caller without a task context. Its
+`choose(state=..., instructions=..., options=...)` returns `ChoiceResult` including
+choice, confidence, probabilities and optional input/output token counts. A
+`TaskDecisionModel` borrows that service and adds task cancellation/deadline and
+ledger recording; the creator owns SDK cleanup. Existing optional Langfuse settings
+apply to model spans; tracing is not required for successful model execution.
 
 ## Running the Server
 

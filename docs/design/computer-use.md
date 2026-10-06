@@ -633,31 +633,21 @@ Jev、LLM，也不证明 PDF 产物或不覆盖约束。通道须提供可信语
 身份、完成条件与派发边界。自然语言目标生成、通用恢复及 Jev/Advisor 领域适配仍待实现；
 生产 A 与现有实验 transport 拒绝条件不变。
 
-### S0 通用文本模型装配（2026-09-29）
+### 通用模型装配（2026-10-05 SDK 调用级简化）
 
-Extension agent 显式声明 `model: <llm profile name>` 时，Runner 将 `network` 纳入
-原任务审批范围，并向 `context.runtime.model` 装配一个任务绑定的文本服务。
-未声明时为 None，不创建模型资源；未知 profile 不回退 default。配置只引用宿主
-profile 名称，插件工厂不接收密钥。结构化文本入口拒绝非 HTTPS、额外 headers/body、
-非法输出上限与 temperature；兼容客户端通过宿主声明的独立 route 支持图像、工具和流式。
+Extension agent 通过 `model: <profile>` 借用文本服务，通过 `decision-model: <profile>`
+借用决策服务。核心解析配置与凭据；插件不配置端点或创建 SDK。未知 profile 明确拒绝。
+文本 `TaskModel.complete()` 复用普通 LLM；独立 `DecisionModel.choose()` 使用官方 Jev SDK，
+`TaskDecisionModel` 只添加任务绑定。二者均在 SDK 调用/流式事件层检查取消、deadline 和
+已配置限额，使用同一 TokenUsageLedger，不再包裹底层 HTTP 或自研解析 SSE。
 
-插件调用 `await context.runtime.model.complete(messages)` 获得完整文本；宿主持有
-真实 SDK/HTTP 客户端，关闭 SDK 隐式重试和重定向，使用既有 TaskModelTransport
-在实际发送边界检查授权、取消、deadline、文本类别和上传上限，并计入原任务账本。
-模型回复无效仍保留已知用量；错误对外只返回固定原因，避免复制提供方响应/凭据。
-默认仍仅记录用量；显式 token_budget 沿用任务限额语义，不引入实验费用政策。
+SDK 负责协议，核心保留所需结果/选项校验和已知/未知用量。默认只统计；调用级记录不能
+冒称网络实际发送数、供应商费用上界或取消后不计费。普通 telemetry/Langfuse 可禁用，
+记录失败不阻断调用；模型不再写必需执行审计，界面操作的审计与引用门控仍保留。
+运行时负责关闭自有模型，借用的 SDK/pool 不被任务关闭。当前运行时 API 3。
 
-客户端首次调用时创建，runtime 登记统一清理；关闭等待在飞 HTTP 收尾，结束后
-拒绝新调用。此入口已由通用 fake SubAgent + 真实 Runner/SDK + fake HTTP 验证，
-Computer Use 的 Advisor fixture 已通过该服务与真实 SDK/fake HTTP 联测；默认工厂
-仍无真实 Advisor/Jev。Runner 的 LLMAgent 已通过公共 transport 接入。
-
-文本请求构造与 SDK 调用复用 `LLM.complete_response(retry=False)`。TaskModel 仅保留
-受控客户端装配、任务检查及严格文本回复校验，不维护第二套补全请求实现。
-LLM 的可选 `client` 参数借用宿主 SDK 客户端，不另建连接或初始化追踪；其
-`aclose()` 只关闭自身创建的客户端。任务客户端仍由 TaskModel/runtime 释放，
-用量仅由 TaskModelTransport 记录，LLM 不再重复计数。
-
+真实 SDK + fake 网络覆盖 SDK 缓冲流式事件间取消、迟到结果、重复取消/清理、同账本去重
+及可观测性失败；这不提供 S4 规划能力或新的真实模型收益证据。
 
 ### S0 模型调用记录与普通遥测（2026-09-29）
 
@@ -713,7 +703,7 @@ Adapter 也拒绝将其当作成功任务。
   默认工厂仍拒绝真实通道配置，不创建 AX/OCR/DOM/Jev 资源。
 - 非 GUI fixture：同一 SubAgent/Runner/TaskModel 服务，无 Computer Use 领域依赖。
 - Runner 的 LLMAgent：planner、locator、fallback 和审批 classifier 绑定原 context；
-  流式/非流式共享 transport，旧 usage 投影按 call_id 去重；保留现有工具政策与提示。
+  流式/非流式共享 SDK 调用级记账，旧 usage 投影按 call_id 去重；保留现有工具政策与提示。
   主会话直接使用的 ChatAgent 不因此变成受管 SubAgent，其原审批/账本契约保持不变。
 - 实验入口：BenchmarkTaskPolicy 注入请求准入、费用策略和 HTTP 捕获，覆盖上述模型
   客户端；没有已声明模型能力的 extension 仍拒绝启用请求限额。凭据不进入审计/遥测。
@@ -769,10 +759,10 @@ open shadow root 标记范围不完整。语义命名仅覆盖 aria-labelledby/a
 
 Computer Use now borrows `context.runtime.decision_model.choose(...)` from core.
 Core owns the named `decision_models` profile, fixed Jev version, environment key,
-TypeSafe SDK, protocol validation and transport lifecycle. The plugin manifest
+TypeSafe SDK and lifecycle; TaskDecisionModel adds SDK-call accounting and task checks. The plugin manifest
 registers only its SubAgent; no `model_route` extension remains. UI evidence and
 whole-action candidate construction stay in the plugin; core decisions have no
-computer-operation knowledge. See [core model assembly](agent-orchestration.md#core-decision-model-assembly-s3-m-2026-10-04).
+computer-operation knowledge. See [core model assembly](agent-orchestration.md#core-decision-model-assembly-sdk-call-contract-2026-10-05).
 
 Current control remains schema-v1 milestones with predeclared click/fill and
 bound inputs, exact-label rules, Jev choice and opt-in same-candidate F fallback.

@@ -43,6 +43,7 @@
 - [research/computer-use-implementation-comparison.md](research/computer-use-implementation-comparison.md)：模型与宿主责任边界、其它实现的坐标/AX/定位器/反馈设计及实验优先级。
 - [plans/done/computer-use-implementation-research.md](plans/done/computer-use-implementation-research.md)：公开实现对照与改进方案调研（已完成）。
 - [research/computer-use-strategy-ladder.md](research/computer-use-strategy-ladder.md)：策略阶梯调研与复核：DOM/AX/OCR/视觉、M8 证据边界、Jev 官方协议与动作选择、按需 LLM 协作；收益均待验证。
+- [plans/done/model-call-simplification.md](plans/done/model-call-simplification.md)：已完成独立 DecisionModel 与任务薄包装，清理 Jev/普通聊天的 Route/Transport，采用 SDK 调用级记账及可选 Langfuse；API 3，后端 5579 通过、E2E 17 场景通过，S4 未启动。
 - [plans/active/computer-use-strategy-ladder.md](plans/active/computer-use-strategy-ladder.md)：Computer Use 宿主循环与策略阶梯。S0–S3 按各自范围完成；S3 同候选回退与 48 次 H3/J3 对照均已验收：结果相同，Jev 省费 39.6% 但耗时增加 22.1%，未证明净收益，保持默认禁用。歧义冲突历史证据保留并纠偏；S3-M 核心 Jev SDK 管理迁移验收完成（移除 model_route 插件扩展），当前实现仍为里程碑内选择；S4 已重划为无需预列操作的目标契约、混合 click/fill 候选、逐步核验及按需 Advisor（待实现）。系统比较与生产采用仍属 S5–S6。
 - [plans/done/computer-use-s0-review.md](plans/done/computer-use-s0-review.md)：S0 通用任务契约三轮评审与两轮重构已完成：修复清理取消/证据丢失/错误完成文案，合并重复序列化；后端 5220 passed、E2E 18 场景通过，最终复审无新增问题。
 - [plans/done/portable-code-reviewer.md](plans/done/portable-code-reviewer.md)：通用评审角色已完成：工具无关 Markdown、24 项固定 Code Smell、权限与独立性分离、无问题即停止/最多三轮及项目测试/提交约定。

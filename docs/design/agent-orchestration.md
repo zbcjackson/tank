@@ -407,7 +407,7 @@ REST and worker tools use the same public WorkerRun serializer.
 estimated and unknown counts. SubAgentBudget is only a compatibility wrapper for
 an explicitly configured cumulative task limit (`0` means recording only). Runner,
 LLMAgent/SubAgent task contexts, AgentGraph logging and TokenUsageObserver reuse this
-accounting implementation; a task context and its model transports share one ledger.
+accounting implementation; a task context and its model-call wrappers share one ledger.
 Runner does not add context-owned usage again. Session observers have their own
 aggregation scope, never execution authority. Graph logs provider usage, not text
 fragment counts. Legacy events without call IDs receive a local ID; only identified
@@ -419,32 +419,25 @@ Runner override disables the definition's limit. These compatibility limits are
 checked after responses, not prepaid hard cost ceilings. Context window/compaction
 budgets and request `max_tokens` are separate capacity constraints.
 
-TaskModelTransport records into the supplied context and takes no
-prices, cumulative limits, trial or batch arguments. Optional ModelCallPolicy
-hooks allow the benchmark-owned BenchmarkModelPolicy to reserve/settle against
-`benchmarks.spend_ledger.SpendLedger`; the experiment owns trial/batch/journal
-lifecycle and transport close does not close a batch. Core never imports benchmark
-implementations. Default accounting does not latch a token stop on unknown usage;
-the failed request still fails protocol validation and its usage remains unknown.
-The strict benchmark policy retains unknown reservations and refuses further sends.
-Runner binds ordinary task LLMs (including locator/classifier clients) and
-SubAgent text models to this transport. TaskOpenAI retains SDK serialization without global
-payload tracing or implicit retries. Text TaskModel.complete reuses
-LLM.complete_response(retry=False); ordinary LLM task bindings also accept
-inline images, tool messages and SSE. All requests require an output token limit. Streaming checks stop state between delivered
-SSE lines, preventing buffered SDK frames from bypassing cancellation. Partial
-responses without validated usage remain unknown; close and settlement occur once.
-The host resolves `AgentDefinition.model` against named LLM profiles before
-plugin execution. API version 2 is checked before factory/resource creation;
-explicit API 1 declarations are rejected after removal of the JSON model capability.
-SubAgent instances borrow core model services. Decision profiles are resolved by
-core, without a provider extension factory. Neither SDK clients nor credentials
-are exposed through the plugin's decision interface. Legacy manifest
-capability-injection fields and the engine path remain removed.
-Task clients close with the runtime; a bound ordinary LLM borrows its host pool.
-BenchmarkTaskPolicy supplies request limits, spend admission and raw HTTP capture,
-using the same call_id; no production module imports benchmarks. Model records
-currently aggregate per task/call, without provider/model dimensions.
+Task-bound models use `TaskModelCalls` around SDK invocations. It records one call ID
+and known/unknown usage, checks task state before invocation and result delivery,
+joins cancellation, and checks each SDK stream event including already buffered ones.
+SDKs own HTTP serialization and SSE parsing. Ordinary LLM binding borrows the original
+SDK client/pool with retries disabled; it does not replace transports or close borrowed
+clients. Stream closure settles once, even when a consumer stops between events.
+
+Optional experiment ModelCallPolicy/ModelCapture hooks consume `ModelRequest`
+(endpoint, model and a snapshot of call parameters) and normalized result dictionaries.
+They do not claim wire-byte capture or actual-send guarantees. Experiment limits and
+prices remain outside core; strict experiment capture failure may stop that experiment.
+Default local accounting remains record-only. Ordinary observer and Langfuse failures
+are non-blocking; model invocations no longer require a persistent execution audit.
+UI/tool operations continue to use TaskOperation's separate required audit and gates.
+
+No ModelRoute, ChatCompletionsRoute, TaskModelTransport, TaskStream or TaskOpenAI
+interception remains. Version 3 of the runtime marks this changed SDK-level contract;
+explicit API 1/2 plugins must migrate before factory creation. SDK model errors may
+have unknown usage; cancellation cannot guarantee that a remote provider stops billing.
 
 Observer events support API timing and screenshot traces without participating
 in execution.
@@ -463,31 +456,30 @@ restore plugin progress, the original grant or cumulative budgets. Built-in
 LLM agents retain the existing ask_user/waiting behavior.
 
 
-### Core decision model assembly (S3-M, 2026-10-04)
+### Core decision model assembly (SDK-call contract, 2026-10-05)
 
-`TaskRuntime.configure_decision_model` installs a core `TaskDecisionModel` from a
-validated `DecisionModelProfile` and host-resolved credential. The borrowed service
-exposes `choose(state, instructions, options)` as keyword arguments and returns a
-`ChoiceResult`; text models retain `complete(messages)`. Both use the same task
-context/ledger and runtime-owned cleanup, without forcing decisions into chat syntax.
+`DecisionModel` owns a lazy official TypeSafe SDK client and is independent of
+SubAgentContext. Its `choose(state=..., instructions=..., options=...)` returns
+`ChoiceResult(choice, confidence, probabilities, input_tokens, output_tokens)`.
+`DecisionModelError` preserves available usage on validation failure; otherwise
+counts are unknown. This service checks offered-choice membership and SDK-normalized
+answer statistics without reimplementing HTTP parsing.
+
+`TaskDecisionModel` composes this service with TaskModelCalls, preserving the same
+choose signature. TaskRuntime owns the standalone service and closes the task wrapper
+before it; borrowers do not own or close the underlying model. Standalone core callers
+can use DecisionModel directly. Text callers retain TaskModel.complete/LLM APIs.
 
 Agent definitions select `decision-model: <name>` from AppConfig `decision_models`.
-Profiles contain provider (`typesafe`), exact HTTPS `/v1/systemone` URL, fixed Jev
-version and credential environment-variable name. Runner adds network capability
-and resolves the selected profile before the agent factory. Core uses the official
-TypeSafe async SDK with retries disabled. A thin httpx2-to-httpx bridge retains the
-existing actual-send checks, audit/capture, cancellation and usage settlement.
-SDK wire types and core request-binding checks reject malformed/unoffered answers;
-known usage is preserved even when selection is invalid. The plugin owns the UI
-question and candidate binding, not Jev protocol parsing or configuration.
+Profiles contain URL, fixed Jev version and credential environment-variable name;
+there is no provider field or model_route extension. Core resolves credentials before
+plugin creation. Removed JSON config fields have migration errors. Plugins only
+construct domain evidence and options, never SDK/HTTP configuration.
 
-The `model_route` plugin extension, JSON profile registry lookup and production
-TaskJSONModel are removed. `json_models` / `json-model` produce migration errors;
-use `decision_models` / `decision-model` with `provider: typesafe` instead of an
-extension reference. Internal core ModelRoute remains shared with Chat Completions;
-it is not a public plugin extension or solely a token counter.
+Decision spans use the existing optional Langfuse client with task/call metadata;
+ordinary OpenAI tracing is no longer bypassed. Token accounting stays local and does
+not depend on telemetry delivery. Langfuse is not a budget or execution authority.
 
-Historical protocol replay has a benchmark-only raw client, with no core import
-back to experiments. Historical artifacts and frozen approvals are unchanged;
-new code cannot silently run under an old recipe. This migration changes model
-ownership, not S3 selection semantics; S4 goal-driven actions remain unimplemented.
+Historical protocol replay is experiment-only and core has no reverse dependency.
+Old reports/freezes remain unchanged; the current SDK capture is explicitly labeled
+as normalized SDK parameters/results. UI candidate semantics and S4 status are unchanged.
