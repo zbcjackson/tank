@@ -817,3 +817,11 @@ PID、内核启动标识、窗口、文档和元素身份；每次输入前重�
 冻结配方及后续验收状态以[策略阶梯计划](../plans/active/computer-use-strategy-ladder.md)
 中的 S4-AX 验收记录为准。运行器及接口说明见
 [插件说明](../../backend/plugins/agent-computer-use/README.md#s4-ax-explicitly-bound-native-macos-channel)。
+
+
+S4-AX 的 Jev 模型视图现对全 AX 快照使用局部短引用和显式元素默认值，并从目标元素
+复用候选的角色、祖先及当前值。全部候选和返回 action ID 保留，执行侧快照/引用、
+输入文本和效果检查不变。该压缩解决了实测 HTTP 400 `max_tokens_exceeded`；
+压缩后十二次真实 Jev 选择和 AXPress 派发成功，但本批未完成算式目标，不能宣称
+多步能力验收通过。决策错误事件保留 SDK 类型、HTTP 状态及原因类型，在结算停批
+检查之前发出；pilot 按 task/call 保存，不保存原始正文/headers/凭据，不改变停止规则。

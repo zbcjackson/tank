@@ -145,3 +145,66 @@ with the failed/not-run denominator, unknown-cost reservation and cleanup result
 A credential-pattern scan found no matches in the new raw artifacts. No source or
 raw evidence was changed. This closing review note was self-checked; docs consistency
 and diff checks passed. Real-model acceptance remains incomplete.
+
+
+## Error diagnosis and compact native model view
+
+The user asked which model failed and to proceed with diagnosis. It was the Jev
+`jev-1.13.0` next-action choice. An offline 401 regression reproduced how unknown-usage
+policy checks mask the decision exception behind `backend_error`. The fix records safe
+SDK error type, HTTP status and direct cause type before that check; it neither overrides
+the policy nor logs raw bodies/headers. Transport and pilot capture regressions also pass.
+
+[Diagnostic run](diagnostic/result.json), revision `s4-ax-2`, froze digest
+`9080c26d9ebe913482640b159aa94b297b6af1f441687c2b93d4f9cceb7e2e76`.
+It stopped on one HTTP 400 `TypeSafeBadRequestError`, 0/1/8, cleanup confirmed. A separate
+[one-request read-only probe](error-probe/result.json), capped at one request/$0.003,
+replayed the already authorized synthetic AX payload and captured only its credential-redacted
+body (no headers): `{"detail":{"error_type":"max_tokens_exceeded"}}`. Probe script and
+request/script hashes are archived. Both calls have unknown usage and retain reservations;
+they are not assumed free. The diagnostic freeze's two subsequently changed source files
+are preserved byte-for-byte under `diagnostic/source/`; other hashed source files match
+this implementation. Earlier two runs did not capture provider detail, so their exact
+HTTP causes cannot be established retrospectively.
+
+The [official limits](https://docs.typesafe.ai/models) allow 32k tokens for state plus the
+longest question; [Choice permits 255 options](https://docs.typesafe.ai/api). The captured
+request had only 48 options (44 actions and four controls). A local cl100k estimate of
+22,241 tokens was not a Jev count and did not predict its actual overflow.
+
+The all-AX model view now uses short question-local element references, explicitly declared
+element defaults, and reads candidate role/ancestors/current value through target_ref.
+All actions/control options remain; action IDs returned by the model, execution references,
+input strings and observed values remain unchanged. No top-k filter or predefined button
+sequence was introduced. On the recorded first request, JSON size fell 58,575→37,210 bytes;
+cl100k estimate fell 22,241→12,980. A 54-control regression verifies candidate completeness,
+reference consistency, values/defaults, original-snapshot immutability and size reduction.
+DOM/fixture representations remain unchanged.
+
+[Compact live result](compact-live/result.json), revision `s4-ax-3`, froze digest
+`90a13ac45106850bd57d22d31f9dba589b15a25eef1fec7010a8b987268e833b`.
+It obtained **12 successful model replies and 12 AXPress receipts**, each with changed AX
+readback. The first successful call reported 18,866 input tokens. However, Jev selected
+`7, 8, 7, 8, 7, 8, 7, 7, 7, 7, 7, 7`; independent Calculator result was
+`787,878,777,777`, not the required expression/result. The batch stopped at
+`trial_call_limit`, still **0 passed / 1 failed / 8 not run**. TaskResult's generic
+`backend_error` here comes from the budget-stop exception, not another failed HTTP call.
+This establishes successful real Jev→AXPress execution, not successful multi-step planning,
+Quartz/TextEdit acceptance, or an improvement against an uncompressed successful baseline.
+
+[Summary](compact-live/summary.json): known usage 235,443 input / 19,193 output tokens;
+frozen-contract estimate $0.009888606, not a provider invoice. All application/position/
+foreground cleanup checks passed. Earlier failures and unknown usage remain in their
+original files. No further paid prompt tuning was performed. Validation: **5662 backend tests passed / 1 skipped / 21 warnings**, real Chromium enabled;
+**18 E2E scenarios / 71 steps** passed. Backend/CLI ruff, all changed-file pyright, web lint/tsc-b,
+docs and diff checks passed; dev-server error query was empty. Protocol artifacts unchanged.
+Full logs are `diagnostic-backend.log.gz` and `diagnostic-e2e.log.gz`.
+
+Independent review-and-refactor round 1 checked the complete change against `591d6ead`,
+including compact references/defaults/progress, error accounting boundaries and archived
+failed-task evidence. No actionable code findings remained, so review stopped at round 1.
+The reviewer reran the 58 decision/native tests successfully and verified all 60 artifact
+hashes plus both 23-file source freezes (using the archived diagnostic sources where needed).
+Full-suite results above were reused because implementation `28740280` was unchanged.
+Only this closing review record and plan status were updated and self-checked; no paid model
+or desktop operation was performed during review. Full native acceptance remains incomplete.

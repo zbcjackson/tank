@@ -1,0 +1,49 @@
+{
+  "error_type": "TypeSafeBadRequestError",
+  "http_status": 400,
+  "body": "{\"detail\": {\"error_type\": \"max_tokens_exceeded\"}}",
+  "terminal_error_type": "SpendLimitExceeded",
+  "spend": {
+    "record_only": false,
+    "cost_status": "contract_estimate",
+    "batch": {
+      "limit_tokens": 131072,
+      "limit_nano_usd": 3000000,
+      "charged_tokens": 131072,
+      "charged_nano_usd": 2752512,
+      "known_tokens": 0,
+      "known_nano_usd": 0,
+      "reserved_tokens": 131072,
+      "reserved_nano_usd": 2752512,
+      "limit_requests": 1,
+      "admitted_requests": 1
+    },
+    "trials": {
+      "diagnosis": {
+        "limit_tokens": 131072,
+        "limit_nano_usd": 3000000,
+        "charged_tokens": 131072,
+        "charged_nano_usd": 2752512,
+        "known_tokens": 0,
+        "known_nano_usd": 0,
+        "reserved_tokens": 131072,
+        "reserved_nano_usd": 2752512
+      }
+    },
+    "stop_reason": "unknown_usage",
+    "requests": {
+      "f986e77c68884ee18ebe3599ed080f1d": {
+        "trial": "diagnosis",
+        "allowance": {
+          "input_tokens": 65536,
+          "output_tokens": 65536,
+          "input_nano_usd": 42,
+          "output_nano_usd": 0
+        },
+        "input_tokens": null,
+        "output_tokens": null,
+        "status": "unknown"
+      }
+    }
+  }
+}

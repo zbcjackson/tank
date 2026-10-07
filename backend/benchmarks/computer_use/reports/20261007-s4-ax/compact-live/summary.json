@@ -1,0 +1,36 @@
+{
+  "passed": 0,
+  "failed": 1,
+  "not_run": 8,
+  "successful_model_calls": 12,
+  "selected_labels": [
+    "7",
+    "8",
+    "7",
+    "8",
+    "7",
+    "8",
+    "7",
+    "7",
+    "7",
+    "7",
+    "7",
+    "7"
+  ],
+  "input_tokens": 235443,
+  "output_tokens": 19193,
+  "known_usage_contract_estimate_usd": 0.009888606,
+  "actual_provider_invoice": "not verified",
+  "policy_stop_reason": "trial_call_limit",
+  "task_result_reason": "backend_error",
+  "independent_values": {
+    "result": "787,878,777,777"
+  },
+  "application_cleanup": {
+    "confirmed": true,
+    "position_restored": true,
+    "frontmost_restored": true
+  },
+  "root_cause_evidence": "error-probe/result.json: HTTP 400 detail.error_type=max_tokens_exceeded",
+  "historical_runs": "Earlier r1/r2 did not capture provider reason; same size failure is consistent but not retroactively proven."
+}

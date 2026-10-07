@@ -529,3 +529,18 @@ must contain the exact supplied text. Text entry does not claim a saved file. Th
 refuses pre-existing target-app sessions and closes only its verified new process instance;
 its temporary files are removed and foreground/position restoration is recorded. This is
 not OS sandboxing, arbitrary-app coverage, background operation, or same-process resume.
+
+
+Native AX decision requests use a compact model-only view: short question-local element
+references, declared defaults for omitted element fields, and candidate properties read
+through `target_ref`. Every action and control option remains present, and the returned
+Choice key is still the original action ID. Execution snapshots, references and effect
+checks are unchanged. This view applies to all-AX snapshots; DOM/fixture views keep their
+existing representation. The model is explicitly instructed how to resolve references
+and defaults. Task input strings and observed values are not rewritten.
+
+Decision failures carry SDK error type, HTTP status and cause type as metadata; the task
+emits `decision_error` before post-accounting stop checks can mask the original failure.
+The native pilot saves these events with task/call IDs. It does not save SDK error messages,
+response bodies or headers. Unknown usage still stops the batch; diagnostics do not bypass
+budgets or enable retries.

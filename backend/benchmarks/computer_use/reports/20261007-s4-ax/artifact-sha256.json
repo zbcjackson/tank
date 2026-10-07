@@ -41,5 +41,22 @@
   "live-r2/spend.jsonl": "23aa0bd6f811d4475013e8530b70d13e3bdcc0ce914582579a4785c642695a26",
   "live-r2/result.json": "3542500fcb58025aed8ff2a92dc24aaf0e9e5838f9ccc93dde3583871af4cea3",
   "live-r2/started.json": "0b9f7141334f69308b5c3049bd9ef4c484caaaa17be5d13dbed9369f906e9141",
-  "live-r2/freeze.json": "ab5c2688c5ab25ef062f39adf7a556ec092e4b537ed41a59d354cd218ff93983"
+  "live-r2/freeze.json": "ab5c2688c5ab25ef062f39adf7a556ec092e4b537ed41a59d354cd218ff93983",
+  "diagnostic/freeze.json": "004b92ff6dba67d6f6ed141aa32783a40b221436791d5fd043b1ad68b5be44e6",
+  "diagnostic/result.json": "8339b5e36fcf19caa1dc26512f4ec188b150603a6b571a768a319d4be8df879d",
+  "diagnostic/source/jev.py": "1fa563ea8d24324561632dfe8dfa4052d983b7698af590dfb40f7d2a1c529de1",
+  "diagnostic/source/s4_ax.py": "317346fe563280ce6fc36b57e7942e14e8858d5ac5bb53ac4585f7662115d832",
+  "diagnostic/spend.jsonl": "986a00c61f409934961fdbed5e65961628aadce737757061643d6a75e98fd7ae",
+  "diagnostic/started.json": "dc4563c6f350cae8cfebed4da4ae609d2311ea12eabe5912a121eb9ec2485d89",
+  "error-probe/freeze.json": "6a4acc8991dfc21ffbe576675b4bc7e3cb8338f3f8c081bbf6a1a63a176b0db4",
+  "error-probe/probe.py": "30632618084d0ad44db0dbafeacf109a1bdbe22f8375e862cff99d5916449d9c",
+  "error-probe/result.json": "b645a6cc05ea3a1e582a29bc8ebec5808dfb62d4f2e609c30b0b3bd318ed3ec2",
+  "error-probe/spend.jsonl": "a01ee1570f9550b86c57e0b137afcde557aca239ed83d0684b2cde30b5ddefec",
+  "compact-live/freeze.json": "766b30b6d2f908defaa2dec73e19512e302b55a34c9d09e2df3550b36d23cd31",
+  "compact-live/result.json": "0388349f565a51f69202386df5ef53d159979835ecd5364cb41005c4d94a6f83",
+  "compact-live/spend.jsonl": "62b5c8b37cb33445ba75e6a73af6e60cd08e333278ff2062953aea5cdf928ed7",
+  "compact-live/started.json": "92789c24300715c9ba4d42d64e5ef5028c1243e11d6967866122088885b6a1ef",
+  "compact-live/summary.json": "4b53275c0f9cfc05da85cdc2ceee76c06b440dc8cd98aca0aa0984492e07c1cc",
+  "diagnostic-backend.log.gz": "8826c903886d03976379486a4e00a0a56ab0af4a592d68ab045d5bc6bc51dbb5",
+  "diagnostic-e2e.log.gz": "9238d74a9a86e3f87e03f11b79aac7bfe74f7d52b75e9e1a1454688ec66c5913"
 }

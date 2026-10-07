@@ -1,0 +1,9 @@
+{
+  "request_sha256": "692f308695101788dfcb2ea96a25f8e213b052f3cc3af7915a7c144079cf12cc",
+  "script_sha256": "30632618084d0ad44db0dbafeacf109a1bdbe22f8375e862cff99d5916449d9c",
+  "request_limit": 1,
+  "nano_usd_limit": 3000000,
+  "endpoint": "https://api.typesafe.ai/v1/systemone",
+  "desktop_actions": 0,
+  "purpose": "Capture sanitized API error for the previously rejected synthetic AX request"
+}
