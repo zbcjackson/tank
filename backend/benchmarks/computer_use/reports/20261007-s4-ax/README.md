@@ -1,8 +1,8 @@
 # S4-AX native execution evidence
 
-2026-10-07. Implementation and controlled native-app validation passed. Real Jev validation
-is **not started**: automatic approval rejected external AX data transmission before the
-live process was created. S4-AX acceptance remains incomplete.
+2026-10-07. Implementation and controlled native-app validation passed. After specific
+user continuation, the frozen real Jev batch ran and **stopped on its first case**:
+0 passed, 1 failed, 8 not run. S4-AX acceptance remains incomplete.
 
 ## Frozen final recipe
 
@@ -18,7 +18,8 @@ live process was created. S4-AX acceptance remains incomplete.
   The configured `TYPESAFE_API_KEY` is used only in live mode. The request contains the
   goal and supplied temporary text, current bound AX snapshot (roles, labels, values,
   bounds and references), structured candidate actions, observation binding and progress.
-  This is application UI data sent to an external service; specific approval is pending.
+  This is application UI data sent to an external service; the user subsequently
+  authorized continuation of the real test.
 - Scope: newly owned Calculator and temporary TextEdit documents, foreground primary
   display only. Existing target-app processes are refused. No screenshots or other-app
   documents are model inputs. Production channels borrow an explicit window; only the
@@ -34,8 +35,8 @@ usage/cost in fake ledgers is test data, not actual provider spend.
 
 [Final freeze](fake/freeze.json) and [prepared live freeze](live-prepared/freeze.json)
 are identical. [Approval block](live-prepared/approval-block.json) records the not-started
-live status: no started marker, no loaded live credential, no requests. There is no live
-result to interpret as either a pass or a model failure.
+historical pre-execution status: no started marker, no loaded live credential, no requests
+at the time of rejection. The later authorized run is recorded separately under `live/`.
 
 Development attempts remain under `development/`, losslessly gzip-compressed:
 
@@ -74,5 +75,46 @@ evidence: all 34 artifact hashes, frozen current-source hashes, recipe digest, o
 development/final-run copies and verification logs matched. No credential/header material
 or undisclosed development failure was found; no actionable finding remains in this review
 scope. This concluding documentation update was self-checked, not independently reviewed
-again. Real-model acceptance remains blocked as stated above; this report authorizes no
-new real-model run.
+again. At that review, real-model execution was still awaiting authorization. The later
+authorized execution and its failed acceptance result are recorded below.
+
+## Authorized real batch: stopped, acceptance failed
+
+The user's subsequent “继续真实测试” authorized the previously described destination, data,
+credential use and limits. The same frozen code/recipe was verified before execution;
+no code, prompt, candidate set or quota was tuned during the batch.
+
+[Live result](live/result.json) retains all nine planned cases: **0 passed / 1 failed /
+8 not run**. `calculator-ax_press-0` stopped with `backend_error` at its first model call.
+There is one admitted/captured SDK call, no successful response and no task-action receipt;
+Calculator independently read `0`. Benchmark setup did operate the owned application.
+The raw `external_model_requests: 1` counts model-call captures, not independently verified
+wire sends or provider receipts. It cannot establish whether the service received the request.
+
+Usage is unknown, so the frozen ledger stopped at `unknown_usage`, retaining a conservative
+131,072-token / **$0.002752512** reservation. This is not known usage or actual provider spend.
+No diagnostic model call, retry or remaining trial was executed.
+
+Runtime cleanup was `confirmed`; application cleanup was **unconfirmed** because foreground
+restoration readback was false. Window position restoration was true; a later read-only PID
+check confirmed the owned Calculator process was gone. That later check does not turn the
+original foreground-restoration failure into a pass. No other application was activated
+as a diagnostic workaround.
+
+[Execution note](live/execution-note.json) records these limits. Capture retains request
+parameters but not the original exception, HTTP status or error body, so the available
+record does not identify SDK setup, transport, provider or accounting as the root cause.
+Foreground restoration likewise needs diagnosis; the single failed readback cannot establish
+whether it was timing, focus competition or another issue. Before another real batch,
+retain the original failure and add useful error/cleanup evidence, then freeze a new recipe.
+
+Execution and record updates change no source or test logic. Prior code-suite results remain
+applicable; this live batch is a failed acceptance experiment, not a green unit-test run.
+Execution-record review-and-refactor round 1 verified all 39 artifact hashes, 23 frozen
+source hashes, the recipe digest, and byte-for-byte equality of the four original live-run
+artifacts. Counts, unknown usage and cleanup limitations match the raw evidence; no
+credential/header fields or bearer material were found in the new artifacts. The review
+clarified the prior approval block as historical; no unresolved record finding remains.
+This concluding documentation edit was self-checked. Docs consistency and diff checks
+passed. No implementation-review round is reopened, and real-model acceptance remains
+incomplete.

@@ -1,0 +1,24 @@
+{
+  "user_authorization": "User said 继续真实测试 after destination, AX payload, configured credential and frozen limits had been explained.",
+  "status": "stopped_after_first_case",
+  "passed": 0,
+  "failed": 1,
+  "not_run": 8,
+  "admitted_model_calls": 1,
+  "successful_model_responses": 0,
+  "task_action_receipts": 0,
+  "wire_request_count": "not established by model-call capture",
+  "stop_reason": "unknown_usage",
+  "task_reason": "backend_error",
+  "actual_provider_usage_and_cost": "unknown",
+  "retained_cost_reservation_usd": "0.002752512",
+  "cleanup": {
+    "runtime": "confirmed",
+    "application": "unconfirmed",
+    "position_restored": true,
+    "frontmost_restored": false,
+    "owned_process_alive_on_followup": false
+  },
+  "diagnostic_limit": "No original exception/status/response body captured. Cannot distinguish SDK setup, transport, provider, or accounting error from this record. No extra model requests or task actions were run.",
+  "prior_approval_block": "live-prepared/approval-block.json is historical; specific user continuation allowed this later execution."
+}

@@ -32,5 +32,10 @@
   "fake/spend.jsonl": "2192177a96b8df497eac843e7f9981419a8a5c599baa5cca80adf431be272636",
   "fake/started.json": "9b196586c2b03115a7657a525ff2b7aa48aaad101dbe714c75e3569f0dc8f485",
   "live-prepared/approval-block.json": "87eeed6271cacf510e1671f922693e0f772b2eb8694e25932076bd6057c341fc",
-  "live-prepared/freeze.json": "ab5c2688c5ab25ef062f39adf7a556ec092e4b537ed41a59d354cd218ff93983"
+  "live-prepared/freeze.json": "ab5c2688c5ab25ef062f39adf7a556ec092e4b537ed41a59d354cd218ff93983",
+  "live/execution-note.json": "6f2a125cbcd794a4bc7d7a4422b64800da97b6d16bc7010953dc346ec31d43a4",
+  "live/freeze.json": "ab5c2688c5ab25ef062f39adf7a556ec092e4b537ed41a59d354cd218ff93983",
+  "live/result.json": "33ed153ea797f1337d8a15028807b355cb94562d456aeb7c03837c23e4a090cc",
+  "live/spend.jsonl": "1fa53060a32af51ee41086a4d4909c182744b522b4d1e14f386e126ab227cc4b",
+  "live/started.json": "0b9f7141334f69308b5c3049bd9ef4c484caaaa17be5d13dbed9369f906e9141"
 }
