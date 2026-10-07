@@ -76,12 +76,11 @@ class ActionBuilder:
         reason = "jev_eligible" if actions else (
             "missing_parameters" if missing else "no_viable_actions")
         if len(actions) == 1:
-            action, detail = actions[0], details[0]
+            detail = details[0]
             explicitly_bound = any(
                 item.key == detail.input_key and item.field_label == detail.label
                 for item in goal.inputs
             )
-            submit = next(e for e in snapshot.elements if e.ref == action.target_ref).submits
-            if explicitly_bound or submit and bool(goal.inputs) and inputs_satisfied:
+            if explicitly_bound:
                 reason = "rules_unique"
         return ActionSet(binding, tuple(actions), reason, len(actions), details=tuple(details))

@@ -279,6 +279,29 @@ async def test_goal_v2_stops_repeated_states_and_stale_decisions(stale: bool) ->
     assert progress["pending_action"] is None
 
 
+@pytest.mark.parametrize("form,label", [("Notifications", "Subscribe"), ("Profile", "Delete profile")])
+async def test_satisfied_input_does_not_authorize_a_unique_submit(form: str, label: str) -> None:
+    class World(ExportWorld):
+        async def observe(self, scope, ctx):
+            self.observations += 1
+            return Snapshot(str(self.observations), scope, self.observations, (
+                Element("name", "textbox", "Name", ("fill",), value="Ada",
+                        ancestors=(("form", "Profile"),)),
+                Element("submit", "button", label, ("click",), submits=True,
+                        ancestors=(("form", form),)),
+            ))
+
+        async def is_current(self, binding, action, ctx):
+            return True
+
+    world = World()
+    result = await ComputerUseController(world, world).run(
+        SubAgentRequest("Save name", "", "task", profile_goal()), context(),
+    )
+    assert not world.dispatched
+    assert (result.status, result.reason) == ("stopped", "jev_eligible")
+
+
 def test_goal_builder_never_offers_premature_submit_or_truncated_candidates() -> None:
     from agent_computer_use.contracts import GoalContract
 
@@ -615,6 +638,26 @@ async def test_wrong_scope_cannot_supply_completion_evidence() -> None:
     )
     assert result.status == "stopped"
     assert result.reason == "scope_mismatch"
+
+
+@pytest.mark.parametrize("unavailable", ["ready", "complete"])
+async def test_advisor_can_reobserve_when_evidence_becomes_available(unavailable: str) -> None:
+    class World(ExportWorld):
+        async def observe(self, scope, ctx):
+            snapshot = await super().observe(scope, ctx)
+            return replace(snapshot, **{unavailable: False}) if self.observations == 1 else snapshot
+
+    class Advisor:
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            return AdvisorResult(actions.binding, "need_observation")
+
+    world = World()
+    result = await ComputerUseController(world, world, advisor=Advisor()).run(
+        SubAgentRequest("Export", "", "task", export_goal().model_dump(mode="json")), context(),
+    )
+    assert result.status == "completed"
+    assert len(world.dispatched) == 1
+    assert world.observations == 3
 
 
 async def test_advisor_reobservation_is_bounded() -> None:

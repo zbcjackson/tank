@@ -2,6 +2,9 @@
 > goal-contract revision；下文旧批次数字/协议为历史记录，不能用当前输入原样复现。
 > 已归档 reports 未改，新批次须重新冻结请求、候选与预算后按授权执行。
 
+> 当前目标契约批次：profile 的显式 fill 可走规则，submit 必须选择；marketing 需两次选择。
+> 每任务最多 1/2 次选择，批次上限 81 请求；下文零调用规则任务与 54 上限仅属旧协议。
+
 # S3 bounded strategy pilot — 2026-10-04
 
 Status: implementation/verification in progress; no paid model outcomes observed.

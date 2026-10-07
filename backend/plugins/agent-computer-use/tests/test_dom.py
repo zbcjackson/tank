@@ -152,10 +152,19 @@ def goal() -> GoalContract:
     return GoalContract.from_input({'schema_version': 2, 'objective': 'Save name', 'scope': 'managed-page', 'inputs': [{'key': 'name', 'value': '小明', 'purpose': 'name', 'field_label': 'Name'}], 'completion': [{'key': 'status:Result', 'value': '小明'}], 'goal_id': 'goal', 'intent': 'Save name', 'authorization_ref': 'current_task', 'allowed_operations': ['click', 'fill']})
 
 
+class SelectOnlyCandidate:
+    async def choose(self, goal, snapshot, actions, ctx):
+        from agent_computer_use.contracts import DecisionResult
+
+        assert len(actions.actions) == 1
+        return DecisionResult(actions.binding, "candidate", actions.actions[0].id)
+
+
 async def test_managed_chromium_fill_click_readback(site: str, chromium_required: None) -> None:
     from agent_computer_use.factory import create_subagent
 
     agent = create_subagent({"browser": {"scope": "managed-page", "url": site}})
+    agent.controller.selector = SelectOnlyCandidate()
     ctx = context()
     try:
         outputs = [output async for output in agent.run(
@@ -335,6 +344,7 @@ async def test_frame_scope_and_real_iframe_closed_loop(site, chromium_required, 
     if case != "unbound":
         config["frame_name"] = "bound"
     agent = create_subagent({"browser": config})
+    agent.controller.selector = SelectOnlyCandidate()
     ctx = context()
     try:
         outputs = [output async for output in agent.run(
@@ -454,6 +464,7 @@ async def test_lost_reply_readback_confirms_effect_without_replay(site, chromium
 
     monkeypatch.setattr(Locator, "click", lose_reply)
     agent = create_subagent({"browser": {"scope": "managed-page", "url": site}})
+    agent.controller.selector = SelectOnlyCandidate()
     ctx = context()
     try:
         outputs = [output async for output in agent.run(
@@ -492,7 +503,9 @@ async def test_browser_config_through_real_runner(site, chromium_required) -> No
         authorization=SubAgentAuthorization(frozenset({"desktop", "network"})),
     )]
     results = [output.metadata["task_result"] for output in outputs if "task_result" in output.metadata]
-    assert len(results) == 1 and results[0]["status"] == "completed", outputs
+    assert len(results) == 1 and results[0]["status"] == "partial", outputs
+    assert results[0]["reason"] == "jev_eligible"
+    assert len(results[0]["details"]["receipts"]) == 1
     assert results[0]["cleanup"] == "confirmed"
 
 
@@ -1149,7 +1162,7 @@ async def test_dom_followup_freeze_rejects_changed_protocol_before_resources(mon
 
 
 @pytest.mark.parametrize("mode", ["llm", "jev-fallback"])
-async def test_runner_candidate_strategy_returns_to_rules(site, chromium_required, monkeypatch, tmp_path, mode):
+async def test_runner_candidate_strategy_selects_fill_and_submit(site, chromium_required, monkeypatch, tmp_path, mode):
     import json
     import httpx
     from unittest.mock import MagicMock
@@ -1204,7 +1217,7 @@ async def test_runner_candidate_strategy_returns_to_rules(site, chromium_require
     runner = AgentRunner(MagicMock(), MagicMock(), Bus(), ToolApprovalPolicy(computer_mode="allow"),
                         PendingToolCallStore(), {definition.name: definition}, registry=registry,
                         app_config=config, desktop_resource=DesktopResource())
-    # The model fills an unbound field; the verified input then permits a single submit.
+    # Both the unbound fill and the submit require semantic selection.
     task = goal().model_dump(mode="json")
     task["inputs"][0]["field_label"] = None
     outputs = [o async for o in runner.run_agent(definition, [], task_id="strategy-task", task_input=task,
@@ -1212,9 +1225,9 @@ async def test_runner_candidate_strategy_returns_to_rules(site, chromium_require
     result = next(o.metadata["task_result"] for o in outputs if "task_result" in o.metadata)
     assert result["status"] == "completed" and result["cleanup"] == "confirmed"
     assert len(result["details"]["receipts"]) == 2
-    assert len(calls) == (2 if mode == "jev-fallback" else 1)
+    assert len(calls) == (4 if mode == "jev-fallback" else 2)
     routes = [m["reason"] for k, m in events if k == "computer_use_route"]
-    assert routes == ["jev_eligible", "rules_unique"]
+    assert routes == ["jev_eligible", "jev_eligible"]
     assert not any(a.category == "model" for a in audits)
     assert len([m for k, m in events if k == "model_call" and m["phase"] == "finished"]) == len(calls)
 
@@ -1235,7 +1248,7 @@ async def test_s3_strategy_pairs_governed_tasks_and_counts_fallback(chromium_req
         q = payload if native else json.loads(payload["messages"][1]["content"])
         criteria = q["questions"]["next_action"]["criteria"]
         objective = q["state"]["goal"]["objective"]
-        target = next((label for word,label in [('紧凑','紧凑视图'),('外观','界面与显示'),('草稿','保存进度'),('优惠','取消营销订阅'),('收据','查看支付凭证')] if word in objective), None)
+        target = next((label for word,label in [('显示名称','保存'),('紧凑','紧凑视图'),('外观','界面与显示'),('草稿','保存进度'),('优惠','取消营销订阅'),('收据','查看支付凭证')] if word in objective), None)
         if target == "取消营销订阅" and any(
             f["key"] == "status:优惠邮件" and f["value"] == "off"
             for f in q["state"]["snapshot"]["facts"]
@@ -1264,15 +1277,15 @@ async def test_s3_strategy_pairs_governed_tasks_and_counts_fallback(chromium_req
     assert result['completed'] and len(result['rows']) == 48
     assert len(result['paired']) == 24
     assert all(r['accepted'] and r['cleanup_confirmed'] for r in result['rows'])
-    assert len(calls) == (72 if force_fallback else 54)
+    assert len(calls) == (81 if force_fallback else 60)
     assert result['spend']['batch']['known_tokens'] == len(calls)*12
     assert result['spend']['batch']['reserved_tokens'] == 0
     for row in result['rows']:
         if row['case_id'] == 'profile-name':
-            assert not row['calls']
-    assert result['summary']['H3']['f_calls'] == 24
-    assert result['summary']['J3']['f_calls'] == (24 if force_fallback else 6)
-    assert result['summary']['J3']['jev_calls'] == 24
+            assert len(row['calls']) == (2 if force_fallback and row['arm'] == 'J3' else 1)
+    assert result['summary']['H3']['f_calls'] == 27
+    assert result['summary']['J3']['f_calls'] == (27 if force_fallback else 6)
+    assert result['summary']['J3']['jev_calls'] == 27
     with pytest.raises(FileExistsError):
         await bench.run_batch(tmp_path/'run',f['sha256'],{'jev':'fixture-j','f':'fixture-f'})
 
@@ -1314,7 +1327,7 @@ async def test_s3_strategy_stops_operational_failures_with_full_denominator(chro
     assert not result['completed'] and len(result['rows'])==48
     assert result['conclusion']=='incomplete_no_adoption_conclusion'
     assert len((tmp_path/'run/rows.jsonl').read_text().splitlines())==48
-    assert len(sent)==(0 if failure in ('audit','cleanup') else 1)
+    assert len(sent)==(0 if failure == 'audit' else 1)
     assert result['spend']['stop_reason']
 
 

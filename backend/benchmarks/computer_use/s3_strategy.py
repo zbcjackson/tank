@@ -92,7 +92,7 @@ def freeze_inputs() -> dict[str, Any]:
             for index, c in enumerate(cases)
             for arm in (ARMS if (repeat + index) % 2 == 0 else ARMS[::-1])
         ],
-        "request_limit": 72,
+        "request_limit": 81,
         "nano_usd_limit": 250_000_000,
         "source_sha256": sources,
         "f_parameters": {"temperature": 0, "max_tokens": 128, "enable_thinking": False},
@@ -539,7 +539,7 @@ if __name__ == "__main__":
                 {
                     "sha256": frozen["sha256"],
                     "tasks": 48,
-                    "request_limit": 72,
+                    "request_limit": 81,
                     "max_usd": 0.25,
                     "real_requests": 0,
                 }

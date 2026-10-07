@@ -3,8 +3,8 @@
     "id": "profile-name",
     "family": "profile-name",
     "kind": "complete",
-    "rule_only": true,
-    "rationale": "Exact textbox/button labels and supplied value; rules must fill and save without a model.",
+    "rule_only": false,
+    "rationale": "The explicitly bound fill uses rules; saving still requires semantic selection.",
     "html": "<form onsubmit=\"event.preventDefault()\"><!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><label>显示名称<input oninput=\"window.events.push('填写名称')\"></label><button onclick=\"window.events.push('保存');document.querySelector('[aria-label=Result]').textContent='saved:'+document.querySelector('input').value\">保存</button><output aria-label=\"Result\">idle</output></form>",
     "goal": {
       "schema_version": 2,
@@ -39,7 +39,7 @@
       ],
       "result": "saved:Ada"
     },
-    "max_decisions": 0
+    "max_decisions": 1
   },
   {
     "id": "compact-view",
@@ -144,7 +144,7 @@
     "id": "marketing-preferences",
     "family": "marketing-preferences",
     "kind": "complete",
-    "rationale": "One semantic decision followed by exact-label Apply; checks return to host rules.",
+    "rationale": "Two semantic decisions disable marketing and apply the change.",
     "html": "<!doctype html><meta charset=\"utf-8\"><script>window.events=[];</script><main><output aria-label=\"优惠邮件\">on</output><output aria-label=\"安全提醒\">on</output><button aria-controls=\"effect0\" onclick=\"window.events.push('取消营销订阅');document.querySelector('[aria-label=优惠邮件]').textContent='off';document.querySelector('[aria-label=Result]').textContent='marketing-off';document.querySelector('#apply').disabled=false;;document.getElementById('effect0').hidden=false;\">取消营销订阅</button><section role=\"region\" aria-label=\"Effect 取消营销订阅\" id=\"effect0\" hidden></section><button aria-controls=\"effect1\" onclick=\"window.events.push('停用安全提醒');document.querySelector('[aria-label=安全提醒]').textContent='off';document.querySelector('[aria-label=Result]').textContent='security-off';;document.getElementById('effect1').hidden=false;\">停用安全提醒</button><section role=\"region\" aria-label=\"Effect 停用安全提醒\" id=\"effect1\" hidden></section><button id=\"apply\" disabled aria-controls=\"effect2\" onclick=\"window.events.push('应用');document.querySelector('[aria-label=Applied]').textContent='yes';document.getElementById('effect2').hidden=false;\">应用</button><section role=\"region\" aria-label=\"Effect 应用\" id=\"effect2\" hidden></section><output aria-label=\"Applied\">no</output><output aria-label=\"Result\">idle</output></main>",
     "rule_only": false,
     "goal": {

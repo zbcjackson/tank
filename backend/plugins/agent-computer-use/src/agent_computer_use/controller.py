@@ -242,7 +242,7 @@ class ComputerUseController:
                                       "goal_version": self.version,
                                       "completion": [item.key for item in goal.completion]})
                 return self.result("completed", "goal_verified")
-            state = (self.version,
+            state = (self.version, snapshot.ready, snapshot.complete,
                 tuple((e.role, e.label, e.ancestors, e.value, e.enabled, e.actions)
                       for e in snapshot.elements), snapshot.facts,
             )
