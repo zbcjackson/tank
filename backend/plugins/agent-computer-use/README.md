@@ -1,8 +1,8 @@
-# Computer Use host loop — S0–S3 adapters
+# Computer Use host loop — S0–S4 adapters
 
 This opt-in `type: subagent` plugin uses the existing Runner/Adapter lifecycle.
 It does not change the production computer-use agent or grounding modes.
-The default factory currently has **no live channel or model transport**: a valid
+The default factory currently has **no live channel or model transport**: a valid v1
 goal returns `stopped / observation_unavailable`, with zero desktop/model calls.
 Unknown private configuration keys are rejected. S1 provides injectable AX/OCR
 observations; S2 adds explicitly configured managed Chromium. Native desktop
@@ -19,7 +19,7 @@ never closes the borrowed runtime. A closed plugin cannot run again. `TaskResour
 releases after one fails and shares the outcome across repeated close calls.
 Unconfirmed cleanup quarantines the desktop. Cancellation retains journaled effects.
 
-## Current contract
+## Version-1 compatibility contract
 
 `task_input` is a version-1 goal with `objective`, one bound `scope`, `inputs`
 (key/value strings), ordered semantic `milestones`, and `completion` predicates.
@@ -391,3 +391,62 @@ Current experiment events are `model_request` / `model_response`, with
 implementation types, not additional plugin APIs. Jev receives no injected HTTP
 client; normal creation/close and default environment handling belong to its SDK.
 Old report files and their `sdk_*` labels are historical and are not rewritten.
+
+
+## S4 goal-driven contract (first slice)
+
+With an explicitly configured browser and selector (`jev`, `llm` or `jev-fallback`),
+`schema_version: 2` accepts an outcome without a predeclared click/fill script:
+
+```json
+{
+  "schema_version": 2,
+  "goal_id": "profile-name",
+  "intent": "Save display name Ada; leave other profile fields unchanged",
+  "objective": "Save display name Ada",
+  "scope": "managed-page",
+  "authorization_ref": "current_task",
+  "allowed_operations": ["click", "fill"],
+  "constraints": ["Leave other profile fields unchanged"],
+  "inputs": [{"key": "name", "purpose": "profile display name",
+              "value": "Ada"}],
+  "completion": [{"key": "status:Saved name", "value": "Ada"}]
+}
+```
+
+`current_task` references the already-granted task; it grants no permission. A known
+matching task ID is also accepted. Optional input `field_scope` matches an observed named ancestor; when omitted,
+candidates are bounded by the authorized page scope. Optional `field_label` narrows
+it further, and `input_type` defaults to `text`.
+Other native types require an explicit compatible declaration. Missing values
+are never invented. Successful fills retain their native input binding. References include a document
+instance identity, so a reload cannot transfer that binding to a new control.
+
+The current DOM templates support navigation via `aria-controls` to a uniquely
+named form/region/dialog, and native form submission once declared inputs are
+observably satisfied. Controls without a supported effect template are excluded.
+Completion requires `status:` facts; field values establish only local fill effects.
+Optional `outcomes` add conjunctive result conditions and acyclic `depends_on`
+references; they must all be verified as well as completion. No custom verification
+code is executed. Textual constraints remain model context, not an arbitrary policy
+language; scope, types, references and admitted capabilities are host-checked.
+
+Each model question contains the current goal, snapshot, complete mixed actions,
+input source keys, ancestors/current values and host progress. V2 never executes a
+button merely because its label is unique. More than 32 candidates or indistinguishable
+candidates are rejected. A fresh observation follows each action; unverified effects
+get at most three reads with short waits, then return unknown without replay. Repeated
+semantic states stop even when observation IDs/generations change. The task shares
+the existing 32-action/64-observation ceilings and model usage ledger.
+
+Run the real Runner/SDK/Chromium control-chain acceptance (fake external model HTTP):
+
+```bash
+TANK_REQUIRE_CHROMIUM=1 uv run pytest plugins/agent-computer-use/tests/test_dom.py -k goal_runner -q
+```
+
+The fixture independently verifies its server-side saved name, unchanged email and
+single save across two layouts and a normal intermediate page. This does not establish
+real model competence, arbitrary-site support or authenticity of external business
+receipts. Core same-process resume, Advisor supplementation/contract synthesis and
+full S4 boundary acceptance remain pending. Production defaults are unchanged.
