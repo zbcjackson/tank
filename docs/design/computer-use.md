@@ -811,8 +811,9 @@ PID、内核启动标识、窗口、文档和元素身份；每次输入前重�
 输入冲突和未知效果均不盲目继续，失败的原生清理不能报告完成。普通核心不导入 benchmark。
 
 真实应用与 fake HTTP 的评审后矩阵九项通过；它只证明控制链，不证明真实 Jev 选择
-能力。代码评审与回归通过；真实模型批次获授权后首项出现 backend_error、用量未知及
-前台恢复未确认，按规则停批（0 通过 / 1 失败 / 8 未运行），原生整体验收未通过。
+能力。代码评审与回归通过；真实模型两批均在首项 backend_error、用量未知后停批
+（各 0 通过 / 1 失败 / 8 未运行）。第二批清理全部确认，第一批前台恢复未确认；
+原生整体验收未通过。
 冻结配方及后续验收状态以[策略阶梯计划](../plans/active/computer-use-strategy-ladder.md)
 中的 S4-AX 验收记录为准。运行器及接口说明见
 [插件说明](../../backend/plugins/agent-computer-use/README.md#s4-ax-explicitly-bound-native-macos-channel)。

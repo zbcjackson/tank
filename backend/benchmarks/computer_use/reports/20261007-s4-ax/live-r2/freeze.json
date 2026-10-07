@@ -1,0 +1,391 @@
+{
+  "revision": "s4-ax-1",
+  "cases": [
+    {
+      "id": "calculator-ax_press-0",
+      "application": "calculator",
+      "dispatch": "ax_press",
+      "repeat": 0,
+      "max_decisions": 12,
+      "move_window": false
+    },
+    {
+      "id": "calculator-ax_press-1",
+      "application": "calculator",
+      "dispatch": "ax_press",
+      "repeat": 1,
+      "max_decisions": 12,
+      "move_window": true
+    },
+    {
+      "id": "calculator-ax_press-2",
+      "application": "calculator",
+      "dispatch": "ax_press",
+      "repeat": 2,
+      "max_decisions": 12,
+      "move_window": false
+    },
+    {
+      "id": "calculator-quartz-0",
+      "application": "calculator",
+      "dispatch": "quartz",
+      "repeat": 0,
+      "max_decisions": 12,
+      "move_window": false
+    },
+    {
+      "id": "calculator-quartz-1",
+      "application": "calculator",
+      "dispatch": "quartz",
+      "repeat": 1,
+      "max_decisions": 12,
+      "move_window": true
+    },
+    {
+      "id": "calculator-quartz-2",
+      "application": "calculator",
+      "dispatch": "quartz",
+      "repeat": 2,
+      "max_decisions": 12,
+      "move_window": false
+    },
+    {
+      "id": "textedit-0",
+      "application": "textedit",
+      "dispatch": "ax_press",
+      "repeat": 0,
+      "max_decisions": 2,
+      "move_window": false
+    },
+    {
+      "id": "textedit-1",
+      "application": "textedit",
+      "dispatch": "ax_press",
+      "repeat": 1,
+      "max_decisions": 2,
+      "move_window": true
+    },
+    {
+      "id": "textedit-2",
+      "application": "textedit",
+      "dispatch": "ax_press",
+      "repeat": 2,
+      "max_decisions": 2,
+      "move_window": false
+    }
+  ],
+  "model": {
+    "model": "jev-1.13.0",
+    "url": "https://api.typesafe.ai/v1/systemone",
+    "input_ceiling": 65536,
+    "output_ceiling": 65536,
+    "input_price": 42,
+    "output_price": 0
+  },
+  "fake_endpoint": "https://s4-ax.invalid/v1/systemone",
+  "request_limit": 78,
+  "nano_usd_limit": 250000000,
+  "seconds_per_task": 120,
+  "readouts": {
+    "calculator": [
+      {
+        "name": "expression",
+        "role": "AXStaticText",
+        "aggregation": "compact_text",
+        "ancestor_identifier": "StandardResultView",
+        "allow_empty": true
+      },
+      {
+        "name": "result",
+        "role": "AXStaticText",
+        "aggregation": "compact_text",
+        "ancestor_identifier": "StandardInputView"
+      }
+    ],
+    "textedit": [
+      {
+        "name": "document",
+        "role": "AXTextArea",
+        "identifier": "First Text View"
+      }
+    ]
+  },
+  "calculator_exclusions": {
+    "identifiers": [
+      "MemoryClear",
+      "MemoryAdd",
+      "MemorySubtract",
+      "MemoryRecall",
+      "Shift",
+      "Radians"
+    ],
+    "labels": [
+      "Mode",
+      "Show Sidebar",
+      "Hide Sidebar"
+    ]
+  },
+  "goals": {
+    "calculator-ax_press-0": {
+      "schema_version": 2,
+      "goal_id": "calculator-ax_press-0",
+      "intent": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "objective": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "scope": "calculator-ax_press-0",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [],
+      "completion": [
+        {
+          "key": "ax:value:expression",
+          "value": "7×8"
+        },
+        {
+          "key": "ax:value:result",
+          "value": "56"
+        }
+      ],
+      "constraints": [
+        "Operate only this bound application window; do not change modes or memory."
+      ]
+    },
+    "calculator-ax_press-1": {
+      "schema_version": 2,
+      "goal_id": "calculator-ax_press-1",
+      "intent": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "objective": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "scope": "calculator-ax_press-1",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [],
+      "completion": [
+        {
+          "key": "ax:value:expression",
+          "value": "7×8"
+        },
+        {
+          "key": "ax:value:result",
+          "value": "56"
+        }
+      ],
+      "constraints": [
+        "Operate only this bound application window; do not change modes or memory."
+      ]
+    },
+    "calculator-ax_press-2": {
+      "schema_version": 2,
+      "goal_id": "calculator-ax_press-2",
+      "intent": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "objective": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "scope": "calculator-ax_press-2",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [],
+      "completion": [
+        {
+          "key": "ax:value:expression",
+          "value": "7×8"
+        },
+        {
+          "key": "ax:value:result",
+          "value": "56"
+        }
+      ],
+      "constraints": [
+        "Operate only this bound application window; do not change modes or memory."
+      ]
+    },
+    "calculator-quartz-0": {
+      "schema_version": 2,
+      "goal_id": "calculator-quartz-0",
+      "intent": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "objective": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "scope": "calculator-quartz-0",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [],
+      "completion": [
+        {
+          "key": "ax:value:expression",
+          "value": "7×8"
+        },
+        {
+          "key": "ax:value:result",
+          "value": "56"
+        }
+      ],
+      "constraints": [
+        "Operate only this bound application window; do not change modes or memory."
+      ]
+    },
+    "calculator-quartz-1": {
+      "schema_version": 2,
+      "goal_id": "calculator-quartz-1",
+      "intent": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "objective": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "scope": "calculator-quartz-1",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [],
+      "completion": [
+        {
+          "key": "ax:value:expression",
+          "value": "7×8"
+        },
+        {
+          "key": "ax:value:result",
+          "value": "56"
+        }
+      ],
+      "constraints": [
+        "Operate only this bound application window; do not change modes or memory."
+      ]
+    },
+    "calculator-quartz-2": {
+      "schema_version": 2,
+      "goal_id": "calculator-quartz-2",
+      "intent": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "objective": "Use Calculator buttons to enter exactly 7×8 and evaluate it. Do not enter 56 directly.",
+      "scope": "calculator-quartz-2",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [],
+      "completion": [
+        {
+          "key": "ax:value:expression",
+          "value": "7×8"
+        },
+        {
+          "key": "ax:value:result",
+          "value": "56"
+        }
+      ],
+      "constraints": [
+        "Operate only this bound application window; do not change modes or memory."
+      ]
+    },
+    "textedit-0": {
+      "schema_version": 2,
+      "goal_id": "textedit-0",
+      "intent": "Replace the body of this temporary TextEdit document with the supplied text. Do not save or close it.",
+      "objective": "Replace the body of this temporary TextEdit document with the supplied text. Do not save or close it.",
+      "scope": "textedit-0",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "fill"
+      ],
+      "inputs": [
+        {
+          "key": "body",
+          "purpose": "the complete document body",
+          "value": "Tank AX / Jev\n中文验证 0\n"
+        }
+      ],
+      "completion": [
+        {
+          "key": "ax:value:document",
+          "value": "Tank AX / Jev\n中文验证 0\n"
+        }
+      ],
+      "constraints": [
+        "Operate only this bound application window; do not change modes or memory."
+      ]
+    },
+    "textedit-1": {
+      "schema_version": 2,
+      "goal_id": "textedit-1",
+      "intent": "Replace the body of this temporary TextEdit document with the supplied text. Do not save or close it.",
+      "objective": "Replace the body of this temporary TextEdit document with the supplied text. Do not save or close it.",
+      "scope": "textedit-1",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "fill"
+      ],
+      "inputs": [
+        {
+          "key": "body",
+          "purpose": "the complete document body",
+          "value": "Tank AX / Jev\n中文验证 1\n"
+        }
+      ],
+      "completion": [
+        {
+          "key": "ax:value:document",
+          "value": "Tank AX / Jev\n中文验证 1\n"
+        }
+      ],
+      "constraints": [
+        "Operate only this bound application window; do not change modes or memory."
+      ]
+    },
+    "textedit-2": {
+      "schema_version": 2,
+      "goal_id": "textedit-2",
+      "intent": "Replace the body of this temporary TextEdit document with the supplied text. Do not save or close it.",
+      "objective": "Replace the body of this temporary TextEdit document with the supplied text. Do not save or close it.",
+      "scope": "textedit-2",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "fill"
+      ],
+      "inputs": [
+        {
+          "key": "body",
+          "purpose": "the complete document body",
+          "value": "Tank AX / Jev\n中文验证 2\n"
+        }
+      ],
+      "completion": [
+        {
+          "key": "ax:value:document",
+          "value": "Tank AX / Jev\n中文验证 2\n"
+        }
+      ],
+      "constraints": [
+        "Operate only this bound application window; do not change modes or memory."
+      ]
+    }
+  },
+  "scope": "new owned Calculator and temporary TextEdit documents, main display only",
+  "setup": "fresh process; Calculator All Clear; optional window move before observation",
+  "acceptance": "all nine goals independently verified, at least one model-selected native action per trial, cleanup confirmed",
+  "stop_policy": "stop on any failed/unknown outcome, unknown usage or cleanup; retain all planned rows",
+  "source_sha256": {
+    "benchmarks/computer_use/s4_ax.py": "afff09e5fa6570e76e6ab402ae2a0da24ca513b425167e20e5d50dd5d73f68e2",
+    "plugins/agent-computer-use/plugin.yaml": "dc3d4358cdfeabf3afe9e6ccfb97837af067e3bce8ef09186458be847911b4a3",
+    "plugins/agent-computer-use/src/agent_computer_use/action_builder.py": "b082d45d2dfa43dd0ed9c233eb300940f1e05a4ec78929f0a5bed1aa5bb5bc61",
+    "plugins/agent-computer-use/src/agent_computer_use/contracts.py": "75c4ed1c4469c7a312bab0a3b7c00b5d3812dfc7d6134a329e3b284589025495",
+    "plugins/agent-computer-use/src/agent_computer_use/controller.py": "6d6aa5c8534a7e5416b88d6ca3340f0c789e5f267c2013e78026697538929caf",
+    "plugins/agent-computer-use/src/agent_computer_use/factory.py": "65cd2f8f16b569f05208b500f6cba27d3591b83095479d46e6f3897299202915",
+    "plugins/agent-computer-use/src/agent_computer_use/observation.py": "37202a2f679783b0cef2b9b338ade564e3612819329a50355fa66e1eee6f1ae9",
+    "plugins/agent-computer-use/src/agent_computer_use/channels/native.py": "c3441250e078449d310a0fa87c57f3c496e2316327ee0f36fcf07823fdd8c528",
+    "core/src/tank_backend/tools/computer_ax.py": "5b0fe5988f7dbbeaeb4bb8abb5e7568dcd3fd40f71cc7882628aec9c6020c879",
+    "core/src/tank_backend/tools/computer_native.py": "9a34a28e234495eca7fccdb95562ce61c91caa0edd06f8aa222ea8e0c7cca3b8",
+    "core/src/tank_backend/tools/computer_use_macos.py": "fac5bf4347596589f06c70e8674768b16e8a65b7a52b76873fe3abae246d91ac",
+    "core/src/tank_backend/agents/subagent.py": "809df2ac1abd120c67eef05625889b5877cc5f81fe49f6a3c7b3201f7ebfd79a",
+    "core/src/tank_backend/agents/task_runtime.py": "2c8ee45c4ce70b154607ad526fb4bb2ff8566c973460ca6a8496291f6e849351",
+    "core/src/tank_backend/llm/decision_model.py": "2629383dfa8581bc9c542ae1f133e30c64ea776b615204ba41f7c4f98a2c2af2",
+    "core/src/tank_backend/llm/task_decision_model.py": "42c2886818e4d7e9dc28f7134ba352f3e41504edb5adaa5a7869ca945836453c",
+    "core/src/tank_backend/llm/model_call.py": "c7dbc87b75a60cbeb6d31ed790ad9877c5796ed28cf14a0f6b7f5e09bbd148a8",
+    "plugins/agent-computer-use/src/agent_computer_use/agent.py": "0dc2da689fdce2708c21b55aac38cbd20199cc05c3c56f9c5cfaf67e6deb1b11",
+    "plugins/agent-computer-use/src/agent_computer_use/jev.py": "1fa563ea8d24324561632dfe8dfa4052d983b7698af590dfb40f7d2a1c529de1",
+    "core/src/tank_backend/agents/runner.py": "bf5f9e6bb4712a64c86e067ad38481251485d7952b9f09f4d772a73932fa795e",
+    "core/src/tank_backend/agents/subagent_adapter.py": "0fe47094597ec91480f9f52fcf94c8e6b6123b7f0c27383578ac0b97f732e008",
+    "core/src/tank_backend/agents/task_resources.py": "b50a4950b87316d12c8c49bae8efc9645e145360b754921440546cc7b48c6cbd",
+    "core/src/tank_backend/llm/decision_profile.py": "2892d3a2e37930df599efc4ea82e37a0736daeb8a18e65cc87498f1cf0dae38b",
+    "benchmarks/computer_use/jev_smoke.py": "7aeae7ab63a4e13b4f283a343207b562c23d0daa6217e7fef4789b396a66f29c"
+  },
+  "sha256": "d51fe70491947f1b56d8aaaedf3f1ea15953dfd021c0cdadcb2956b44752662c"
+}

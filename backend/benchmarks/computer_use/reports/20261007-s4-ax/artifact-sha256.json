@@ -37,5 +37,9 @@
   "live/freeze.json": "ab5c2688c5ab25ef062f39adf7a556ec092e4b537ed41a59d354cd218ff93983",
   "live/result.json": "33ed153ea797f1337d8a15028807b355cb94562d456aeb7c03837c23e4a090cc",
   "live/spend.jsonl": "1fa53060a32af51ee41086a4d4909c182744b522b4d1e14f386e126ab227cc4b",
-  "live/started.json": "0b9f7141334f69308b5c3049bd9ef4c484caaaa17be5d13dbed9369f906e9141"
+  "live/started.json": "0b9f7141334f69308b5c3049bd9ef4c484caaaa17be5d13dbed9369f906e9141",
+  "live-r2/spend.jsonl": "23aa0bd6f811d4475013e8530b70d13e3bdcc0ce914582579a4785c642695a26",
+  "live-r2/result.json": "3542500fcb58025aed8ff2a92dc24aaf0e9e5838f9ccc93dde3583871af4cea3",
+  "live-r2/started.json": "0b9f7141334f69308b5c3049bd9ef4c484caaaa17be5d13dbed9369f906e9141",
+  "live-r2/freeze.json": "ab5c2688c5ab25ef062f39adf7a556ec092e4b537ed41a59d354cd218ff93983"
 }

@@ -2,7 +2,8 @@
 
 2026-10-07. Implementation and controlled native-app validation passed. After specific
 user continuation, the frozen real Jev batch ran and **stopped on its first case**:
-0 passed, 1 failed, 8 not run. S4-AX acceptance remains incomplete.
+0 passed, 1 failed, 8 not run. A second user-requested batch reproduced the model-call
+failure, with all cleanup checks confirmed this time. S4-AX acceptance remains incomplete.
 
 ## Frozen final recipe
 
@@ -118,3 +119,29 @@ clarified the prior approval block as historical; no unresolved record finding r
 This concluding documentation edit was self-checked. Docs consistency and diff checks
 passed. No implementation-review round is reopened, and real-model acceptance remains
 incomplete.
+
+## Second authorized real batch
+
+The user explicitly requested another run. [Second result](live-r2/result.json) uses the
+same frozen recipe/source digest, in a separate directory; the first batch is unchanged.
+Again **0 passed / 1 failed / 8 not run**: the first Calculator AXPress case stopped at
+`backend_error`, with one admitted/captured model call, no successful response and no
+task-action receipt. Independent Calculator result remained `0`. Wire sends/provider
+receipt count and root cause remain unestablished by the available capture.
+
+This time runtime and application cleanup both confirmed: window position and original
+foreground restored, and a subsequent read-only PID check found the owned process gone.
+This does not retroactively change the first batch's unconfirmed foreground restoration.
+
+The ledger again stopped at `unknown_usage`, retaining 131,072 tokens / $0.002752512
+as the conservative reservation for this batch. Actual provider usage/cost is unknown;
+across both batches the retained reservations total $0.005505024, not known spend.
+No further trial or diagnostic model request was run. Source, prompts and limits were
+unchanged; full code checks are reused from the implementation.
+
+Second-batch record review (round 1, review-and-refactor) found no actionable issue.
+All 43 artifact hashes and the four second-batch raw copies were verified, together
+with the failed/not-run denominator, unknown-cost reservation and cleanup results.
+A credential-pattern scan found no matches in the new raw artifacts. No source or
+raw evidence was changed. This closing review note was self-checked; docs consistency
+and diff checks passed. Real-model acceptance remains incomplete.
