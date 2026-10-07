@@ -624,7 +624,7 @@ AX 独立分支）均不支持切换默认，详见
 [agent-computer-use](../../backend/plugins/agent-computer-use/README.md) 通过既有
 `type: subagent` extension 接缝接入，不在 Runner 或 GroundingConfig 新增策略分支。
 插件内实现严格目标输入、click/fill 有限候选、规则/注入选择器/Advisor 路由、引用门控、
-逐里程碑事实核验和有界只读协调。Advisor 仅补未绑定输入或选择当前候选；
+逐动作效果/最终目标核验和有界只读协调。当前统一使用下文目标契约；Advisor 注入接口仅补已声明的缺失输入或选择当前候选；
 未知派发不会重放，结果保留观察绑定回执及核验来源，取消证据随通用清理链路保留。
 
 当前空配置工厂没有真实通道，返回 `stopped / observation_unavailable`；未知配置项拒绝。
@@ -764,8 +764,8 @@ registers only its SubAgent; no `model_route` extension remains. UI evidence and
 whole-action candidate construction stay in the plugin; core decisions have no
 computer-operation knowledge. See [core model assembly](agent-orchestration.md#core-decision-model-assembly-sdk-call-contract-2026-10-05).
 
-The schema-v1 compatibility path retains milestones with predeclared click/fill and
-bound inputs, exact-label rules, Jev choice and opt-in same-candidate F fallback.
+The sole `GoalContract` uses schema version 2 and the goal-driven host loop.
+Version-1 input, Milestone and the compatibility execution path have been removed.
 The core SDK service preserves the four explicit non-action choices and hard-stop
 behavior. Goal-driven schema-v2 execution is described below; Advisor planning and core
 resume are not yet available. Production defaults and the historical S3 no-net-gain conclusion
@@ -776,7 +776,8 @@ remain unchanged; prior raw HTTP results do not establish SDK latency or savings
 
 显式 `schema_version: 2` 使用 goal_id、intent、objective、scope、authorization_ref、
 allowed_operations、带 purpose/field_scope 的 inputs 和 completion；不接受 milestones。
-授权引用使用 `current_task` 或匹配已有任务身份，不能新增权限。v1 继续使用原来的步骤执行与精确标签规则。
+授权引用使用 `current_task` 或匹配已有任务身份，不能新增权限。类名统一为
+`GoalContract`，不再保留旧类、转换兼容层、联合类型或里程碑循环。
 
 v2 根据当前 DOM 能力构造混合 click/fill；fill 只使用声明范围内的已给定输入，
 已核验输入绑定实际元素引用；引用包含文档实例身份，不因同名控件替换或 reload
@@ -785,10 +786,14 @@ v2 根据当前 DOM 能力构造混合 click/fill；fill 只使用声明范围�
 不按按钮名字猜副作用，不将任意页面变化或输入框内容视为保存成功。
 
 Jev/F 接收同一目标、当前快照、完整动作描述与宿主进度。v2 不沿用“单一同名按钮即执行”
-规则；引用和授权仍由宿主核查。模型选完整动作，不能覆盖参数。动作后重新观察：fill
+规则。仅有一个显式字段绑定 fill 时可直接执行；即使输入已核验且只有一个原生
+form submit，也不能证明提交意图，仍须走配置的选择器。引用和授权仍由宿主核查。模型选完整动作，不能覆盖参数。动作后重新观察：fill
 核验相同原生引用的值，click 核验已绑定效果；未核验时只读协调，不能重放。
 模型自称完成不产生终态。重复语义状态会停止，观察代次变化不算进展。
 
 真实受控 Chromium/Runner/SDK 的 fake-HTTP 测试覆盖两种布局与中间页，并独立检查
 fixture 服务端结果。仅此测试中的回执有受控服务端语义；任意页面 status 文本不构成
-外部业务系统真实性证明。核心恢复、Advisor 补充、视觉和真实模型 pilot 尚未验收。
+外部业务系统真实性证明。核心恢复、生产 Advisor、视觉和真实模型 pilot 尚未验收。已有注入 Advisor 的缺参
+补充已迁入统一循环；仅能填充已声明且为空的输入，更新版本但不重置进度或用量。
+旧 schema-v1 输入被明确拒绝。当前可执行 benchmark 使用新的目标契约 revision；
+历史 S3 报告未重写，新请求/候选不能被当作历史实验的原样复现。

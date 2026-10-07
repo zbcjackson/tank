@@ -2,7 +2,7 @@
 
 This opt-in `type: subagent` plugin uses the existing Runner/Adapter lifecycle.
 It does not change the production computer-use agent or grounding modes.
-The default factory currently has **no live channel or model transport**: a valid v1
+The default factory currently has **no live channel or model transport**: a valid
 goal returns `stopped / observation_unavailable`, with zero desktop/model calls.
 Unknown private configuration keys are rejected. S1 provides injectable AX/OCR
 observations; S2 adds explicitly configured managed Chromium. Native desktop
@@ -19,49 +19,34 @@ never closes the borrowed runtime. A closed plugin cannot run again. `TaskResour
 releases after one fails and shares the outcome across repeated close calls.
 Unconfirmed cleanup quarantines the desktop. Cancellation retains journaled effects.
 
-## Version-1 compatibility contract
+## Current contract
 
-`task_input` is a version-1 goal with `objective`, one bound `scope`, `inputs`
-(key/value strings), ordered semantic `milestones`, and `completion` predicates.
-Each milestone declares an ID, click/fill operation, role, label, fill input key
-when applicable, and a key/value postcondition. These are semantic objectives,
-not coordinates or native handles. Duplicate IDs and unknown fields are rejected.
-The host assigns goal/action/candidate IDs and binds decisions to the goal
-version, observation, scope, generation and candidate set.
+`GoalContract` is the sole task input model, with `schema_version: 2`. It contains
+intent/objective, goal identity and scope, the current task's authorization reference,
+allowed operations, purpose-tagged inputs, optional outcomes/dependencies and completion
+predicates. Version 1 and `milestones` are rejected; there is no legacy alias, converter,
+separate parser or step-execution loop. See the example below.
 
-The initial evaluator compares facts supplied by the trusted observation adapter.
-Missing evidence never establishes completion. Actual file provenance, overwrite
-protection and application-specific evidence are **not**
-implemented by these offline fixtures and must be established by future adapters.
-The PDF fixture's `new_pdf=verified` is synthetic evidence, not a filesystem check.
+The host builds complete click/fill candidates from the current observation and supplied
+inputs. A single fill explicitly bound by its declared field label can use rules. Even a
+single native form submit requires semantic selection: satisfied inputs do not prove its intent. Button-name
+uniqueness alone does not prove action intent. Otherwise an explicitly configured selector
+chooses a whole candidate. Parameters, native references, scope and observation bindings
+remain host-owned. Missing evidence never establishes completion.
 
-Exact unique actionable controls use rules. Non-exact role-compatible candidates
-may use an injected selector; duplicate exact labels, incomplete scopes, missing
-inputs, disabled controls and OCR text regions cannot bypass candidate admission.
-Advisor can supply only previously unbound declared inputs, select one existing
-candidate, request another observation, or return unable/needs-user-input. It
-cannot change scope, completion criteria, existing inputs or permissions. This
-batch does not support natural-language goal synthesis or milestone patches.
+The injected Advisor seam may supplement only existing inputs whose value is absent,
+choose an offered candidate, request observation, or report unable/needs-user-input.
+Validated supplementation increments goal version while retaining authority, progress and
+usage. It cannot replace existing values, remove completion conditions or widen scope.
+This is not a production planning/visual Advisor or natural-language contract generator.
 
-Core `TaskRuntime` registers the observation and dispatch adapters, retains bounded
-call records bound to the worker task ID, and rechecks authority after asynchronous
-preflight and before dispatch. Native parameter/reference validation remains in
-the adapter. There is no generic resume or live policy/OS isolation claim.
-
-Limits are task-local: 32 admitted action attempts (including rejected preflights,
-also bounded by host `max_steps`), 64 observations, four Advisor calls, two
-readbacks per unresolved effect. The
-same semantic state is not resubmitted to the selector after abstention. Every
-awaited boundary is followed by an authorization/cancellation/deadline/budget
-check before dispatch. Native adapters must also check at their actual dispatch
-boundary. Sent/unknown effects are journaled before awaiting a reply, verified
-with reads, and never automatically retried. Partial/unknown/needs_input/stopped
-remain distinct. Reusing a controller is rejected; generic resume is not implemented.
-
-Selector/Advisor remain injection seams. The cross-caller acceptance suite runs
-an Advisor fixture through the host TaskModel and real SDK with fake HTTP, sharing
-authority, accounting and audit. This establishes the S0 core connection, not a
-live Advisor/Jev implementation. Unwired benchmark transports remain rejected.
+Core TaskRuntime retains task-bound execution records and rechecks authority after async
+preflight. Limits remain 32 action attempts, 64 observations and four Advisor calls;
+unresolved effects permit up to three readbacks with short waits, never blind replay.
+Repeated semantic state stops even with a fresh observation ID. Verified actions and
+outcomes, native input bindings, receipts and pending effects are retained in progress.
+Generic task resume is not implemented. The PDF fixture is synthetic and does not prove
+filesystem output or overwrite protection.
 
 ## Tests
 
@@ -109,7 +94,7 @@ uv run --no-sync playwright install chromium
 TANK_REQUIRE_CHROMIUM=1 uv run --no-sync pytest plugins/agent-computer-use/tests/test_dom.py -q
 ```
 
-Configure the existing extension explicitly (no model profile is needed):
+Configure the existing browser extension explicitly (the channel itself needs no model profile):
 
 ```yaml
 subagents:
@@ -120,6 +105,9 @@ subagents:
         url: http://127.0.0.1:8080/form
         # frame_name: editor  # optional unique leaf frame
 ```
+
+Without a configured selector, only an explicitly bound fill can run; a later submit stops
+with partial progress. Configure Jev or F below to complete tasks that require click selection.
 
 The extension declares desktop and network permissions; the same task approval
 covers them. The factory only validates configuration and creates inert adapters.
@@ -241,7 +229,7 @@ failure/unknown usage and writes synthetic-only wire evidence and its spend jour
 ### Selector evidence contract (version 1)
 
 The Jev request now carries `state.evidence_contract`. Goal inputs are task or
-Advisor declarations; milestone/completion predicates describe desired outcomes.
+Advisor declarations; outcome/completion predicates describe desired outcomes.
 Snapshot facts/elements are reports from the current observation channel, bound
 by the existing observation ID/scope/generation. They are not independent proof
 of backend business state. The contract does not add a business-evidence provider,
@@ -271,7 +259,7 @@ Author expected outcomes separately from model-visible inputs, review the proven
 of every fact, and freeze labels before viewing model responses. Any authored facts
 remain synthetic; real integration acceptance separately requires channel/API evidence.
 
-Compare the previous selector prompt with this exact version-1 contract using the
+Compare the previous selector prompt with the current goal contract using the
 same model, candidates and host gates. Preserve the four production control options;
 score intended-action coverage, wrong targets, negative actions and refusal types
 separately. Include invalid/failed/not-run cases in denominators. Counterbalance order,
@@ -346,7 +334,7 @@ F borrows `context.runtime.model.complete`, receives the same semantic question 
 whole action candidates as Jev, and may only return one offered ID/control. It creates
 no client, tool loop, action arguments or new authority. Both calls use the original
 context/usage/deadline. Each selector invocation permits at most one Jev and one F;
-subsequent milestones return to normal host routing. Both refusing yields a controlled
+subsequent observations return to normal host routing. Both refusing yields a controlled
 stop; unavailable candidates/parameters remain outside this bounded selector's domain.
 Unknown usage, invalid replies, revocation, cancellation and other hard stops propagate
 without fallback. Stage/choice events expose routing without credentials.
@@ -369,9 +357,9 @@ for historical replay semantics. Core never imports it.
 Existing report directories and frozen digests are unchanged. A changed source
 recipe requires a new freeze; use the recorded historical Git revision to reproduce
 an old recipe. Old raw HTTP timing is not SDK timing. No new paid batch is needed
-for the migration's fake-HTTP/Chromium acceptance. Candidate generation, milestone
-schema v1, rule matching, four control results and explicit F fallback are unchanged;
-S4 has not started.
+for the migration's fake-HTTP/Chromium acceptance. That S3-M migration preserved the then-current milestone contract. The subsequent
+2026-10-07 goal unification removes that production path; current benchmark fixtures
+use new goal-contract revisions, while archived results remain unchanged.
 
 
 ### SDK call simplification (2026-10-05)
@@ -382,8 +370,8 @@ Raw historical replays use a small experiment-only HTTP client and explicit admi
 audit, without importing production route/transport machinery. Strict byte-level
 protocol checks and three-phase wire audit are no longer production guarantees.
 Historical artifacts are unchanged and require their recorded revision to reproduce.
-The refactor does not change candidate generation, milestone v1 or F routing; S4
-is not started.
+That model-call refactor did not change the then-current candidate generation or
+F routing. The later goal-contract migration is a separate behavior change.
 
 
 Current experiment events are `model_request` / `model_response`, with
@@ -432,7 +420,7 @@ code is executed. Textual constraints remain model context, not an arbitrary pol
 language; scope, types, references and admitted capabilities are host-checked.
 
 Each model question contains the current goal, snapshot, complete mixed actions,
-input source keys, ancestors/current values and host progress. V2 never executes a
+input source keys, ancestors/current values and host progress. The host never executes a
 button merely because its label is unique. More than 32 candidates or indistinguishable
 candidates are rejected. A fresh observation follows each action; unverified effects
 get at most three reads with short waits, then return unknown without replay. Repeated
@@ -450,3 +438,15 @@ single save across two layouts and a normal intermediate page. This does not est
 real model competence, arbitrary-site support or authenticity of external business
 receipts. Core same-process resume, Advisor supplementation/contract synthesis and
 full S4 boundary acceptance remain pending. Production defaults are unchanged.
+
+
+### Goal-contract migration and benchmark revisions (2026-10-07)
+
+All executable callers use the sole `GoalContract`; no in-tree runtime v1 adapter is kept.
+Existing reports retain their original evidence and digests. Current replay, holdout, DOM
+and strategy inputs have new goal-contract revisions and must be frozen again before a
+new authorized run. DOM runs read `fixtures/s3-dom/cases.json`, not goals extracted from
+archived reports. Added public effect templates are synthetic fixture evidence, independent
+of scoring labels; their resulting candidates and call counts are not the old S3 baseline.
+The new replay revisions admit 72 model requests; the paired strategy recipe caps 81,
+with per-task decision ceilings in its frozen cases. No new paid comparison was run.
