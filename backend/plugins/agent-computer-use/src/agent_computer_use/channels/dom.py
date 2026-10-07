@@ -44,6 +44,10 @@ class DOMElement(BaseModel):
     enabled: bool
     editable: bool
     focused: bool
+    ancestors: tuple[tuple[str, str], ...] = ()
+    click_effect: tuple[Fact, ...] = ()
+    submits: bool = False
+    input_type: str = "text"
 
 
 class DOMView(BaseModel):
@@ -77,6 +81,10 @@ _READ = r"""nodes => {
     let complete = nodes.length <= 4096;
     const elements = [];
     const text = value => (value || '').replace(/\s+/g, ' ').trim();
+    const name = node => text((node.getAttribute('aria-labelledby') || '').split(/\s+/)
+            .map(id => document.getElementById(id)?.textContent || '').join(' ') ||
+        node.getAttribute('aria-label'));
+    const regions = nodes.filter(n => n.matches('form, dialog, [role="region"], [role="dialog"]') && name(n));
     for (const node of nodes.slice(0, 4096)) {
         if (node.shadowRoot) complete = false;
         const tag = node.tagName.toLowerCase();
@@ -84,7 +92,7 @@ _READ = r"""nodes => {
             input: ['button', 'submit', 'reset'].includes(node.type) ? 'button' :
                 ['text', 'search', 'email', 'url', 'tel', 'password'].includes(node.type) ?
                 'textbox' : '', a: node.hasAttribute('href') ? 'link' : '',
-            output: 'status'}[tag] || '');
+            output: 'status', form: name(node) ? 'region' : '', dialog: 'dialog'}[tag] || '');
         if (!role) continue;
         const style = getComputedStyle(node);
         if (!node.getClientRects().length || style.visibility === 'hidden' ||
@@ -95,6 +103,20 @@ _READ = r"""nodes => {
             [...(node.labels || [])].map(e => e.textContent).join(' ') ||
             (tag === 'input' && role === 'button' ? node.value : node.textContent));
         const value = role === 'textbox' ? node.value ?? node.textContent : node.textContent;
+        const ancestors = [];
+        for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+            if (name(parent)) ancestors.push([parent.tagName.toLowerCase(), name(parent)]);
+        }
+        if (ancestors.length > 8 || ancestors.some(a => a[1].length > 256)) complete = false;
+        const controlled = (node.getAttribute('aria-controls') || '').trim();
+        const target = controlled && document.getElementById(controlled);
+        const targetName = target && name(target);
+        const targetRole = target && (target.getAttribute('role') ||
+            (target.tagName.toLowerCase() === 'dialog' ? 'dialog' : 'region'));
+        const click_effect = targetName && targetName.length <= 113 &&
+            ['region', 'dialog'].includes(targetRole) &&
+            regions.filter(r => name(r) === targetName).length === 1 && regions.includes(target) ?
+            [{key: 'visible:' + targetRole + ':' + targetName, value: 'true'}] : [];
         if (label.length > 512 || (value || '').length > 4096 || role.length > 128)
             complete = false;
         if (!state.ids.has(node)) state.ids.set(node, PREFIX + (++state.next));
@@ -105,7 +127,10 @@ _READ = r"""nodes => {
             enabled: !node.matches(':disabled') && node.getAttribute('aria-disabled') !== 'true',
             editable: role === 'textbox' && !node.readOnly &&
                 (tag === 'input' || tag === 'textarea' || node.isContentEditable),
-            focused: document.activeElement === node});
+            focused: document.activeElement === node,
+            ancestors: ancestors.slice(0, 8).map(a => [a[0], a[1].slice(0, 256)]), click_effect,
+            submits: !!node.form && node.type === 'submit',
+            input_type: tag === 'input' ? node.type : 'text'});
         if (elements.length >= 256) { complete = false; break; }
     }
     return {elements, complete, revision: state.revision};
@@ -249,11 +274,17 @@ class ManagedChromiumChannel:
                 actions = ("fill",)
             elements.append(Element(item.ref, item.role, item.label, actions, item.enabled,
                                     "control" if actions else "text_region", "dom",
-                                    item.value, item.focused))
+                                    item.value, item.focused, item.ancestors,
+                                    click_effect=item.click_effect, submits=item.submits,
+                                    input_type=item.input_type))
         keys = Counter(f"{item.role}:{item.label}" for item in view.elements)
         facts = tuple(Fact(key=key, value=item.value) for item in view.elements
                       if item.label and len(key := f"{item.role}:{item.label}") <= 128
                       and keys[key] == 1)
+        facts += tuple(Fact(key=f"visible:{item.role}:{item.label}", value="true")
+                       for item in view.elements if item.role in {"region", "dialog"}
+                       and item.label and len(f"visible:{item.role}:{item.label}") <= 128
+                       and keys[f"{item.role}:{item.label}"] == 1)
         self.generation += 1
         snapshot = Snapshot(uuid4().hex, scope, self.generation, tuple(elements), facts,
                             complete=view.complete)

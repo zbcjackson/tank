@@ -7,7 +7,9 @@ from typing import Literal, cast
 
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 
-from .contracts import ActionSet, DecisionResult, GoalContract, Snapshot, snapshot_json
+from .contracts import (
+    ActionSet, DecisionResult, GoalContract, GoalContractV2, GoalProgress, Snapshot, snapshot_json,
+)
 
 Control = Literal["none", "ambiguous", "need_more_context", "escalate"]
 CONTROLS: dict[Control, str] = {
@@ -18,7 +20,7 @@ CONTROLS: dict[Control, str] = {
 }
 
 
-def check_eligible(goal: GoalContract, snapshot: Snapshot, actions: ActionSet) -> None:
+def check_eligible(goal: GoalContract | GoalContractV2, snapshot: Snapshot, actions: ActionSet) -> None:
     binding = actions.binding
     if (not snapshot.ready or not snapshot.complete or actions.truncated or not actions.actions
             or actions.reason != "jev_eligible" or snapshot.scope != goal.scope
@@ -28,7 +30,7 @@ def check_eligible(goal: GoalContract, snapshot: Snapshot, actions: ActionSet) -
 
 
 class JevSelector:
-    async def choose(self, goal: GoalContract, snapshot: Snapshot, actions: ActionSet,
+    async def choose(self, goal: GoalContract | GoalContractV2, snapshot: Snapshot, actions: ActionSet,
                      context: SubAgentContext) -> DecisionResult:
         context.check("desktop")
         check_eligible(goal, snapshot, actions)
@@ -49,14 +51,21 @@ class JevSelector:
 
 
 def decision_question(
-    goal: GoalContract, snapshot: Snapshot, actions: ActionSet,
+    goal: GoalContract | GoalContractV2, snapshot: Snapshot, actions: ActionSet,
 ) -> dict[str, object]:
     """Same semantic question for native Choice and governed text selection."""
     criteria: dict[str, object] = {
         action.id: asdict(action) for action in actions.actions
     }
+    if isinstance(goal, GoalContractV2):
+        for detail in actions.details:
+            action = next(item for item in actions.actions if item.id == detail.action_id)
+            criteria[action.id] = {
+                **asdict(action), **asdict(detail),
+                "effect": [item.model_dump(mode="json") for item in detail.effect],
+            }
     criteria.update((key, value) for key, value in CONTROLS.items())
-    return {
+    payload = {
         "state": {"goal": goal.model_dump(mode="json"), "snapshot": snapshot_json(snapshot),
                   "binding": asdict(actions.binding),
                   "evidence_contract": {
@@ -90,3 +99,6 @@ def decision_question(
             "criteria": criteria,
         }},
     }
+    if isinstance(goal, GoalContractV2):
+        payload["state"]["progress"] = asdict(actions.progress or GoalProgress())
+    return payload

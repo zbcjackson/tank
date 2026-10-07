@@ -5,6 +5,7 @@ import html as html_module
 import os
 from collections.abc import AsyncIterator
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -44,7 +45,43 @@ def multilayout_html(layout: str, scenario: str) -> str:
 
 
 @pytest.fixture
-async def site() -> AsyncIterator[str]:
+def profile_store() -> dict[str, str]:
+    return {"name": "Bob", "email": "unchanged@example.test", "saves": "0"}
+
+
+def profile_html(layout: str) -> str:
+    entry = "Personal info" if layout == "plain" else "Edit profile"
+    destination = "middle" if layout == "middle" else "profile"
+    intermediate = '''<section id="middle" role="region" aria-label="Account" hidden>
+      <button aria-controls="profile" onclick="middle.hidden=true;profile.hidden=false">Continue</button>
+    </section>'''
+    return f'''<!doctype html><meta charset="utf-8">
+    <section id="home" role="region" aria-label="Home">
+      <button aria-controls="{destination}" onclick="home.hidden=true;{destination}.hidden=false">{entry}</button>
+      <button aria-controls="notifications" onclick="home.hidden=true;notifications.hidden=false">Notifications</button>
+    </section>
+    <section id="notifications" role="region" aria-label="Notifications" hidden>Unrelated</section>
+    {intermediate if layout == "middle" else ''}
+    <form id="profile" aria-label="Profile" hidden style="{'margin:80px;width:400px' if layout != 'plain' else ''}"
+      onsubmit="event.preventDefault();saveName()">
+      <label>Public name<input id="publicName" value="Bob" oninput="save.disabled=false"></label>
+      <button type="button" aria-controls="home" onclick="profile.hidden=true;home.hidden=false">Back</button>
+      <button id="save" type="submit" disabled>Save</button>
+    </form>
+    <output aria-label="Saved name">Bob</output>
+    <output aria-label="Saved email">unchanged@example.test</output>
+    <script>
+    async function saveName() {{
+      const result = await (await fetch('/persist?name=' + encodeURIComponent(publicName.value))).json();
+      document.querySelector('[aria-label="Saved name"]').textContent=result.name;
+      document.querySelector('[aria-label="Saved email"]').textContent=result.email;
+      save.disabled=true;
+    }}
+    </script>'''
+
+
+@pytest.fixture
+async def site(profile_store: dict[str, str]) -> AsyncIterator[str]:
     html = b'''<label>Name <input id="name"></label>
         <button onclick="document.querySelector('[role=status]').textContent =
         document.querySelector('input').value">Save</button>
@@ -53,6 +90,15 @@ async def site() -> AsyncIterator[str]:
     async def respond(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         request = await reader.readuntil(b"\r\n\r\n")
         body = html
+        path = urlsplit(request.split(b" ", 2)[1].decode())
+        if path.path.startswith("/goal/"):
+            body = profile_html(path.path.rsplit("/", 1)[-1]).encode()
+        if path.path == "/persist":
+            import json
+
+            profile_store["name"] = parse_qs(path.query)["name"][0]
+            profile_store["saves"] = str(int(profile_store["saves"]) + 1)
+            body = json.dumps(profile_store).encode()
         if request.startswith(b"GET /multilayout/"):
             path = request.split(b" ", 2)[1].decode()
             _, _, layout, scenario = path.split("/")
@@ -128,6 +174,34 @@ async def test_managed_chromium_fill_click_readback(site: str, chromium_required
     finally:
         await agent.aclose()
         await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("region", ["form", "dialog", "section"])
+async def test_goal_dom_observes_form_and_navigation_evidence(channel, region: str) -> None:
+    browser, ctx = channel
+    page = browser.page
+    inner = "div" if region == "form" else "form"
+    await page.set_content(f'''
+        <span id="profileTitle">Profile</span>
+        <button aria-controls="profile" onclick="profile.hidden=false">Personal info</button>
+        <{region} id="profile" aria-label="Wrong" aria-labelledby="profileTitle" hidden
+          {'open' if region == 'dialog' else 'role="region"' if region == 'section' else ''}>
+          <{inner} aria-label="Editor">
+          <label>Public name<input value="Bob"></label><button type="submit">Save</button>
+          </{inner}>
+        </{region}>''')
+    snapshot = await browser.observe("managed-page", ctx)
+    navigation = next(e for e in snapshot.elements if e.label == "Personal info")
+    key = "visible:dialog:Profile" if region == "dialog" else "visible:region:Profile"
+    assert navigation.click_effect[0].key == key
+    await page.get_by_role("button", name="Personal info").click()
+    snapshot = await browser.observe("managed-page", ctx)
+    assert any(f.key == key and f.value == "true" for f in snapshot.facts)
+    assert any(f.key == key.removeprefix("visible:") and "Save" in f.value
+               for f in snapshot.facts)
+    field = next(e for e in snapshot.elements if e.role == "textbox")
+    assert (region, "Profile") in field.ancestors
+    assert next(e for e in snapshot.elements if e.label == "Save").submits
 
 
 @pytest.fixture
@@ -535,6 +609,116 @@ Save name.
     assert len(results) == 1 and results[0]["status"] == "completed", outputs
     assert results[0]["cleanup"] == "confirmed"
     assert len(sent) == 1 and closed == [True]
+    assert not any(record.category == "model" for record in audits)
+    assert any(record.operation == "computer_use.dispatch" for record in audits)
+    assert "never-in-plugin-config" not in repr(outputs) + repr(audits)
+
+
+@pytest.mark.parametrize("layout", ["plain", "offset", "middle"])
+async def test_goal_runner_sdk_dom_saves_without_a_script(
+    site, chromium_required, monkeypatch, tmp_path, profile_store, layout,
+):
+    import json
+    from unittest.mock import MagicMock
+
+    import httpx
+
+    from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
+    from tank_backend.agents.definition import parse_agent_file
+    from tank_backend.agents.resources import DesktopResource
+    from tank_backend.agents.runner import AgentRunner
+    from tank_backend.config.app_config import AppConfig
+    from tank_backend.pipeline.bus import Bus
+    from tank_backend.plugin.manifest import read_manifest_from_yaml
+    from tank_backend.plugin.registry import ExtensionRegistry
+
+    sent, closed, audits = [], [], []
+    monkeypatch.setenv("TEST_JEV_KEY", "never-in-plugin-config")
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            data = json.loads(request.content)
+            sent.append(data)
+            assert request.headers["authorization"] == "Bearer never-in-plugin-config"
+            assert data["state"]["snapshot"]["facts"]
+            criteria = data["questions"]["next_action"]["criteria"]
+            options = {key: value for key, value in criteria.items() if isinstance(value, dict)}
+            fills = {key: value for key, value in options.items() if value["operation"] == "fill"}
+            if fills:
+                assert {v["operation"] for v in options.values()} == {"click", "fill"}
+                choice = next(iter(fills))
+            else:
+                choice = next(key for key, value in options.items()
+                              if value["label"] in {"Personal info", "Edit profile", "Continue", "Save"})
+            assert "milestones" not in data["state"]["goal"]
+            assert "progress" in data["state"]
+            return httpx.Response(200, json={"model": "jev-1.13.0", "answers": {
+                "next_action": {"type": "choice", "choice": choice, "confidence": 1,
+                                "probabilities": {key: int(key == choice) for key in criteria}},
+            }, "usage": {"input_tokens": 12, "output_tokens": 0}})
+
+        async def aclose(self):
+            closed.append(True)
+
+    async def audit(record):
+        audits.append(record)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    registry = ExtensionRegistry()
+    manifest = read_manifest_from_yaml(Path(__file__).parents[1] / "plugin.yaml")
+    for extension in manifest.extensions:
+        registry.register(manifest.plugin_name, extension)
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(f'''llm:
+  default:
+    api_key: unused
+    model: unused
+    base_url: https://offline.invalid/v1
+decision_models:
+  decision:
+    url: https://offline.invalid/v1/systemone
+    model: jev-1.13.0
+    credential_env: TEST_JEV_KEY
+subagents:
+  agent-computer-use:agent:
+    config:
+      browser:
+        scope: managed-page
+        url: {site}goal/{layout}
+      selector: jev
+''')
+    definition_path = tmp_path / "agent.md"
+    definition_path.write_text('''---
+name: ladder
+extension: agent-computer-use:agent
+decision-model: decision
+---
+Save name.
+''')
+    definition = parse_agent_file(definition_path)
+    runner = AgentRunner(
+        MagicMock(), MagicMock(), Bus(), ToolApprovalPolicy(computer_mode="allow"),
+        PendingToolCallStore(), {definition.name: definition}, registry=registry,
+        app_config=AppConfig.load(config_path), desktop_resource=DesktopResource(),
+    )
+    task_goal = {
+        "schema_version": 2, "goal_id": "name", "intent": "Save display name Ada; preserve email",
+        "objective": "Save display name Ada", "scope": "managed-page", "authorization_ref": "jev-dom",
+        "allowed_operations": ["click", "fill"],
+        "inputs": [{"key": "name", "purpose": "profile display name", "value": "Ada"}],
+        "completion": [{"key": "status:Saved name", "value": "Ada"},
+                       {"key": "status:Saved email", "value": "unchanged@example.test"}],
+    }
+    outputs = [output async for output in runner.run_agent(
+        definition, [], task_id="jev-dom", task_input=task_goal,
+        authorization=SubAgentAuthorization(frozenset({"desktop", "network"})), audit=audit,
+    )]
+    results = [out.metadata["task_result"] for out in outputs if "task_result" in out.metadata]
+    assert len(results) == 1 and results[0]["status"] == "completed", outputs
+    assert results[0]["cleanup"] == "confirmed"
+    assert len(sent) == (4 if layout == "middle" else 3) and closed == [True]
+    assert profile_store == {"name": "Ada", "email": "unchanged@example.test", "saves": "1"}
+    assert len(results[0]["details"]["progress"]["verified_actions"]) == len(sent)
     assert not any(record.category == "model" for record in audits)
     assert any(record.operation == "computer_use.dispatch" for record in audits)
     assert "never-in-plugin-config" not in repr(outputs) + repr(audits)

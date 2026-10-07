@@ -7,7 +7,7 @@ import json
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 from tank_backend.llm.model_data import json_object
 
-from .contracts import ActionSet, DecisionResult, GoalContract, Snapshot
+from .contracts import ActionSet, DecisionResult, GoalContract, GoalContractV2, Snapshot
 from .jev import CONTROLS, JevSelector, check_eligible, decision_question
 
 
@@ -23,7 +23,7 @@ class ModelSelector:
             raise SubAgentStopped("unknown_usage")
 
     async def choose(
-        self, goal: GoalContract, snapshot: Snapshot, actions: ActionSet,
+        self, goal: GoalContract | GoalContractV2, snapshot: Snapshot, actions: ActionSet,
         context: SubAgentContext,
     ) -> DecisionResult:
         self.check(context)

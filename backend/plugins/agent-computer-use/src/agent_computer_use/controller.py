@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import asdict, replace
 from typing import Protocol
 from uuid import uuid4
 
@@ -27,7 +28,10 @@ from .contracts import (
     DispatchReceipt,
     Fact,
     GoalContract,
+    GoalContractV2,
+    GoalProgress,
     Snapshot,
+    parse_goal,
 )
 
 
@@ -58,7 +62,7 @@ class ActionExecutor(Protocol):
 class Selector(Protocol):
     async def choose(
         self,
-        goal: GoalContract,
+        goal: GoalContract | GoalContractV2,
         snapshot: Snapshot,
         actions: ActionSet,
         context: SubAgentContext,
@@ -70,7 +74,7 @@ class Advisor(Protocol):
     async def assist(
         self,
         request: SubAgentRequest,
-        goal: GoalContract,
+        goal: GoalContract | GoalContractV2,
         snapshot: Snapshot,
         actions: ActionSet,
         context: SubAgentContext,
@@ -111,6 +115,8 @@ class ComputerUseController:
         self.observation_ids: set[str] = set()
         self.generation = -1
         self.advisor_calls = 0
+        self.progress = GoalProgress()
+        self.goal_driven = False
         self.started = False
         self.observation: TaskOperation[str, Snapshot] | None = None
         self.dispatch: TaskOperation[tuple[Binding, Action], DispatchReceipt] | None = None
@@ -118,7 +124,7 @@ class ComputerUseController:
     def result(self, status: TaskStatus, reason: str) -> TaskResult:
         if self.pending_effect:
             status = "unknown"
-        elif status == "stopped" and self.completed:
+        elif status == "stopped" and (self.completed or self.progress.verified_actions):
             status = "partial"
         return TaskResult(
             status=status,
@@ -143,10 +149,16 @@ class ComputerUseController:
                     for item, binding in zip(self.receipts, self.bindings, strict=True)
                 ],
                 "pending_effect": self.pending_effect,
+                "progress": {**asdict(self.progress),
+                             "verified_actions": list(self.progress.verified_actions),
+                             "verified_outcomes": list(self.progress.verified_outcomes),
+                             "input_bindings": [list(item) for item in self.progress.input_bindings]},
             },
         )
 
-    async def observe(self, goal: GoalContract, context: SubAgentContext) -> Snapshot:
+    async def observe(
+        self, goal: GoalContract | GoalContractV2, context: SubAgentContext,
+    ) -> Snapshot:
         assert self.observation is not None
         snapshot = await context.runtime.execute(self.observation, goal.scope)
         if snapshot.scope != goal.scope:
@@ -168,6 +180,8 @@ class ComputerUseController:
             self.bindings.append(binding)
             self.receipts.append(DispatchReceipt(action.id, "unknown"))
             self.pending_effect = True
+            if self.goal_driven:
+                self.progress = replace(self.progress, recent_action=action, pending_action=action)
             return await self.executor.dispatch(binding, action, context)
 
         self.observation = TaskOperation(
@@ -196,9 +210,15 @@ class ComputerUseController:
             if request.task_input is None:
                 return self.result("needs_input", "goal_contract_required")
             try:
-                goal = GoalContract.from_input(request.task_input)
+                goal = parse_goal(request.task_input)
             except (ValueError, ValidationError):
                 return self.result("needs_input", "invalid_goal_contract")
+            if isinstance(goal, GoalContractV2):
+                if goal.authorization_ref not in {"current_task", request.task_id}:
+                    raise SubAgentStopped("authorization_mismatch")
+                self.goal_driven = True
+                self.goal_id = goal.goal_id
+                return await self.goal_loop(request, goal, context)
             return await self.loop(request, goal, context)
         except asyncio.CancelledError as exc:
             raise SubAgentCancelled(self.result("stopped", "cancelled")) from exc
@@ -210,6 +230,83 @@ class ComputerUseController:
             # Preserve a possibly sent action even if a channel raises before returning a receipt.
             context.observe("computer_use_error", error_type=type(exc).__name__)
             return self.result("stopped", "backend_error")
+
+    async def goal_loop(
+        self, request: SubAgentRequest, goal: GoalContractV2, context: SubAgentContext,
+    ) -> TaskResult:
+        if any(not fact.key.startswith("status:") for fact in goal.completion):
+            return self.result("needs_input", "unsupported_completion_evidence")
+        snapshot = await self.observe(goal, context)
+        visited: set[tuple[object, ...]] = set()
+        while True:
+            context.check("desktop")
+            outcomes: set[str] = set()
+            for _ in goal.outcomes:
+                for item in goal.outcomes:
+                    if set(item.depends_on) <= outcomes and achieved(snapshot, item.conditions):
+                        outcomes.add(item.id)
+            self.progress = replace(self.progress, verified_outcomes=tuple(sorted(outcomes)))
+            if achieved(snapshot, goal.completion) and len(outcomes) == len(goal.outcomes):
+                self.evidence.append({"observation_id": snapshot.observation_id,
+                                      "goal_version": self.version,
+                                      "completion": [item.key for item in goal.completion]})
+                return self.result("completed", "goal_verified")
+            state = (
+                tuple((e.role, e.label, e.ancestors, e.value, e.enabled, e.actions)
+                      for e in snapshot.elements), snapshot.facts,
+            )
+            if state in visited:
+                self.progress = replace(self.progress, no_progress=self.progress.no_progress + 1)
+                return self.result("stopped", "no_progress")
+            visited.add(state)
+            actions = replace(ActionBuilder().build_goal(self.goal_id, self.version, goal, snapshot,
+                                                        self.progress),
+                              progress=self.progress)
+            if actions.reason != "jev_eligible" or self.selector is None:
+                return self.result("needs_input" if actions.reason == "missing_parameters"
+                                   else "stopped", actions.reason)
+            decision = await self.selector.choose(goal, snapshot, actions, context)
+            context.check("desktop")
+            if decision.binding != actions.binding:
+                raise SubAgentStopped("stale_decision")
+            if decision.choice != "candidate":
+                return self.result("stopped", "selection_unresolved")
+            action = self.candidate(actions, decision.candidate_id)
+            detail = next(item for item in actions.details if item.action_id == action.id)
+            assert self.dispatch is not None
+            receipt = await context.runtime.execute(self.dispatch, (actions.binding, action))
+            if receipt.action_id != action.id or receipt.status not in {"not_sent", "sent", "unknown"}:
+                raise SubAgentStopped("invalid_receipt")
+            self.receipts[-1] = receipt
+            if receipt.status == "not_sent":
+                self.pending_effect = False
+                self.progress = replace(self.progress, pending_action=None)
+                return self.result("stopped", "not_sent")
+            for attempt in range(3):
+                if attempt:
+                    await asyncio.sleep(0.05)
+                snapshot = await self.observe(goal, context)
+                verified = (
+                    snapshot.complete and snapshot.ready
+                    and any(e.ref == action.target_ref and e.value == action.value
+                            for e in snapshot.elements)
+                    if action.operation == "fill" else achieved(snapshot, detail.effect)
+                )
+                if verified:
+                    self.pending_effect = False
+                    inputs = dict(self.progress.input_bindings)
+                    if detail.input_key is not None:
+                        inputs[detail.input_key] = action.target_ref
+                    self.progress = replace(
+                        self.progress, pending_action=None,
+                        verified_actions=(*self.progress.verified_actions, action.id),
+                        input_bindings=tuple(inputs.items()),
+                    )
+                    self.evidence.append({"action_id": action.id,
+                                          "observation_id": snapshot.observation_id})
+                    break
+            if self.pending_effect:
+                return self.result("unknown", "effect_unknown")
 
     async def advise(
         self,

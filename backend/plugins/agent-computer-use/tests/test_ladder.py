@@ -1,9 +1,11 @@
 """Offline semantic fixtures: no desktop access or model requests."""
 
 import asyncio
+import json
 from dataclasses import replace
 
 import pytest
+from pydantic import JsonValue
 from agent_computer_use.action_builder import ActionBuilder
 from agent_computer_use.contracts import (
     AdvisorResult,
@@ -45,6 +47,225 @@ def export_goal() -> GoalContract:
             "completion": [{"key": "new_pdf", "value": "verified"}],
         }
     )
+
+
+def profile_goal() -> dict[str, JsonValue]:
+    return {
+        "schema_version": 2, "goal_id": "profile-name",
+        "intent": "把显示名称改为 Ada 并保存，其他资料不变",
+        "objective": "Save the display name Ada", "scope": "profile",
+        "authorization_ref": "task",
+        "allowed_operations": ["click", "fill"],
+        "constraints": ["Leave other profile fields unchanged"],
+        "inputs": [{"key": "name", "purpose": "profile display name", "value": "Ada",
+                    "field_scope": "Profile"}],
+        "completion": [{"key": "status:Saved name", "value": "Ada"}],
+    }
+
+
+def test_goal_v2_preserves_intent_without_an_operation_script() -> None:
+    from agent_computer_use.contracts import GoalContractV2, parse_goal
+
+    goal = parse_goal(profile_goal())
+    assert isinstance(goal, GoalContractV2)
+    assert goal.inputs[0].purpose == "profile display name"
+    assert goal.inputs[0].value == "Ada"
+    assert "milestones" not in goal.model_dump()
+    assert isinstance(parse_goal(export_goal().model_dump(mode="json")), GoalContract)
+    with pytest.raises(ValueError):
+        parse_goal({**profile_goal(), "schema_version": 1})
+    with pytest.raises(ValueError):
+        parse_goal({**profile_goal(), "schema_version": True})
+
+
+def test_goal_v2_does_not_require_a_page_specific_field_label_or_form_name() -> None:
+    from agent_computer_use.contracts import GoalContractV2, parse_goal
+
+    task = profile_goal()
+    task["inputs"] = [{"key": "name", "purpose": "display name", "value": "Ada"}]
+    goal = parse_goal(task)
+    assert isinstance(goal, GoalContractV2)
+    snapshot = Snapshot("obs", "profile", 1, (
+        Element("field", "textbox", "Public alias", ("fill",), value="Bob"),))
+    actions = ActionBuilder().build_goal("goal", 1, goal, snapshot)
+    assert [(a.target_ref, a.value) for a in actions.actions] == [("field", "Ada")]
+
+
+async def test_goal_v2_checks_evidence_and_authorization_before_completion() -> None:
+    class World(ExportWorld):
+        async def observe(self, scope, ctx):
+            self.observations += 1
+            return Snapshot("initial", scope, 1,
+                            facts=(Fact(key="status:Saved name", value="Ada"),))
+
+    for authorization, status, reason in (
+        ("task", "completed", "goal_verified"),
+        ("current_task", "completed", "goal_verified"),
+        ("other-task", "stopped", "authorization_mismatch"),
+    ):
+        world = World()
+        result = await ComputerUseController(world, world).run(
+            SubAgentRequest("Save name", "", "task",
+                            {**profile_goal(), "authorization_ref": authorization}), context(),
+        )
+        assert (result.status, result.reason) == (status, reason)
+        assert not world.dispatched
+        assert world.observations == (0 if authorization == "other-task" else 1)
+
+
+async def test_goal_v2_outcomes_cannot_be_ignored_by_completion() -> None:
+    class World(ExportWorld):
+        async def observe(self, scope, ctx):
+            return Snapshot("initial", scope, 1,
+                            facts=(Fact(key="status:Saved name", value="Ada"),))
+
+    world = World()
+    task = profile_goal()
+    task["outcomes"] = [{"id": "preserve_email", "conditions": [
+        {"key": "status:Email", "value": "unchanged@example.test"}]}]
+    result = await ComputerUseController(world, world).run(
+        SubAgentRequest("Save name", "", "task", task), context(),
+    )
+    assert (result.status, result.reason) == ("stopped", "no_viable_actions")
+    assert not world.dispatched
+
+
+async def test_goal_v2_preflight_rejection_has_no_pending_action() -> None:
+    class World(ExportWorld):
+        async def observe(self, scope, ctx):
+            return Snapshot("initial", scope, 1, (
+                Element("field", "textbox", "Name", ("fill",),
+                        ancestors=(("form", "Profile"),)),))
+
+        async def is_current(self, binding, action, ctx):
+            return False
+
+    world = World()
+    result = await ComputerUseController(world, world, selector=PickFirst()).run(
+        SubAgentRequest("Save name", "", "task", profile_goal()), context(),
+    )
+    assert result.reason == "stale_reference"
+    progress = result.details["progress"]
+    assert isinstance(progress, dict) and progress["pending_action"] is None
+    assert not world.dispatched
+
+
+def test_goal_candidates_mix_operations_and_bind_only_compatible_inputs() -> None:
+    from agent_computer_use.contracts import GoalContractV2, parse_goal
+
+    goal = parse_goal(profile_goal())
+    assert isinstance(goal, GoalContractV2)
+    snapshot = Snapshot("form", "profile", 1, (
+        Element("name", "textbox", "Public name", ("fill",), value="Bob",
+                ancestors=(("form", "Profile"),)),
+        Element("email", "textbox", "Email", ("fill",), value="private@example.test",
+                ancestors=(("form", "Notifications"),)),
+        Element("back", "button", "Back", ("click",),
+                click_effect=(Fact(key="region:Home", value="visible"),)),
+        Element("save", "button", "Save", ("click",), enabled=False),
+    ))
+    actions = ActionBuilder().build_goal("goal", 1, goal, snapshot)
+    assert actions.reason == "jev_eligible"
+    from agent_computer_use.jev import decision_question
+
+    question = json.loads(json.dumps(decision_question(goal, snapshot, actions)))
+    assert question["state"]["progress"]["pending_action"] is None
+    fill = next(a for a in actions.actions if a.operation == "fill")
+    option = question["questions"]["next_action"]["criteria"][fill.id]
+    assert option["label"] == "Public name"
+    assert option["input_key"] == "name"
+    assert option["current_value"] == "Bob"
+    assert {(a.target_ref, a.operation, a.value) for a in actions.actions} == {
+        ("name", "fill", "Ada"), ("back", "click", None),
+    }
+    snapshot = replace(snapshot, elements=(replace(snapshot.elements[0], value="Ada"),
+                                           *snapshot.elements[1:]))
+    assert [a.operation for a in ActionBuilder().build_goal("goal", 1, goal, snapshot).actions
+            ] == ["click"]
+
+
+@pytest.mark.parametrize("save_effect", ["saved", "field_only", "lost_reply", "not_sent"])
+async def test_goal_v2_selects_mixed_actions_and_verifies_save_separately(save_effect: str) -> None:
+    class World(ExportWorld):
+        async def observe(self, scope, ctx):
+            self.observations += 1
+            filled = any(a.operation == "fill" for a in self.dispatched)
+            saved = any(a.target_ref == "save" for a in self.dispatched)
+            return Snapshot(str(self.observations), scope, self.observations, (
+                Element("name", "textbox", "Public name", ("fill",),
+                        value="Ada" if filled else "Bob", ancestors=(("form", "Profile"),)),
+                Element("back", "button", "Back", ("click",),
+                        click_effect=(Fact(key="region:Home", value="visible"),)),
+                Element("save", "button", "Save", ("click",), enabled=filled, submits=True),
+            ), facts=(Fact(key="status:Saved name", value="Ada"),)
+                if saved and save_effect in {"saved", "lost_reply"} else ())
+
+        async def is_current(self, binding, action, ctx):
+            return binding.generation == self.observations
+
+        async def dispatch(self, binding, action, ctx):
+            self.dispatched.append(action)
+            return DispatchReceipt(action.id, "not_sent" if save_effect == "not_sent" else
+                                   "unknown" if save_effect == "lost_reply" else "sent")
+
+    class Select:
+        async def choose(self, goal, snapshot, actions, ctx):
+            target = "name" if not world.dispatched else "save"
+            if not world.dispatched:
+                assert {a.operation for a in actions.actions} == {"click", "fill"}
+            return DecisionResult(actions.binding, "candidate",
+                                  next(a.id for a in actions.actions if a.target_ref == target))
+
+    world = World()
+    result = await ComputerUseController(world, world, selector=Select()).run(
+        SubAgentRequest("Save name", "", "task", profile_goal()), context(),
+    )
+    progress = result.details["progress"]
+    assert isinstance(progress, dict)
+    verified = progress["verified_actions"]
+    assert isinstance(verified, list)
+    if save_effect == "not_sent":
+        assert (result.status, result.reason) == ("stopped", "not_sent")
+        assert len(world.dispatched) == 1
+    elif save_effect == "field_only":
+        assert (result.status, result.reason) == ("unknown", "effect_unknown")
+        assert [a.target_ref for a in world.dispatched] == ["name", "save"]
+        assert len(verified) == 1
+    else:
+        assert (result.status, result.reason) == ("completed", "goal_verified")
+        assert [a.target_ref for a in world.dispatched] == ["name", "save"]
+        assert len(verified) == 2
+
+
+def test_goal_builder_never_offers_premature_submit_or_truncated_candidates() -> None:
+    from agent_computer_use.contracts import GoalContractV2, parse_goal
+
+    goal = parse_goal(profile_goal())
+    assert isinstance(goal, GoalContractV2)
+    form = (Element("field", "textbox", "Name", ("fill",), value="Bob",
+                    ancestors=(("form", "Profile"),)),
+            Element("save", "button", "Save", ("click",), submits=True,
+                    ancestors=(("form", "Profile"),)))
+    snapshot = Snapshot("obs", "profile", 1, form)
+    actions = ActionBuilder().build_goal("goal", 1, goal, snapshot)
+    assert {a.operation for a in actions.actions} == {"fill"}
+    crowded = replace(snapshot, elements=tuple(replace(form[0], ref=str(i)) for i in range(33)))
+    actions = ActionBuilder().build_goal("goal", 1, goal, crowded)
+    assert actions.truncated and actions.actions == ()
+
+
+def test_goal_candidates_reject_incompatible_fields_and_indistinguishable_targets() -> None:
+    from agent_computer_use.contracts import GoalContractV2, parse_goal
+
+    goal = parse_goal(profile_goal())
+    assert isinstance(goal, GoalContractV2)
+    field = Element("field", "textbox", "Name", ("fill",),
+                    ancestors=(("form", "Profile"),))
+    snapshot = Snapshot("obs", "profile", 1, (replace(field, input_type="password"),))
+    assert ActionBuilder().build_goal("goal", 1, goal, snapshot).actions == ()
+    duplicate = replace(snapshot, elements=(field, replace(field, ref="other")))
+    actions = ActionBuilder().build_goal("goal", 1, goal, duplicate)
+    assert actions.reason == "ambiguous_target" and actions.actions == ()
 
 
 def test_known_input_builds_a_complete_bound_action() -> None:

@@ -61,6 +61,6 @@ Feature: Chat mode
       | plugin   |
 
   @managed-chromium
-  Scenario: Managed Chromium preserves configuration, stop and bounded model fallback
+  Scenario: Managed Chromium preserves configuration, stop, fallback and goal-driven actions
     When the isolated managed Chromium contract is exercised
     Then the managed Chromium contract passes without paid model calls or personal browser access

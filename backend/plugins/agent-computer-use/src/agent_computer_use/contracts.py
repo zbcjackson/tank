@@ -67,6 +67,76 @@ class GoalContract(GoalModel):
         return cls.model_validate_json(json.dumps(value, allow_nan=False))
 
 
+class GoalInput(GoalModel):
+    key: str = Field(min_length=1, max_length=128)
+    purpose: str = Field(min_length=1, max_length=512)
+    field_scope: str | None = Field(default=None, min_length=1, max_length=256)
+    field_label: str | None = Field(default=None, min_length=1, max_length=512)
+    value: str | None = Field(default=None, max_length=4096)
+    source: Literal["user", "generated"] = "user"
+    input_type: Literal["text", "email", "url", "tel", "search", "password"] = "text"
+
+
+class Outcome(GoalModel):
+    id: str = Field(min_length=1, max_length=128)
+    conditions: tuple[Fact, ...] = Field(min_length=1, max_length=32)
+    depends_on: tuple[str, ...] = Field(default=(), max_length=32)
+
+
+class GoalContractV2(GoalModel):
+    """Desired outcomes and input purposes, never an ordered action script.
+
+    authorization_ref identifies the existing task grant; it cannot grant capabilities.
+    Completion currently supports channel facts only, not arbitrary verification code.
+    """
+
+    schema_version: Literal[2]
+    goal_id: str = Field(min_length=1, max_length=128)
+    intent: str = Field(min_length=1, max_length=4096)
+    objective: str = Field(min_length=1, max_length=4096)
+    scope: str = Field(min_length=1, max_length=256)
+    authorization_ref: str = Field(min_length=1, max_length=128)
+    allowed_operations: tuple[Operation, ...] = Field(min_length=1, max_length=2)
+    constraints: tuple[str, ...] = Field(default=(), max_length=32)
+    inputs: tuple[GoalInput, ...] = Field(default=(), max_length=32)
+    outcomes: tuple[Outcome, ...] = Field(default=(), max_length=32)
+    completion: tuple[Fact, ...] = Field(min_length=1, max_length=32)
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def validate_schema(cls, value: object) -> object:
+        if type(value) is not int:
+            raise ValueError("schema_version must be integer 2")
+        return value
+
+    @model_validator(mode="after")
+    def validate_identity(self) -> GoalContractV2:
+        for names in (
+            [item.key for item in self.inputs], [item.id for item in self.outcomes],
+            [item.key for item in self.completion], list(self.allowed_operations),
+        ):
+            if len(set(names)) != len(names):
+                raise ValueError("Duplicate goal identity")
+        # Resolve the bounded dependency graph without relying on declaration order.
+        remaining = {item.id: set(item.depends_on) for item in self.outcomes}
+        resolved: set[str] = set()
+        while remaining:
+            ready = {key for key, dependencies in remaining.items() if dependencies <= resolved}
+            if not ready:
+                raise ValueError("Unknown or cyclic outcome dependency")
+            resolved.update(ready)
+            remaining = {key: value for key, value in remaining.items() if key not in ready}
+        return self
+
+
+def parse_goal(value: object) -> GoalContract | GoalContractV2:
+    if not isinstance(value, dict) or type(value.get("schema_version")) is not int:
+        raise ValueError("An explicit integer schema_version is required")
+    if value["schema_version"] == 1:
+        return GoalContract.from_input(value)
+    return GoalContractV2.model_validate_json(json.dumps(value, allow_nan=False))
+
+
 @dataclass(frozen=True)
 class Element:
     ref: str
@@ -80,6 +150,9 @@ class Element:
     focused: bool | None = None
     ancestors: tuple[tuple[str, str], ...] = ()
     bounds: tuple[float, float, float, float] | None = None
+    click_effect: tuple[Fact, ...] = ()
+    submits: bool = False
+    input_type: str = "text"
 
 
 @dataclass(frozen=True)
@@ -125,6 +198,30 @@ class ActionSet:
     reason: str
     total_candidates: int = 0
     truncated: bool = False
+    details: tuple[ActionDetails, ...] = ()
+    progress: GoalProgress | None = None
+
+
+@dataclass(frozen=True)
+class ActionDetails:
+    action_id: str
+    role: str
+    label: str
+    ancestors: tuple[tuple[str, str], ...]
+    current_value: str
+    input_key: str | None
+    effect: tuple[Fact, ...] = ()
+
+
+@dataclass(frozen=True)
+class GoalProgress:
+    goal_version: int = 1
+    recent_action: Action | None = None
+    verified_actions: tuple[str, ...] = ()
+    pending_action: Action | None = None
+    no_progress: int = 0
+    input_bindings: tuple[tuple[str, str], ...] = ()
+    verified_outcomes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -151,7 +248,21 @@ class AdvisorResult:
 
 def snapshot_json(snapshot: Snapshot) -> dict[str, object]:
     """Serialize nested Pydantic facts as well as dataclass observation fields."""
-    return {**asdict(snapshot), "facts": [fact.model_dump(mode="json") for fact in snapshot.facts]}
+    elements = []
+    for element in snapshot.elements:
+        data = asdict(element)
+        # Preserve the v1 wire shape when no goal-driven capability was observed.
+        data.pop("click_effect")
+        data.pop("submits")
+        if element.input_type == "text":
+            data.pop("input_type")
+        if element.click_effect:
+            data["click_effect"] = [fact.model_dump(mode="json") for fact in element.click_effect]
+        if element.submits:
+            data["submits"] = True
+        elements.append(data)
+    return {**asdict(snapshot), "elements": elements,
+            "facts": [fact.model_dump(mode="json") for fact in snapshot.facts]}
 
 
 def snapshot_text(snapshot: Snapshot) -> str:
