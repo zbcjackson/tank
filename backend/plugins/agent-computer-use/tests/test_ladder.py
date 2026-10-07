@@ -184,7 +184,9 @@ def test_goal_candidates_mix_operations_and_bind_only_compatible_inputs() -> Non
             ] == ["click"]
 
 
-@pytest.mark.parametrize("save_effect", ["saved", "field_only", "lost_reply", "not_sent"])
+@pytest.mark.parametrize("save_effect", [
+    "saved", "field_only", "lost_reply", "delayed_reply", "unknown", "not_sent",
+])
 async def test_goal_v2_selects_mixed_actions_and_verifies_save_separately(save_effect: str) -> None:
     class World(ExportWorld):
         async def observe(self, scope, ctx):
@@ -198,7 +200,9 @@ async def test_goal_v2_selects_mixed_actions_and_verifies_save_separately(save_e
                         click_effect=(Fact(key="region:Home", value="visible"),)),
                 Element("save", "button", "Save", ("click",), enabled=filled, submits=True),
             ), facts=(Fact(key="status:Saved name", value="Ada"),)
-                if saved and save_effect in {"saved", "lost_reply"} else ())
+                if saved and (save_effect in {"saved", "lost_reply"}
+                              or save_effect == "delayed_reply" and self.observations >= 5)
+                else ())
 
         async def is_current(self, binding, action, ctx):
             return binding.generation == self.observations
@@ -206,7 +210,8 @@ async def test_goal_v2_selects_mixed_actions_and_verifies_save_separately(save_e
         async def dispatch(self, binding, action, ctx):
             self.dispatched.append(action)
             return DispatchReceipt(action.id, "not_sent" if save_effect == "not_sent" else
-                                   "unknown" if save_effect == "lost_reply" else "sent")
+                                   "unknown" if save_effect in {
+                                       "lost_reply", "delayed_reply", "unknown"} else "sent")
 
     class Select:
         async def choose(self, goal, snapshot, actions, ctx):
@@ -227,14 +232,51 @@ async def test_goal_v2_selects_mixed_actions_and_verifies_save_separately(save_e
     if save_effect == "not_sent":
         assert (result.status, result.reason) == ("stopped", "not_sent")
         assert len(world.dispatched) == 1
-    elif save_effect == "field_only":
+    elif save_effect in {"field_only", "unknown"}:
         assert (result.status, result.reason) == ("unknown", "effect_unknown")
         assert [a.target_ref for a in world.dispatched] == ["name", "save"]
         assert len(verified) == 1
+        assert world.observations == 5
+        assert progress["pending_action"] is not None
     else:
         assert (result.status, result.reason) == ("completed", "goal_verified")
         assert [a.target_ref for a in world.dispatched] == ["name", "save"]
         assert len(verified) == 2
+        assert progress["pending_action"] is None
+        assert world.observations == (5 if save_effect == "delayed_reply" else 3)
+
+
+@pytest.mark.parametrize("stale", [False, True])
+async def test_goal_v2_stops_repeated_states_and_stale_decisions(stale: bool) -> None:
+    class World(ExportWorld):
+        async def observe(self, scope, ctx):
+            self.observations += 1
+            current, target = ("Home", "Profile") if len(self.dispatched) % 2 == 0 else (
+                "Profile", "Home")
+            return Snapshot(str(self.observations), scope, self.observations, (
+                Element(f"new-ref-{self.observations}", "button", target, ("click",),
+                        click_effect=(Fact(key="status:Page", value=target),)),
+            ), facts=(Fact(key="status:Page", value=current),))
+
+        async def is_current(self, binding, action, ctx):
+            return binding.generation == self.observations
+
+    class Select:
+        async def choose(self, goal, snapshot, actions, ctx):
+            binding = replace(actions.binding, generation=0) if stale else actions.binding
+            return DecisionResult(binding, "candidate", actions.actions[0].id)
+
+    world = World()
+    result = await ComputerUseController(world, world, selector=Select()).run(
+        SubAgentRequest("Save name", "", "task", profile_goal()), context(),
+    )
+    assert result.reason == ("stale_decision" if stale else "no_progress")
+    assert len(world.dispatched) == (0 if stale else 2)
+    assert world.observations == (1 if stale else 3)
+    progress = result.details["progress"]
+    assert isinstance(progress, dict)
+    assert progress["no_progress"] == (0 if stale else 1)
+    assert progress["pending_action"] is None
 
 
 def test_goal_builder_never_offers_premature_submit_or_truncated_candidates() -> None:
