@@ -744,6 +744,77 @@ def test_ax_rejects_ambiguous_window_binding(monkeypatch) -> None:
         computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
 
 
+def test_ax_value_write_preserves_text_and_checks_native_result(monkeypatch) -> None:
+    calls = []
+    native = object()
+    from collections.abc import Callable
+
+    api: dict[str, Callable[..., int]] = {
+        "AXUIElementSetAttributeValue": lambda *args: calls.append(args) or 0}
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: api)
+    ref = AXElementRef(native, False, 80)
+    computer_ax.ax_set_value(ref, "Ada\n测试  ")
+    assert calls == [(native, "AXValue", "Ada\n测试  ")]
+    api["AXUIElementSetAttributeValue"] = lambda *args: -25204
+    with pytest.raises(RuntimeError, match="AXValue"):
+        computer_ax.ax_set_value(ref, "Ada")
+
+
+def test_ax_text_values_are_exact_and_bounded(desktop, monkeypatch) -> None:
+    value = "Ada\n测试  " + "x" * 90
+    field = _Element({"AXRole": "AXTextArea", "AXValue": value,
+                      "AXPosition": (10, 10), "AXSize": (60, 40)})
+    window = _Element({"AXRole": "AXWindow", "AXPosition": (0, 0), "AXSize": (100, 80)},
+                      [field])
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: make_api(_App(42, [window])))
+    candidates, truncated = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
+    assert candidates[0].value == value
+    assert not truncated
+    field.attrs["AXValue"] = "x" * 4097
+    candidates, truncated = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
+    assert len(candidates[0].value) == 4096 and truncated
+
+
+def test_identifier_view_does_not_require_unavailable_description(desktop, monkeypatch) -> None:
+    field = _Element({"AXRole": "AXTextArea", "AXIdentifier": "First Text View", "AXValue": "",
+                      "AXPosition": (10, 10), "AXSize": (60, 40)})
+    window = _Element({"AXRole": "AXWindow", "AXPosition": (0, 0), "AXSize": (100, 80)}, [field])
+    api = make_api(_App(42, [window]))
+    original = api["AXUIElementCopyAttributeValue"]
+    api["AXUIElementCopyAttributeValue"] = lambda e, name, out: (
+        (-25200, None) if e is field and name == "AXDescription" else original(e, name, out))
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: api)
+    assert computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))[1]
+    candidates, incomplete = computer_ax.ax_window_candidates(
+        7, (5, 0, 0, 100, 80, 200, 160), include_descriptions=False)
+    assert not incomplete
+    assert candidates[0].identifier == "First Text View"
+
+
+def test_ax_readouts_keep_ancestor_identifiers_separate_from_labels(desktop, monkeypatch) -> None:
+    field = _Element({"AXRole": "AXStaticText", "AXValue": "0",
+                      "AXPosition": (10, 10), "AXSize": (60, 40)})
+    group = _Element({"AXRole": "AXGroup", "AXTitle": "Output",
+                      "AXIdentifier": "StandardInputView"}, [field])
+    window = _Element({"AXRole": "AXWindow", "AXPosition": (0, 0), "AXSize": (100, 80)}, [group])
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: make_api(_App(42, [window])))
+    candidates, incomplete = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
+    assert not incomplete
+    assert candidates[0].ancestor_identifiers == ("StandardInputView",)
+    assert ("AXGroup", "Output") in candidates[0].ancestors
+
+
+def test_ax_focused_process_is_read_without_cached_workspace_state(monkeypatch) -> None:
+    focused = object()
+    api = {"AXUIElementCreateSystemWide": lambda: object(),
+           "AXUIElementCopyAttributeValue": lambda *args: (0, focused),
+           "AXUIElementGetPid": lambda e, out: (0, 42)}
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: api)
+    assert computer_ax.ax_focused_pid() == 42
+    api["AXUIElementCopyAttributeValue"] = lambda *args: (-25211, None)
+    assert computer_ax.ax_focused_pid() is None
+
+
 def test_ax_truncated_text_is_not_complete_evidence(monkeypatch) -> None:
     quartz = MagicMock()
     quartz.CGWindowListCopyWindowInfo.return_value = [WINDOW]

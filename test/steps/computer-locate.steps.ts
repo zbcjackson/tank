@@ -76,3 +76,17 @@ Then('the managed Chromium contract passes without paid model calls or personal 
     assert.match(results.get(this) ?? '', /16 passed/);
     assert.doesNotMatch(results.get(this) ?? '', /\d+ skipped/);
   });
+
+When('the isolated native AX contract is exercised',
+  async function (this: TankWorld) {
+    const {stdout} = await promisify(execFile)('uv', [
+      'run', '--no-sync', 'pytest', 'plugins/agent-computer-use/tests/test_native.py', '-q',
+    ], {cwd: resolve(process.cwd(), '../backend'), timeout: 30000});
+    results.set(this, stdout);
+  });
+
+Then('the native AX contract passes without real desktop input or paid model calls',
+  function (this: TankWorld) {
+    assert.match(results.get(this) ?? '', /\d+ passed/);
+    assert.doesNotMatch(results.get(this) ?? '', /\d+ skipped/);
+  });

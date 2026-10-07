@@ -1763,3 +1763,14 @@ async def test_frame_crop_ignores_pixels_outside_observed_region(frame_manager):
         )
     assert not result.error
     assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1440, 810)
+
+
+def test_native_click_releases_mouse_when_wait_fails(monkeypatch):
+    quartz = MagicMock()
+    quartz.CGEventCreateMouseEvent.side_effect = ["down", "up"]
+    monkeypatch.setattr(cu_macos, "_load_quartz", lambda: quartz)
+    monkeypatch.setattr(cu_macos.time, "sleep", MagicMock(side_effect=RuntimeError("interrupted")))
+    with pytest.raises(RuntimeError, match="interrupted"):
+        cu_macos._click_macos(10, 20, clear_modifiers=True)
+    assert [call.args[1] for call in quartz.CGEventPost.call_args_list] == ["down", "up"]
+    assert [call.args for call in quartz.CGEventSetFlags.call_args_list] == [("down", 0), ("up", 0)]

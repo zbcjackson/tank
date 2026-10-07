@@ -1,0 +1,362 @@
+"""Explicitly bound macOS AX channel; native objects never enter model messages."""
+
+from __future__ import annotations
+
+import asyncio
+import ctypes
+import plistlib
+import time
+import unicodedata
+from dataclasses import dataclass, replace
+from pathlib import Path
+from typing import Literal
+from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
+from tank_backend.tools.computer_ax import AXCandidate, ax_focused_pid, ax_press, ax_set_value
+from tank_backend.tools.computer_native import run_native
+from tank_backend.tools import computer_use_macos as macos
+
+from .. import observation
+from ..contracts import Action, Binding, DispatchReceipt, Element, Fact, Snapshot, ValueChange
+
+
+class Readout(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+    name: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    role: str = Field(min_length=1, max_length=128)
+    identifier: str | None = Field(default=None, min_length=1, max_length=128)
+    label: str | None = Field(default=None, min_length=1, max_length=512)
+    ancestor_identifier: str | None = Field(default=None, min_length=1, max_length=128)
+    aggregation: Literal["single", "compact_text"] = "single"
+    allow_empty: bool = False
+
+    @model_validator(mode="after")
+    def validate_aggregation(self) -> Readout:
+        if self.aggregation == "compact_text" and self.role != "AXStaticText":
+            raise ValueError("Display aggregation requires read-only AXStaticText")
+        if self.allow_empty and (self.aggregation != "compact_text" or not self.ancestor_identifier):
+            raise ValueError("Empty readout requires an explicit display region")
+        return self
+
+    @property
+    def key(self) -> str:
+        return "ax:value:" + self.name
+
+    def matches(self, item: AXCandidate) -> bool:
+        return (item.role == self.role
+                and (self.identifier is None or self.identifier == item.identifier)
+                and (self.ancestor_identifier is None
+                     or self.ancestor_identifier in item.ancestor_identifiers)
+                and (self.label is None or self.label in (item.title, item.description)))
+
+
+class NativeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+    scope: str = Field(min_length=1, max_length=256)
+    bundle_id: str = Field(min_length=1, max_length=256)
+    pid: int = Field(gt=0)
+    process_start: str = Field(pattern=r"^[0-9]+:[0-9]+$", max_length=40)
+    window_id: int = Field(gt=0)
+    dispatch: Literal["ax_press", "quartz"] = "ax_press"
+    labels: Literal["accessible_name", "identifier"] = "accessible_name"
+    blocked_identifiers: tuple[str, ...] = Field(default=(), max_length=32)
+    blocked_labels: tuple[str, ...] = Field(default=(), max_length=32)
+    readouts: tuple[Readout, ...] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def unique_readouts(self) -> NativeConfig:
+        if len({r.name for r in self.readouts}) != len(self.readouts):
+            raise ValueError("Readout names must be unique")
+        if all(r.allow_empty for r in self.readouts):
+            raise ValueError("At least one readout must require native evidence")
+        return self
+
+
+@dataclass(frozen=True)
+class NativeWindow:
+    pid: int
+    process_start: str
+    bundle_id: str
+    window_id: int
+    bounds: tuple[int, int, int, int]
+    display_geometry: tuple[int, ...]
+
+
+class ProcessInfo(ctypes.Structure):
+    # Darwin sys/proc_info.h: struct proc_bsdinfo (PROC_PIDTBSDINFO, flavor 3).
+    _fields_ = [(name, ctypes.c_uint32) for name in (
+        "flags", "status", "xstatus", "pid", "ppid", "uid", "gid", "ruid", "rgid",
+        "svuid", "svgid", "reserved",
+    )] + [("comm", ctypes.c_char * 16), ("name", ctypes.c_char * 32)] + [
+        (name, ctypes.c_uint32) for name in ("nfiles", "pgid", "pjobc", "tdev", "tpgid")
+    ] + [("nice", ctypes.c_int32), ("started_seconds", ctypes.c_uint64),
+         ("started_microseconds", ctypes.c_uint64)]
+
+
+@dataclass(frozen=True)
+class ProcessIdentity:
+    start: str
+    bundle_id: str
+
+
+def process_identity(pid: int) -> ProcessIdentity:
+    """Kernel birth time and executable bundle, with no NSRunningApplication cache."""
+    library = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
+    library.proc_pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64,
+                                    ctypes.c_void_p, ctypes.c_int]
+    library.proc_pidinfo.restype = ctypes.c_int
+    library.proc_pidpath.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+    library.proc_pidpath.restype = ctypes.c_int
+
+    def birth() -> str:
+        info = ProcessInfo()
+        if (library.proc_pidinfo(pid, 3, 0, ctypes.byref(info), ctypes.sizeof(info)) != ctypes.sizeof(info)
+                or info.pid != pid):
+            raise SubAgentStopped("process_unavailable")
+        return f"{info.started_seconds}:{info.started_microseconds}"
+
+    start = birth()
+    path = ctypes.create_string_buffer(4096)
+    if library.proc_pidpath(pid, path, len(path)) <= 0:
+        raise SubAgentStopped("process_path_unavailable")
+    executable = Path(path.value.decode("utf-8"))
+    bundle = next((parent for parent in executable.parents if parent.suffix == ".app"), None)
+    if bundle is None:
+        raise SubAgentStopped("process_bundle_unavailable")
+    with (bundle / "Contents/Info.plist").open("rb") as stream:
+        identifier = plistlib.load(stream).get("CFBundleIdentifier")
+    if not isinstance(identifier, str) or birth() != start:
+        raise SubAgentStopped("process_changed")
+    return ProcessIdentity(start, identifier)
+
+
+def read_window(config: NativeConfig) -> NativeWindow:
+    """Read OS identity and geometry; never launch, activate or attach by window title."""
+    identity = process_identity(config.pid)
+    if identity != ProcessIdentity(config.process_start, config.bundle_id):
+        raise SubAgentStopped("process_changed")
+    quartz = macos._load_quartz()
+    windows = quartz.CGWindowListCopyWindowInfo(quartz.kCGWindowListOptionOnScreenOnly, 0) or []
+    found = [w for w in windows if w.get("kCGWindowNumber") == config.window_id
+             and w.get("kCGWindowOwnerPID") == config.pid and w.get("kCGWindowLayer") == 0]
+    if len(found) != 1:
+        raise SubAgentStopped("window_unavailable")
+    app_windows = [w for w in windows if w.get("kCGWindowOwnerPID") == config.pid
+                   and w.get("kCGWindowLayer") == 0]
+    if (ax_focused_pid() != config.pid
+            or not app_windows or app_windows[0].get("kCGWindowNumber") != config.window_id):
+        raise SubAgentStopped("foreground_changed")
+    rect = found[0]["kCGWindowBounds"]
+    bounds = tuple(int(rect[k]) for k in ("X", "Y", "Width", "Height"))
+    x, y, width, height = bounds
+    geometry = macos._main_geometry(macos._active_displays())
+    if not (0 <= x < x + width <= geometry[3] and 0 <= y < y + height <= geometry[4]):
+        raise SubAgentStopped("unsupported_display")
+    return NativeWindow(config.pid, config.process_start, config.bundle_id, config.window_id,
+                        (x, y, width, height), geometry)
+
+
+def pointer_target_is_exposed(window: NativeWindow, x: int, y: int) -> bool:
+    quartz = macos._load_quartz()
+    for item in quartz.CGWindowListCopyWindowInfo(quartz.kCGWindowListOptionOnScreenOnly, 0) or []:
+        rect = item.get("kCGWindowBounds", {})
+        if (item.get("kCGWindowAlpha", 1) > 0
+                and rect.get("X", 0) <= x < rect.get("X", 0) + rect.get("Width", 0)
+                and rect.get("Y", 0) <= y < rect.get("Y", 0) + rect.get("Height", 0)):
+            return item.get("kCGWindowNumber") == window.window_id
+    return False
+
+
+def inputs_idle() -> bool:
+    quartz = macos._load_quartz()
+    state = quartz.kCGEventSourceStateCombinedSessionState
+    return not (any(quartz.CGEventSourceKeyState(state, key) for key in range(128))
+                or any(quartz.CGEventSourceButtonState(state, button) for button in range(32)))
+
+
+def release_uncertain_pointer() -> None:
+    """Cleanup only the left button this channel may have left down."""
+    quartz = macos._load_quartz()
+    state = quartz.kCGEventSourceStateCombinedSessionState
+    if quartz.CGEventSourceButtonState(state, 0):
+        macos._mouse_button_macos("left", False)
+        time.sleep(0.1)
+    if quartz.CGEventSourceButtonState(state, 0):
+        raise RuntimeError("Native pointer cleanup unconfirmed")
+
+
+class NativeAXChannel:
+    """Borrow a single process/window. Task shutdown never quits the user's app."""
+
+    def __init__(self, config: NativeConfig) -> None:
+        self.config = config
+        self.completion_keys = frozenset(r.key for r in config.readouts)
+        self.closed = False
+        self.task_id: str | None = None
+        self.window: NativeWindow | None = None
+        self.source: observation.AXObservationSource | None = None
+        self.previous: Snapshot | None = None
+        self.lock = asyncio.Lock()
+        self.readout_refs = {r.name: uuid4().hex for r in config.readouts}
+        self.pointer_uncertain = False
+
+    def check(self, context: SubAgentContext) -> None:
+        context.check("desktop")
+        context.runtime.check_open()
+        if self.closed:
+            raise SubAgentStopped("channel_closed")
+        if self.task_id not in (None, context.runtime.task_id):
+            raise SubAgentStopped("task_mismatch")
+
+    def bound_window(self, context: SubAgentContext) -> NativeWindow:
+        self.check(context)
+        window = read_window(self.config)
+        self.check(context)
+        return window
+
+    async def observe(self, scope: str, context: SubAgentContext) -> Snapshot:
+        async with self.lock:
+            self.check(context)
+            if scope != self.config.scope:
+                raise SubAgentStopped("scope_mismatch")
+            self.task_id = context.runtime.task_id
+            window = await run_native(self.bound_window, context)
+            self.check(context)
+            if self.window and self.window.display_geometry != window.display_geometry:
+                raise SubAgentStopped("display_changed")
+            if self.source is None:
+                self.source = observation.AXObservationSource(
+                    window.window_id, window.display_geometry, scope,
+                    use_identifiers=self.config.labels == "identifier")
+            snapshot = await self.source.observe(scope, context)
+            self.check(context)
+            if await run_native(self.bound_window, context) != window:
+                raise SubAgentStopped("window_changed")
+            self.check(context)
+            facts, changes, regions = [], [], []
+            complete = snapshot.complete
+            for readout in self.config.readouts:
+                matches = [(ref, item) for ref, item in self.source.targets if readout.matches(item)]
+                if ((not matches and not readout.allow_empty)
+                        or readout.aggregation == "single" and len(matches) != 1):
+                    complete = False
+                    continue
+                if readout.aggregation == "single":
+                    ref, item = matches[0]
+                    value = item.value
+                else:
+                    if any(item.frame is None for _, item in matches):
+                        complete = False
+                        continue
+                    ordered = sorted(matches, key=lambda pair: (pair[1].frame[1], pair[1].frame[0])
+                                     if pair[1].frame is not None else (0, 0))
+                    # Compact mathematical display text; single/document values remain exact.
+                    value = "".join(c for _, item in ordered for c in item.value
+                                    if not c.isspace() and unicodedata.category(c) != "Cf")
+                    ref = self.readout_refs[readout.name]
+                    if len(value) > 4096:
+                        complete = False
+                        continue
+                    regions.append(Element(ref, "readout", readout.name, (), kind="text_region",
+                                           source="ax", value=value))
+                facts.append(Fact(key=readout.key, value=value))
+                changes.append(ValueChange(readout.key, ref, value))
+            targets = dict(self.source.targets)
+            blocked = {e.ref for e in snapshot.elements
+                       if not e.label or e.label in self.config.blocked_labels
+                       or targets[e.ref].identifier in self.config.blocked_identifiers}
+            elements = tuple(replace(
+                e, click_changes=tuple(changes) if "click" in e.actions and e.ref not in blocked else (),
+                actions=e.actions if e.ref not in blocked else (),
+                enabled=(True if "fill" in e.actions and targets[e.ref].enabled is None
+                         and targets[e.ref].value_settable else e.enabled),
+            ) for e in snapshot.elements) + tuple(regions)
+            self.previous = replace(snapshot, elements=elements, facts=tuple(facts), complete=complete)
+            self.window = window
+            return self.previous
+
+    def current(self, binding: Binding, action: Action, context: SubAgentContext) -> AXCandidate | None:
+        self.check(context)
+        snapshot, source, window = self.previous, self.source, self.window
+        if (snapshot is None or source is None or window is None or not snapshot.complete
+                or (binding.observation_id, binding.generation, binding.scope) !=
+                (snapshot.observation_id, snapshot.generation, snapshot.scope)
+                or read_window(self.config) != window):
+            return None
+        selected = next((e for e in snapshot.elements if e.ref == action.target_ref), None)
+        if (selected is None or not selected.enabled or action.operation not in selected.actions
+                or (action.operation == "fill") != (action.value is not None)):
+            return None
+        candidates, incomplete = source.scan()
+        if incomplete:
+            return None
+        unique: list[AXCandidate] = []
+        for item in candidates:
+            if not any(item.element.native == other.element.native for other in unique):
+                unique.append(item)
+        if len(unique) != len(source.targets):
+            return None
+        target = None
+        for ref, old in source.targets:
+            fresh = next((item for item in unique if item.element.native == old.element.native), None)
+            if fresh is None or replace(fresh, index=old.index) != old:
+                return None
+            if ref == action.target_ref:
+                target = fresh
+        self.check(context)
+        return target
+
+    async def is_current(self, binding: Binding, action: Action, context: SubAgentContext) -> bool:
+        async with self.lock:
+            return await run_native(self.current, binding, action, context) is not None
+
+    async def dispatch(
+        self, binding: Binding, action: Action, context: SubAgentContext,
+    ) -> DispatchReceipt:
+        def send() -> DispatchReceipt:
+            target = self.current(binding, action, context)
+            window = self.window
+            if target is None or window is None or target.frame is None:
+                return DispatchReceipt(action.id, "not_sent", "stale_reference")
+            x, y, width, height = target.frame
+            wx, wy, ww, wh = window.bounds
+            if not (wx <= x < x + width <= wx + ww and wy <= y < y + height <= wy + wh):
+                return DispatchReceipt(action.id, "not_sent", "target_outside_window")
+            point = (x + width // 2, y + height // 2)
+            if (action.operation == "click" and self.config.dispatch == "quartz"
+                    and not pointer_target_is_exposed(window, *point)):
+                return DispatchReceipt(action.id, "not_sent", "target_occluded")
+            if self.bound_window(context) != window:
+                return DispatchReceipt(action.id, "not_sent", "window_changed")
+            if not inputs_idle():
+                return DispatchReceipt(action.id, "not_sent", "user_input_active")
+            self.check(context)
+            try:
+                if action.operation == "fill":
+                    assert action.value is not None
+                    ax_set_value(target.element, action.value)
+                elif self.config.dispatch == "ax_press":
+                    ax_press(target.element)
+                else:
+                    self.pointer_uncertain = True
+                    macos._click_macos(*point, clear_modifiers=True)
+                    self.pointer_uncertain = False
+            except (RuntimeError, OSError):
+                return DispatchReceipt(action.id, "unknown", "native_action_failed")
+            return DispatchReceipt(action.id, "sent")
+
+        async with self.lock:
+            return await run_native(send)
+
+    async def aclose(self) -> None:
+        self.closed = True
+        async with self.lock:
+            if self.source is not None:
+                await self.source.aclose()
+            if self.pointer_uncertain:
+                await run_native(release_uncertain_pointer)
+                self.pointer_uncertain = False
+            self.previous = None

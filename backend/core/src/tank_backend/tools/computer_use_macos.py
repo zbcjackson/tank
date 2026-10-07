@@ -206,7 +206,8 @@ def _capture_screenshot_macos(
 # Input injection via CGEvent (pyobjc-framework-Quartz)
 # ---------------------------------------------------------------------------
 
-def _click_macos(x: int, y: int, button: str = "left", clicks: int = 1) -> None:
+def _click_macos(x: int, y: int, button: str = "left", clicks: int = 1,
+                 *, clear_modifiers: bool = False) -> None:
     """Click at coordinates using CGEvent."""
     Quartz = _load_quartz()
 
@@ -235,9 +236,14 @@ def _click_macos(x: int, y: int, button: str = "left", clicks: int = 1) -> None:
         Quartz.CGEventSetIntegerValueField(
             up, Quartz.kCGMouseEventClickState, i + 1,
         )
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-        time.sleep(0.02)
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+        if clear_modifiers:
+            Quartz.CGEventSetFlags(down, 0)
+            Quartz.CGEventSetFlags(up, 0)
+        try:
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+            time.sleep(0.02)
+        finally:
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
         if i < clicks - 1:
             time.sleep(0.05)
 

@@ -9,6 +9,11 @@ from .contracts import (
 
 
 class ActionBuilder:
+    def __init__(self, max_candidates: int = 32) -> None:
+        if not 1 <= max_candidates <= 251:
+            raise ValueError("Candidate limit must leave room for control options")
+        self.max_candidates = max_candidates
+
     def build(
         self, goal_id: str, version: int, goal: GoalContract, snapshot: Snapshot,
         progress: GoalProgress = GoalProgress(),
@@ -61,15 +66,18 @@ class ActionBuilder:
                     continue
                 effect = goal.completion if element.submits else element.click_effect
                 facts = {fact.key: fact.value for fact in snapshot.facts}
-                if not effect or all(facts.get(f.key) == f.value for f in effect):
+                if not effect and not element.click_changes:
+                    continue
+                if effect and all(facts.get(f.key) == f.value for f in effect):
                     continue
                 action = Action(uuid4().hex, element.ref, "click", None)
                 actions.append(action)
                 details.append(ActionDetails(action.id, element.role, element.label,
-                                             element.ancestors, element.value, None, effect))
-        if len(actions) > 32:
+                                             element.ancestors, element.value, None, effect,
+                                             element.click_changes))
+        if len(actions) > self.max_candidates:
             return ActionSet(binding, (), "candidate_limit", len(actions), truncated=True)
-        identities = [(d.role, d.label, d.ancestors, d.current_value, d.input_key, d.effect)
+        identities = [(d.role, d.label, d.ancestors, d.current_value, d.input_key, d.effect, d.changes)
                       for d in details]
         if len(set(identities)) != len(identities):
             return ActionSet(binding, (), "ambiguous_target", len(actions))

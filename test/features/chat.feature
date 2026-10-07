@@ -64,3 +64,7 @@ Feature: Chat mode
   Scenario: Managed Chromium preserves configuration, stop, fallback and goal-driven actions
     When the isolated managed Chromium contract is exercised
     Then the managed Chromium contract passes without paid model calls or personal browser access
+
+  Scenario: Native AX preserves task scope, readback and stop boundaries
+    When the isolated native AX contract is exercised
+    Then the native AX contract passes without real desktop input or paid model calls

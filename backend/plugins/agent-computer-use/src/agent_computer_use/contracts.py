@@ -89,6 +89,15 @@ class GoalContract(GoalModel):
 
 
 @dataclass(frozen=True)
+class ValueChange:
+    """A local effect on a specific observed value, not a task-completion assertion."""
+
+    key: str
+    source_ref: str
+    before: str
+
+
+@dataclass(frozen=True)
 class Element:
     ref: str
     role: str
@@ -104,6 +113,7 @@ class Element:
     click_effect: tuple[Fact, ...] = ()
     submits: bool = False
     input_type: str = "text"
+    click_changes: tuple[ValueChange, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -162,6 +172,7 @@ class ActionDetails:
     current_value: str
     input_key: str | None
     effect: tuple[Fact, ...] = ()
+    changes: tuple[ValueChange, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -205,6 +216,8 @@ def snapshot_json(snapshot: Snapshot) -> dict[str, object]:
         # Preserve the v1 wire shape when no goal-driven capability was observed.
         data.pop("click_effect")
         data.pop("submits")
+        if not element.click_changes:
+            data.pop("click_changes")
         if element.input_type == "text":
             data.pop("input_type")
         if element.click_effect:

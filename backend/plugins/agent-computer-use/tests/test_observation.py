@@ -41,7 +41,7 @@ async def test_ax_identity_survives_reordering_but_not_disappearance(monkeypatch
     read = Mock(side_effect=[([a, b], False), ([replace(b, index=1), replace(a, index=2,
                          value="new", focused=True)], False), ([b], False), ([a, b], False)])
     monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", read)
-    source = AXObservationSource(frame(), "window-7")
+    source = AXObservationSource(7, frame().display_geometry, "window-7")
     ctx = context()
     first = await source.observe("window-7", ctx)
     second = await source.observe("window-7", ctx)
@@ -58,6 +58,21 @@ async def test_ax_identity_survives_reordering_but_not_disappearance(monkeypatch
     assert fourth.elements[0].ref != first.elements[0].ref
 
 
+async def test_ax_document_change_cannot_reuse_an_existing_field(monkeypatch) -> None:
+    from agent_computer_use.observation import AXObservationSource
+    from tank_backend.agents.subagent import SubAgentStopped
+
+    element = candidate(object(), "Name")
+    read = Mock(side_effect=[([replace(element, window_document="file:///first.txt")], False),
+                             ([replace(element, window_document="file:///second.txt")], False)])
+    monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", read)
+    source = AXObservationSource(7, frame().display_geometry, "window-7")
+    ctx = context()
+    await source.observe("window-7", ctx)
+    with pytest.raises(SubAgentStopped, match="document_changed"):
+        await source.observe("window-7", ctx)
+
+
 async def test_ax_fill_requires_settable_value_and_keeps_parent_text(monkeypatch) -> None:
     from agent_computer_use.observation import AXObservationSource
 
@@ -66,7 +81,7 @@ async def test_ax_fill_requires_settable_value_and_keeps_parent_text(monkeypatch
     text = replace(candidate(object(), "Name", 2), role="AXStaticText", actions=())
     monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates",
                         lambda *args: ([field, text], False))
-    snapshot = await AXObservationSource(frame(), "window-7").observe("window-7", context())
+    snapshot = await AXObservationSource(7, frame().display_geometry, "window-7").observe("window-7", context())
     assert snapshot.elements[0].actions == ("fill",)
     assert snapshot.elements[0].kind == "control"
     assert snapshot.elements[1].kind == "text_region"
@@ -81,7 +96,7 @@ async def test_ax_rejects_unbound_reads(monkeypatch, case: str) -> None:
     read = Mock(return_value=([replace(candidate(object(), "Save"), window_id=8)], False))
     monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", read)
     ctx = context()
-    source = AXObservationSource(frame(), "window-7")
+    source = AXObservationSource(7, frame().display_geometry, "window-7")
     if case == "revoked":
         ctx.authorization.revoke()
     elif case == "closed":
@@ -110,7 +125,7 @@ async def test_frozen_ax_golden_cases(monkeypatch) -> None:
                                       role="AXStaticText", actions=()))
         monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates",
                             lambda *args: (candidates, False))
-        snapshot = await AXObservationSource(frame(), "window-7").observe("window-7", context())
+        snapshot = await AXObservationSource(7, frame().display_geometry, "window-7").observe("window-7", context())
         target = goal(case["target"])
         actions = ActionBuilder().build("goal", 1, target, snapshot)
         matches = [e for e in snapshot.elements if e.kind == "control" and e.label == case["target"]]
@@ -151,7 +166,7 @@ async def test_ax_text_view_through_governed_sdk_has_no_images_or_old_snapshot(m
                           SubAgentBudget(), asyncio.Event())
     ctx.runtime.configure_model("task", LLMProfile(
         "test", "secret", "test", "https://offline.invalid/v1", max_tokens=20))
-    source = AXObservationSource(frame(), "window-7")
+    source = AXObservationSource(7, frame().display_geometry, "window-7")
     model = ctx.runtime.model
     assert model is not None
     try:
@@ -188,7 +203,7 @@ async def test_ax_controller_uses_governed_read_boundary(monkeypatch, case: str)
     monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", native)
     if case == "quota":
         ctx.runtime.restrict_operations(observations=0)
-    source = AXObservationSource(frame(), "window-7")
+    source = AXObservationSource(7, frame().display_geometry, "window-7")
     controller = ComputerUseController(source, UnavailableChannel())
     result = await controller.run(SubAgentRequest("Save", "", "task", goal().model_dump(mode="json")), ctx)
     assert result.status == "stopped"
@@ -204,7 +219,7 @@ async def test_ax_closed_while_native_read_is_queued_does_not_read(monkeypatch) 
     from agent_computer_use.observation import AXObservationSource
     from tank_backend.agents.subagent import SubAgentStopped
 
-    source = AXObservationSource(frame(), "window-7")
+    source = AXObservationSource(7, frame().display_geometry, "window-7")
     read = Mock(return_value=([candidate(object(), "Save")], False))
     monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", read)
 

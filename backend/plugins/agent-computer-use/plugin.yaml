@@ -1,6 +1,6 @@
 name: agent-computer-use
 display_name: Computer Use Host Loop
-description: Host loop with opt-in managed Chromium and host-governed Jev Choice.
+description: Host loop with opt-in managed Chromium or bound macOS AX and core-governed Jev Choice.
 extensions:
   - name: agent
     type: subagent

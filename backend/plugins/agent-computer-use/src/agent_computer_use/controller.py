@@ -22,6 +22,7 @@ from .action_builder import ActionBuilder
 from .contracts import (
     Action,
     ActionSet,
+    ActionDetails,
     AdvisorResult,
     Binding,
     DecisionResult,
@@ -89,6 +90,20 @@ def achieved(snapshot: Snapshot, predicates: tuple[Fact, ...]) -> bool:
     )
 
 
+def effect_achieved(snapshot: Snapshot, action: Action, detail: ActionDetails) -> bool:
+    if not snapshot.ready or not snapshot.complete:
+        return False
+    values = {element.ref: element.value for element in snapshot.elements}
+    if action.operation == "fill":
+        return action.target_ref in values and values[action.target_ref] == action.value
+    if detail.effect:
+        return achieved(snapshot, detail.effect)
+    facts = {fact.key: fact.value for fact in snapshot.facts}
+    return any(change.source_ref in values and change.key in facts
+               and values[change.source_ref] == facts[change.key] != change.before
+               for change in detail.changes)
+
+
 class ComputerUseController:
     """Single task instance; budgets and authorization remain in the supplied context."""
 
@@ -99,9 +114,13 @@ class ComputerUseController:
         *,
         selector: Selector | None = None,
         advisor: Advisor | None = None,
+        completion_keys: frozenset[str] | None = None,
+        max_candidates: int = 32,
     ) -> None:
         self.source, self.executor = source, executor
         self.selector, self.advisor = selector, advisor
+        self.completion_keys = completion_keys
+        self.builder = ActionBuilder(max_candidates)
         self.version = 1
         self.goal_id = uuid4().hex
         self.task_id = ""
@@ -225,7 +244,8 @@ class ComputerUseController:
     async def loop(
         self, request: SubAgentRequest, goal: GoalContract, context: SubAgentContext,
     ) -> TaskResult:
-        if any(not fact.key.startswith("status:") for fact in goal.completion):
+        if any((fact.key not in self.completion_keys if self.completion_keys is not None
+                else not fact.key.startswith("status:")) for fact in goal.completion):
             return self.result("needs_input", "unsupported_completion_evidence")
         snapshot = await self.observe(goal, context)
         visited: set[tuple[object, ...]] = set()
@@ -250,7 +270,7 @@ class ComputerUseController:
                 self.progress = replace(self.progress, no_progress=self.progress.no_progress + 1)
                 return self.result("stopped", "no_progress")
             visited.add(state)
-            actions = replace(ActionBuilder().build(self.goal_id, self.version, goal, snapshot,
+            actions = replace(self.builder.build(self.goal_id, self.version, goal, snapshot,
                                                         self.progress),
                               progress=self.progress)
             context.observe("computer_use_route", goal_id=self.goal_id, goal_version=self.version,
@@ -309,12 +329,7 @@ class ComputerUseController:
                 if attempt:
                     await asyncio.sleep(0.05)
                 snapshot = await self.observe(goal, context)
-                verified = (
-                    snapshot.complete and snapshot.ready
-                    and any(e.ref == action.target_ref and e.value == action.value
-                            for e in snapshot.elements)
-                    if action.operation == "fill" else achieved(snapshot, detail.effect)
-                )
+                verified = effect_achieved(snapshot, action, detail)
                 if verified:
                     self.pending_effect = False
                     inputs = dict(self.progress.input_bindings)

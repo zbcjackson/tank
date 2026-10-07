@@ -96,6 +96,8 @@ class AXCandidate:
     pid: int | None = None
     window_id: int | None = None
     value_settable: bool = False
+    ancestor_identifiers: tuple[str, ...] = ()
+    window_document: str | None = None
 
 
 @dataclass(frozen=True)
@@ -125,17 +127,22 @@ def _load_ax() -> dict[str, Any]:
     functions: dict[str, Any] = {}
     objc.loadBundleFunctions(bundle, functions, [
         ("AXUIElementCreateApplication", b"@i"),
+        ("AXUIElementCreateSystemWide", b"@"),
+        ("AXUIElementGetPid", b"i@o^i"),
         ("AXUIElementCopyAttributeValue", b"i@@o^@"),
         ("AXUIElementPerformAction", b"i@@"),
         ("AXUIElementCopyActionNames", b"i@o^@"),
         ("AXUIElementIsAttributeSettable", b"i@@o^Z"),
+        ("AXUIElementSetAttributeValue", b"i@@@"),
         # CGPoint and CGSize share the two-CGDouble layout, so one struct
         # signature decodes both attribute kinds (type passed per call).
         ("AXValueGetValue", b"B@io^{CGPoint=dd}"),
     ])
-    missing = {"AXUIElementCreateApplication", "AXUIElementCopyAttributeValue",
+    missing = {"AXUIElementCreateApplication", "AXUIElementCreateSystemWide", "AXUIElementGetPid",
+               "AXUIElementCopyAttributeValue",
                "AXUIElementPerformAction", "AXUIElementCopyActionNames",
-               "AXUIElementIsAttributeSettable", "AXValueGetValue"} - functions.keys()
+               "AXUIElementIsAttributeSettable", "AXUIElementSetAttributeValue",
+               "AXValueGetValue"} - functions.keys()
     if missing:
         raise RuntimeError(f"AX functions unavailable: {sorted(missing)}")
     _AX_FUNCTIONS.update(functions)
@@ -273,6 +280,7 @@ def _frames_close(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) ->
 
 def ax_window_candidates(
     window_id: int, display_geometry: tuple[int, ...],
+    *, include_descriptions: bool = True,
 ) -> tuple[list[AXCandidate], bool]:
     """Enumerate the bound window's live AX tree; returns (candidates, truncated).
 
@@ -316,11 +324,14 @@ def ax_window_candidates(
     if len(matches) != 1:
         raise ValueError("AX: ambiguous window geometry binding")
     window_element, flip = matches[0]
+    error, document = api["AXUIElementCopyAttributeValue"](window_element, "AXDocument", None)
+    if error not in (0, -25205, -25212) or document is not None and not isinstance(document, str):
+        raise RuntimeError("AX window document identity unavailable")
     convert = _flipped_frame if flip else _top_left_frame
     candidates: list[AXCandidate] = []
     truncated = False
-    queue: deque[tuple[Any, int, tuple[tuple[str, str], ...]]] = deque(
-        [(window_element, 0, ())])
+    queue: deque[tuple[Any, int, tuple[tuple[str, str], ...], tuple[str, ...]]] = deque(
+        [(window_element, 0, (), ())])
     def read(function: str, *args: Any) -> Any:
         nonlocal truncated
         err, value = api[function](*args, None)
@@ -338,19 +349,22 @@ def ax_window_candidates(
         if len(candidates) >= MAX_ELEMENTS or visited >= MAX_NODES:
             truncated = True
             break
-        element, depth, ancestors = queue.popleft()
+        element, depth, ancestors, ancestor_identifiers = queue.popleft()
         visited += 1
         role = _string(attribute(element, "AXRole"))
         actions = _strings(read("AXUIElementCopyActionNames", element))
         text = {key: _string(attribute(element, key))
+                if include_descriptions or key != "AXDescription" else ""
                 for key in ("AXTitle", "AXValue", "AXDescription", "AXIdentifier")}
-        if not role or any(len(" ".join(value.split())) > 80 for value in text.values()):
+        if (not role or len(text["AXValue"]) > 4096
+                or any(len(" ".join(value.split())) > 80
+                       for key, value in text.items() if key != "AXValue")):
             truncated = True
         if role and (role in _ADDRESSABLE_ROLES or "AXPress" in actions):
             candidates.append(AXCandidate(
                 index=len(candidates) + 1, role=role,
                 title=_clean(text["AXTitle"]),
-                value=_clean(text["AXValue"]),
+                value=text["AXValue"][:4096],
                 description=_clean(text["AXDescription"]),
                 identifier=_clean(text["AXIdentifier"]),
                 actions=actions,
@@ -361,6 +375,8 @@ def ax_window_candidates(
                 focused=_flag(attribute(element, "AXFocused")),
                 pid=pid, window_id=window_id,
                 value_settable=bool(read("AXUIElementIsAttributeSettable", element, "AXValue")),
+                ancestor_identifiers=ancestor_identifiers,
+                window_document=document,
             ))
         err, children = api["AXUIElementCopyAttributeValue"](element, "AXChildren", None)
         # Unsupported/no-value means a leaf; other failures hide part of the tree.
@@ -376,7 +392,10 @@ def ax_window_candidates(
                 truncated = True
             if depth < MAX_DEPTH:
                 lineage = (*ancestors, (role, _clean(text["AXTitle"])))
-                queue.extend((child, depth + 1, lineage) for child in child_list[:MAX_CHILDREN])
+                identifiers = ((*ancestor_identifiers, text["AXIdentifier"])
+                               if text["AXIdentifier"] else ancestor_identifiers)
+                queue.extend((child, depth + 1, lineage, identifiers)
+                             for child in child_list[:MAX_CHILDREN])
     return candidates, truncated
 
 
@@ -390,7 +409,7 @@ def ax_refresh_candidate(ref: AXElementRef) -> AXCandidate | None:
     return AXCandidate(
         index=0, role=role,
         title=_clean(_attr(api, ref.native, "AXTitle")),
-        value=_clean(_attr(api, ref.native, "AXValue")),
+        value=_string(_attr(api, ref.native, "AXValue"))[:4096],
         description=_clean(_attr(api, ref.native, "AXDescription")),
         identifier=_clean(_attr(api, ref.native, "AXIdentifier")),
         actions=_actions(api, ref.native),
@@ -407,6 +426,23 @@ def ax_press(ref: AXElementRef) -> None:
     err = _load_ax()["AXUIElementPerformAction"](ref.native, "AXPress")
     if err != 0:
         raise RuntimeError(f"AXPress failed with error {err}")
+
+
+def ax_set_value(ref: AXElementRef, value: str) -> None:
+    """Set an already-admitted writable text value without keyboard or clipboard input."""
+    err = _load_ax()["AXUIElementSetAttributeValue"](ref.native, "AXValue", value)
+    if err != 0:
+        raise RuntimeError(f"AXValue write failed with error {err}")
+
+
+def ax_focused_pid() -> int | None:
+    api = _load_ax()
+    system = api["AXUIElementCreateSystemWide"]()
+    error, app = api["AXUIElementCopyAttributeValue"](system, "AXFocusedApplication", None)
+    if error or app is None:
+        return None
+    error, pid = api["AXUIElementGetPid"](app, None)
+    return int(pid) if not error else None
 
 
 def format_candidates(candidates: list[AXCandidate]) -> str:

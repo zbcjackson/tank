@@ -1,5 +1,6 @@
 """Explicit plugin assembly; construction never starts browser or model work."""
 
+import json
 from uuid import uuid4
 
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
@@ -27,12 +28,23 @@ class UnavailableChannel:
 
 def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
     if config:
-        if (set(config) - {"browser", "selector"} or not isinstance(config.get("browser"), dict)
+        if (set(config) - {"browser", "macos", "selector"}
+                or len(set(config) & {"browser", "macos"}) != 1
                 or ("selector" in config and config["selector"] not in ("jev", "llm", "jev-fallback"))):
-            raise ValueError("Only an explicit browser configuration is supported")
-        from .channels.dom import BrowserConfig, ManagedChromiumChannel
+            raise ValueError("Specify one explicit browser or macos channel")
+        from .channels.native import NativeAXChannel, NativeConfig
 
-        browser = ManagedChromiumChannel(BrowserConfig.model_validate(config["browser"]))
+        completion_keys = None
+        max_candidates = 32
+        if "macos" in config:
+            channel = NativeAXChannel(NativeConfig.model_validate_json(
+                json.dumps(config["macos"], allow_nan=False)))
+            completion_keys = channel.completion_keys
+            max_candidates = 64
+        else:
+            from .channels.dom import BrowserConfig, ManagedChromiumChannel
+
+            channel = ManagedChromiumChannel(BrowserConfig.model_validate(config["browser"]))
         from .jev import JevSelector
 
         selector: Selector | None = None
@@ -43,7 +55,9 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
 
             selector = ModelSelector(use_jev=config["selector"] == "jev-fallback")
         return ComputerUseSubAgent(
-            ComputerUseController(browser, browser, selector=selector), resources=(browser,),
+            ComputerUseController(channel, channel, selector=selector,
+                                  completion_keys=completion_keys,
+                                  max_candidates=max_candidates), resources=(channel,),
         )
     channel = UnavailableChannel()
     return ComputerUseSubAgent(ComputerUseController(channel, channel))
