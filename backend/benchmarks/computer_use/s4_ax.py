@@ -48,6 +48,21 @@ def fake_model_http(respond: Callable[[httpx2.Request], Coroutine[None, None, ht
     with patch("httpx2.AsyncClient", OfflineClient):
         yield
 
+class PilotObserver:
+    """Persist bounded diagnostic metadata, never SDK messages, headers or bodies."""
+
+    def __init__(self) -> None:
+        self.events: list[dict[str, object]] = []
+
+    def on_event(self, kind: str, metadata: dict[str, Any]) -> None:
+        if kind not in {"decision_error", "computer_use_error", "model_call"}:
+            return
+        keys = {"task_id", "call_id", "phase", "status", "prompt_tokens",
+                "completion_tokens", "elapsed_ms", "error_type", "http_status", "cause_type"}
+        self.events.append({"kind": kind, **{key: value for key, value in metadata.items()
+                           if key in keys and (value is None or type(value) in (str, int, float))}})
+
+
 class PilotCase(TypedDict):
     id: str
     application: Literal["calculator", "textedit"]
@@ -109,7 +124,7 @@ def freeze_inputs() -> dict[str, Any]:
         task_decision_model, model_call, agent, jev, runner, subagent_adapter, task_resources,
         decision_profile, jev_smoke,
     ))]
-    data = {"revision": "s4-ax-1", "cases": list(CASES), "model": MODELS["jev"],
+    data = {"revision": "s4-ax-3", "cases": list(CASES), "model": MODELS["jev"],
             "fake_endpoint": FAKE_ENDPOINT,
             "request_limit": sum(case["max_decisions"] for case in CASES),
             "nano_usd_limit": 250_000_000, "seconds_per_task": 120,
@@ -496,6 +511,7 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                 active_case, fake_index = case, 0
                 owner = OwnedApplication(case)
                 capture, audits = Capture(), []
+                observer = PilotObserver()
                 ledger.start_trial(case["id"], SpendLimit(4_000_000, 100_000_000))
                 started = time.monotonic()
                 row.update(status="started", dispatch=case["dispatch"])
@@ -522,6 +538,7 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                         definition, [], task_id=case["id"], task_input=task_goal(case),
                         authorization=SubAgentAuthorization(frozenset({"desktop", "network"})),
                         model_policy=Policy(case["max_decisions"]), model_capture=capture, audit=audit,
+                        observer=observer,
                         max_actions=case["max_decisions"], max_observations=1 + 3 * case["max_decisions"],
                         deadline=time.monotonic() + frozen["seconds_per_task"], desktop_cleanup=MacOSInputCleanup(),
                     )]
@@ -551,7 +568,7 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                     except Exception as exc:
                         row["application_cleanup"] = {"confirmed": False, "error": str(exc)}
                     row["passed"] = row["passed"] and row["application_cleanup"]["confirmed"]
-                    row.update(calls=list(capture.calls.values()), audit=audits,
+                    row.update(calls=list(capture.calls.values()), audit=audits, events=observer.events,
                                elapsed_ms=(time.monotonic() - started) * 1000)
                     ledger.finish_trial()
                     (output / "result.json").write_text(json.dumps({**report, "spend": ledger.snapshot()}, ensure_ascii=False, indent=2) + "\n")

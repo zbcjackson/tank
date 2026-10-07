@@ -317,3 +317,83 @@ async def test_official_sdk_owns_default_http_client(monkeypatch):
     finally:
         await model.aclose()
     assert clients[0].is_closed
+
+
+async def test_task_decision_error_survives_unknown_usage_stop(monkeypatch):
+    import asyncio
+    import json
+
+    from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
+    from tank_backend.benchmarks.model_policy import BenchmarkModelPolicy
+    from tank_backend.benchmarks.spend_http import ContextWindowContract
+    from tank_backend.benchmarks.spend_ledger import (
+        SpendLedger,
+        SpendLimit,
+        SpendLimitExceeded,
+        TokenAllowance,
+    )
+    from tank_backend.llm.decision_model import DecisionModel
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.task_decision_model import TaskDecisionModel
+
+    events, requests = [], []
+    class Observer:
+        def on_event(self, kind, metadata):
+            events.append((kind, metadata))
+    async def respond(request):
+        requests.append(request)
+        return httpx2.Response(401, json={"error": "private-body-secret"},
+                               headers={"x-private": "private-header-secret"})
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kw: httpx2.MockTransport(respond))
+    url = "https://offline.invalid/v1/systemone"
+    ledger = SpendLedger(SpendLimit(10000, 1000000), request_limit=1)
+    ledger.start_trial("trial", SpendLimit(10000, 1000000))
+    policy = BenchmarkModelPolicy(ledger, (ContextWindowContract(
+        url, "jev-1.13.0", TokenAllowance(100, 100, 42, 0), "test", output_cap_required=False),))
+    ctx = SubAgentContext(SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(),
+                          asyncio.Event(), observer=Observer(), model_policy=policy)
+    model = DecisionModel(
+        DecisionModelProfile(url, "jev-1.13.0", "KEY"), credential="private-key-secret",
+    )
+    task = TaskDecisionModel("task", ctx, model)
+    try:
+        with pytest.raises(SpendLimitExceeded, match="unknown_usage"):
+            await task.choose(state={}, instructions="Choose", options={"a": "A"})
+        errors = [data for kind, data in events if kind == "decision_error"]
+        assert len(errors) == 1
+        assert errors[0]["error_type"] == "TypeSafeAuthenticationError"
+        assert errors[0]["http_status"] == 401
+        assert errors[0]["task_id"] == "task" and errors[0]["call_id"]
+        assert len(requests) == 1
+        assert "private-" not in json.dumps(events)
+        assert ledger.snapshot()["stop_reason"] == "unknown_usage"
+    finally:
+        await task.aclose()
+        await model.aclose()
+        ledger.close()
+
+
+async def test_connection_failure_diagnostics_exclude_private_message(monkeypatch):
+    from tank_backend.llm.decision_model import DecisionModel, DecisionModelError
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+
+    requests = []
+    async def respond(request):
+        requests.append(request)
+        raise httpx2.ConnectError("private-proxy-credentials", request=request)
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kw: httpx2.MockTransport(respond))
+    model = DecisionModel(
+        DecisionModelProfile("https://offline.invalid/v1/systemone", "jev-1.13.0", "KEY"),
+        credential="secret",
+    )
+    try:
+        with pytest.raises(DecisionModelError) as error:
+            await model.choose(state={}, instructions="Choose", options={"a": "A"})
+        assert error.value.diagnostics == {
+            "error_type": "TypeSafeAPIConnectionError", "http_status": None,
+            "cause_type": "ConnectError",
+        }
+        assert "private-" not in str(error.value.diagnostics)
+        assert len(requests) == 1
+    finally:
+        await model.aclose()

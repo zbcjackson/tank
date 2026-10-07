@@ -6,7 +6,7 @@ from copy import deepcopy
 
 from ..agents.subagent import SubAgentContext, SubAgentStopped
 from .decision_model import ChoiceResult, DecisionModel, DecisionModelError
-from .model_call import TaskModelCallRunner
+from .model_call import TaskModelCallRunner, get_model_call
 from .model_data import ModelRequest
 
 
@@ -41,6 +41,11 @@ class TaskDecisionModel:
                 lambda: self._model.choose(state=state, instructions=instructions, options=options),
             )
         except DecisionModelError as exc:
+            record = get_model_call(self._calls.task_id)
+            self._calls.context.observe(
+                "decision_error", task_id=self._calls.task_id,
+                call_id=record.call_id if record is not None else None, **exc.diagnostics,
+            )
             self._calls.check()
             raise SubAgentStopped(str(exc)) from None
 

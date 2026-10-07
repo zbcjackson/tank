@@ -29,9 +29,17 @@ class ChoiceResult:
 
 
 class DecisionModelError(RuntimeError):
-    def __init__(self, reason: str, inputs: int | None = None, outputs: int | None = None):
+    def __init__(self, reason: str, inputs: int | None = None, outputs: int | None = None,
+                 *, source: Exception | None = None):
         super().__init__(reason)
         self.input_tokens, self.output_tokens = inputs, outputs
+        # Do not retain SDK bodies, headers, exception messages or credentials.
+        cause = source.__cause__ if source is not None else None
+        self.diagnostics: dict[str, str | int | None] = {
+            "error_type": type(source).__name__ if source is not None else type(self).__name__,
+            "http_status": source.status if isinstance(source, TypeSafeAPIError) else None,
+            "cause_type": type(cause).__name__ if cause is not None else None,
+        }
 
 
 class DecisionModel:
@@ -126,10 +134,11 @@ class DecisionModel:
                     else "model_error",
                     inputs,
                     outputs,
+                    source=exc,
                 ) from None
             except Exception as exc:
                 observation(error=type(exc).__name__)
-                raise DecisionModelError("model_error", inputs, outputs) from None
+                raise DecisionModelError("model_error", inputs, outputs, source=exc) from None
 
     async def aclose(self) -> None:
         self._closed = True

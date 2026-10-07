@@ -672,3 +672,90 @@ async def test_native_foreground_lost_at_dispatch_is_known_not_sent(world, monke
     finally:
         await agent.aclose()
         await ctx.runtime.aclose()
+
+
+async def test_pilot_records_sdk_failure_before_unknown_usage_stop(world, monkeypatch, tmp_path):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    import json
+    import httpx2
+    from benchmarks.computer_use import s4_ax
+    from agent_computer_use.channels.native import NativeConfig
+    from tank_backend.benchmarks.desktop_cleanup import MacOSInputCleanup
+
+    class Owner:
+        setup_actions = []
+        def __init__(self, case):
+            pass
+        def start(self):
+            return NativeConfig.model_validate_json(json.dumps(native_config()))
+        def read_values(self):
+            return {"result": world.value}
+        def close(self):
+            return {"confirmed": True}
+    monkeypatch.setattr(s4_ax, "OwnedApplication", Owner)
+    monkeypatch.setattr(s4_ax, "task_goal", lambda case: goal().model_dump(mode="json"))
+    monkeypatch.setattr(MacOSInputCleanup, "_state", staticmethod(lambda: ([], [])))
+    monkeypatch.setattr(MacOSInputCleanup, "_release", lambda self: {"errors": []})
+    original_http = s4_ax.fake_model_http
+    requests = []
+    async def fail(request):
+        requests.append(request)
+        return httpx2.Response(503, json={"error": "private-error-body"})
+    monkeypatch.setattr(s4_ax, "fake_model_http", lambda respond: original_http(fail))
+    output = tmp_path / "pilot"
+    frozen = s4_ax.prepare(output)
+    result = await s4_ax.run_batch(output, frozen["sha256"], mode="fake")
+    row = result["rows"][0]
+    errors = [e for e in row["events"] if e["kind"] == "decision_error"]
+    assert len(errors) == 1 and errors[0]["http_status"] == 503
+    assert errors[0]["error_type"] == "TypeSafeInternalServerError"
+    assert errors[0]["call_id"] in result["spend"]["requests"]
+    assert result["spend"]["stop_reason"] == "unknown_usage"
+    assert len(requests) == 1 and not world.sent
+    assert not row["passed"] and row["application_cleanup"]["confirmed"]
+    assert all(r["status"] == "not_run" for r in result["rows"][1:])
+    assert "private-error-body" not in (output / "result.json").read_text()
+
+
+async def test_native_model_view_compacts_references_without_dropping_candidates(world):
+    import json
+    from dataclasses import asdict
+    from agent_computer_use.action_builder import ActionBuilder
+    from agent_computer_use.channels.native import NativeAXChannel, NativeConfig
+    from agent_computer_use.contracts import snapshot_json
+    from agent_computer_use.jev import decision_question
+
+    world.buttons = [replace(world.button, index=i, title=str(i), identifier=str(i),
+                             element=AXElementRef(object(), False, 80)) for i in range(54)]
+    channel = NativeAXChannel(NativeConfig.model_validate_json(json.dumps(native_config())))
+    ctx = context()
+    ctx.runtime.bind("task")
+    try:
+        snapshot = await channel.observe("counter", ctx)
+        original = snapshot_json(snapshot)
+        actions = ActionBuilder(max_candidates=64).build("increment", 1, goal(), snapshot)
+        question = json.loads(json.dumps(decision_question(goal(), snapshot, actions)))
+        state = question["state"]
+        criteria = question["questions"]["next_action"]["criteria"]
+        assert set(criteria) == {a.id for a in actions.actions} | {
+            "none", "ambiguous", "need_more_context", "escalate"}
+        elements = {e["ref"]: {**state["snapshot"]["element_defaults"], **e}
+                    for e in state["snapshot"]["elements"]}
+        for action in actions.actions:
+            candidate = criteria[action.id]
+            element = elements[candidate["target_ref"]]
+            old = next(e for e in snapshot.elements if e.ref == action.target_ref)
+            assert (element["label"], element["role"], element["enabled"], element["value"]) == (
+                old.label, old.role, old.enabled, old.value)
+            assert candidate["operation"] == action.operation
+            for change in candidate["changes"]:
+                assert elements[change["source_ref"]]["value"] == change["before"]
+        assert snapshot_json(snapshot) == original  # execution keeps original references
+        old_bytes = len(json.dumps({"snapshot": original, "criteria": [
+            {**asdict(a), **asdict(d)} for a, d in zip(actions.actions, actions.details)]}))
+        new_bytes = len(json.dumps({"snapshot": state["snapshot"], "criteria": criteria}))
+        assert new_bytes < old_bytes * 0.7
+    finally:
+        await channel.aclose()
+        await ctx.runtime.aclose()

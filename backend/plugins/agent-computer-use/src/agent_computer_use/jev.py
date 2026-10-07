@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 
@@ -50,22 +50,67 @@ class JevSelector:
         raise SubAgentStopped("invalid_decision")
 
 
+def compact_model_view(snapshot: Snapshot, actions: ActionSet) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Compact model-only references; execution retains every original bound action."""
+    compact = bool(snapshot.elements) and all(e.source == "ax" for e in snapshot.elements)
+    references: dict[str, str] = {}
+
+    def reference(value: str) -> str:
+        if not compact:
+            return value
+        if value not in references:
+            references[value] = f"e{len(references) + 1}"
+        return references[value]
+
+    def changes(items: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> None:
+        for item in items:
+            item["source_ref"] = reference(item["source_ref"])
+
+    defaults = {"enabled": True, "kind": "control", "value": "", "focused": None,
+                "ancestors": (), "bounds": None, "actions": ()}
+    view = snapshot_json(snapshot)
+    for element in cast(list[dict[str, Any]], view["elements"]):
+        element["ref"] = reference(element["ref"])
+        changes(element.get("click_changes", ()))
+        for key, value in defaults.items():
+            if compact and element.get(key) == value:
+                element.pop(key, None)
+    if compact:
+        view["element_defaults"] = defaults
+    criteria: dict[str, Any] = {}
+    details = {d.action_id: d for d in actions.details}
+    for action in actions.actions:
+        candidate = asdict(action)
+        if compact:
+            candidate.pop("id")  # already the Choice key
+        candidate["target_ref"] = reference(action.target_ref)
+        if action.id in details:
+            detail = details[action.id]
+            candidate.update(**asdict(detail))
+            if compact:
+                for key in ("action_id", "role", "ancestors", "current_value"):
+                    candidate.pop(key)
+            candidate.update(label=detail.label, input_key=detail.input_key,
+                             effect=[f.model_dump(mode="json") for f in detail.effect],
+                             changes=[asdict(c) for c in detail.changes])
+            changes(candidate["changes"])
+        criteria[action.id] = candidate
+    progress = asdict(actions.progress or GoalProgress())
+    for key in ("recent_action", "pending_action"):
+        if progress[key] is not None:
+            progress[key]["target_ref"] = reference(progress[key]["target_ref"])
+    progress["input_bindings"] = tuple((key, reference(ref)) for key, ref in progress["input_bindings"])
+    return view, criteria, progress
+
+
 def decision_question(
     goal: GoalContract, snapshot: Snapshot, actions: ActionSet,
 ) -> dict[str, object]:
     """Same semantic question for native Choice and governed text selection."""
-    criteria: dict[str, object] = {
-        action.id: asdict(action) for action in actions.actions
-    }
-    for detail in actions.details:
-        action = next(item for item in actions.actions if item.id == detail.action_id)
-        criteria[action.id] = {
-            **asdict(action), **asdict(detail),
-            "effect": [item.model_dump(mode="json") for item in detail.effect],
-        }
+    model_snapshot, criteria, progress = compact_model_view(snapshot, actions)
     criteria.update((key, value) for key, value in CONTROLS.items())
     payload = {
-        "state": {"goal": goal.model_dump(mode="json"), "snapshot": snapshot_json(snapshot),
+        "state": {"goal": goal.model_dump(mode="json"), "snapshot": model_snapshot,
                   "binding": asdict(actions.binding),
                   "evidence_contract": {
                       "schema_version": 1,
@@ -81,7 +126,9 @@ def decision_question(
                   }},
         "questions": {"next_action": {
             "type": "choice", "instructions": (
-                "Select one complete offered action or a control option. Your output is a "
+                "Each action target_ref refers to snapshot.elements. Read role, ancestors and current "
+                "value from that element; omitted element fields use snapshot.element_defaults. "
+                "References are local to this question. Select one complete offered action or a control option. Your output is a "
                 "proposal; the host rechecks authority and references before execution. "
                 "Do not infer business approval from permission to request a proposal. "
                 "Goal inputs are declarations, and outcome/completion predicates are desired "
@@ -98,5 +145,5 @@ def decision_question(
             "criteria": criteria,
         }},
     }
-    payload["state"]["progress"] = asdict(actions.progress or GoalProgress())
+    payload["state"]["progress"] = progress
     return payload
