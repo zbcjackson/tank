@@ -224,6 +224,38 @@ async def actions(channel, ctx, index=1):
     return ActionBuilder().build("goal", 1, contract, contract.milestones[index], snapshot)
 
 
+async def test_goal_input_binding_does_not_survive_document_reload(channel) -> None:
+    from agent_computer_use.contracts import GoalContractV2, GoalProgress
+
+    browser, ctx = channel
+    page = browser.page
+    await page.goto(browser.config.url + "goal/plain")
+    await page.get_by_role("button", name="Personal info").click()
+    await page.get_by_role("textbox", name="Public name").fill("Ada")
+    before = await browser.observe("managed-page", ctx)
+    original = next(e for e in before.elements if e.role == "textbox")
+    progress = GoalProgress(input_bindings=(("name", original.ref),))
+    contract = GoalContractV2.model_validate_json('''{
+      "schema_version": 2, "goal_id": "name", "intent": "Save name Ada",
+      "objective": "Save name Ada", "scope": "managed-page",
+      "authorization_ref": "current_task", "allowed_operations": ["click", "fill"],
+      "inputs": [{"key": "name", "purpose": "display name", "value": "Ada"}],
+      "completion": [{"key": "status:Saved name", "value": "Ada"}]
+    }''')
+    assert any(a.operation == "click" and a.target_ref == next(
+        e.ref for e in before.elements if e.label == "Save")
+        for a in ActionBuilder().build_goal("name", 1, contract, before, progress).actions)
+    await page.reload()
+    await page.get_by_role("button", name="Personal info").click()
+    await page.get_by_role("textbox", name="Public name").fill("Ada")
+    after = await browser.observe("managed-page", ctx)
+    save = next(e.ref for e in after.elements if e.label == "Save")
+    # A new document's coincidentally equal value is not the input we verified.
+    assert not any(a.target_ref == save for a in ActionBuilder().build_goal(
+        "name", 1, contract, after, progress).actions)
+    assert original.ref != next(e.ref for e in after.elements if e.role == "textbox")
+
+
 @pytest.mark.parametrize("change", ["replace", "navigate", "disabled", "label", "new_observation"])
 async def test_old_reference_never_dispatches(channel, change: str) -> None:
     browser, ctx = channel

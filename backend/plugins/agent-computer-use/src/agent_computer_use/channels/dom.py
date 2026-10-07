@@ -64,7 +64,8 @@ _ENGINE = r"""({
     queryAll(root, selector) {
         const key = NAMESPACE;
         if (!globalThis[key]) {
-            const state = {ids: new WeakMap(), refs: new Map(), next: 0, revision: 0};
+            const documentId = [...crypto.getRandomValues(new Uint32Array(4))].join('-');
+            const state = {ids: new WeakMap(), refs: new Map(), next: 0, revision: 0, documentId};
             new MutationObserver(() => state.revision++).observe(document,
                 {subtree: true, childList: true, attributes: true, characterData: true});
             globalThis[key] = state;
@@ -119,7 +120,8 @@ _READ = r"""nodes => {
             [{key: 'visible:' + targetRole + ':' + targetName, value: 'true'}] : [];
         if (label.length > 512 || (value || '').length > 4096 || role.length > 128)
             complete = false;
-        if (!state.ids.has(node)) state.ids.set(node, PREFIX + (++state.next));
+        if (!state.ids.has(node))
+            state.ids.set(node, PREFIX + state.documentId + ':' + (++state.next));
         const ref = state.ids.get(node);
         state.refs.set(ref, node);
         elements.push({ref, role: role.slice(0, 128), label: label.slice(0, 512),
