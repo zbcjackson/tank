@@ -91,12 +91,7 @@ class Capture:
 
 def goal(case: dict[str, Any]) -> dict[str, Any]:
     fact = {"key": "status:Result", "value": "saved"}
-    return {
-        "schema_version": 1, "objective": case["target"], "scope": "smoke",
-        "milestones": [{"id": "save", "operation": "click", "role": "button",
-                        "label": case["target"], "postcondition": fact}],
-        "completion": [fact],
-    }
+    return {'objective': case['target'], 'scope': 'smoke', 'completion': [fact], 'schema_version': 2, 'goal_id': 'goal', 'intent': case['target'], 'authorization_ref': 'current_task', 'allowed_operations': ['click', 'fill']}
 
 
 async def run_smoke(output: Path) -> dict[str, Any]:
@@ -130,7 +125,8 @@ async def run_smoke(output: Path) -> dict[str, Any]:
                 f'">{html.escape(label)}</button>'
                 for index, label in enumerate(active_case["buttons"])
             )
-            body = (buttons + '<div role="status" aria-label="Result">empty</div>').encode()
+            body = ('<form onsubmit="event.preventDefault()">' + buttons +
+                    '<div role="status" aria-label="Result">empty</div></form>').encode()
             writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n"
                          + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode() + body)
             await writer.drain()

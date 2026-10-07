@@ -18,12 +18,7 @@ def frame() -> Observation:
 
 
 def goal(label: str = "Save") -> GoalContract:
-    return GoalContract.from_input({
-        "schema_version": 1, "objective": "Save", "scope": "window-7",
-        "milestones": [{"id": "save", "operation": "click", "role": "button",
-                        "label": label, "postcondition": {"key": "saved", "value": "yes"}}],
-        "completion": [{"key": "saved", "value": "yes"}],
-    })
+    return GoalContract.from_input({'objective': 'Save', 'scope': 'window-7', 'completion': [{'key': 'status:saved', 'value': 'yes'}], 'schema_version': 2, 'goal_id': 'goal', 'intent': 'Save', 'authorization_ref': 'current_task', 'allowed_operations': ['click', 'fill']})
 
 
 def candidate(native: object, label: str, index: int = 1) -> AXCandidate:
@@ -55,9 +50,9 @@ async def test_ax_identity_survives_reordering_but_not_disappearance(monkeypatch
     assert second.elements[1].ancestors == (("AXWindow", "Document"),)
     assert first.observation_id != second.observation_id
     assert second.generation > first.generation
-    actions = ActionBuilder().build("goal", 1, goal(), goal().milestones[0], second)
-    assert actions.reason == "rules_unique"
-    assert actions.actions[0].target_ref == first.elements[0].ref
+    actions = ActionBuilder().build("goal", 1, goal(), second)
+    assert actions.reason == "no_viable_actions" and not actions.actions
+    # AX observation alone does not establish an executable local-effect template.
     await source.observe("window-7", ctx)
     fourth = await source.observe("window-7", ctx)
     assert fourth.elements[0].ref != first.elements[0].ref
@@ -117,14 +112,16 @@ async def test_frozen_ax_golden_cases(monkeypatch) -> None:
                             lambda *args: (candidates, False))
         snapshot = await AXObservationSource(frame(), "window-7").observe("window-7", context())
         target = goal(case["target"])
-        actions = ActionBuilder().build("goal", 1, target, target.milestones[0], snapshot)
+        actions = ActionBuilder().build("goal", 1, target, snapshot)
+        matches = [e for e in snapshot.elements if e.kind == "control" and e.label == case["target"]]
         if case["category"] == "duplicate":
-            assert actions.reason == "ambiguous_target" and not actions.actions
+            assert len(matches) > 1
         elif case["category"] == "absent":
-            assert actions.reason == "no_viable_actions" and not actions.actions
+            assert not matches
         else:
-            assert actions.reason == "rules_unique" and len(actions.actions) == 1
-            assert actions.actions[0].target_ref == snapshot.elements[0].ref
+            assert len(matches) == 1 and matches[0].ref == snapshot.elements[0].ref
+        assert snapshot.complete
+        assert actions.reason == "no_viable_actions" and not actions.actions
     assert not splits["calibration"] & splits["holdout"]
 
 

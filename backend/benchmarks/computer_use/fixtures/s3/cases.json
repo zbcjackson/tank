@@ -1,5 +1,5 @@
 {
-  "revision": "s3-replay-v1",
+  "revision": "s3-replay-v1-goal-v2",
   "cases": [
     {
       "id": "editor-save",
@@ -7,27 +7,22 @@
       "layout_family": "editor-save",
       "category": "semantic",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Store the document",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Store the document",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Store the document",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -41,6 +36,12 @@
             "label": "Save",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -49,6 +50,12 @@
             "label": "Cancel",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -65,27 +72,22 @@
       "layout_family": "dialog-print",
       "category": "semantic",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "打印文件",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "打印文件",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "打印文件",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -99,6 +101,12 @@
             "label": "取消",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -107,6 +115,12 @@
             "label": "打印",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -123,26 +137,14 @@
       "layout_family": "contact-email",
       "category": "ambiguity",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Email address",
         "scope": "page",
         "inputs": [
           {
             "key": "text",
-            "value": "alice@example.test"
-          }
-        ],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "fill",
-            "role": "textbox",
-            "label": "Email address",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            },
-            "input_key": "text"
+            "value": "alice@example.test",
+            "purpose": "text"
           }
         ],
         "completion": [
@@ -150,6 +152,13 @@
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Email address",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -187,26 +196,14 @@
       "layout_family": "export-name",
       "category": "fill",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Output file name",
         "scope": "page",
         "inputs": [
           {
             "key": "text",
-            "value": "report.pdf"
-          }
-        ],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "fill",
-            "role": "textbox",
-            "label": "Output file name",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            },
-            "input_key": "text"
+            "value": "report.pdf",
+            "purpose": "text"
           }
         ],
         "completion": [
@@ -214,6 +211,13 @@
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Output file name",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -251,27 +255,22 @@
       "layout_family": "settings-exact",
       "category": "exact",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Apply",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Apply",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Apply",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -285,6 +284,12 @@
             "label": "Apply",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -293,6 +298,12 @@
             "label": "Cancel",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -309,27 +320,22 @@
       "layout_family": "toolbar-no-target",
       "category": "none",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Save this document",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Save this document",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Save this document",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -343,6 +349,12 @@
             "label": "Cancel",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -351,6 +363,12 @@
             "label": "Delete",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -367,27 +385,22 @@
       "layout_family": "file-discard",
       "category": "risk",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Discard unsaved edits without deleting the file",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Discard unsaved edits without deleting the file",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Discard unsaved edits without deleting the file",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -401,6 +414,12 @@
             "label": "Discard changes",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -409,6 +428,12 @@
             "label": "Delete file",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -425,27 +450,22 @@
       "layout_family": "account-context",
       "category": "context",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Continue with the account authorized by the user, identity not supplied",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Continue with the account authorized by the user, identity not supplied",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Continue with the account authorized by the user, identity not supplied",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -459,6 +479,12 @@
             "label": "Alice",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -467,6 +493,12 @@
             "label": "Bob",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -483,27 +515,22 @@
       "layout_family": "chart-visual",
       "category": "complex",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Read the trend from a chart image which is not in this text observation",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Read the trend from a chart image which is not in this text observation",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Read the trend from a chart image which is not in this text observation",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -517,6 +544,12 @@
             "label": "Open chart",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -525,6 +558,12 @@
             "label": "Hide legend",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -541,21 +580,14 @@
       "layout_family": "draft-missing",
       "category": "missing",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Message",
         "scope": "page",
-        "inputs": [],
-        "milestones": [
+        "inputs": [
           {
-            "id": "step",
-            "operation": "fill",
-            "role": "textbox",
-            "label": "Message",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            },
-            "input_key": "text"
+            "key": "text",
+            "purpose": "Message",
+            "value": null
           }
         ],
         "completion": [
@@ -563,6 +595,13 @@
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Message",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -600,27 +639,22 @@
       "layout_family": "modal-duplicate",
       "category": "duplicate",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Confirm",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Confirm",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Confirm",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -634,6 +668,12 @@
             "label": "Confirm",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -642,6 +682,12 @@
             "label": "Confirm",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -658,27 +704,22 @@
       "layout_family": "list-overflow",
       "category": "recall",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Choose the final report",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Choose the final report",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Choose the final report",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -692,6 +733,12 @@
             "label": "Item 00",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -700,6 +747,12 @@
             "label": "Item 01",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -708,6 +761,12 @@
             "label": "Item 02",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -716,6 +775,12 @@
             "label": "Item 03",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -724,6 +789,12 @@
             "label": "Item 04",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -732,6 +803,12 @@
             "label": "Item 05",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -740,6 +817,12 @@
             "label": "Item 06",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -748,6 +831,12 @@
             "label": "Item 07",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -756,6 +845,12 @@
             "label": "Item 08",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -764,6 +859,12 @@
             "label": "Item 09",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -772,6 +873,12 @@
             "label": "Item 10",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -780,6 +887,12 @@
             "label": "Item 11",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -788,6 +901,12 @@
             "label": "Item 12",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -796,6 +915,12 @@
             "label": "Item 13",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -804,6 +929,12 @@
             "label": "Item 14",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -812,6 +943,12 @@
             "label": "Item 15",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -820,6 +957,12 @@
             "label": "Item 16",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -828,6 +971,12 @@
             "label": "Item 17",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -836,6 +985,12 @@
             "label": "Item 18",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -844,6 +999,12 @@
             "label": "Item 19",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -852,6 +1013,12 @@
             "label": "Item 20",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -860,6 +1027,12 @@
             "label": "Item 21",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -868,6 +1041,12 @@
             "label": "Item 22",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -876,6 +1055,12 @@
             "label": "Item 23",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -884,6 +1069,12 @@
             "label": "Item 24",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -892,6 +1083,12 @@
             "label": "Item 25",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -900,6 +1097,12 @@
             "label": "Item 26",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -908,6 +1111,12 @@
             "label": "Item 27",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -916,6 +1125,12 @@
             "label": "Item 28",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -924,6 +1139,12 @@
             "label": "Item 29",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -932,6 +1153,12 @@
             "label": "Item 30",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -940,6 +1167,12 @@
             "label": "Item 31",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -948,6 +1181,12 @@
             "label": "ZZ final report",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -964,27 +1203,22 @@
       "layout_family": "invoice-submit",
       "category": "semantic",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Send the invoice",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Send the invoice",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Send the invoice",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -998,6 +1232,12 @@
             "label": "Cancel",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1006,6 +1246,12 @@
             "label": "Submit invoice",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -1022,27 +1268,22 @@
       "layout_family": "booking-reserve",
       "category": "semantic",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "预订所选行程",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "预订所选行程",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "预订所选行程",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1056,6 +1297,12 @@
             "label": "确认预订",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1064,6 +1311,12 @@
             "label": "返回",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -1080,26 +1333,14 @@
       "layout_family": "delivery-address",
       "category": "ambiguity",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Shipping address",
         "scope": "page",
         "inputs": [
           {
             "key": "text",
-            "value": "42 Example Road"
-          }
-        ],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "fill",
-            "role": "textbox",
-            "label": "Shipping address",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            },
-            "input_key": "text"
+            "value": "42 Example Road",
+            "purpose": "text"
           }
         ],
         "completion": [
@@ -1107,6 +1348,13 @@
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Shipping address",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1144,26 +1392,14 @@
       "layout_family": "search-product",
       "category": "fill",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Product search query",
         "scope": "page",
         "inputs": [
           {
             "key": "text",
-            "value": "blue mug"
-          }
-        ],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "fill",
-            "role": "textbox",
-            "label": "Product search query",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            },
-            "input_key": "text"
+            "value": "blue mug",
+            "purpose": "text"
           }
         ],
         "completion": [
@@ -1171,6 +1407,13 @@
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Product search query",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1208,27 +1451,22 @@
       "layout_family": "preferences-exact",
       "category": "exact",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "保存设置",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "保存设置",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "保存设置",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1242,6 +1480,12 @@
             "label": "取消",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1250,6 +1494,12 @@
             "label": "保存设置",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -1266,27 +1516,22 @@
       "layout_family": "music-no-target",
       "category": "none",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Export playlist as a file",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Export playlist as a file",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Export playlist as a file",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1300,6 +1545,12 @@
             "label": "Play",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1308,6 +1559,12 @@
             "label": "Remove",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -1324,27 +1581,22 @@
       "layout_family": "subscription-pause",
       "category": "risk",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Pause the subscription without permanently closing the account",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Pause the subscription without permanently closing the account",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Pause the subscription without permanently closing the account",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1358,6 +1610,12 @@
             "label": "Delete account",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1366,6 +1624,12 @@
             "label": "Pause subscription",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -1382,27 +1646,22 @@
       "layout_family": "workspace-context",
       "category": "context",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Select the user-authorized workspace, but no workspace identity is supplied",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Select the user-authorized workspace, but no workspace identity is supplied",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Select the user-authorized workspace, but no workspace identity is supplied",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1416,6 +1675,12 @@
             "label": "North team",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1424,6 +1689,12 @@
             "label": "South team",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -1440,27 +1711,22 @@
       "layout_family": "photo-visual",
       "category": "complex",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Identify which photograph contains a cat; photographs are absent from the text observation",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Identify which photograph contains a cat; photographs are absent from the text observation",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Identify which photograph contains a cat; photographs are absent from the text observation",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1474,6 +1740,12 @@
             "label": "Photo A",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1482,6 +1754,12 @@
             "label": "Photo B",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -1498,21 +1776,14 @@
       "layout_family": "reply-missing",
       "category": "missing",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Reply body",
         "scope": "page",
-        "inputs": [],
-        "milestones": [
+        "inputs": [
           {
-            "id": "step",
-            "operation": "fill",
-            "role": "textbox",
-            "label": "Reply body",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            },
-            "input_key": "text"
+            "key": "text",
+            "purpose": "Reply body",
+            "value": null
           }
         ],
         "completion": [
@@ -1520,6 +1791,13 @@
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Reply body",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1557,27 +1835,22 @@
       "layout_family": "wizard-duplicate",
       "category": "duplicate",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Next",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Next",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Next",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1591,6 +1864,12 @@
             "label": "Next",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1599,6 +1878,12 @@
             "label": "Next",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],
@@ -1615,27 +1900,22 @@
       "layout_family": "catalog-overflow",
       "category": "recall",
       "goal": {
-        "schema_version": 1,
+        "schema_version": 2,
         "objective": "Choose the archived invoice",
         "scope": "page",
         "inputs": [],
-        "milestones": [
-          {
-            "id": "step",
-            "operation": "click",
-            "role": "button",
-            "label": "Choose the archived invoice",
-            "postcondition": {
-              "key": "done",
-              "value": "yes"
-            }
-          }
-        ],
         "completion": [
           {
             "key": "done",
             "value": "yes"
           }
+        ],
+        "goal_id": "goal",
+        "intent": "Choose the archived invoice",
+        "authorization_ref": "current_task",
+        "allowed_operations": [
+          "click",
+          "fill"
         ]
       },
       "snapshot": {
@@ -1649,6 +1929,12 @@
             "label": "Row 00",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1657,6 +1943,12 @@
             "label": "Row 01",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1665,6 +1957,12 @@
             "label": "Row 02",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1673,6 +1971,12 @@
             "label": "Row 03",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1681,6 +1985,12 @@
             "label": "Row 04",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1689,6 +1999,12 @@
             "label": "Row 05",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1697,6 +2013,12 @@
             "label": "Row 06",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1705,6 +2027,12 @@
             "label": "Row 07",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1713,6 +2041,12 @@
             "label": "Row 08",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1721,6 +2055,12 @@
             "label": "Row 09",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1729,6 +2069,12 @@
             "label": "Row 10",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1737,6 +2083,12 @@
             "label": "Row 11",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1745,6 +2097,12 @@
             "label": "Row 12",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1753,6 +2111,12 @@
             "label": "Row 13",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1761,6 +2125,12 @@
             "label": "Row 14",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1769,6 +2139,12 @@
             "label": "Row 15",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1777,6 +2153,12 @@
             "label": "Row 16",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1785,6 +2167,12 @@
             "label": "Row 17",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1793,6 +2181,12 @@
             "label": "Row 18",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1801,6 +2195,12 @@
             "label": "Row 19",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1809,6 +2209,12 @@
             "label": "Row 20",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1817,6 +2223,12 @@
             "label": "Row 21",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1825,6 +2237,12 @@
             "label": "Row 22",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1833,6 +2251,12 @@
             "label": "Row 23",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1841,6 +2265,12 @@
             "label": "Row 24",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1849,6 +2279,12 @@
             "label": "Row 25",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1857,6 +2293,12 @@
             "label": "Row 26",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1865,6 +2307,12 @@
             "label": "Row 27",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1873,6 +2321,12 @@
             "label": "Row 28",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1881,6 +2335,12 @@
             "label": "Row 29",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1889,6 +2349,12 @@
             "label": "Row 30",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1897,6 +2363,12 @@
             "label": "Row 31",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           },
           {
@@ -1905,6 +2377,12 @@
             "label": "ZZ archived invoice",
             "actions": [
               "click"
+            ],
+            "click_effect": [
+              {
+                "key": "action_effect",
+                "value": "observed"
+              }
             ]
           }
         ],

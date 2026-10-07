@@ -20,53 +20,6 @@ class Fact(GoalModel):
     value: str = Field(max_length=4096)
 
 
-class Milestone(GoalModel):
-    id: str = Field(min_length=1, max_length=128)
-    operation: Operation
-    role: str = Field(min_length=1, max_length=128)
-    label: str = Field(min_length=1, max_length=512)
-    input_key: str | None = None
-    postcondition: Fact
-
-    @model_validator(mode="after")
-    def validate_input(self) -> Milestone:
-        if (self.operation == "fill") != bool(self.input_key):
-            raise ValueError("Only fill requires an input_key")
-        return self
-
-
-class GoalContract(GoalModel):
-    schema_version: Literal[1]
-    objective: str = Field(min_length=1, max_length=4096)
-    scope: str = Field(min_length=1, max_length=256)
-    inputs: tuple[Fact, ...] = ()
-    milestones: tuple[Milestone, ...] = Field(min_length=1, max_length=32)
-    completion: tuple[Fact, ...] = Field(min_length=1, max_length=32)
-
-    @field_validator("schema_version", mode="before")
-    @classmethod
-    def validate_schema(cls, value: object) -> object:
-        if type(value) is not int:
-            raise ValueError("schema_version must be integer 1")
-        return value
-
-    @model_validator(mode="after")
-    def validate_identity(self) -> GoalContract:
-        for names in (
-            [item.key for item in self.inputs],
-            [item.id for item in self.milestones],
-            [item.key for item in self.completion],
-        ):
-            if len(set(names)) != len(names):
-                raise ValueError("Duplicate input, milestone or completion key")
-        return self
-
-    @classmethod
-    def from_input(cls, value: object) -> GoalContract:
-        # JSON tuples are arrays; strict mode still rejects coerced scalar values.
-        return cls.model_validate_json(json.dumps(value, allow_nan=False))
-
-
 class GoalInput(GoalModel):
     key: str = Field(min_length=1, max_length=128)
     purpose: str = Field(min_length=1, max_length=512)
@@ -83,7 +36,7 @@ class Outcome(GoalModel):
     depends_on: tuple[str, ...] = Field(default=(), max_length=32)
 
 
-class GoalContractV2(GoalModel):
+class GoalContract(GoalModel):
     """Desired outcomes and input purposes, never an ordered action script.
 
     authorization_ref identifies the existing task grant; it cannot grant capabilities.
@@ -110,7 +63,7 @@ class GoalContractV2(GoalModel):
         return value
 
     @model_validator(mode="after")
-    def validate_identity(self) -> GoalContractV2:
+    def validate_identity(self) -> GoalContract:
         for names in (
             [item.key for item in self.inputs], [item.id for item in self.outcomes],
             [item.key for item in self.completion], list(self.allowed_operations),
@@ -129,12 +82,10 @@ class GoalContractV2(GoalModel):
         return self
 
 
-def parse_goal(value: object) -> GoalContract | GoalContractV2:
-    if not isinstance(value, dict) or type(value.get("schema_version")) is not int:
-        raise ValueError("An explicit integer schema_version is required")
-    if value["schema_version"] == 1:
-        return GoalContract.from_input(value)
-    return GoalContractV2.model_validate_json(json.dumps(value, allow_nan=False))
+    @classmethod
+    def from_input(cls, value: object) -> GoalContract:
+        # JSON arrays become immutable tuples without coercing scalar values.
+        return cls.model_validate_json(json.dumps(value, allow_nan=False))
 
 
 @dataclass(frozen=True)

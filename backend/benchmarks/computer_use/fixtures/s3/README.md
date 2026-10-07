@@ -1,3 +1,7 @@
+> 2026-10-07：当前可执行输入已迁移到单一目标契约（schema_version=2），使用新的
+> goal-contract revision；下文旧批次数字/协议为历史记录，不能用当前输入原样复现。
+> 已归档 reports 未改，新批次须重新冻结请求、候选与预算后按授权执行。
+
 # S3 replay v1 — synthetic fixture protocol
 
 Prepared 2026-10-03. These 24 hand-authored cases exercise the existing single

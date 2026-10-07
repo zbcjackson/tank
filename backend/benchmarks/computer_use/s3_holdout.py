@@ -72,12 +72,13 @@ def load_dataset() -> tuple[list[Case], dict[str, Expected]]:
 
 def build_case(case: Case) -> tuple[Snapshot, ActionSet]:
     snapshot = Snapshot(case.id, case.goal.scope, 1, case.elements, case.facts)
-    actions = ActionBuilder().build("goal", 1, case.goal, case.goal.milestones[0], snapshot)
+    actions = ActionBuilder().build("goal", 1, case.goal, snapshot)
     if actions.reason != "jev_eligible" or actions.truncated or len(actions.actions) != 2:
         raise ValueError("Holdout requires two complete model-eligible actions")
     # Determinism uses public references only; never consult labels.
     ordered = sorted(actions.actions, key=lambda a: a.target_ref)
-    actions = replace(actions, binding=replace(actions.binding, candidate_set_id="candidates"),
+    ids = {action.id: f"a{i}" for i, action in enumerate(ordered)}
+    actions = replace(actions, details=tuple(replace(d, action_id=ids[d.action_id]) for d in actions.details), binding=replace(actions.binding, candidate_set_id="candidates"),
                       actions=tuple(Action(f"a{i}", a.target_ref, a.operation, a.value)
                                     for i, a in enumerate(ordered)))
     return snapshot, actions
@@ -119,7 +120,7 @@ def score(
 def freeze_inputs() -> dict[str, object]:
     cases, labels = load_dataset()
     data: dict[str, object] = {
-        "revision": "s3-holdout-1", "preparation_only": True,
+        "revision": "s3-holdout-goal-2", "preparation_only": True,
         "purpose": "unseen synthetic domains, shared two-row layout; no model responses observed",
         "cases": [{"id": c.id, "family": c.family, "condition": c.condition,
                    "gold": labels[c.id].model_dump(mode="json"), "requests": requests(c)} for c in cases],

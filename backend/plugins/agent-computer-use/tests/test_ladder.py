@@ -29,24 +29,14 @@ from tank_backend.agents.subagent import (
 
 def export_goal() -> GoalContract:
     return GoalContract.from_input(
-        {
-            "schema_version": 1,
-            "objective": "Export this document as PDF without overwriting",
-            "scope": "document",
-            "inputs": [{"key": "filename", "value": "报告.pdf"}],
-            "milestones": [
-                {
-                    "id": "name",
-                    "operation": "fill",
-                    "role": "textbox",
-                    "label": "File name",
-                    "input_key": "filename",
-                    "postcondition": {"key": "filename", "value": "报告.pdf"},
-                }
-            ],
-            "completion": [{"key": "new_pdf", "value": "verified"}],
-        }
+        {'schema_version': 2, 'objective': 'Export this document as PDF without overwriting', 'scope': 'document', 'inputs': [{'key': 'filename', 'value': '报告.pdf', 'purpose': 'filename', 'field_label': 'File name'}], 'completion': [{'key': 'status:new_pdf', 'value': 'verified'}], 'goal_id': 'goal', 'intent': 'Export this document as PDF without overwriting', 'authorization_ref': 'current_task', 'allowed_operations': ['click', 'fill']}
     )
+
+
+def unbound_goal() -> GoalContract:
+    goal = export_goal().model_dump(mode="json")
+    goal["inputs"][0]["field_label"] = None
+    return GoalContract.from_input(goal)
 
 
 def profile_goal() -> dict[str, JsonValue]:
@@ -63,31 +53,41 @@ def profile_goal() -> dict[str, JsonValue]:
     }
 
 
-def test_goal_v2_preserves_intent_without_an_operation_script() -> None:
-    from agent_computer_use.contracts import GoalContractV2, parse_goal
+def test_only_goal_contract_accepts_outcomes_and_rejects_step_scripts() -> None:
+    goal = GoalContract.from_input(profile_goal())
+    assert goal.schema_version == 2
+    assert goal.inputs[0].purpose == "profile display name"
+    with pytest.raises(ValueError):
+        GoalContract.from_input({**profile_goal(), "schema_version": 1})
+    with pytest.raises(ValueError):
+        GoalContract.from_input({**profile_goal(), "milestones": []})
 
-    goal = parse_goal(profile_goal())
-    assert isinstance(goal, GoalContractV2)
+
+def test_goal_v2_preserves_intent_without_an_operation_script() -> None:
+    from agent_computer_use.contracts import GoalContract
+
+    goal = GoalContract.from_input(profile_goal())
+    assert isinstance(goal, GoalContract)
     assert goal.inputs[0].purpose == "profile display name"
     assert goal.inputs[0].value == "Ada"
     assert "milestones" not in goal.model_dump()
-    assert isinstance(parse_goal(export_goal().model_dump(mode="json")), GoalContract)
+    assert isinstance(GoalContract.from_input(export_goal().model_dump(mode="json")), GoalContract)
     with pytest.raises(ValueError):
-        parse_goal({**profile_goal(), "schema_version": 1})
+        GoalContract.from_input({**profile_goal(), "schema_version": 1})
     with pytest.raises(ValueError):
-        parse_goal({**profile_goal(), "schema_version": True})
+        GoalContract.from_input({**profile_goal(), "schema_version": True})
 
 
 def test_goal_v2_does_not_require_a_page_specific_field_label_or_form_name() -> None:
-    from agent_computer_use.contracts import GoalContractV2, parse_goal
+    from agent_computer_use.contracts import GoalContract
 
     task = profile_goal()
     task["inputs"] = [{"key": "name", "purpose": "display name", "value": "Ada"}]
-    goal = parse_goal(task)
-    assert isinstance(goal, GoalContractV2)
+    goal = GoalContract.from_input(task)
+    assert isinstance(goal, GoalContract)
     snapshot = Snapshot("obs", "profile", 1, (
         Element("field", "textbox", "Public alias", ("fill",), value="Bob"),))
-    actions = ActionBuilder().build_goal("goal", 1, goal, snapshot)
+    actions = ActionBuilder().build("goal", 1, goal, snapshot)
     assert [(a.target_ref, a.value) for a in actions.actions] == [("field", "Ada")]
 
 
@@ -151,10 +151,10 @@ async def test_goal_v2_preflight_rejection_has_no_pending_action() -> None:
 
 
 def test_goal_candidates_mix_operations_and_bind_only_compatible_inputs() -> None:
-    from agent_computer_use.contracts import GoalContractV2, parse_goal
+    from agent_computer_use.contracts import GoalContract
 
-    goal = parse_goal(profile_goal())
-    assert isinstance(goal, GoalContractV2)
+    goal = GoalContract.from_input(profile_goal())
+    assert isinstance(goal, GoalContract)
     snapshot = Snapshot("form", "profile", 1, (
         Element("name", "textbox", "Public name", ("fill",), value="Bob",
                 ancestors=(("form", "Profile"),)),
@@ -164,7 +164,7 @@ def test_goal_candidates_mix_operations_and_bind_only_compatible_inputs() -> Non
                 click_effect=(Fact(key="region:Home", value="visible"),)),
         Element("save", "button", "Save", ("click",), enabled=False),
     ))
-    actions = ActionBuilder().build_goal("goal", 1, goal, snapshot)
+    actions = ActionBuilder().build("goal", 1, goal, snapshot)
     assert actions.reason == "jev_eligible"
     from agent_computer_use.jev import decision_question
 
@@ -180,7 +180,7 @@ def test_goal_candidates_mix_operations_and_bind_only_compatible_inputs() -> Non
     }
     snapshot = replace(snapshot, elements=(replace(snapshot.elements[0], value="Ada"),
                                            *snapshot.elements[1:]))
-    assert [a.operation for a in ActionBuilder().build_goal("goal", 1, goal, snapshot).actions
+    assert [a.operation for a in ActionBuilder().build("goal", 1, goal, snapshot).actions
             ] == ["click"]
 
 
@@ -280,33 +280,33 @@ async def test_goal_v2_stops_repeated_states_and_stale_decisions(stale: bool) ->
 
 
 def test_goal_builder_never_offers_premature_submit_or_truncated_candidates() -> None:
-    from agent_computer_use.contracts import GoalContractV2, parse_goal
+    from agent_computer_use.contracts import GoalContract
 
-    goal = parse_goal(profile_goal())
-    assert isinstance(goal, GoalContractV2)
+    goal = GoalContract.from_input(profile_goal())
+    assert isinstance(goal, GoalContract)
     form = (Element("field", "textbox", "Name", ("fill",), value="Bob",
                     ancestors=(("form", "Profile"),)),
             Element("save", "button", "Save", ("click",), submits=True,
                     ancestors=(("form", "Profile"),)))
     snapshot = Snapshot("obs", "profile", 1, form)
-    actions = ActionBuilder().build_goal("goal", 1, goal, snapshot)
+    actions = ActionBuilder().build("goal", 1, goal, snapshot)
     assert {a.operation for a in actions.actions} == {"fill"}
     crowded = replace(snapshot, elements=tuple(replace(form[0], ref=str(i)) for i in range(33)))
-    actions = ActionBuilder().build_goal("goal", 1, goal, crowded)
+    actions = ActionBuilder().build("goal", 1, goal, crowded)
     assert actions.truncated and actions.actions == ()
 
 
 def test_goal_candidates_reject_incompatible_fields_and_indistinguishable_targets() -> None:
-    from agent_computer_use.contracts import GoalContractV2, parse_goal
+    from agent_computer_use.contracts import GoalContract
 
-    goal = parse_goal(profile_goal())
-    assert isinstance(goal, GoalContractV2)
+    goal = GoalContract.from_input(profile_goal())
+    assert isinstance(goal, GoalContract)
     field = Element("field", "textbox", "Name", ("fill",),
                     ancestors=(("form", "Profile"),))
     snapshot = Snapshot("obs", "profile", 1, (replace(field, input_type="password"),))
-    assert ActionBuilder().build_goal("goal", 1, goal, snapshot).actions == ()
+    assert ActionBuilder().build("goal", 1, goal, snapshot).actions == ()
     duplicate = replace(snapshot, elements=(field, replace(field, ref="other")))
-    actions = ActionBuilder().build_goal("goal", 1, goal, duplicate)
+    actions = ActionBuilder().build("goal", 1, goal, duplicate)
     assert actions.reason == "ambiguous_target" and actions.actions == ()
 
 
@@ -321,7 +321,7 @@ def test_known_input_builds_a_complete_bound_action() -> None:
             Element("field-8", "textbox", "Directory", ("fill",)),
         ),
     )
-    actions = ActionBuilder().build("goal-1", 1, goal, goal.milestones[0], snapshot)
+    actions = ActionBuilder().build("goal-1", 1, goal, snapshot)
     assert actions.reason == "rules_unique"
     assert len(actions.actions) == 1
     action = actions.actions[0]
@@ -352,7 +352,7 @@ def test_ineligible_evidence_produces_no_executable_candidates(case: str, reason
     elif case == "truncated":
         snapshot = replace(snapshot, complete=False)
     elif case == "missing_input":
-        goal = goal.model_copy(update={"inputs": ()})
+        goal = goal.model_copy(update={"inputs": (goal.inputs[0].model_copy(update={"value": None}),)})
     elif case == "scope":
         snapshot = replace(snapshot, scope="other-window")
     elif case == "ocr":
@@ -361,7 +361,7 @@ def test_ineligible_evidence_produces_no_executable_candidates(case: str, reason
         snapshot = replace(snapshot, elements=(replace(field, enabled=False),))
     else:
         snapshot = replace(snapshot, ready=False)
-    actions = ActionBuilder().build("goal", 1, goal, goal.milestones[0], snapshot)
+    actions = ActionBuilder().build("goal", 1, goal, snapshot)
     assert actions.reason == reason
     assert actions.actions == ()
 
@@ -386,8 +386,9 @@ class ExportWorld:
             f"obs-{self.observations}",
             scope,
             len(self.dispatched),
-            (Element("field", "textbox", "File name", ("fill",)),),
-            facts=(Fact(key="filename", value="报告.pdf"), Fact(key="new_pdf", value="verified"))
+            (Element("field", "textbox", "File name", ("fill",),
+                     value="报告.pdf" if self.dispatched else ""),),
+            facts=(Fact(key="filename", value="报告.pdf"), Fact(key="status:new_pdf", value="verified"))
             if self.dispatched
             else (),
         )
@@ -415,7 +416,8 @@ async def test_host_verifies_known_goal_with_no_models() -> None:
         ctx,
     )
     assert result.status == "completed"
-    assert result.details["milestones"] == ["name"]
+    evidence = result.details["evidence"]
+    assert isinstance(evidence, list) and evidence
     assert len(world.dispatched) == 1
     assert world.dispatched[0].value == "报告.pdf"
     assert world.observations == 2
@@ -450,7 +452,7 @@ class SupplyFilename:
 async def test_advisor_fills_one_gap_then_returns_to_rules() -> None:
     world, advisor = ExportWorld(), SupplyFilename()
     goal = export_goal().model_dump(mode="json")
-    goal["inputs"] = []
+    goal["inputs"][0]["value"] = None
     result = await ComputerUseController(world, world, advisor=advisor).run(
         SubAgentRequest("Export PDF", "Never overwrite", "task", goal),
         context(),
@@ -467,35 +469,24 @@ async def test_multistep_semantic_selection_needs_no_advisor() -> None:
     class World(ExportWorld):
         async def observe(self, scope, ctx):
             self.observations += 1
-            count = len(self.dispatched)
-            return Snapshot(
-                f"obs-{self.observations}",
-                scope,
-                count,
-                (
-                    Element(f"field-{count}", "textbox", "Output filename", ("fill",)),
-                    Element(f"folder-{count}", "textbox", "Output folder", ("fill",)),
-                ),
-                facts=tuple(Fact(key=f"step-{i}", value="done") for i in range(count)),
-            )
+            values = {a.target_ref: a.value for a in self.dispatched}
+            return Snapshot(str(self.observations), scope, len(self.dispatched), tuple(
+                Element(f"field-{i}", "textbox", "Value", ("fill",),
+                        value=values.get(f"field-{i}", ""), ancestors=(("section", str(i)),))
+                for i in range(3)),
+                facts=(Fact(key="status:done", value="yes"),) if len(values) == 3 else ())
 
     world, selector = World(), PickFirst()
     goal = export_goal().model_dump(mode="json")
-    goal["milestones"] = [
-        dict(
-            goal["milestones"][0],
-            id=f"step-{i}",
-            postcondition={"key": f"step-{i}", "value": "done"},
-        )
-        for i in range(3)
-    ]
-    goal["completion"] = [{"key": "step-2", "value": "done"}]
+    goal["inputs"] = [{"key": str(i), "purpose": f"value {i}", "field_scope": str(i),
+                       "value": f"value-{i}"} for i in range(3)]
+    goal["completion"] = [{"key": "status:done", "value": "yes"}]
     result = await ComputerUseController(world, world, selector=selector).run(
-        SubAgentRequest("Export PDF", "", "task", goal),
-        context(),
-    )
+        SubAgentRequest("Fill values", "", "task", goal), context())
     assert result.status == "completed"
     assert selector.calls == len(world.dispatched) == 3
+    assert {a.target_ref: a.value for a in world.dispatched} == {
+        f"field-{i}": f"value-{i}" for i in range(3)}
 
 
 @pytest.mark.parametrize("failure", ["cancel", "revoke", "budget", "timeout", "stale"])
@@ -554,7 +545,8 @@ async def test_dispatch_uncertainty_is_preserved_without_replay(failure: str) ->
                 str(self.observations),
                 scope,
                 len(self.dispatched),
-                (Element("field", "textbox", "File name", ("fill",)),),
+                (Element("field", "textbox", "File name", ("fill",),
+                     value=""),),
             )
 
     world = World()
@@ -596,7 +588,7 @@ async def test_stale_selector_reply_never_dispatches(change: str) -> None:
 
     world = World()
     result = await ComputerUseController(world, world, selector=Selector()).run(
-        SubAgentRequest("Export", "", "task", export_goal().model_dump(mode="json")),
+        SubAgentRequest("Export", "", "task", unbound_goal().model_dump(mode="json")),
         context(),
     )
     assert result.reason == "stale_decision"
@@ -612,7 +604,7 @@ async def test_wrong_scope_cannot_supply_completion_evidence() -> None:
                 1,
                 facts=(
                     Fact(key="filename", value="报告.pdf"),
-                    Fact(key="new_pdf", value="verified"),
+                    Fact(key="status:new_pdf", value="verified"),
                 ),
             )
 
@@ -633,13 +625,13 @@ async def test_advisor_reobservation_is_bounded() -> None:
 
     advisor, world = Advisor(), ExportWorld()
     goal = export_goal().model_dump(mode="json")
-    goal["inputs"] = []
+    goal["inputs"][0]["value"] = None
     result = await ComputerUseController(world, world, advisor=advisor).run(
         SubAgentRequest("Export", "", "task", goal),
         context(),
     )
-    assert result.reason == "advisor_limit"
-    assert advisor.calls == 4
+    assert result.reason == "no_progress"
+    assert advisor.calls == 1
     assert not world.dispatched
 
 
@@ -660,10 +652,10 @@ async def test_reobservation_does_not_repeat_same_abstained_selection() -> None:
 
     selector, world = Selector(), World()
     result = await ComputerUseController(world, world, selector=selector, advisor=Advisor()).run(
-        SubAgentRequest("Export", "", "task", export_goal().model_dump(mode="json")),
+        SubAgentRequest("Export", "", "task", unbound_goal().model_dump(mode="json")),
         context(),
     )
-    assert result.reason == "advisor_limit"
+    assert result.reason == "no_progress"
     assert selector.calls == 1
     assert not world.dispatched
 
@@ -703,7 +695,7 @@ async def test_advice_cannot_replace_authorized_inputs_or_completion(patch: str)
     "invalid",
     [
         {"schema_version": True},
-        {"schema_version": 2},
+        {"schema_version": 1},
         {"scope": ""},
         {"milestones": []},
         {"completion": []},
@@ -722,24 +714,17 @@ async def test_invalid_domain_contract_has_zero_observations(invalid) -> None:
     assert world.observations == 0
 
 
-async def test_later_failure_retains_verified_milestone() -> None:
+async def test_later_failure_retains_verified_action() -> None:
     goal = export_goal().model_dump(mode="json")
-    goal["milestones"].append(
-        {
-            "id": "save",
-            "operation": "click",
-            "role": "button",
-            "label": "Save",
-            "postcondition": {"key": "saved", "value": "yes"},
-        }
-    )
+    goal["completion"] = [{"key": "status:saved", "value": "yes"}]
     world = ExportWorld()
     result = await ComputerUseController(world, world).run(
         SubAgentRequest("Export", "", "task", goal),
         context(),
     )
     assert result.status == "partial"
-    assert result.details["milestones"] == ["name"]
+    evidence = result.details["evidence"]
+    assert isinstance(evidence, list) and evidence
     assert len(world.dispatched) == 1
 
 
@@ -747,7 +732,7 @@ async def test_delayed_effect_is_reconciled_with_reads_only() -> None:
     class World(ExportWorld):
         async def observe(self, scope, ctx):
             snapshot = await super().observe(scope, ctx)
-            return replace(snapshot, facts=()) if self.observations == 2 else snapshot
+            return replace(snapshot, facts=(), elements=(replace(snapshot.elements[0], value=""),)) if self.observations == 2 else snapshot
 
     world = World()
     result = await ComputerUseController(world, world).run(
@@ -759,7 +744,7 @@ async def test_delayed_effect_is_reconciled_with_reads_only() -> None:
 
 
 def test_semantic_shortlist_cannot_hide_duplicate_labels() -> None:
-    goal = export_goal()
+    goal = unbound_goal()
     snapshot = Snapshot(
         "obs",
         "document",
@@ -769,7 +754,7 @@ def test_semantic_shortlist_cannot_hide_duplicate_labels() -> None:
             Element("two", "textbox", "PDF name", ("fill",)),
         ),
     )
-    actions = ActionBuilder().build("goal", 1, goal, goal.milestones[0], snapshot)
+    actions = ActionBuilder().build("goal", 1, goal, snapshot)
     assert actions.reason == "ambiguous_target" and not actions.actions
 
 
@@ -787,24 +772,25 @@ async def test_result_binds_receipts_and_verification_to_observations() -> None:
     evidence = result.details["evidence"]
     assert isinstance(evidence, list) and isinstance(evidence[0], dict)
     assert evidence[0]["observation_id"] == "obs-2"
-    assert evidence[0]["milestone"] == "name"
+    assert evidence[0]["action_id"] == receipts[0]["action_id"]
 
 
 def test_shortlist_checks_whole_scope_before_limiting() -> None:
-    goal = export_goal()
+    goal = unbound_goal()
     elements = tuple(Element(f"field-{i}", "textbox", f"Name {i:02}", ("fill",))
                      for i in range(40))
     snapshot = Snapshot("obs", "document", 1, elements)
-    actions = ActionBuilder().build("goal", 1, goal, goal.milestones[0], snapshot)
-    assert actions.reason == "jev_eligible"
-    assert len(actions.actions) == 32
+    actions = ActionBuilder().build("goal", 1, goal, snapshot)
+    assert actions.reason == "candidate_limit"
+    assert actions.actions == ()
     assert actions.total_candidates == 40 and actions.truncated
     duplicate = replace(elements[-1], ref="duplicate", label=elements[0].label)
-    rejected = ActionBuilder().build("goal", 1, goal, goal.milestones[0],
+    rejected = ActionBuilder().build("goal", 1, goal,
                                     replace(snapshot, elements=(*elements, duplicate)))
-    assert rejected.reason == "ambiguous_target" and not rejected.actions
+    assert rejected.reason == "candidate_limit" and not rejected.actions
     exact = replace(elements[-1], label="File name")
-    matched = ActionBuilder().build("goal", 1, goal, goal.milestones[0],
+    goal = goal.model_copy(update={"inputs": (goal.inputs[0].model_copy(update={"field_label": "File name"}),)})
+    matched = ActionBuilder().build("goal", 1, goal,
                                    replace(snapshot, elements=(*elements[:-1], exact)))
     assert matched.reason == "rules_unique"
     assert matched.actions[0].target_ref == exact.ref

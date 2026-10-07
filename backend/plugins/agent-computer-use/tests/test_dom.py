@@ -24,8 +24,10 @@ def multilayout_html(layout: str, scenario: str) -> str:
         identity = "K7" if slot == desired_slot else "K2"
         effect = f"window.clicks.push('{slot}');"
         if scenario != "no_effect":
+            effect += f"document.getElementById('panel{slot}').hidden=false;"
             effect += f"document.querySelector('[aria-label=Result]').textContent='selected:{identity}';"
-        button = f'<button onclick="{effect}">执行 {slot}</button>'
+        button = f'<button aria-controls="panel{slot}" onclick="{effect}">执行 {slot}</button>'
+        button += f'<section id="panel{slot}" role="region" aria-label="Effect {slot}" hidden></section>'
         fact = "" if scenario == "missing" else (
             f'<span role="status" aria-label="Identity {slot}">{identity}</span>')
         if layout == "table":
@@ -82,10 +84,10 @@ def profile_html(layout: str) -> str:
 
 @pytest.fixture
 async def site(profile_store: dict[str, str]) -> AsyncIterator[str]:
-    html = b'''<label>Name <input id="name"></label>
+    html = b'''<form onsubmit="event.preventDefault()"><label>Name <input id="name"></label>
         <button onclick="document.querySelector('[role=status]').textContent =
         document.querySelector('input').value">Save</button>
-        <div role="status" aria-label="Result">empty</div>'''
+        <div role="status" aria-label="Result">empty</div></form>'''
 
     async def respond(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         request = await reader.readuntil(b"\r\n\r\n")
@@ -147,16 +149,7 @@ def context() -> SubAgentContext:
 
 
 def goal() -> GoalContract:
-    return GoalContract.from_input({
-        "schema_version": 1, "objective": "Save name", "scope": "managed-page",
-        "inputs": [{"key": "name", "value": "小明"}],
-        "milestones": [
-            {"id": "fill", "operation": "fill", "role": "textbox", "label": "Name",
-             "input_key": "name", "postcondition": {"key": "textbox:Name", "value": "小明"}},
-            {"id": "save", "operation": "click", "role": "button", "label": "Save",
-             "postcondition": {"key": "status:Result", "value": "小明"}},
-        ], "completion": [{"key": "status:Result", "value": "小明"}],
-    })
+    return GoalContract.from_input({'schema_version': 2, 'objective': 'Save name', 'scope': 'managed-page', 'inputs': [{'key': 'name', 'value': '小明', 'purpose': 'name', 'field_label': 'Name'}], 'completion': [{'key': 'status:Result', 'value': '小明'}], 'goal_id': 'goal', 'intent': 'Save name', 'authorization_ref': 'current_task', 'allowed_operations': ['click', 'fill']})
 
 
 async def test_managed_chromium_fill_click_readback(site: str, chromium_required: None) -> None:
@@ -221,11 +214,15 @@ async def channel(site: str, chromium_required: None):
 async def actions(channel, ctx, index=1):
     snapshot = await channel.observe("managed-page", ctx)
     contract = goal()
-    return ActionBuilder().build("goal", 1, contract, contract.milestones[index], snapshot)
+    if index == 1:
+        contract = contract.model_copy(update={"inputs": (), "allowed_operations": ("click",)})
+    else:
+        contract = contract.model_copy(update={"allowed_operations": ("fill",)})
+    return ActionBuilder().build("goal", 1, contract, snapshot)
 
 
 async def test_goal_input_binding_does_not_survive_document_reload(channel) -> None:
-    from agent_computer_use.contracts import GoalContractV2, GoalProgress
+    from agent_computer_use.contracts import GoalContract, GoalProgress
 
     browser, ctx = channel
     page = browser.page
@@ -235,7 +232,7 @@ async def test_goal_input_binding_does_not_survive_document_reload(channel) -> N
     before = await browser.observe("managed-page", ctx)
     original = next(e for e in before.elements if e.role == "textbox")
     progress = GoalProgress(input_bindings=(("name", original.ref),))
-    contract = GoalContractV2.model_validate_json('''{
+    contract = GoalContract.model_validate_json('''{
       "schema_version": 2, "goal_id": "name", "intent": "Save name Ada",
       "objective": "Save name Ada", "scope": "managed-page",
       "authorization_ref": "current_task", "allowed_operations": ["click", "fill"],
@@ -244,14 +241,14 @@ async def test_goal_input_binding_does_not_survive_document_reload(channel) -> N
     }''')
     assert any(a.operation == "click" and a.target_ref == next(
         e.ref for e in before.elements if e.label == "Save")
-        for a in ActionBuilder().build_goal("name", 1, contract, before, progress).actions)
+        for a in ActionBuilder().build("name", 1, contract, before, progress).actions)
     await page.reload()
     await page.get_by_role("button", name="Personal info").click()
     await page.get_by_role("textbox", name="Public name").fill("Ada")
     after = await browser.observe("managed-page", ctx)
     save = next(e.ref for e in after.elements if e.label == "Save")
     # A new document's coincidentally equal value is not the input we verified.
-    assert not any(a.target_ref == save for a in ActionBuilder().build_goal(
+    assert not any(a.target_ref == save for a in ActionBuilder().build(
         "name", 1, contract, after, progress).actions)
     assert original.ref != next(e.ref for e in after.elements if e.role == "textbox")
 
@@ -632,7 +629,8 @@ Save name.
         app_config=AppConfig.load(config_path), desktop_resource=DesktopResource(),
     )
     task_goal = goal().model_dump(mode="json")
-    task_goal["milestones"][1]["label"] = "保存"
+    task_goal["inputs"] = []
+    task_goal["completion"] = [{"key": "status:Result", "value": ""}]
     outputs = [output async for output in runner.run_agent(
         definition, [], task_id="jev-dom", task_input=task_goal,
         authorization=SubAgentAuthorization(frozenset({"desktop", "network"})), audit=audit,
@@ -878,13 +876,7 @@ async def test_real_dom_multilayout_selection_readback(
                           SubAgentBudget(), asyncio.Event(), audit=audit)
     ctx.runtime.configure_decision_model("dom-task", DecisionModelProfile(
         "https://offline.invalid/v1/systemone", "jev-1.13.0", "jev"), credential="fixture-only-key")
-    task_goal = GoalContract.from_input({
-        "schema_version": 1, "scope": "managed-page", "objective": "执行身份 K7 对应的项目",
-        "inputs": [{"key": "identity", "value": "K7"}],
-        "milestones": [{"id": "activate", "operation": "click", "role": "button",
-                        "label": "执行目标", "postcondition": {"key": "status:Result", "value": "selected:K7"}}],
-        "completion": [{"key": "status:Result", "value": "selected:K7"}],
-    })
+    task_goal = GoalContract.from_input({'schema_version': 2, 'scope': 'managed-page', 'objective': '执行身份 K7 对应的项目', 'inputs': [{'key': 'identity', 'value': 'K7', 'purpose': 'identity'}], 'completion': [{'key': 'status:Result', 'value': 'selected:K7'}], 'goal_id': 'goal', 'intent': '执行身份 K7 对应的项目', 'authorization_ref': 'current_task', 'allowed_operations': ['click', 'fill']})
     try:
         outputs = [o async for o in agent.run(SubAgentRequest(
             "select target", "", "dom-task", task_goal.model_dump(mode="json")), ctx)]
@@ -1212,14 +1204,9 @@ async def test_runner_candidate_strategy_returns_to_rules(site, chromium_require
     runner = AgentRunner(MagicMock(), MagicMock(), Bus(), ToolApprovalPolicy(computer_mode="allow"),
                         PendingToolCallStore(), {definition.name: definition}, registry=registry,
                         app_config=config, desktop_resource=DesktopResource())
-    # A deterministic control-flow probe, not an effectiveness benchmark:
-    # save the initial empty field, then edit it without saving again.
+    # The model fills an unbound field; the verified input then permits a single submit.
     task = goal().model_dump(mode="json")
-    save = task["milestones"][1]
-    save["label"] = "保存当前名称"
-    save["postcondition"]["value"] = ""
-    task["milestones"] = [save, task["milestones"][0]]
-    task["completion"] = [{"key": "status:Result", "value": ""}, {"key": "textbox:Name", "value": "小明"}]
+    task["inputs"][0]["field_label"] = None
     outputs = [o async for o in runner.run_agent(definition, [], task_id="strategy-task", task_input=task,
         authorization=SubAgentAuthorization(frozenset({"desktop", "network"})), observer=Observer(), audit=audit)]
     result = next(o.metadata["task_result"] for o in outputs if "task_result" in o.metadata)
@@ -1248,7 +1235,12 @@ async def test_s3_strategy_pairs_governed_tasks_and_counts_fallback(chromium_req
         q = payload if native else json.loads(payload["messages"][1]["content"])
         criteria = q["questions"]["next_action"]["criteria"]
         objective = q["state"]["goal"]["objective"]
-        target = next((label for word,label in [('外观','界面与显示'),('草稿','保存进度'),('优惠','取消营销订阅'),('收据','查看支付凭证')] if word in objective), None)
+        target = next((label for word,label in [('紧凑','紧凑视图'),('外观','界面与显示'),('草稿','保存进度'),('优惠','取消营销订阅'),('收据','查看支付凭证')] if word in objective), None)
+        if target == "取消营销订阅" and any(
+            f["key"] == "status:优惠邮件" and f["value"] == "off"
+            for f in q["state"]["snapshot"]["facts"]
+        ):
+            target = "应用"
         if target is None or (native and force_fallback):
             choice = "none"
         else:
@@ -1272,15 +1264,15 @@ async def test_s3_strategy_pairs_governed_tasks_and_counts_fallback(chromium_req
     assert result['completed'] and len(result['rows']) == 48
     assert len(result['paired']) == 24
     assert all(r['accepted'] and r['cleanup_confirmed'] for r in result['rows'])
-    assert len(calls) == (54 if force_fallback else 42)
+    assert len(calls) == (72 if force_fallback else 54)
     assert result['spend']['batch']['known_tokens'] == len(calls)*12
     assert result['spend']['batch']['reserved_tokens'] == 0
     for row in result['rows']:
-        if row['case_id'] in ('profile-name','compact-view'):
+        if row['case_id'] == 'profile-name':
             assert not row['calls']
-    assert result['summary']['H3']['f_calls'] == 18
-    assert result['summary']['J3']['f_calls'] == (18 if force_fallback else 6)
-    assert result['summary']['J3']['jev_calls'] == 18
+    assert result['summary']['H3']['f_calls'] == 24
+    assert result['summary']['J3']['f_calls'] == (24 if force_fallback else 6)
+    assert result['summary']['J3']['jev_calls'] == 24
     with pytest.raises(FileExistsError):
         await bench.run_batch(tmp_path/'run',f['sha256'],{'jev':'fixture-j','f':'fixture-f'})
 

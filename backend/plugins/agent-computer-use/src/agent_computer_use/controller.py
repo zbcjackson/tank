@@ -28,10 +28,8 @@ from .contracts import (
     DispatchReceipt,
     Fact,
     GoalContract,
-    GoalContractV2,
     GoalProgress,
     Snapshot,
-    parse_goal,
 )
 
 
@@ -62,7 +60,7 @@ class ActionExecutor(Protocol):
 class Selector(Protocol):
     async def choose(
         self,
-        goal: GoalContract | GoalContractV2,
+        goal: GoalContract,
         snapshot: Snapshot,
         actions: ActionSet,
         context: SubAgentContext,
@@ -74,7 +72,7 @@ class Advisor(Protocol):
     async def assist(
         self,
         request: SubAgentRequest,
-        goal: GoalContract | GoalContractV2,
+        goal: GoalContract,
         snapshot: Snapshot,
         actions: ActionSet,
         context: SubAgentContext,
@@ -109,14 +107,12 @@ class ComputerUseController:
         self.task_id = ""
         self.evidence: list[JsonValue] = []
         self.bindings: list[Binding] = []
-        self.completed: list[str] = []
         self.receipts: list[DispatchReceipt] = []
         self.pending_effect = False
         self.observation_ids: set[str] = set()
         self.generation = -1
         self.advisor_calls = 0
         self.progress = GoalProgress()
-        self.goal_driven = False
         self.started = False
         self.observation: TaskOperation[str, Snapshot] | None = None
         self.dispatch: TaskOperation[tuple[Binding, Action], DispatchReceipt] | None = None
@@ -124,7 +120,7 @@ class ComputerUseController:
     def result(self, status: TaskStatus, reason: str) -> TaskResult:
         if self.pending_effect:
             status = "unknown"
-        elif status == "stopped" and (self.completed or self.progress.verified_actions):
+        elif status == "stopped" and self.progress.verified_actions:
             status = "partial"
         return TaskResult(
             status=status,
@@ -135,7 +131,6 @@ class ComputerUseController:
                 "evidence": list(self.evidence),
                 "goal_id": self.goal_id,
                 "goal_version": self.version,
-                "milestones": list(self.completed),
                 "receipts": [
                     {
                         "action_id": item.action_id,
@@ -157,7 +152,7 @@ class ComputerUseController:
         )
 
     async def observe(
-        self, goal: GoalContract | GoalContractV2, context: SubAgentContext,
+        self, goal: GoalContract, context: SubAgentContext,
     ) -> Snapshot:
         assert self.observation is not None
         snapshot = await context.runtime.execute(self.observation, goal.scope)
@@ -180,8 +175,7 @@ class ComputerUseController:
             self.bindings.append(binding)
             self.receipts.append(DispatchReceipt(action.id, "unknown"))
             self.pending_effect = True
-            if self.goal_driven:
-                self.progress = replace(self.progress, recent_action=action, pending_action=action)
+            self.progress = replace(self.progress, recent_action=action, pending_action=action)
             return await self.executor.dispatch(binding, action, context)
 
         self.observation = TaskOperation(
@@ -210,15 +204,12 @@ class ComputerUseController:
             if request.task_input is None:
                 return self.result("needs_input", "goal_contract_required")
             try:
-                goal = parse_goal(request.task_input)
+                goal = GoalContract.from_input(request.task_input)
             except (ValueError, ValidationError):
                 return self.result("needs_input", "invalid_goal_contract")
-            if isinstance(goal, GoalContractV2):
-                if goal.authorization_ref not in {"current_task", request.task_id}:
-                    raise SubAgentStopped("authorization_mismatch")
-                self.goal_driven = True
-                self.goal_id = goal.goal_id
-                return await self.goal_loop(request, goal, context)
+            if goal.authorization_ref not in {"current_task", request.task_id}:
+                raise SubAgentStopped("authorization_mismatch")
+            self.goal_id = goal.goal_id
             return await self.loop(request, goal, context)
         except asyncio.CancelledError as exc:
             raise SubAgentCancelled(self.result("stopped", "cancelled")) from exc
@@ -231,8 +222,8 @@ class ComputerUseController:
             context.observe("computer_use_error", error_type=type(exc).__name__)
             return self.result("stopped", "backend_error")
 
-    async def goal_loop(
-        self, request: SubAgentRequest, goal: GoalContractV2, context: SubAgentContext,
+    async def loop(
+        self, request: SubAgentRequest, goal: GoalContract, context: SubAgentContext,
     ) -> TaskResult:
         if any(not fact.key.startswith("status:") for fact in goal.completion):
             return self.result("needs_input", "unsupported_completion_evidence")
@@ -251,7 +242,7 @@ class ComputerUseController:
                                       "goal_version": self.version,
                                       "completion": [item.key for item in goal.completion]})
                 return self.result("completed", "goal_verified")
-            state = (
+            state = (self.version,
                 tuple((e.role, e.label, e.ancestors, e.value, e.enabled, e.actions)
                       for e in snapshot.elements), snapshot.facts,
             )
@@ -259,19 +250,51 @@ class ComputerUseController:
                 self.progress = replace(self.progress, no_progress=self.progress.no_progress + 1)
                 return self.result("stopped", "no_progress")
             visited.add(state)
-            actions = replace(ActionBuilder().build_goal(self.goal_id, self.version, goal, snapshot,
+            actions = replace(ActionBuilder().build(self.goal_id, self.version, goal, snapshot,
                                                         self.progress),
                               progress=self.progress)
-            if actions.reason != "jev_eligible" or self.selector is None:
-                return self.result("needs_input" if actions.reason == "missing_parameters"
-                                   else "stopped", actions.reason)
-            decision = await self.selector.choose(goal, snapshot, actions, context)
-            context.check("desktop")
-            if decision.binding != actions.binding:
-                raise SubAgentStopped("stale_decision")
-            if decision.choice != "candidate":
-                return self.result("stopped", "selection_unresolved")
-            action = self.candidate(actions, decision.candidate_id)
+            context.observe("computer_use_route", goal_id=self.goal_id, goal_version=self.version,
+                            observation_id=snapshot.observation_id, reason=actions.reason)
+            action = actions.actions[0] if actions.reason == "rules_unique" else None
+            if actions.reason == "jev_eligible" and self.selector is not None:
+                context.check("desktop")
+                decision = await self.selector.choose(goal, snapshot, actions, context)
+                context.check("desktop")
+                if decision.binding != actions.binding:
+                    raise SubAgentStopped("stale_decision")
+                if decision.choice == "candidate":
+                    action = self.candidate(actions, decision.candidate_id)
+                elif decision.choice not in {"none", "ambiguous", "need_more_context", "escalate"}:
+                    raise SubAgentStopped("invalid_decision")
+            if action is None:
+                advice = await self.advise(request, goal, snapshot, actions, context)
+                if advice is None:
+                    return self.result("needs_input" if actions.reason == "missing_parameters"
+                                       else "stopped", actions.reason)
+                if advice.kind == "inputs":
+                    missing = {item.key for item in goal.inputs if item.value is None}
+                    supplied = {item.key: item.value for item in advice.inputs}
+                    if (not supplied or len(supplied) != len(advice.inputs)
+                            or not supplied.keys() <= missing):
+                        raise SubAgentStopped("invalid_goal_patch")
+                    goal = GoalContract.from_input({
+                        **goal.model_dump(mode="json"),
+                        "inputs": [{**item.model_dump(mode="json"),
+                                    "value": supplied.get(item.key, item.value)}
+                                   for item in goal.inputs],
+                    })
+                    self.version += 1
+                    self.progress = replace(self.progress, goal_version=self.version)
+                    snapshot = await self.observe(goal, context)
+                    continue
+                if advice.kind == "need_observation":
+                    snapshot = await self.observe(goal, context)
+                    continue
+                if advice.kind == "needs_user_input":
+                    return self.result("needs_input", "needs_user_input")
+                if advice.kind != "candidate":
+                    return self.result("stopped", "advisor_unable")
+                action = self.candidate(actions, advice.candidate_id)
             detail = next(item for item in actions.details if item.action_id == action.id)
             assert self.dispatch is not None
             receipt = await context.runtime.execute(self.dispatch, (actions.binding, action))
@@ -335,123 +358,6 @@ class ComputerUseController:
         ):
             raise SubAgentStopped("invalid_advice")
         return advice
-
-    async def loop(
-        self,
-        request: SubAgentRequest,
-        goal: GoalContract,
-        context: SubAgentContext,
-        /,
-    ) -> TaskResult:
-        snapshot = await self.observe(goal, context)
-        index = 0
-        selected_states: set[tuple[object, ...]] = set()
-        for _ in range(100):
-            context.check("desktop")
-            if index == len(goal.milestones):
-                if achieved(snapshot, goal.completion):
-                    return self.result("completed", "goal_verified")
-                return self.result("unknown", "completion_unverified")
-            milestone = goal.milestones[index]
-            if achieved(snapshot, (milestone.postcondition,)):
-                self.evidence.append(
-                    {
-                        "milestone": milestone.id,
-                        "observation_id": snapshot.observation_id,
-                        "generation": snapshot.generation,
-                        "predicate_key": milestone.postcondition.key,
-                    }
-                )
-                self.completed.append(milestone.id)
-                index += 1
-                continue
-            actions = ActionBuilder().build(self.goal_id, self.version, goal, milestone, snapshot)
-            context.observe(
-                "computer_use_route",
-                goal_id=self.goal_id,
-                goal_version=self.version,
-                observation_id=snapshot.observation_id,
-                reason=actions.reason,
-            )
-            action = actions.actions[0] if actions.reason == "rules_unique" else None
-            selection_state = (
-                self.version,
-                index,
-                snapshot.generation,
-                snapshot.elements,
-                snapshot.facts,
-            )
-            if (
-                actions.reason == "jev_eligible"
-                and self.selector is not None
-                and selection_state not in selected_states
-            ):
-                selected_states.add(selection_state)
-                context.check("desktop")
-                decision = await self.selector.choose(goal, snapshot, actions, context)
-                context.check("desktop")
-                if decision.binding != actions.binding:
-                    raise SubAgentStopped("stale_decision")
-                if decision.choice == "candidate":
-                    action = self.candidate(actions, decision.candidate_id)
-                elif decision.choice not in {"none", "ambiguous", "need_more_context", "escalate"}:
-                    raise SubAgentStopped("invalid_decision")
-            if action is None:
-                advice = await self.advise(request, goal, snapshot, actions, context)
-                if advice is None:
-                    status: TaskStatus = (
-                        "needs_input" if actions.reason == "missing_parameters" else "stopped"
-                    )
-                    return self.result(status, actions.reason)
-                if advice.kind == "inputs":
-                    missing = {item.input_key for item in goal.milestones if item.input_key}
-                    missing -= {item.key for item in goal.inputs}
-                    if (
-                        not advice.inputs
-                        or len({item.key for item in advice.inputs}) != len(advice.inputs)
-                        or any(item.key not in missing for item in advice.inputs)
-                    ):
-                        raise SubAgentStopped("invalid_goal_patch")
-                    goal = GoalContract.from_input(
-                        {
-                            **goal.model_dump(mode="json"),
-                            "inputs": [
-                                item.model_dump() for item in (*goal.inputs, *advice.inputs)
-                            ],
-                        }
-                    )
-                    self.version += 1
-                    snapshot = await self.observe(goal, context)
-                    continue
-                if advice.kind == "need_observation":
-                    snapshot = await self.observe(goal, context)
-                    continue
-                if advice.kind == "needs_user_input":
-                    return self.result("needs_input", "needs_user_input")
-                if advice.kind != "candidate":
-                    return self.result("stopped", "advisor_unable")
-                action = self.candidate(actions, advice.candidate_id)
-            assert self.dispatch is not None
-            receipt = await context.runtime.execute(self.dispatch, (actions.binding, action))
-            if receipt.action_id != action.id or receipt.status not in {
-                "not_sent",
-                "sent",
-                "unknown",
-            }:
-                raise SubAgentStopped("invalid_receipt")
-            self.receipts[-1] = receipt
-            if receipt.status == "not_sent":
-                self.pending_effect = False
-                raise SubAgentStopped("not_sent")
-            # Only bounded readback is permitted while an effect is unresolved.
-            for _ in range(2):
-                snapshot = await self.observe(goal, context)
-                if achieved(snapshot, (milestone.postcondition,)):
-                    self.pending_effect = False
-                    break
-            if self.pending_effect:
-                return self.result("unknown", "effect_unknown")
-        return self.result("stopped", "no_progress")
 
     @staticmethod
     def candidate(actions: ActionSet, candidate_id: str | None) -> Action:

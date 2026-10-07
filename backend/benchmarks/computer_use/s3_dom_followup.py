@@ -52,7 +52,7 @@ def freeze_inputs() -> dict[str, Any]:
     f = prior.freeze_inputs()
     f.pop("sha256")
     cases = {c["id"]: c for c in f["cases"]}
-    f.update(revision="s3-dom-followup-1", cases=[cases[name] for name in CASE_IDS],
+    f.update(revision="s3-dom-followup-goal-2", cases=[cases[name] for name in CASE_IDS],
              request_limit=len(CASE_IDS), previous_execution_sha256=hashlib.sha256(PRIOR_RESULT.read_bytes()).hexdigest(),
              previous_freeze_sha256=old["freeze_sha256"],
              purpose="remaining controlled DOM cases; prospective behavior and refusal-category measures",

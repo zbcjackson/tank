@@ -7,23 +7,18 @@ from typing import cast
 import httpx
 import pytest
 from agent_computer_use.action_builder import ActionBuilder
-from agent_computer_use.contracts import Element, GoalContract, Snapshot
+from agent_computer_use.contracts import Element, Fact, GoalContract, Snapshot
 
 from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
 
 
 def selection():
-    goal = GoalContract.from_input({
-        "schema_version": 1, "objective": "保存文档", "scope": "editor",
-        "milestones": [{"id": "save", "operation": "click", "role": "button",
-                        "label": "Save", "postcondition": {"key": "saved", "value": "yes"}}],
-        "completion": [{"key": "saved", "value": "yes"}],
-    })
+    goal = GoalContract.from_input({'schema_version': 2, 'objective': '保存文档', 'scope': 'editor', 'completion': [{'key': 'status:saved', 'value': 'yes'}], 'goal_id': 'goal', 'intent': '保存文档', 'authorization_ref': 'current_task', 'allowed_operations': ['click', 'fill']})
     snapshot = Snapshot("obs", "editor", 1, (
-        Element("save", "button", "保存", ("click",)),
-        Element("cancel", "button", "取消", ("click",)),
+        Element("save", "button", "保存", ("click",), click_effect=(Fact(key="activated:save", value="yes"),)),
+        Element("cancel", "button", "取消", ("click",), click_effect=(Fact(key="activated:cancel", value="yes"),)),
     ))
-    actions = ActionBuilder().build("goal", 1, goal, goal.milestones[0], snapshot)
+    actions = ActionBuilder().build("goal", 1, goal, snapshot)
     return goal, snapshot, actions
 
 
@@ -186,7 +181,7 @@ async def test_controller_adapter_verifies_effect_or_refuses_action(monkeypatch,
         async def observe(self, scope, context):
             self.reads += 1
             return Snapshot(str(self.reads), scope, self.reads, snapshot.elements,
-                            (Fact(key="saved", value="yes"),) if self.actions else ())
+                            (Fact(key="status:saved", value="yes"), Fact(key="activated:save", value="yes"),) if self.actions else ())
 
         async def is_current(self, binding, action, context):
             return binding.generation == self.reads
@@ -460,7 +455,7 @@ def test_replay_gold_cannot_change_candidates_and_truncation_is_separate(tmp_pat
     changed["gold"] = {"control": "none", "secret_truth": "DO_NOT_SEND"}
     assert module["public_case"](item) == module["public_case"](changed)
     freeze = module["prepare"](tmp_path / "prepared")
-    assert freeze["request_limit"] == 64
+    assert freeze["request_limit"] == 72
     case = next(c for c in freeze["cases"] if c["category"] == "recall")
     scored = module["score"](case, None, "host_blocked")
     assert scored["candidate_recall"] is False
@@ -490,7 +485,7 @@ async def test_replay_uses_identical_inputs_and_counts_bad_replies(monkeypatch, 
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda: httpx.MockTransport(provider))
     report = await module["run_replay"](tmp_path / "prepared", freeze["sha256"],
                                          {"jev": "fake-key", "qwen": "fake-key"})
-    assert len(requests) == 64
+    assert len(requests) == 72
     jev_questions = [{"state": data["state"],
                       "instructions": data["questions"]["next_action"]["instructions"],
                       "criteria": data["questions"]["next_action"]["criteria"]}
@@ -503,9 +498,9 @@ async def test_replay_uses_identical_inputs_and_counts_bad_replies(monkeypatch, 
                for q in jev_questions + qwen_questions)
     assert len(report["rows"]) == 144
     model_rows = [row for row in report["rows"] if row["status"] in {"returned", "invalid"}]
-    assert len(model_rows) == 64
-    assert sum(row["status"] == "invalid" for row in model_rows) == 32
-    assert report["spend"]["batch"]["known_tokens"] == 32 * 21
+    assert len(model_rows) == 72
+    assert sum(row["status"] == "invalid" for row in model_rows) == 36
+    assert report["spend"]["batch"]["known_tokens"] == 36 * 21
     assert "fake-key" not in json.dumps(report)
     for case in freeze["cases"]:
         for stage in ("d2", "action"):
@@ -712,7 +707,7 @@ async def test_v2_missing_trace_is_unknown_not_zero(monkeypatch):
 def test_v2_freeze_compact_inputs_and_disjoint_evidence(monkeypatch, tmp_path):
     m = replay_v2(monkeypatch)
     f = m["prepare"](tmp_path / "prepared")
-    assert len(f["cases"]) == 24 and f["request_limit"] == 64
+    assert len(f["cases"]) == 24 and f["request_limit"] == 72
     for c in f["cases"]:
         q = c["question"]
         assert '"gold"' not in json.dumps(q)
@@ -757,13 +752,13 @@ async def test_v2_batch_uses_pools_and_governance(monkeypatch, tmp_path, fail):
     result = await m["run_replay"](tmp_path / "prepared", f["sha256"],
                                      {"jev": "fake-secret", "qwen": "fake-secret"})
     assert len(result["rows"]) == 144
-    assert len(sent) == (1 if fail else 64)
-    assert len(created) == len(closed) == (1 if fail else 34)
+    assert len(sent) == (1 if fail else 72)
+    assert len(created) == len(closed) == (1 if fail else 38)
     assert len({id(p) for p in closed}) == len(closed)
     assert bool(result["spend"]["stop_reason"]) == fail
     assert "fake-secret" not in json.dumps(result)
     if not fail:
-        assert result["spend"]["batch"]["known_tokens"] == 32 * 21
+        assert result["spend"]["batch"]["known_tokens"] == 36 * 21
         for row in result["rows"]:
             if row["status"] == "returned":
                 assert row["timing"]["connection"] == "unknown"
@@ -1169,14 +1164,14 @@ def test_v3_contrasts_are_predefined_and_require_complete_responses(monkeypatch)
 async def test_selector_distinguishes_declared_goals_from_observed_facts(monkeypatch):
     from dataclasses import replace
 
-    from agent_computer_use.contracts import Fact
+    from agent_computer_use.contracts import Fact, GoalInput
 
     async def respond(request):
         return httpx.Response(200, json=reply(request, "need_more_context"))
 
     ctx, selector, sent, _ = setup(monkeypatch, respond)
     goal, snapshot, actions = selection()
-    goal = goal.model_copy(update={"inputs": (Fact(key="saved", value="yes"),)})
+    goal = goal.model_copy(update={"inputs": (GoalInput(key="saved", purpose="declared state", value="yes"),)})
     snapshot = replace(snapshot, facts=(Fact(key="saved", value="no"),))
     try:
         decision = await selector.choose(goal, snapshot, actions, ctx)
@@ -1188,7 +1183,7 @@ async def test_selector_distinguishes_declared_goals_from_observed_facts(monkeyp
         assert contract["sources"]["goal.completion"] == "desired_outcomes"
         assert contract["sources"]["snapshot.facts"] == "current_observation_channel_reports"
         assert contract["business_validation"] == "not_established_by_this_contract"
-        assert state["goal"]["inputs"] == [{"key": "saved", "value": "yes"}]
+        assert state["goal"]["inputs"] == [goal.inputs[0].model_dump(mode="json")]
         assert state["snapshot"]["facts"] == [{"key": "saved", "value": "no"}]
         assert "business_state" not in state
         assert decision.choice == "need_more_context"

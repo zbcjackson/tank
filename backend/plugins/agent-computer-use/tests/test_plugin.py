@@ -129,7 +129,9 @@ async def test_plugin_through_worker_dispatch(tmp_path, monkeypatch, outcome):
             from dataclasses import replace
 
             snapshot = await super().observe(scope, ctx)
-            return replace(snapshot, facts=()) if outcome == "unknown" else snapshot
+            return replace(
+                snapshot, facts=(), elements=(replace(snapshot.elements[0], value=""),),
+            ) if outcome == "unknown" else snapshot
 
         async def aclose(self):
             self.closed = True

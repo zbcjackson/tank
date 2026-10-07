@@ -1400,8 +1400,9 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
         async def observe(self, scope, ctx):
             self.observations += 1
             return Snapshot(str(self.observations), scope, len(actions),
-                            (Element("field", "textbox", "Name", ("fill",)),),
-                            facts=(Fact(key="name", value="ready"),) if actions else ())
+                            (Element("field", "textbox", "Name", ("fill",),
+                                     value="ready" if actions else ""),),
+                            facts=(Fact(key="status:name", value="ready"),) if actions else ())
 
         async def is_current(self, binding, action, ctx):
             return binding.generation == len(actions)
@@ -1432,11 +1433,12 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
         definition = AgentDefinition("shared", "", "", extension=extension, model="shared")
         if caller == "computer_use":
             task_input = {
-                "schema_version": 1, "objective": "Fill name", "scope": "document", "inputs": [],
-                "milestones": [{"id": "name", "operation": "fill", "role": "textbox",
-                                "label": "Name", "input_key": "name",
-                                "postcondition": {"key": "name", "value": "ready"}}],
-                "completion": [{"key": "name", "value": "ready"}],
+                "schema_version": 2, "goal_id": "goal", "intent": "Fill name",
+                "objective": "Fill name", "scope": "document",
+                "authorization_ref": "current_task", "allowed_operations": ["click", "fill"],
+                "inputs": [{"key": "name", "purpose": "Name", "field_label": "Name",
+                            "value": None}],
+                "completion": [{"key": "status:name", "value": "ready"}],
             }
     try:
         outputs = [item async for item in runner.run_agent(

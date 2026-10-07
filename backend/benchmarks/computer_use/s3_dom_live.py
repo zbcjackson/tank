@@ -26,7 +26,7 @@ from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit
 from benchmarks.computer_use import jev_smoke as smoke
 from benchmarks.computer_use import s3_replay as v1
 
-SOURCE = Path(__file__).parent / "reports/20261003-s3-dom-multilayout/raw"
+SOURCE = Path(__file__).parent / "fixtures/s3-dom/cases.json"
 LAYOUTS = ("toolbar", "table", "dialog")
 SCENARIOS = ("sufficient", "missing", "conflicting", "stale", "no_effect")
 
@@ -38,19 +38,18 @@ def freeze_inputs() -> dict[str, Any]:
         path = Path(inspect.getfile(module))
         hashes[str(path.relative_to(Path(__file__).resolve().parents[2]))] = hashlib.sha256(path.read_bytes()).hexdigest()
     hashes[Path(__file__).name] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-    for scenario in SCENARIOS:
-        for layout in LAYOUTS:
-            name = f"{layout}-{scenario}"
-            path = SOURCE / f"{name}.json"
-            record = json.loads(path.read_text())
-            cases.append({"id": name, "layout": layout, "scenario": scenario,
-                          "html": record["source_html"],
-                          "goal": record["calls"][0]["request"]["state"]["goal"],
-                          "expected_slot": "A" if layout == "table" else "B"})
-            hashes[f"source/{name}.json"] = hashlib.sha256(path.read_bytes()).hexdigest()
-    f = {"revision": "s3-dom-live-1", "cases": cases, "source_sha256": hashes,
+    from agent_computer_use.contracts import GoalContract
+
+    cases = json.loads(SOURCE.read_text())
+    expected = {f"{layout}-{scenario}" for scenario in SCENARIOS for layout in LAYOUTS}
+    if len(cases) != len(expected) or {case["id"] for case in cases} != expected:
+        raise ValueError("Expected the complete DOM fixture matrix")
+    for case in cases:
+        GoalContract.from_input(case["goal"])
+    hashes["source/cases.json"] = hashlib.sha256(SOURCE.read_bytes()).hexdigest()
+    f = {"revision": "s3-dom-live-goal-2", "cases": cases, "source_sha256": hashes,
          "model": v1.MODELS["jev"], "request_limit": 15, "nano_usd_limit": 50_000_000,
-         "requests_per_case": 1, "max_actions": 1, "max_observations": 3,
+         "requests_per_case": 1, "max_actions": 1, "max_observations": 4,
          "playwright": version("playwright"), "httpx": version("httpx"), "httpcore": version("httpcore"),
          "purpose": "real isolated Chromium plus Jev; three controlled layouts, not production validation",
          "stop_policy": "stop on first acceptance failure, unknown usage, audit or cleanup failure",
@@ -137,7 +136,7 @@ async def run_case(
     ctx = SubAgentContext(SubAgentAuthorization(frozenset({"desktop", "network"})), SubAgentBudget(),
                           asyncio.Event(), deadline=time.monotonic() + 45, model_capture=capture,
                           model_policy=smoke.OneCallPolicy(ledger), audit=audit,
-                          max_actions=1, max_observations=3)
+                          max_actions=1, max_observations=4)
     started = time.monotonic()
     row["status"] = "started"
     try:

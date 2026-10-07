@@ -51,17 +51,22 @@ def public_case(item: dict[str, Any]) -> dict[str, Any]:
     raw = item["snapshot"]
     snapshot = Snapshot(
         raw["observation_id"], raw["scope"], raw["generation"],
-        tuple(Element(**{**element, "actions": tuple(element["actions"])})
+        tuple(Element(**{**element, "actions": tuple(element["actions"]),
+                         "ancestors": tuple(tuple(a) for a in element.get("ancestors", [])),
+                         "click_effect": tuple(Fact(**f) for f in element.get("click_effect", []))})
               for element in raw["elements"]),
         tuple(Fact(**fact) for fact in raw["facts"]), complete=raw["complete"],
     )
-    actions = ActionBuilder().build("goal", 1, goal, goal.milestones[0], snapshot)
+    actions = ActionBuilder().build("goal", 1, goal, snapshot)
     ordered = sorted(actions.actions, key=lambda action: digest([item["id"], action.target_ref]))
-    actions = replace(actions, binding=replace(actions.binding, candidate_set_id="candidates"),
+    ids = {action.id: f"a{i}" for i, action in enumerate(ordered)}
+    actions = replace(actions, details=tuple(replace(d, action_id=ids[d.action_id]) for d in actions.details), binding=replace(actions.binding, candidate_set_id="candidates"),
                       actions=tuple(Action(f"a{i}", action.target_ref, action.operation, action.value)
                                     for i, action in enumerate(ordered)))
     return {"goal": goal.model_dump(mode="json"), "snapshot": snapshot_json(snapshot),
-            "actions": asdict(actions)}
+            "actions": {**asdict(actions), "details": [
+                {**asdict(d), "effect": [f.model_dump(mode="json") for f in d.effect]}
+                for d in actions.details]}}
 
 
 def freeze_inputs() -> dict[str, Any]:

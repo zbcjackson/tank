@@ -83,7 +83,7 @@ def freeze_inputs() -> dict[str, Any]:
     ).hexdigest()
     sources["cases.json"] = hashlib.sha256(DATA.read_bytes()).hexdigest()
     f = {
-        "revision": "s3-strategy-1",
+        "revision": "s3-strategy-goal-2",
         "cases": cases,
         "models": MODELS,
         "schedule": [
@@ -92,7 +92,7 @@ def freeze_inputs() -> dict[str, Any]:
             for index, c in enumerate(cases)
             for arm in (ARMS if (repeat + index) % 2 == 0 else ARMS[::-1])
         ],
-        "request_limit": 54,
+        "request_limit": 72,
         "nano_usd_limit": 250_000_000,
         "source_sha256": sources,
         "f_parameters": {"temperature": 0, "max_tokens": 128, "enable_thinking": False},
@@ -135,7 +135,7 @@ def load_freeze(output: Path, approved: str) -> dict[str, Any]:
 
 
 class TrialPolicy(BenchmarkModelPolicy):
-    def __init__(self, ledger: SpendLedger, arm: str) -> None:
+    def __init__(self, ledger: SpendLedger, arm: str, decisions: int) -> None:
         super().__init__(
             ledger,
             tuple(
@@ -154,7 +154,7 @@ class TrialPolicy(BenchmarkModelPolicy):
                 for name, m in MODELS.items()
             ),
         )
-        self.limits = {"jev": int(arm == "J3"), "f": 1}
+        self.limits = {"jev": decisions * int(arm == "J3"), "f": decisions}
         self.counts: Counter[str] = Counter()
 
     def reserve(self, call_id: str, request: ModelRequest) -> None:
@@ -251,7 +251,7 @@ async def run_trial(
         SubAgentBudget(),
         asyncio.Event(),
         deadline=time.monotonic() + 60,
-        model_policy=TrialPolicy(ledger, row["arm"]),
+        model_policy=TrialPolicy(ledger, row["arm"], case["max_decisions"]),
         model_capture=capture,
         observer=events,
         audit=audit,
@@ -539,7 +539,7 @@ if __name__ == "__main__":
                 {
                     "sha256": frozen["sha256"],
                     "tasks": 48,
-                    "request_limit": 54,
+                    "request_limit": 72,
                     "max_usd": 0.25,
                     "real_requests": 0,
                 }

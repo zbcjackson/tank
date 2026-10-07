@@ -1,0 +1,467 @@
+[
+  {
+    "id": "toolbar-sufficient",
+    "layout": "toolbar",
+    "scenario": "sufficient",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><nav role=\"toolbar\" aria-label=\"Actions\" style=\"display:flex;gap:60px\"><section><span role=\"status\" aria-label=\"Identity A\">K2</span><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></section><section><span role=\"status\" aria-label=\"Identity B\">K7</span><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></section></nav><output aria-label=\"Result\">idle</output>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "toolbar-sufficient",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "B"
+  },
+  {
+    "id": "table-sufficient",
+    "layout": "table",
+    "scenario": "sufficient",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><table style=\"margin:40px;border:1px solid\"><tbody><tr><td><span role=\"status\" aria-label=\"Identity A\">K7</span></td><td><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></td></tr><tr><td><span role=\"status\" aria-label=\"Identity B\">K2</span></td><td><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></td></tr></tbody></table><output aria-label=\"Result\">idle</output>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "table-sufficient",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "A"
+  },
+  {
+    "id": "dialog-sufficient",
+    "layout": "dialog",
+    "scenario": "sufficient",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><dialog open style=\"width:400px\"><section><span role=\"status\" aria-label=\"Identity A\">K2</span><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></section><section><span role=\"status\" aria-label=\"Identity B\">K7</span><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></section><output aria-label=\"Result\">idle</output></dialog>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "dialog-sufficient",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "B"
+  },
+  {
+    "id": "toolbar-missing",
+    "layout": "toolbar",
+    "scenario": "missing",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><nav role=\"toolbar\" aria-label=\"Actions\" style=\"display:flex;gap:60px\"><section><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></section><section><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></section></nav><output aria-label=\"Result\">idle</output>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "toolbar-missing",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "B"
+  },
+  {
+    "id": "table-missing",
+    "layout": "table",
+    "scenario": "missing",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><table style=\"margin:40px;border:1px solid\"><tbody><tr><td></td><td><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></td></tr><tr><td></td><td><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></td></tr></tbody></table><output aria-label=\"Result\">idle</output>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "table-missing",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "A"
+  },
+  {
+    "id": "dialog-missing",
+    "layout": "dialog",
+    "scenario": "missing",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><dialog open style=\"width:400px\"><section><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></section><section><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></section><output aria-label=\"Result\">idle</output></dialog>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "dialog-missing",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "B"
+  },
+  {
+    "id": "toolbar-conflicting",
+    "layout": "toolbar",
+    "scenario": "conflicting",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><nav role=\"toolbar\" aria-label=\"Actions\" style=\"display:flex;gap:60px\"><section><span role=\"status\" aria-label=\"Identity A\">K2</span><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></section><section><span role=\"status\" aria-label=\"Identity B\">K7</span><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></section></nav><output aria-label=\"Result\">idle</output><output aria-label=\"Secondary identity B\">K2</output>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "toolbar-conflicting",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "B"
+  },
+  {
+    "id": "table-conflicting",
+    "layout": "table",
+    "scenario": "conflicting",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><table style=\"margin:40px;border:1px solid\"><tbody><tr><td><span role=\"status\" aria-label=\"Identity A\">K7</span></td><td><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></td></tr><tr><td><span role=\"status\" aria-label=\"Identity B\">K2</span></td><td><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></td></tr></tbody></table><output aria-label=\"Result\">idle</output><output aria-label=\"Secondary identity A\">K2</output>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "table-conflicting",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "A"
+  },
+  {
+    "id": "dialog-conflicting",
+    "layout": "dialog",
+    "scenario": "conflicting",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><dialog open style=\"width:400px\"><section><span role=\"status\" aria-label=\"Identity A\">K2</span><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></section><section><span role=\"status\" aria-label=\"Identity B\">K7</span><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></section><output aria-label=\"Result\">idle</output><output aria-label=\"Secondary identity B\">K2</output></dialog>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "dialog-conflicting",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "B"
+  },
+  {
+    "id": "toolbar-stale",
+    "layout": "toolbar",
+    "scenario": "stale",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><nav role=\"toolbar\" aria-label=\"Actions\" style=\"display:flex;gap:60px\"><section><span role=\"status\" aria-label=\"Identity A\">K2</span><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></section><section><span role=\"status\" aria-label=\"Identity B\">K7</span><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></section></nav><output aria-label=\"Result\">idle</output>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "toolbar-stale",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "B"
+  },
+  {
+    "id": "table-stale",
+    "layout": "table",
+    "scenario": "stale",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><table style=\"margin:40px;border:1px solid\"><tbody><tr><td><span role=\"status\" aria-label=\"Identity A\">K7</span></td><td><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></td></tr><tr><td><span role=\"status\" aria-label=\"Identity B\">K2</span></td><td><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></td></tr></tbody></table><output aria-label=\"Result\">idle</output>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "table-stale",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "A"
+  },
+  {
+    "id": "dialog-stale",
+    "layout": "dialog",
+    "scenario": "stale",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><dialog open style=\"width:400px\"><section><span role=\"status\" aria-label=\"Identity A\">K2</span><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');document.getElementById('panelA').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K2';\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></section><section><span role=\"status\" aria-label=\"Identity B\">K7</span><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');document.getElementById('panelB').hidden=false;document.querySelector('[aria-label=Result]').textContent='selected:K7';\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></section><output aria-label=\"Result\">idle</output></dialog>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "dialog-stale",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "B"
+  },
+  {
+    "id": "toolbar-no_effect",
+    "layout": "toolbar",
+    "scenario": "no_effect",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><nav role=\"toolbar\" aria-label=\"Actions\" style=\"display:flex;gap:60px\"><section><span role=\"status\" aria-label=\"Identity A\">K2</span><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></section><section><span role=\"status\" aria-label=\"Identity B\">K7</span><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></section></nav><output aria-label=\"Result\">idle</output>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "toolbar-no_effect",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "B"
+  },
+  {
+    "id": "table-no_effect",
+    "layout": "table",
+    "scenario": "no_effect",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><table style=\"margin:40px;border:1px solid\"><tbody><tr><td><span role=\"status\" aria-label=\"Identity A\">K7</span></td><td><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></td></tr><tr><td><span role=\"status\" aria-label=\"Identity B\">K2</span></td><td><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></td></tr></tbody></table><output aria-label=\"Result\">idle</output>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "table-no_effect",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "A"
+  },
+  {
+    "id": "dialog-no_effect",
+    "layout": "dialog",
+    "scenario": "no_effect",
+    "html": "<!doctype html><meta charset=\"utf-8\"><script>window.clicks=[];</script><dialog open style=\"width:400px\"><section><span role=\"status\" aria-label=\"Identity A\">K2</span><button aria-controls=\"panelA\" onclick=\"window.clicks.push('A');\">执行 A</button><section id=\"panelA\" role=\"region\" aria-label=\"Effect A\" hidden></section></section><section><span role=\"status\" aria-label=\"Identity B\">K7</span><button aria-controls=\"panelB\" onclick=\"window.clicks.push('B');\">执行 B</button><section id=\"panelB\" role=\"region\" aria-label=\"Effect B\" hidden></section></section><output aria-label=\"Result\">idle</output></dialog>",
+    "goal": {
+      "schema_version": 2,
+      "goal_id": "dialog-no_effect",
+      "intent": "执行身份 K7 对应的项目",
+      "objective": "执行身份 K7 对应的项目",
+      "scope": "managed-page",
+      "authorization_ref": "current_task",
+      "allowed_operations": [
+        "click"
+      ],
+      "inputs": [
+        {
+          "key": "identity",
+          "value": "K7",
+          "purpose": "identity"
+        }
+      ],
+      "completion": [
+        {
+          "key": "status:Result",
+          "value": "selected:K7"
+        }
+      ]
+    },
+    "expected_slot": "B"
+  }
+]
