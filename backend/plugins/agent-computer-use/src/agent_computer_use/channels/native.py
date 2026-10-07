@@ -317,23 +317,26 @@ class NativeAXChannel:
         self, binding: Binding, action: Action, context: SubAgentContext,
     ) -> DispatchReceipt:
         def send() -> DispatchReceipt:
-            target = self.current(binding, action, context)
-            window = self.window
-            if target is None or window is None or target.frame is None:
-                return DispatchReceipt(action.id, "not_sent", "stale_reference")
-            x, y, width, height = target.frame
-            wx, wy, ww, wh = window.bounds
-            if not (wx <= x < x + width <= wx + ww and wy <= y < y + height <= wy + wh):
-                return DispatchReceipt(action.id, "not_sent", "target_outside_window")
-            point = (x + width // 2, y + height // 2)
-            if (action.operation == "click" and self.config.dispatch == "quartz"
-                    and not pointer_target_is_exposed(window, *point)):
-                return DispatchReceipt(action.id, "not_sent", "target_occluded")
-            if self.bound_window(context) != window:
-                return DispatchReceipt(action.id, "not_sent", "window_changed")
-            if not inputs_idle():
-                return DispatchReceipt(action.id, "not_sent", "user_input_active")
-            self.check(context)
+            try:
+                target = self.current(binding, action, context)
+                window = self.window
+                if target is None or window is None or target.frame is None:
+                    return DispatchReceipt(action.id, "not_sent", "stale_reference")
+                x, y, width, height = target.frame
+                wx, wy, ww, wh = window.bounds
+                if not (wx <= x < x + width <= wx + ww and wy <= y < y + height <= wy + wh):
+                    return DispatchReceipt(action.id, "not_sent", "target_outside_window")
+                point = (x + width // 2, y + height // 2)
+                if (action.operation == "click" and self.config.dispatch == "quartz"
+                        and not pointer_target_is_exposed(window, *point)):
+                    return DispatchReceipt(action.id, "not_sent", "target_occluded")
+                if self.bound_window(context) != window:
+                    return DispatchReceipt(action.id, "not_sent", "window_changed")
+                if not inputs_idle():
+                    return DispatchReceipt(action.id, "not_sent", "user_input_active")
+                self.check(context)
+            except SubAgentStopped as exc:
+                return DispatchReceipt(action.id, "not_sent", exc.reason)
             try:
                 if action.operation == "fill":
                     assert action.value is not None

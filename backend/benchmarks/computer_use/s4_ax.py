@@ -371,7 +371,11 @@ class OwnedApplication:
         if self.pid is not None and process_alive(self.pid):
             if self.identity is None or native.process_identity(self.pid) != self.identity:
                 raise RuntimeError("Owned process identity changed; cleanup refused")
-            if any(w["kCGWindowNumber"] != self.window_id for w in self.windows()):
+            windows = self.windows()
+            # A verified launch may fail before window setup (including a late callback).
+            # Its sole new window belongs to this process; multiple windows remain ambiguous.
+            if (len(windows) > 1 if self.window_id is None else
+                    any(w["kCGWindowNumber"] != self.window_id for w in windows)):
                 raise RuntimeError("Unowned window appeared; application left running")
             api = computer_ax._load_ax()
             if self.window_element is not None and self.original_position is not None:

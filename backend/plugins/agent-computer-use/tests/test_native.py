@@ -612,3 +612,63 @@ async def test_native_channel_cannot_reset_existing_operation_limits(world, kind
     finally:
         await agent.aclose()
         await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("window_ids", [[], [7], [7, 8]])
+def test_pilot_cleanup_closes_verified_launch_before_window_binding(monkeypatch, window_ids):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_ax
+    from agent_computer_use.channels import native
+
+    owner = s4_ax.OwnedApplication(s4_ax.CASES[0])
+    owner.pid = 42
+    owner.identity = native.ProcessIdentity("1:0", "com.apple.calculator")
+    alive, signals = [True], []
+    monkeypatch.setattr(s4_ax, "process_alive", lambda pid: alive[0])
+    monkeypatch.setattr(native, "process_identity", lambda pid: owner.identity)
+    monkeypatch.setattr(s4_ax.computer_ax, "ax_focused_pid", lambda: 42)
+    monkeypatch.setattr(s4_ax.computer_ax, "_load_ax", lambda: {})
+    monkeypatch.setattr(owner, "windows", lambda: [{"kCGWindowNumber": w} for w in window_ids])
+    monkeypatch.setattr(s4_ax, "pump", lambda *args: None)
+    def kill(pid, sig):
+        signals.append(pid)
+        alive[0] = False
+    monkeypatch.setattr(s4_ax.os, "kill", kill)
+    # The launch callback established process ownership, but setup/timeout failed
+    # before assigning window_id. That one new window must not leak its process.
+    if len(window_ids) > 1:
+        with pytest.raises(RuntimeError, match="Unowned window"):
+            owner.close()
+        assert not signals
+    else:
+        assert owner.close()["confirmed"]
+        assert signals == [42]
+
+
+async def test_native_foreground_lost_at_dispatch_is_known_not_sent(world, monkeypatch):
+    from agent_computer_use.channels import native
+    from agent_computer_use.factory import create_subagent
+    from tank_backend.agents.subagent import SubAgentStopped
+
+    agent = create_subagent({"macos": native_config()})
+    agent.controller.selector = Select()
+    original = agent.controller.executor.is_current
+    async def preflight(*args):
+        result = await original(*args)
+        def lost(config):
+            raise SubAgentStopped("foreground_changed")
+        monkeypatch.setattr(native, "read_window", lost)
+        return result
+    monkeypatch.setattr(agent.controller.executor, "is_current", preflight)
+    ctx = context()
+    try:
+        outputs = [o async for o in agent.run(
+            SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+        result = outputs[-1].metadata["task_result"]
+        assert result["status"] == "stopped"
+        assert result["details"]["receipts"][0]["status"] == "not_sent"
+        assert not world.sent
+    finally:
+        await agent.aclose()
+        await ctx.runtime.aclose()
