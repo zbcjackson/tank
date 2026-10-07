@@ -797,3 +797,21 @@ fixture 服务端结果。仅此测试中的回执有受控服务端语义；任
 补充已迁入统一循环；仅能填充已声明且为空的输入，更新版本但不重置进度或用量。
 旧 schema-v1 输入被明确拒绝。当前可执行 benchmark 使用新的目标契约 revision；
 历史 S3 报告未重写，新请求/候选不能被当作历史实验的原样复现。
+
+## S4-AX 原生接线（2026-10-07）
+
+统一 GoalContract/Controller 可通过显式 `macos` 配置借用原生窗口。通道绑定 bundle、
+PID、内核启动标识、窗口、文档和元素身份；每次输入前重读 AX 状态及窗口边界。
+当前仅验证主屏前台窗口，不按标题自动重新附着，不关闭用户应用。AXPress 与 Quartz
+为显式模式；fill 写可写 AXValue，保留原始文本，不隐式切换剪贴板/键盘或另一派发模式。
+
+宿主配置 readouts，将原生角色/标识/祖先标识对应为 `ax:value:<name>` 事实；未绑定的
+完成谓词拒绝。绑定读数的变化仅是局部动作效果，最终仍独立检查目标条件。Calculator
+数学显示采用紧凑文本，TextEdit 正文保持逐字比较。作用域超限/不完整、旧引用、用户
+输入冲突和未知效果均不盲目继续，失败的原生清理不能报告完成。普通核心不导入 benchmark。
+
+真实应用与 fake HTTP 的评审后矩阵九项通过；它只证明控制链，不证明真实 Jev 选择
+能力。代码评审与回归通过，真实模型批次因特定 AX 数据外发授权未获自动审批而尚未启动。
+冻结配方及后续验收状态以[策略阶梯计划](../plans/active/computer-use-strategy-ladder.md)
+中的 S4-AX 验收记录为准。运行器及接口说明见
+[插件说明](../../backend/plugins/agent-computer-use/README.md#s4-ax-explicitly-bound-native-macos-channel)。

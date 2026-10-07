@@ -1,0 +1,13 @@
+{
+  "status": "not_started",
+  "execution_rejected_before_process_creation": true,
+  "external_model_requests": 0,
+  "credential_loaded_by_live_command": false,
+  "reason": "Automatic approval requires specific user approval for sending AX-derived application/UI data to the external Jev service using the configured credential.",
+  "destination": "https://api.typesafe.ai/v1/systemone",
+  "data": "Goal and supplied temporary text, current bound AX snapshot (labels, roles, values, bounds, references), complete structured candidate actions and progress.",
+  "model": "jev-1.13.0",
+  "request_limit": 78,
+  "nano_usd_limit": 250000000,
+  "sha256": "d51fe70491947f1b56d8aaaedf3f1ea15953dfd021c0cdadcb2956b44752662c"
+}

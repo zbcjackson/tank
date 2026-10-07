@@ -5,8 +5,9 @@ It does not change the production computer-use agent or grounding modes.
 The default factory currently has **no live channel or model transport**: a valid
 goal returns `stopped / observation_unavailable`, with zero desktop/model calls.
 Unknown private configuration keys are rejected. S1 provides injectable AX/OCR
-observations; S2 adds explicitly configured managed Chromium. Native desktop
-execution and Advisor domain wiring remain later stages. S3 adds an opt-in Jev Choice route.
+observations; S2 adds explicitly configured managed Chromium. S3 adds an opt-in Jev Choice
+route, and S4 adds explicitly bound native macOS execution. Advisor domain wiring remains
+a later stage.
 
 The constructor accepts separate observation, action, selector and Advisor
 implementations. Tests inject semantic fake UI boundaries through the actual
@@ -62,7 +63,7 @@ or real-model acceptance.
 
 ## S1 observation adapters
 
-`AXObservationSource` reads the window/display bound by a host-supplied M2 frame.
+`AXObservationSource` reads a host-bound window/display without requiring a screenshot.
 It retains task-local native identities across list reordering, carries ancestors,
 focus and value, and drops references when elements disappear. Native objects never
 enter `Snapshot` or `snapshot_text()`. AX node/depth/children and text truncation make
@@ -450,3 +451,81 @@ archived reports. Added public effect templates are synthetic fixture evidence, 
 of scoring labels; their resulting candidates and call counts are not the old S3 baseline.
 The new replay revisions admit 72 model requests; the paired strategy recipe caps 81,
 with per-task decision ceilings in its frozen cases. No new paid comparison was run.
+
+## S4-AX: explicitly bound native macOS channel
+
+The `macos` channel borrows an already-authorized foreground application window. It does
+not discover a different app by title, launch a process, or close the user's application.
+The host supplies `bundle_id`, `pid`, `process_start` (from `channels.native.process_identity`),
+`window_id` and a logical `scope`. PID lifetime is checked with Darwin kernel birth time and
+the executable bundle; cached NSRunningApplication metadata is not used for dispatch.
+Only a fully visible primary-display window is currently supported. Replacing a process,
+window, document, element or observation invalidates the corresponding authority/reference.
+
+Choose `dispatch: ax_press` or `dispatch: quartz` explicitly. Quartz uses the current AX
+frame center, checks foreground/window exposure and refuses active user input. AX fill
+uses a confirmed writable AXValue, preserving Unicode, whitespace and newlines. It never
+silently switches to keyboard/clipboard input. Unknown dispatch effects are read back;
+there is no retry using the other dispatch mode. Native work is joined before cleanup;
+uncertain mouse release makes cleanup fail rather than reporting success.
+
+`readouts` declare observable facts independently of a task's desired answers. Each names
+an AX role and optional identifier/ancestor identifier. `single` preserves exact values;
+`compact_text` combines static display text and removes whitespace/directional formatting
+for mathematical readouts. `allow_empty` is limited to explicitly scoped static regions,
+and at least one readout must require native evidence. Facts use `ax:value:<name>` keys.
+Clicks carry a local value-change condition for these bound readouts, while final completion
+still requires all declared goal predicates. Arbitrary UI changes are not completion.
+
+For example, a host-bound Calculator configuration can use:
+
+```yaml
+macos:
+  scope: calculator-task
+  bundle_id: com.apple.calculator
+  pid: 12345                      # replace with the actual bound process
+  process_start: "1790000000:123" # replace with its actual kernel birth token
+  window_id: 123                  # replace with its actual foreground window
+  dispatch: ax_press
+  readouts:
+    - name: expression
+      role: AXStaticText
+      ancestor_identifier: StandardResultView
+      aggregation: compact_text
+      allow_empty: true
+    - name: result
+      role: AXStaticText
+      ancestor_identifier: StandardInputView
+      aggregation: compact_text
+selector: jev
+```
+
+TextEdit uses `labels: identifier` and a single AXTextArea readout identified by
+`First Text View`. This deliberately avoids its unavailable optional AXDescription;
+other attribute failures still invalidate evidence. AXEnabled may be absent for a text
+area whose AXValue is explicitly writable. Window chrome without semantic identity and
+host `blocked_identifiers`/`blocked_labels` are not offered as actions. AX offers up to
+64 complete candidates, without top-k truncation; the DOM default remains 32.
+
+Normal pytest/Cucumber replaces OS and external HTTP boundaries. The dedicated native
+pilot operates real newly owned Calculator/TextEdit windows with real Runner and SDK:
+
+```bash
+uv run python -m benchmarks.computer_use.s4_ax --output /tmp/new-ax-pilot
+uv run python -m benchmarks.computer_use.s4_ax --output /tmp/new-ax-pilot --run fake --approved-sha256 <digest>
+```
+
+Preparation never touches the desktop or credentials. Fake mode installs a mock at the
+SDK's actual httpx2 client boundary, disables environment proxies and uses a `.invalid`
+endpoint. Live mode requires the matching frozen digest and configured TYPESAFE_API_KEY;
+only that mode loads the real credential. The nine-case recipe covers Calculator AXPress
+and Quartz three times each and TextEdit three times, including moved windows. It caps
+78 decisions and estimated cost at $0.25 under its frozen Jev price contract. Any failed,
+unknown, over-budget or cleanup-unconfirmed case stops the batch with remaining rows retained.
+
+Independent readback traverses the bound AX window afresh, without consulting controller
+snapshots or model answers. Calculator must show expression 7×8 and result 56; TextEdit
+must contain the exact supplied text. Text entry does not claim a saved file. The pilot
+refuses pre-existing target-app sessions and closes only its verified new process instance;
+its temporary files are removed and foreground/position restoration is recorded. This is
+not OS sandboxing, arbitrary-app coverage, background operation, or same-process resume.
