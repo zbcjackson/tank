@@ -6,8 +6,7 @@ The default factory currently has **no live channel or model transport**: a vali
 goal returns `stopped / observation_unavailable`, with zero desktop/model calls.
 Unknown private configuration keys are rejected. S1 provides injectable AX/OCR
 observations; S2 adds explicitly configured managed Chromium. S3 adds an opt-in Jev Choice
-route, and S4 adds explicitly bound native macOS execution. Advisor domain wiring remains
-a later stage.
+route, and S4 adds explicitly bound native macOS execution and an opt-in text planning Advisor.
 
 The constructor accepts separate observation, action, selector and Advisor
 implementations. Tests inject semantic fake UI boundaries through the actual
@@ -35,16 +34,19 @@ uniqueness alone does not prove action intent. Otherwise an explicitly configure
 chooses a whole candidate. Parameters, native references, scope and observation bindings
 remain host-owned. Missing evidence never establishes completion.
 
-The injected Advisor seam may supplement only existing inputs whose value is absent,
+The Advisor may supplement only existing `source: generated` inputs whose value is absent,
 choose an offered candidate, request observation, or report unable/needs-user-input.
 Validated supplementation increments goal version while retaining authority, progress and
 usage. It cannot replace existing values, remove completion conditions or widen scope.
-This is not a production planning/visual Advisor or natural-language contract generator.
+The configured text Advisor uses the core task model. Visual advice and natural-language
+contract generation are not implemented.
 
 Core TaskRuntime retains task-bound execution records and rechecks authority after async
 preflight. Limits remain 32 action attempts, 64 observations and four Advisor calls;
 unresolved effects permit up to three readbacks with short waits, never blind replay.
-Repeated semantic state stops even with a fresh observation ID. Verified actions and
+Repeated semantic state without a new verified action stops even with a fresh observation
+ID. Revisiting a state after an action can request bounded Advisor recovery; it never repeats
+the same selector choice blindly. Verified actions and
 outcomes, native input bindings, receipts and pending effects are retained in progress.
 Generic task resume is not implemented. The PDF fixture is synthetic and does not prove
 filesystem output or overwrite protection.
@@ -544,3 +546,50 @@ emits `decision_error` before post-accounting stop checks can mask the original 
 The native pilot saves these events with task/call IDs. It does not save SDK error messages,
 response bodies or headers. Unknown usage still stops the batch; diagnostics do not bypass
 budgets or enable retries.
+
+
+## S4-R4 text Advisor and goal-progress review
+
+Set `advisor: llm` alongside `browser` or `macos` and the desired selector. The extension
+agent's existing `model: <profile>` supplies its core text model; `decision-model: <profile>`
+continues to supply Jev. The plugin creates no model clients or separate budgets. Omitting
+`advisor` leaves it disabled; neither this setting nor a model proposal grants permission.
+
+```yaml
+# Private extension config under subagents.agent-computer-use:agent.config
+selector: jev
+advisor: llm
+# Include exactly one existing browser or macos binding here.
+```
+
+`LLMAdvisor` receives the goal, current structured observation/action set, progress, trigger
+reason and parent task context. It returns one strict JSON object: an offered candidate ID,
+values for declared missing generated inputs, `need_observation`, `needs_user_input` or
+`unable`. Extra fields, duplicate JSON keys and mismatched kinds/fields are rejected. The
+host validates goal patches and candidate membership, then uses the normal reference,
+permission and effect gates. One proposal returns control to the host loop; no nested agent
+or extra tools are installed. Known inputs cannot be overwritten; user-sourced missing
+inputs return `missing_user_input`, without asking the Advisor to guess.
+
+A verified local effect increments `unverified_goal_steps`. Newly satisfied declared
+completion/outcome conditions or an exactly filled and bound goal input reset this counter;
+each distinct piece of goal evidence counts once per task, so toggling it cannot repeatedly
+reset the counter. Three actions without new goal evidence trigger `goal_progress_unverified`
+before another ordinary selector call. This is a bounded planning-review trigger, not a
+claim that every long task or changing value is incorrect. A single Advisor review permits
+another bounded interval; it does not clear the evidence history, progress count, four-call
+Advisor cap, or shared task/model/action/observation budgets. Without an Advisor it stops
+with partial progress retained. Legitimate long tasks without intermediate predicates may
+therefore need advice or additional declared outcomes.
+
+Explicit `escalate` and action-induced repeated states can request advice. A selector's
+`none` stops; `ambiguous`/`need_more_context` cause bounded read-only reobservation. Incomplete
+observations are refreshed before invoking a configured Advisor; an unchanged repeat stops.
+Pending/unknown effects never invoke planning to retry an uncertain action. The
+`computer_use_advisor` events record reason, call number and source observation.
+
+Offline acceptance uses real SDKs with fake model HTTP and native OS fixtures, plus real
+isolated Chromium/Runner on two layouts and an intermediate page. It verifies Advisor→Jev
+handoff and independently checks the persisted name and unchanged email. Scripted HTTP
+answers establish control flow, not actual LLM planning quality. No new paid/native desktop
+pilot has been run for this implementation; prior Calculator failures remain unchanged.

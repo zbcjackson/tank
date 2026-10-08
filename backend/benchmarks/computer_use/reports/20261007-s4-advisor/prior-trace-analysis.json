@@ -1,0 +1,223 @@
+{
+  "source": "../20261007-s4-ax/compact-live/result.json",
+  "source_sha256": "0388349f565a51f69202386df5ef53d159979835ecd5364cb41005c4d94a6f83",
+  "rows": [
+    {
+      "step": 1,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "0"
+        }
+      ],
+      "selected_label": "7",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 2,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "7"
+        }
+      ],
+      "selected_label": "8",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 3,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "78"
+        }
+      ],
+      "selected_label": "7",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 4,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "787"
+        }
+      ],
+      "selected_label": "8",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 5,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "7,878"
+        }
+      ],
+      "selected_label": "7",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 6,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "78,787"
+        }
+      ],
+      "selected_label": "8",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 7,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "787,878"
+        }
+      ],
+      "selected_label": "7",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 8,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "7,878,787"
+        }
+      ],
+      "selected_label": "7",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 9,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "78,787,877"
+        }
+      ],
+      "selected_label": "7",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 10,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "787,878,777"
+        }
+      ],
+      "selected_label": "7",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 11,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "7,878,787,777"
+        }
+      ],
+      "selected_label": "7",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    },
+    {
+      "step": 12,
+      "facts": [
+        {
+          "key": "ax:value:expression",
+          "value": ""
+        },
+        {
+          "key": "ax:value:result",
+          "value": "78,787,877,777"
+        }
+      ],
+      "selected_label": "7",
+      "available_operators": [
+        "Multiply",
+        "Equals"
+      ]
+    }
+  ],
+  "conclusion": "All twelve observed choices had Multiply and Equals available; changed numeric readout did not establish a completion predicate. This does not prove actual Advisor efficacy."
+}
