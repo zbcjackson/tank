@@ -1,0 +1,226 @@
+{
+  "recipe_sha256": "6b991d00cec7cf65256b13fd1cdb5ef701bb248d09802b5cada3f5ae96d50202",
+  "completed": false,
+  "external_model_requests": 15,
+  "spend": {
+    "limit_tokens": 12000000,
+    "limit_nano_usd": 250000000,
+    "charged_tokens": 279079,
+    "charged_nano_usd": 19972257,
+    "known_tokens": 279079,
+    "known_nano_usd": 19972257,
+    "reserved_tokens": 0,
+    "reserved_nano_usd": 0,
+    "limit_requests": 78,
+    "admitted_requests": 15
+  },
+  "stop_reason": "native_case_failed",
+  "rows": [
+    {
+      "case_id": "calculator-ax_press-0",
+      "status": "finished",
+      "passed": true,
+      "elapsed_ms": 16055.854999925941,
+      "independent_values": {
+        "expression": "7×8",
+        "result": "56"
+      },
+      "application_cleanup": {
+        "confirmed": true,
+        "position_restored": true,
+        "frontmost_restored": true
+      },
+      "result_status": "completed",
+      "reason": "goal_verified",
+      "cleanup": "confirmed",
+      "verified_actions": 8,
+      "receipts": 8,
+      "trace": [
+        {
+          "model": "jev-1.13.0",
+          "action": "7"
+        },
+        {
+          "model": "jev-1.13.0",
+          "action": "8"
+        },
+        {
+          "model": "jev-1.13.0",
+          "action": "7"
+        },
+        {
+          "model": "qwen3.7-flash-2026-07-15",
+          "reason": "goal_progress_unverified",
+          "action": "Clear"
+        },
+        {
+          "model": "qwen3.7-flash-2026-07-15",
+          "reason": "repeated_state",
+          "action": "7"
+        },
+        {
+          "model": "qwen3.7-flash-2026-07-15",
+          "reason": "repeated_state",
+          "action": "Multiply"
+        },
+        {
+          "model": "jev-1.13.0",
+          "action": "8"
+        },
+        {
+          "model": "jev-1.13.0",
+          "action": "Equals"
+        }
+      ]
+    },
+    {
+      "case_id": "calculator-ax_press-1",
+      "status": "finished",
+      "passed": false,
+      "elapsed_ms": 13314.319750061259,
+      "independent_values": {
+        "result": "787,877"
+      },
+      "application_cleanup": {
+        "confirmed": true,
+        "position_restored": true,
+        "frontmost_restored": true
+      },
+      "result_status": "unknown",
+      "reason": "effect_unknown",
+      "cleanup": "confirmed",
+      "verified_actions": 6,
+      "receipts": 7,
+      "trace": [
+        {
+          "model": "jev-1.13.0",
+          "action": "7"
+        },
+        {
+          "model": "jev-1.13.0",
+          "action": "8"
+        },
+        {
+          "model": "jev-1.13.0",
+          "action": "7"
+        },
+        {
+          "model": "qwen3.7-flash-2026-07-15",
+          "reason": "goal_progress_unverified",
+          "action": "8"
+        },
+        {
+          "model": "jev-1.13.0",
+          "action": "7"
+        },
+        {
+          "model": "jev-1.13.0",
+          "action": "7"
+        },
+        {
+          "model": "qwen3.7-flash-2026-07-15",
+          "reason": "goal_progress_unverified",
+          "action": "Close Parenthesis"
+        }
+      ]
+    },
+    {
+      "case_id": "calculator-ax_press-2",
+      "status": "not_run",
+      "passed": false,
+      "elapsed_ms": null,
+      "independent_values": null,
+      "application_cleanup": null,
+      "result_status": null,
+      "reason": null,
+      "cleanup": null,
+      "verified_actions": 0,
+      "receipts": 0,
+      "trace": []
+    },
+    {
+      "case_id": "calculator-quartz-0",
+      "status": "not_run",
+      "passed": false,
+      "elapsed_ms": null,
+      "independent_values": null,
+      "application_cleanup": null,
+      "result_status": null,
+      "reason": null,
+      "cleanup": null,
+      "verified_actions": 0,
+      "receipts": 0,
+      "trace": []
+    },
+    {
+      "case_id": "calculator-quartz-1",
+      "status": "not_run",
+      "passed": false,
+      "elapsed_ms": null,
+      "independent_values": null,
+      "application_cleanup": null,
+      "result_status": null,
+      "reason": null,
+      "cleanup": null,
+      "verified_actions": 0,
+      "receipts": 0,
+      "trace": []
+    },
+    {
+      "case_id": "calculator-quartz-2",
+      "status": "not_run",
+      "passed": false,
+      "elapsed_ms": null,
+      "independent_values": null,
+      "application_cleanup": null,
+      "result_status": null,
+      "reason": null,
+      "cleanup": null,
+      "verified_actions": 0,
+      "receipts": 0,
+      "trace": []
+    },
+    {
+      "case_id": "textedit-0",
+      "status": "not_run",
+      "passed": false,
+      "elapsed_ms": null,
+      "independent_values": null,
+      "application_cleanup": null,
+      "result_status": null,
+      "reason": null,
+      "cleanup": null,
+      "verified_actions": 0,
+      "receipts": 0,
+      "trace": []
+    },
+    {
+      "case_id": "textedit-1",
+      "status": "not_run",
+      "passed": false,
+      "elapsed_ms": null,
+      "independent_values": null,
+      "application_cleanup": null,
+      "result_status": null,
+      "reason": null,
+      "cleanup": null,
+      "verified_actions": 0,
+      "receipts": 0,
+      "trace": []
+    },
+    {
+      "case_id": "textedit-2",
+      "status": "not_run",
+      "passed": false,
+      "elapsed_ms": null,
+      "independent_values": null,
+      "application_cleanup": null,
+      "result_status": null,
+      "reason": null,
+      "cleanup": null,
+      "verified_actions": 0,
+      "receipts": 0,
+      "trace": []
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # Native text Advisor pilot
 
-Date: 2026-10-08. Status: real applications with fake HTTP passed; paid execution
-blocked before process creation by automatic approval review. S4 remains open.
+Date: 2026-10-08. Status: fake HTTP 9/9 passed; authorized real-model batch
+finished with 1 passed, 1 unknown failure and 7 not run. S4 remains open.
 
 ## Recipe and boundaries
 
@@ -54,9 +54,55 @@ Artifact SHA-256:
 Automatic approval review rejected the live command because AX text, candidate
 actions and task goals would be sent to the new Dashscope/Qwen destination, and
 prior consent did not explicitly cover that destination and payload. It rejected
-process creation: there is no `live/started.json`, live desktop action or paid
-model request from this batch. The prepared recipe remains available for explicit
-approval. No indirect execution or substitute endpoint was attempted.
+process creation at that time. After the coordinator explicitly listed both
+destinations, AX text/action/goal payload, existing credentials and the 78-call /
+$0.25 estimated limits, the user replied “开始”. The identical frozen command then
+passed approval and ran. No indirect execution or substitute endpoint was used.
+
+## Authorized real-model result
+
+The nine planned rows remain: **1 passed / 1 failed (unknown) / 7 not run**.
+The batch stopped immediately after the second case, with no retry or replay.
+
+First Calculator AXPress case, 16.06 seconds, eight successful model calls:
+
+1. Jev selected `7`, `8`, `7`, leaving `787` without goal evidence.
+2. Advisor selected Clear on `goal_progress_unverified`, then `7` and Multiply
+   on the two `repeated_state` reviews.
+3. Control returned to Jev, which selected `8` and Equals.
+4. All eight local effects were verified; independent AX readback confirmed
+   expression `7×8` and result `56`, with `completed / goal_verified`.
+
+Second Calculator AXPress case (window moved before observation), 13.31 seconds:
+Jev selected `7`, `8`, `7`; Advisor selected `8`; Jev selected `7`, `7`; Advisor
+then selected **Close Parenthesis**. All seven calls returned and seven actions
+had `sent` receipts. Only the first six effects were verified. The final click
+had no verified readout change; the host returned `unknown / effect_unknown`.
+Independent readback still showed `787,877`, with no expression value returned.
+This is not a model-call/HTTP failure, and the evidence does not establish that
+moving the window caused it. The selected planning actions did not complete the
+goal; the system correctly avoided replaying an action with unverified effects.
+
+Both tasks confirmed input cleanup, owned-process cleanup, window position and
+foreground restoration. Remaining AXPress, all Quartz and all TextEdit live
+rows were not run. Those routes have only this batch's fake-HTTP acceptance.
+
+There were **15 admitted SDK calls: 10 Jev + 5 Advisor**, with known usage for
+all calls: **279,079 tokens**, estimated **$0.019972257** under the frozen price
+contracts, zero outstanding reservations. This is not a provider invoice or
+an independent wire-request count. No model transport failures were reported.
+
+This establishes one real Advisor correction → Jev return → verified native
+goal completion. It does **not** establish stable planning or full S4 acceptance.
+Next investigate the failed Advisor choices using the captured request/response
+and current candidate mapping before preparing any further live batch.
+
+Evidence: `live/result.json.gz`, `live/spend.jsonl.gz`, `live/summary.json` and
+`live/started.json`, all bound to the unchanged recipe above. SHA-256:
+
+- `live/result.json.gz`: `1cd21575708832567862fb2096f96109ae06067a30e6f6a36582ecedec25d278`
+- `live/spend.jsonl.gz`: `afc94fa29102e3ff33fc873a399091b402ba161ef6556f18138fa222941d9b05`
+- `live/summary.json`: `61a00b298eca0578f5adf880776c22cdfa725a078ea9e3dba9bcdec29ad046cc`
 
 ## Verification
 
@@ -76,5 +122,11 @@ and the absence of live execution. Full-suite/E2E evidence was inherited from th
 coordinator's completed runs. Review stopped after that round; the coordinator
 checked the final diff and this closing metadata.
 
-The previous real Jev arithmetic failure remains unresolved until live Advisor
-execution is authorized and independent final readback passes.
+For the live-result follow-up, executable code and tests are unchanged from
+`d447b3a7`; the full checks above remain the implementation evidence. New work
+only archives the authorized live run and updates documentation. Documentation
+consistency (50 files), artifact hashes/compressed-content integrity and diff
+checks passed. Separate live-result review-and-refactor round 1 against
+`d447b3a7` independently reconstructed both action sequences, recomputed usage
+and cost, and verified readback/cleanup evidence. No actionable issues or edits;
+the review ended after that round. No additional live calls were made in review.
