@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from unittest.mock import MagicMock, patch
 
-from agent_computer_use import action_builder, agent, contracts, controller, factory, observation, jev
+from agent_computer_use import action_builder, advisor, agent, contracts, controller, factory, observation, jev
 from agent_computer_use.channels import native
 from tank_backend.tools import computer_ax, computer_native, computer_use_macos
 
@@ -32,6 +32,7 @@ BUNDLES = {"calculator": "com.apple.calculator", "textedit": "com.apple.TextEdit
 BLOCKED_IDS = ["MemoryClear", "MemoryAdd", "MemorySubtract", "MemoryRecall", "Shift", "Radians"]
 BLOCKED_LABELS = ["Mode", "Show Sidebar", "Hide Sidebar"]
 FAKE_ENDPOINT = "https://s4-ax.invalid/v1/systemone"
+FAKE_ADVISOR_ENDPOINT = "https://s4-advisor.invalid/v1/chat/completions"
 
 
 @contextmanager
@@ -55,10 +56,11 @@ class PilotObserver:
         self.events: list[dict[str, object]] = []
 
     def on_event(self, kind: str, metadata: dict[str, Any]) -> None:
-        if kind not in {"decision_error", "computer_use_error", "model_call"}:
+        if kind not in {"decision_error", "computer_use_error", "model_call", "computer_use_advisor"}:
             return
         keys = {"task_id", "call_id", "phase", "status", "prompt_tokens",
-                "completion_tokens", "elapsed_ms", "error_type", "http_status", "cause_type"}
+                "completion_tokens", "elapsed_ms", "error_type", "http_status", "cause_type",
+                "reason", "call_number", "observation_id", "advice_kind"}
         self.events.append({"kind": kind, **{key: value for key, value in metadata.items()
                            if key in keys and (value is None or type(value) in (str, int, float))}})
 
@@ -113,7 +115,8 @@ def channel_readouts(application: str) -> list[dict[str, Any]]:
 
 def freeze_inputs() -> dict[str, Any]:
     from tank_backend.agents import subagent, task_runtime, runner, subagent_adapter, task_resources
-    from tank_backend.llm import decision_model, task_decision_model, model_call, decision_profile
+    from tank_backend.llm import decision_model, task_decision_model, model_call, decision_profile, task_model
+    from tank_backend.benchmarks import model_policy, spend_ledger
     from benchmarks.computer_use import jev_smoke
 
     root = Path(__file__).resolve().parents[2]
@@ -122,9 +125,13 @@ def freeze_inputs() -> dict[str, Any]:
         action_builder, contracts, controller, factory, observation, native, computer_ax,
         computer_native, computer_use_macos, subagent, task_runtime, decision_model,
         task_decision_model, model_call, agent, jev, runner, subagent_adapter, task_resources,
-        decision_profile, jev_smoke,
+        decision_profile, jev_smoke, advisor, task_model, model_policy, spend_ledger,
     ))]
-    data = {"revision": "s4-ax-3", "cases": list(CASES), "model": MODELS["jev"],
+    data = {"revision": "s4-ax-advisor-1", "cases": list(CASES), "model": MODELS["jev"],
+            "advisor_model": {**MODELS["qwen"], "output_ceiling": 2048},
+            "fake_advisor_endpoint": FAKE_ADVISOR_ENDPOINT,
+            "advisor_call_limit": 4,
+            "accounting": "shared SDK-call limit; inherited conservative price estimates, not provider invoices",
             "fake_endpoint": FAKE_ENDPOINT,
             "request_limit": sum(case["max_decisions"] for case in CASES),
             "nano_usd_limit": 250_000_000, "seconds_per_task": 120,
@@ -424,9 +431,11 @@ class OwnedApplication:
         return evidence
 
 
-async def run_batch(output: Path, approved: str, *, mode: str, credential: str = "") -> dict[str, Any]:
+async def run_batch(output: Path, approved: str, *, mode: str, credential: str = "",
+                    advisor_credential: str = "") -> dict[str, Any]:
     """Run only an already-frozen recipe; fake replaces model HTTP, never the native application."""
     import httpx2 as httpx
+    import httpx as text_http
     from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
     from tank_backend.agents.definition import AgentDefinition
     from tank_backend.agents.resources import DesktopResource
@@ -445,7 +454,7 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
     from benchmarks.computer_use.jev_smoke import Capture
 
     frozen = load_freeze(output, approved)
-    if mode not in {"fake", "live"} or mode == "live" and not credential.strip():
+    if mode not in {"fake", "live"} or mode == "live" and not (credential.strip() and advisor_credential.strip()):
         raise ValueError("Choose fake or provide an explicitly configured live credential")
     marker = output / "started.json"
     with marker.open("x") as stream:
@@ -457,18 +466,27 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
     for extension in manifest.extensions:
         registry.register(manifest.plugin_name, extension)
     definition = AgentDefinition("s4-ax", "Native AX pilot", "Use only the bound application.",
-                                 extension="agent-computer-use:agent", decision_model="jev")
+                                 extension="agent-computer-use:agent", decision_model="jev", model="advisor")
     resource = DesktopResource()
     rows = [{"case_id": case["id"], "status": "not_run", "passed": False} for case in frozen["cases"]]
     active_case, fake_index, fake_received = frozen["cases"][0], 0, 0
     endpoint = frozen["model"]["url"] if mode == "live" else frozen["fake_endpoint"]
+    advisor_model = frozen["advisor_model"]
+    advisor_endpoint = advisor_model["url"] if mode == "live" else frozen["fake_advisor_endpoint"]
+    fake_escalated = False
 
     async def fake_http(request: httpx.Request) -> httpx.Response:
-        nonlocal fake_index, fake_received
+        nonlocal fake_index, fake_received, fake_escalated
         fake_received += 1
         payload = json.loads(request.content)
         criteria = payload["questions"]["next_action"]["criteria"]
         if active_case["application"] == "calculator":
+            if not fake_escalated:
+                fake_escalated = True
+                return httpx.Response(200, json={"model": frozen["model"]["model"], "answers": {
+                    "next_action": {"type": "choice", "choice": "escalate", "confidence": 1,
+                                    "probabilities": {key: int(key == "escalate") for key in criteria}}},
+                    "usage": {"input_tokens": 12, "output_tokens": 0}})
             labels = ("7", "Multiply", "8", "Equals")
             label = labels[fake_index] if fake_index < len(labels) else None
             choice = next((key for key, value in criteria.items()
@@ -482,13 +500,35 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                             "probabilities": {key: int(key == choice) for key in criteria}}},
             "usage": {"input_tokens": 12, "output_tokens": 0}})
 
+    async def fake_advice(request: text_http.Request) -> text_http.Response:
+        nonlocal fake_index, fake_received
+        fake_received += 1
+        payload = json.loads(json.loads(request.content)["messages"][1]["content"])
+        label = ("7", "Multiply", "8", "Equals")[fake_index]
+        choice = next(key for key, value in payload["actions"].items() if value["label"] == label)
+        fake_index += 1
+        return text_http.Response(200, json={"id": "native-advice", "object": "chat.completion", "created": 1,
+            "model": advisor_model["model"], "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                "role": "assistant", "content": json.dumps({"kind": "candidate", "candidate_id": choice})}}],
+            "usage": {"prompt_tokens": 12, "completion_tokens": 5, "total_tokens": 17}})
+
+    class PilotCapture(Capture):
+        async def response(self, call_id, response):
+            await super().response(call_id, response)
+            if "choices" in response:
+                self.calls[call_id]["response"]["choices"] = response["choices"]
+
     class Policy(BenchmarkModelPolicy):
         def __init__(self, maximum: int):
             model = frozen["model"]
             super().__init__(ledger, (ContextWindowContract(
                 endpoint, model["model"], TokenAllowance(
                     model["input_ceiling"], model["output_ceiling"], model["input_price"], model["output_price"]),
-                "Frozen Jev conservative token-price contract", output_cap_required=False),))
+                "Frozen Jev conservative token-price contract", output_cap_required=False),
+                ContextWindowContract(advisor_endpoint, advisor_model["model"], TokenAllowance(
+                    advisor_model["input_ceiling"], advisor_model["output_ceiling"],
+                    advisor_model["input_price"], advisor_model["output_price"]),
+                    "Inherited S3 Qwen conservative reservation; output capped at 2048")))
             self.calls = 0
             self.maximum = maximum
 
@@ -505,14 +545,15 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
         stack.enter_context(patch.dict(os.environ, {"TANK_S4_JEV_KEY": credential if mode == "live" else "fake-native-pilot"}))
         if mode == "fake":
             stack.enter_context(fake_model_http(fake_http))
+            stack.enter_context(patch("httpx.AsyncHTTPTransport", lambda *args, **kwargs: text_http.MockTransport(fake_advice)))
         try:
             for case, row in zip(frozen["cases"], rows, strict=True):
                 load_freeze(output, approved)
-                active_case, fake_index = case, 0
+                active_case, fake_index, fake_escalated = case, 0, False
                 owner = OwnedApplication(case)
-                capture, audits = Capture(), []
+                capture, audits = PilotCapture(), []
                 observer = PilotObserver()
-                ledger.start_trial(case["id"], SpendLimit(4_000_000, 100_000_000))
+                ledger.start_trial(case["id"], SpendLimit(4_000_000, frozen["nano_usd_limit"]))
                 started = time.monotonic()
                 row.update(status="started", dispatch=case["dispatch"])
 
@@ -524,11 +565,16 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                     row["binding"] = config.model_dump(mode="json")
                     row["setup_actions"] = owner.setup_actions
                     app_config = AppConfig.from_raw_dict({
-                        "llm": {"default": {"model": "unused", "api_key": "unused", "base_url": "https://unused.invalid/v1"}},
+                        "llm": {"default": {"model": "unused", "api_key": "unused", "base_url": "https://unused.invalid/v1"},
+                            "advisor": {"model": advisor_model["model"],
+                                "api_key": advisor_credential if mode == "live" else "fake-advisor",
+                                "base_url": advisor_endpoint.removesuffix("/chat/completions"),
+                                "max_tokens": advisor_model["output_ceiling"], "temperature": 0,
+                                "extra_body": {"enable_thinking": False}}},
                         "decision_models": {"jev": {"url": endpoint,
                             "model": frozen["model"]["model"], "credential_env": "TANK_S4_JEV_KEY"}},
                         "subagents": {"agent-computer-use:agent": {"config": {
-                            "macos": config.model_dump(mode="json"), "selector": "jev"}}},
+                            "macos": config.model_dump(mode="json"), "selector": "jev", "advisor": "llm"}}},
                     })
                     runner = AgentRunner(MagicMock(spec=LLM), MagicMock(spec=ToolManager), Bus(),
                         ToolApprovalPolicy(computer_mode="allow"), PendingToolCallStore(),
@@ -550,7 +596,7 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                         valid = values.get("expression") == "7×8" and values.get("result") == "56"
                     else:
                         valid = values.get("document") == task_goal(case)["inputs"][0]["value"]
-                    choices = {call.get("response", {}).get("answers", {}).get("next_action", {}).get("choice")
+                    choices = {(call.get("response", {}).get("answers") or {}).get("next_action", {}).get("choice")
                                for call in capture.calls.values()}
                     executed = {r["action_id"] for r in result["details"]["receipts"] if r["status"] != "not_sent"}
                     row["passed"] = bool(valid and result["status"] == "completed"
@@ -603,9 +649,13 @@ if __name__ == "__main__":
             parser.error("Execution requires the frozen recipe digest")
         load_freeze(args.output, args.approved_sha256)
         credential = ""
+        advisor_credential = ""
         if args.run == "live":
             from dotenv import dotenv_values
             credential = os.environ.get("TYPESAFE_API_KEY") or dotenv_values(
                 Path(__file__).resolve().parents[2] / "core/.env").get("TYPESAFE_API_KEY") or ""
-        result = asyncio.run(run_batch(args.output, args.approved_sha256, mode=args.run, credential=credential))
+            advisor_credential = os.environ.get("BAILIAN_API_KEY") or dotenv_values(
+                Path(__file__).resolve().parents[2] / "core/.env").get("BAILIAN_API_KEY") or ""
+        result = asyncio.run(run_batch(args.output, args.approved_sha256, mode=args.run,
+                                      credential=credential, advisor_credential=advisor_credential))
         raise SystemExit(0 if result["completed"] else 1)

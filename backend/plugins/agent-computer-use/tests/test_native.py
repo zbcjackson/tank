@@ -322,6 +322,10 @@ def test_native_pilot_prepares_bounded_cases_without_desktop_or_credentials(tmp_
     assert len(frozen["cases"]) == 9
     assert frozen["request_limit"] == 78
     assert frozen["nano_usd_limit"] == 250_000_000
+    assert frozen["advisor_model"]["model"] == "qwen3.7-flash-2026-07-15"
+    assert frozen["advisor_model"]["output_ceiling"] == 2048
+    assert any(path.endswith("/advisor.py") for path in frozen["source_sha256"])
+    assert any(path.endswith("/task_model.py") for path in frozen["source_sha256"])
     assert s4_ax.load_freeze(tmp_path / "pilot", frozen["sha256"]) == frozen
     with pytest.raises(ValueError, match="freeze"):
         s4_ax.load_freeze(tmp_path / "pilot", "wrong")
@@ -342,6 +346,75 @@ def test_pilot_places_only_owned_offscreen_windows_on_primary(monkeypatch):
     bounds.update(X=500.0, Y=100.0)
     assert setup_position(bounds, geometry, False) is None
     assert setup_position(bounds, geometry, True) == (280.0, 180.0)
+
+
+@pytest.mark.parametrize("limited", [False, True])
+async def test_native_pilot_runs_both_sdks_with_shared_accounting(world, monkeypatch, tmp_path, limited):
+    import json
+    from pathlib import Path
+    from agent_computer_use.channels.native import NativeConfig
+    from tank_backend.benchmarks.desktop_cleanup import MacOSInputCleanup
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_ax
+
+    case = {**s4_ax.CASES[0], "max_decisions": 1} if limited else s4_ax.CASES[0]
+    monkeypatch.setattr(s4_ax, "CASES", (case,))
+    world.buttons = [replace(world.button, title=label, identifier=label,
+                            element=AXElementRef(object(), False, 80))
+                     for label in ("7", "Multiply", "8", "Equals")]
+    expression = ""
+    expression_element = AXElementRef(object(), False, 80)
+    def press(ref):
+        nonlocal expression
+        label = next(button.title for button in world.buttons if button.element == ref)
+        world.sent.append(label)
+        world.value = {"7": "7", "Multiply": "7", "8": "8", "Equals": "56"}[label]
+        expression = {"7": "", "Multiply": "7×", "8": "7×", "Equals": "7×8"}[label]
+    def read(*args, **kwargs):
+        return [*world.buttons, replace(world.output, value=world.value),
+                replace(world.output, index=3, title="Expression", identifier="expression", value=expression,
+                        element=expression_element,
+                        ancestor_identifiers=("expression-region",))], False
+    monkeypatch.setattr("agent_computer_use.channels.native.ax_press", press)
+    monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", read)
+    def start(owner):
+        config = native_config()
+        config["scope"] = owner.case["id"]
+        config["readouts"] = [
+            {"name": "result", "role": "AXStaticText", "identifier": "result"},
+            {"name": "expression", "role": "AXStaticText", "ancestor_identifier": "expression-region",
+             "aggregation": "compact_text", "allow_empty": True}]
+        return NativeConfig.model_validate_json(json.dumps(config))
+    monkeypatch.setattr(s4_ax.OwnedApplication, "start", start)
+    monkeypatch.setattr(s4_ax.OwnedApplication, "read_values",
+                        lambda self: {"expression": expression, "result": world.value})
+    monkeypatch.setattr(s4_ax.OwnedApplication, "close", lambda self: {"confirmed": True})
+    monkeypatch.setattr(MacOSInputCleanup, "_state", staticmethod(lambda: ([], [])))
+    monkeypatch.setattr(MacOSInputCleanup, "_release", lambda self: {"errors": []})
+    output = tmp_path / "pilot"
+    frozen = s4_ax.prepare(output)
+    report = await s4_ax.run_batch(output, frozen["sha256"], mode="fake")
+    if limited:
+        assert not report["completed"]
+        assert world.sent == []
+        assert report["fake_http_requests"] == 1
+        assert report["spend"]["batch"]["admitted_requests"] == 1
+        assert report["rows"][0]["result"]["cleanup"] == "confirmed"
+        return
+    assert report["completed"], report["rows"]
+    assert world.sent == ["7", "Multiply", "8", "Equals"]
+    calls = report["rows"][0]["calls"]
+    assert [call["request"]["model"] for call in calls] == [
+        frozen["model"]["model"], frozen["advisor_model"]["model"],
+        frozen["model"]["model"], frozen["model"]["model"], frozen["advisor_model"]["model"]]
+    assert report["fake_http_requests"] == 5
+    assert report["external_model_requests"] == 0
+    assert report["spend"]["batch"]["known_tokens"] == 70
+    assert report["spend"]["batch"]["admitted_requests"] == 5
+    advice = [event for event in report["rows"][0]["events"]
+              if event["kind"] == "computer_use_advisor" and event["phase"] == "started"]
+    assert [event["reason"] for event in advice] == ["escalate", "goal_progress_unverified"]
 
 
 async def test_standalone_fake_transport_intercepts_sdk_without_pytest_bridge(monkeypatch):
