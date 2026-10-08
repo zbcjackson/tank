@@ -131,6 +131,7 @@ class ComputerUseController:
         self.observation_ids: set[str] = set()
         self.generation = -1
         self.advisor_calls = 0
+        self.last_review_action = 0
         self.progress = GoalProgress()
         self.started = False
         self.observation: TaskOperation[str, Snapshot] | None = None
@@ -248,9 +249,22 @@ class ComputerUseController:
                 else not fact.key.startswith("status:")) for fact in goal.completion):
             return self.result("needs_input", "unsupported_completion_evidence")
         snapshot = await self.observe(goal, context)
-        visited: set[tuple[object, ...]] = set()
+        visited: dict[tuple[object, ...], int] = {}
+        seen_evidence: set[tuple[str, str, str]] = set()
         while True:
             context.check("desktop")
+            # A changed readout is a local effect, not evidence of goal advancement.
+            conditions = (*goal.completion, *(f for item in goal.outcomes for f in item.conditions))
+            markers = {("fact", f.key, f.value) for f in conditions
+                       if snapshot.ready and snapshot.complete and f in snapshot.facts}
+            values = {e.ref: e.value for e in snapshot.elements}
+            bindings = dict(self.progress.input_bindings)
+            markers.update(("input", item.key, item.value) for item in goal.inputs
+                           if snapshot.ready and snapshot.complete and item.value is not None
+                           and item.key in bindings and values.get(bindings[item.key]) == item.value)
+            if markers - seen_evidence:
+                self.progress = replace(self.progress, unverified_goal_steps=0)
+            seen_evidence.update(markers)
             outcomes: set[str] = set()
             for _ in goal.outcomes:
                 for item in goal.outcomes:
@@ -266,13 +280,21 @@ class ComputerUseController:
                 tuple((e.role, e.label, e.ancestors, e.value, e.enabled, e.actions)
                       for e in snapshot.elements), snapshot.facts,
             )
-            if state in visited:
+            repeated = state in visited
+            if repeated:
                 self.progress = replace(self.progress, no_progress=self.progress.no_progress + 1)
-                return self.result("stopped", "no_progress")
-            visited.add(state)
+                if (self.advisor is None
+                        or visited[state] == len(self.progress.verified_actions)):
+                    return self.result("stopped", "no_progress")
+            visited[state] = len(self.progress.verified_actions)
             actions = replace(self.builder.build(self.goal_id, self.version, goal, snapshot,
                                                         self.progress),
                               progress=self.progress)
+            if repeated:
+                actions = replace(actions, reason="repeated_state")
+            elif (self.progress.unverified_goal_steps >= 3
+                    and len(self.progress.verified_actions) - self.last_review_action >= 3):
+                actions = replace(actions, reason="goal_progress_unverified")
             context.observe("computer_use_route", goal_id=self.goal_id, goal_version=self.version,
                             observation_id=snapshot.observation_id, reason=actions.reason)
             action = actions.actions[0] if actions.reason == "rules_unique" else None
@@ -286,13 +308,26 @@ class ComputerUseController:
                     action = self.candidate(actions, decision.candidate_id)
                 elif decision.choice not in {"none", "ambiguous", "need_more_context", "escalate"}:
                     raise SubAgentStopped("invalid_decision")
+                else:
+                    actions = replace(actions, reason=decision.choice)
             if action is None:
+                if any(item.value is None and item.source == "user" for item in goal.inputs):
+                    return self.result("needs_input", "missing_user_input")
+                if actions.reason == "none":
+                    return self.result("stopped", "none")
+                if (actions.reason in {"need_more_context", "ambiguous"}
+                        or self.advisor is not None and actions.reason in {
+                            "observation_unavailable", "scope_incomplete", "ambiguous_target",
+                        }):
+                    snapshot = await self.observe(goal, context)
+                    continue
                 advice = await self.advise(request, goal, snapshot, actions, context)
                 if advice is None:
                     return self.result("needs_input" if actions.reason == "missing_parameters"
                                        else "stopped", actions.reason)
                 if advice.kind == "inputs":
-                    missing = {item.key for item in goal.inputs if item.value is None}
+                    missing = {item.key for item in goal.inputs
+                               if item.value is None and item.source == "generated"}
                     supplied = {item.key: item.value for item in advice.inputs}
                     if (not supplied or len(supplied) != len(advice.inputs)
                             or not supplied.keys() <= missing):
@@ -339,6 +374,7 @@ class ComputerUseController:
                         self.progress, pending_action=None,
                         verified_actions=(*self.progress.verified_actions, action.id),
                         input_bindings=tuple(inputs.items()),
+                        unverified_goal_steps=self.progress.unverified_goal_steps + 1,
                     )
                     self.evidence.append({"action_id": action.id,
                                           "observation_id": snapshot.observation_id})
@@ -361,17 +397,23 @@ class ComputerUseController:
         if self.advisor_calls >= 4:
             raise SubAgentStopped("advisor_limit")
         self.advisor_calls += 1
+        context.observe("computer_use_advisor", phase="started", reason=actions.reason,
+                        call_number=self.advisor_calls, observation_id=snapshot.observation_id)
         advice = await self.advisor.assist(request, goal, snapshot, actions, context)
         context.check("desktop")
         if advice.binding != actions.binding:
             raise SubAgentStopped("stale_advice")
         if (
-            advice.kind != "inputs"
+            advice.kind not in {"inputs", "candidate", "need_observation", "needs_user_input", "unable"}
+            or advice.kind != "inputs"
             and advice.inputs
             or advice.kind != "candidate"
             and advice.candidate_id is not None
         ):
             raise SubAgentStopped("invalid_advice")
+        context.observe("computer_use_advisor", phase="returned", advice_kind=advice.kind,
+                        call_number=self.advisor_calls, observation_id=snapshot.observation_id)
+        self.last_review_action = len(self.progress.verified_actions)
         return advice
 
     @staticmethod

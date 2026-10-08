@@ -759,3 +759,72 @@ async def test_native_model_view_compacts_references_without_dropping_candidates
     finally:
         await channel.aclose()
         await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("stop", [None, "stale", "revoke", "cancel", "budget", "unknown"])
+async def test_configured_native_advisor_interrupts_wandering_jev(world, monkeypatch, stop):
+    import json
+    import httpx
+    from agent_computer_use.factory import create_subagent
+    from tank_backend.agents.subagent import SubAgentCancelled
+    from tank_backend.llm.profile import LLMProfile
+    from .test_jev import setup, reply
+
+    finish = replace(world.button, title="Finish", identifier="finish",
+                     element=AXElementRef(object(), False, 80))
+    world.buttons.append(finish)
+    def press(ref):
+        world.sent.append(("press", ref))
+        if ref == finish.element and stop == "unknown":
+            raise OSError("Dispatch effect unknown")
+        world.value = "100" if ref == finish.element else str(int(world.value) + 1)
+    monkeypatch.setattr("agent_computer_use.channels.native.ax_press", press)
+    routes = []
+    async def respond(request):
+        data = json.loads(request.content)
+        if "questions" in data:
+            routes.append("jev")
+            choice = next(k for k, v in data["questions"]["next_action"]["criteria"].items()
+                          if isinstance(v, dict) and v.get("label") == "Increment")
+            return httpx.Response(200, json=reply(request, choice))
+        routes.append("advisor")
+        payload = json.loads(data["messages"][1]["content"])
+        assert payload["reason"] == "goal_progress_unverified"
+        assert payload["state"]["progress"]["unverified_goal_steps"] == 3
+        choice = next(k for k, v in payload["actions"].items() if v["label"] == "Finish")
+        if stop == "stale":
+            world.buttons[-1] = replace(finish, enabled=False)
+        elif stop == "revoke":
+            ctx.authorization.revoke()
+        elif stop == "cancel":
+            ctx.cancel.set()
+        return httpx.Response(200, json={"id": "advice", "object": "chat.completion", "created": 1,
+            "model": "planner", "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                "role": "assistant", "content": json.dumps({"kind": "candidate", "candidate_id": choice})}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
+    ctx, _, _, _ = setup(monkeypatch, respond)
+    if stop == "budget":
+        ctx.budget.limit = 40
+    ctx.runtime.configure_model("task", LLMProfile(
+        "advisor", "test-key", "planner", "https://offline.invalid/v1", max_tokens=128))
+    agent = create_subagent({"macos": native_config(), "selector": "jev", "advisor": "llm"})
+    task = goal().model_dump(mode="json")
+    task["completion"] = [{"key": "ax:value:result", "value": "100"}]
+    try:
+        async def run():
+            return [o async for o in agent.run(SubAgentRequest("Finish", "", "task", task), ctx)]
+        if stop == "cancel":
+            with pytest.raises(SubAgentCancelled):
+                await run()
+        else:
+            outputs = await run()
+            expected = "completed" if stop is None else "unknown" if stop == "unknown" else "partial"
+            assert outputs[-1].metadata["task_result"]["status"] == expected
+        assert routes == ["jev", "jev", "jev", "advisor"]
+        assert len(world.sent) == (4 if stop in (None, "unknown") else 3)
+        if stop != "cancel":
+            assert ctx.budget.total_tokens == 51
+        assert agent.controller.advisor_calls == 1
+    finally:
+        await agent.aclose()
+        await ctx.runtime.aclose()

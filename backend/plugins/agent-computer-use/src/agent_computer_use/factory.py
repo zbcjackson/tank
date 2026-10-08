@@ -28,9 +28,10 @@ class UnavailableChannel:
 
 def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
     if config:
-        if (set(config) - {"browser", "macos", "selector"}
+        if (set(config) - {"browser", "macos", "selector", "advisor"}
                 or len(set(config) & {"browser", "macos"}) != 1
-                or ("selector" in config and config["selector"] not in ("jev", "llm", "jev-fallback"))):
+                or ("selector" in config and config["selector"] not in ("jev", "llm", "jev-fallback"))
+                or ("advisor" in config and config["advisor"] != "llm")):
             raise ValueError("Specify one explicit browser or macos channel")
         from .channels.native import NativeAXChannel, NativeConfig
 
@@ -47,6 +48,9 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
             channel = ManagedChromiumChannel(BrowserConfig.model_validate(config["browser"]))
         from .jev import JevSelector
 
+        from .advisor import LLMAdvisor
+
+        advisor = LLMAdvisor() if config.get("advisor") == "llm" else None
         selector: Selector | None = None
         if config.get("selector") == "jev":
             selector = JevSelector()
@@ -55,7 +59,7 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
 
             selector = ModelSelector(use_jev=config["selector"] == "jev-fallback")
         return ComputerUseSubAgent(
-            ComputerUseController(channel, channel, selector=selector,
+            ComputerUseController(channel, channel, selector=selector, advisor=advisor,
                                   completion_keys=completion_keys,
                                   max_candidates=max_candidates), resources=(channel,),
         )

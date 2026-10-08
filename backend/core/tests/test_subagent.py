@@ -1437,7 +1437,7 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
                 "objective": "Fill name", "scope": "document",
                 "authorization_ref": "current_task", "allowed_operations": ["click", "fill"],
                 "inputs": [{"key": "name", "purpose": "Name", "field_label": "Name",
-                            "value": None}],
+                            "value": None, "source": "generated"}],
                 "completion": [{"key": "status:name", "value": "ready"}],
             }
     try:

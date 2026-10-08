@@ -83,7 +83,7 @@ def freeze_inputs() -> dict[str, Any]:
     ).hexdigest()
     sources["cases.json"] = hashlib.sha256(DATA.read_bytes()).hexdigest()
     f = {
-        "revision": "s3-strategy-goal-2",
+        "revision": "s3-strategy-goal-3",
         "cases": cases,
         "models": MODELS,
         "schedule": [
@@ -218,7 +218,7 @@ def score(case: dict[str, Any], row: dict[str, Any]) -> bool:
         )
     return bool(
         result.get("status") == "stopped"
-        and result.get("reason") == "jev_eligible"
+        and result.get("reason") in {"none", "no_progress", "escalate"}
         and events == []
         and row.get("page_result") == "idle"
         and not result["details"]["receipts"]
@@ -327,7 +327,7 @@ async def run_trial(
             or not row["cleanup_confirmed"]
             or ctx.runtime.audit_failed
             or ctx.budget.unknown_calls
-            or reason not in {"goal_verified", "jev_eligible", "effect_unknown"}
+            or reason not in {"goal_verified", "none", "no_progress", "escalate", "effect_unknown"}
             or row.get("page_events") is None
             or row.get("page_result") is None
         ):

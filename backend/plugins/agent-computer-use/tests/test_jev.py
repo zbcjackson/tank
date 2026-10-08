@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import replace
 from typing import cast
 
 import httpx
@@ -1607,5 +1608,96 @@ async def test_fallback_rejects_bad_choice_without_additional_calls(monkeypatch,
         with pytest.raises(SubAgentStopped, match="invalid_decision"):
             await ModelSelector(use_jev=True).choose(*selection(),ctx)
         assert len(sent)==2 and ctx.budget.total_tokens==24
+    finally:
+        await ctx.runtime.aclose()
+
+
+async def test_llm_advisor_uses_task_model_and_returns_bound_structured_action(monkeypatch):
+    from agent_computer_use.advisor import LLMAdvisor
+    from tank_backend.agents.subagent import SubAgentRequest
+    from tank_backend.llm.profile import LLMProfile
+
+    captured = []
+    async def respond(request):
+        payload = json.loads(request.content)
+        advice = json.loads(payload['messages'][1]['content'])
+        captured.append(advice)
+        action_id = next(iter(advice['actions']))
+        return httpx.Response(200, json={'id': 'advice', 'object': 'chat.completion',
+            'created': 1, 'model': 'planner', 'choices': [{'index': 0, 'finish_reason': 'stop',
+            'message': {'role': 'assistant', 'content': json.dumps({
+                'kind': 'candidate', 'candidate_id': action_id})}}],
+            'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}})
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    ctx.runtime.configure_model('task', LLMProfile(
+        'advisor', 'secret', 'planner', 'https://offline.invalid/v1', max_tokens=128))
+    goal, snapshot, actions = selection()
+    actions = replace(actions, reason='goal_progress_unverified')
+    try:
+        result = await LLMAdvisor().assist(SubAgentRequest('Finish task', 'Keep other data', 'task'),
+                                          goal, snapshot, actions, ctx)
+        assert result.kind == 'candidate' and result.binding == actions.binding
+        assert result.candidate_id == actions.actions[0].id
+        assert captured[0]['reason'] == 'goal_progress_unverified'
+        assert set(captured[0]['actions']) == {a.id for a in actions.actions}
+        assert captured[0]['context'] == 'Keep other data'
+        assert ctx.budget.total_tokens == 15 and len(sent) == 1
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("body", [
+    "not-json", '{"kind":"candidate","candidate_id":"a","scope":"other"}',
+    '{"kind":"completed"}', '{"kind":"candidate"}',
+    '{"kind":"unable","candidate_id":"a"}',
+    '{"kind":"inputs","inputs":[]}',
+    '{"kind":"unable","kind":"need_observation"}',
+])
+async def test_llm_advisor_rejects_invalid_structured_reply(monkeypatch, body):
+    from agent_computer_use.advisor import LLMAdvisor
+    from tank_backend.agents.subagent import SubAgentRequest, SubAgentStopped
+    from tank_backend.llm.profile import LLMProfile
+    async def respond(request):
+        return httpx.Response(200, json={"id": "advice", "object": "chat.completion", "created": 1,
+            "model": "planner", "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                "role": "assistant", "content": body}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    ctx.runtime.configure_model("task", LLMProfile(
+        "advisor", "secret", "planner", "https://offline.invalid/v1", max_tokens=128))
+    try:
+        with pytest.raises(SubAgentStopped, match="invalid_advice"):
+            await LLMAdvisor().assist(SubAgentRequest("Finish", "", "task"), *selection(), ctx)
+        assert len(sent) == 1
+    finally:
+        await ctx.runtime.aclose()
+
+
+async def test_llm_advisor_generates_only_declared_missing_inputs(monkeypatch):
+    from agent_computer_use.advisor import LLMAdvisor
+    from agent_computer_use.contracts import GoalInput
+    from tank_backend.agents.subagent import SubAgentRequest
+    from tank_backend.llm.profile import LLMProfile
+    async def respond(request):
+        payload = json.loads(json.loads(request.content)["messages"][1]["content"])
+        assert payload["state"]["goal"]["inputs"][0]["source"] == "generated"
+        return httpx.Response(200, json={"id": "advice", "object": "chat.completion", "created": 1,
+            "model": "planner", "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                "role": "assistant", "content": json.dumps({"kind": "inputs", "inputs": [
+                    {"key": "filename", "value": "报告.pdf"}]})}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    ctx.runtime.configure_model("task", LLMProfile(
+        "advisor", "secret", "planner", "https://offline.invalid/v1", max_tokens=128))
+    goal, snapshot, actions = selection()
+    try:
+        for source in ("user", "generated"):
+            task_goal = goal.model_copy(update={"inputs": (GoalInput(
+                key="filename", purpose="Generate a descriptive PDF filename", source=source),)})
+            result = await LLMAdvisor().assist(SubAgentRequest("Export", "", "task"),
+                                              task_goal, snapshot, actions, ctx)
+            assert result.kind == ("needs_user_input" if source == "user" else "inputs")
+        assert result.inputs == (Fact(key="filename", value="报告.pdf"),)
+        assert len(sent) == 1
     finally:
         await ctx.runtime.aclose()

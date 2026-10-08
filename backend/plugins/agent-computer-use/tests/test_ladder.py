@@ -476,6 +476,7 @@ async def test_advisor_fills_one_gap_then_returns_to_rules() -> None:
     world, advisor = ExportWorld(), SupplyFilename()
     goal = export_goal().model_dump(mode="json")
     goal["inputs"][0]["value"] = None
+    goal["inputs"][0]["source"] = "generated"
     result = await ComputerUseController(world, world, advisor=advisor).run(
         SubAgentRequest("Export PDF", "Never overwrite", "task", goal),
         context(),
@@ -488,7 +489,8 @@ async def test_advisor_fills_one_gap_then_returns_to_rules() -> None:
     assert len(world.dispatched) == 1
 
 
-async def test_multistep_semantic_selection_needs_no_advisor() -> None:
+@pytest.mark.parametrize("count", [3, 5])
+async def test_multistep_semantic_selection_needs_no_advisor(count) -> None:
     class World(ExportWorld):
         async def observe(self, scope, ctx):
             self.observations += 1
@@ -496,20 +498,20 @@ async def test_multistep_semantic_selection_needs_no_advisor() -> None:
             return Snapshot(str(self.observations), scope, len(self.dispatched), tuple(
                 Element(f"field-{i}", "textbox", "Value", ("fill",),
                         value=values.get(f"field-{i}", ""), ancestors=(("section", str(i)),))
-                for i in range(3)),
-                facts=(Fact(key="status:done", value="yes"),) if len(values) == 3 else ())
+                for i in range(count)),
+                facts=(Fact(key="status:done", value="yes"),) if len(values) == count else ())
 
     world, selector = World(), PickFirst()
     goal = export_goal().model_dump(mode="json")
     goal["inputs"] = [{"key": str(i), "purpose": f"value {i}", "field_scope": str(i),
-                       "value": f"value-{i}"} for i in range(3)]
+                       "value": f"value-{i}"} for i in range(count)]
     goal["completion"] = [{"key": "status:done", "value": "yes"}]
     result = await ComputerUseController(world, world, selector=selector).run(
         SubAgentRequest("Fill values", "", "task", goal), context())
     assert result.status == "completed"
-    assert selector.calls == len(world.dispatched) == 3
+    assert selector.calls == len(world.dispatched) == count
     assert {a.target_ref: a.value for a in world.dispatched} == {
-        f"field-{i}": f"value-{i}" for i in range(3)}
+        f"field-{i}": f"value-{i}" for i in range(count)}
 
 
 @pytest.mark.parametrize("failure", ["cancel", "revoke", "budget", "timeout", "stale"])
@@ -669,6 +671,7 @@ async def test_advisor_reobservation_is_bounded() -> None:
     advisor, world = Advisor(), ExportWorld()
     goal = export_goal().model_dump(mode="json")
     goal["inputs"][0]["value"] = None
+    goal["inputs"][0]["source"] = "generated"
     result = await ComputerUseController(world, world, advisor=advisor).run(
         SubAgentRequest("Export", "", "task", goal),
         context(),
@@ -682,7 +685,7 @@ async def test_reobservation_does_not_repeat_same_abstained_selection() -> None:
     class Selector(PickFirst):
         async def choose(self, goal, snapshot, actions, ctx):
             self.calls += 1
-            return DecisionResult(actions.binding, "none")
+            return DecisionResult(actions.binding, "need_more_context")
 
     class Advisor(SupplyFilename):
         async def assist(self, request, goal, snapshot, actions, ctx):
@@ -838,3 +841,123 @@ def test_shortlist_checks_whole_scope_before_limiting() -> None:
     assert matched.reason == "rules_unique"
     assert matched.actions[0].target_ref == exact.ref
     assert not matched.truncated
+
+
+class WanderingWorld:
+    """Every click changes a readout, but only Finish establishes the requested result."""
+    def __init__(self):
+        self.dispatched = []
+        self.observations = 0
+        self.value = "0"
+
+    async def observe(self, scope, ctx):
+        from agent_computer_use.contracts import ValueChange
+        self.observations += 1
+        changes = (ValueChange("status:result", "readout", self.value),)
+        return Snapshot(str(self.observations), scope, len(self.dispatched), (
+            Element("wander", "button", "Change", ("click",), click_changes=changes),
+            Element("repair", "button", "Prepare", ("click",), click_changes=changes),
+            Element("finish", "button", "Finish", ("click",), click_changes=changes),
+            Element("readout", "text", "Result", (), value=self.value),
+        ), facts=(Fact(key="status:result", value=self.value),))
+
+    async def is_current(self, binding, action, ctx):
+        return binding.generation == len(self.dispatched)
+
+    async def dispatch(self, binding, action, ctx):
+        self.dispatched.append(action.target_ref)
+        self.value = ("done" if action.target_ref == "finish" else
+                      "ready" if action.target_ref == "repair" else str(len(self.dispatched)))
+        return DispatchReceipt(action.id, "sent")
+
+
+def wandering_request():
+    return SubAgentRequest("Finish", "", "task", {
+        "schema_version": 2, "goal_id": "finish", "intent": "Establish the finished result",
+        "objective": "Establish the finished result", "scope": "document",
+        "authorization_ref": "current_task", "allowed_operations": ["click"],
+        "completion": [{"key": "status:result", "value": "done"}],
+    })
+
+
+async def test_changing_readout_without_goal_evidence_stops_before_fourth_choice():
+    world, selector = WanderingWorld(), PickFirst()
+    result = await ComputerUseController(world, world, selector=selector).run(
+        wandering_request(), context())
+    assert result.reason == "goal_progress_unverified"
+    assert result.status == "partial"
+    assert world.dispatched == ["wander"] * 3
+    assert selector.calls == 3
+    progress = result.details["progress"]
+    assert isinstance(progress, dict) and progress["unverified_goal_steps"] == 3
+
+
+async def test_planning_review_returns_to_selector_after_one_advisor_action():
+    class Selector(PickFirst):
+        async def choose(self, goal, snapshot, actions, ctx):
+            self.calls += 1
+            target = "finish" if snapshot.facts[0].value == "ready" else "wander"
+            return DecisionResult(actions.binding, "candidate", next(
+                a.id for a in actions.actions if a.target_ref == target))
+    class Advisor:
+        calls = 0
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            self.calls += 1
+            assert actions.reason == "goal_progress_unverified"
+            assert actions.progress.unverified_goal_steps == 3
+            return AdvisorResult(actions.binding, "candidate", candidate_id=next(
+                a.id for a in actions.actions if a.target_ref == "repair"))
+    world, selector, advisor = WanderingWorld(), Selector(), Advisor()
+    result = await ComputerUseController(world, world, selector=selector, advisor=advisor).run(
+        wandering_request(), context())
+    assert result.status == "completed"
+    assert world.dispatched == ["wander", "wander", "wander", "repair", "finish"]
+    assert selector.calls == 4 and advisor.calls == 1
+
+
+async def test_unhelpful_planning_advisor_cannot_reset_its_call_limit():
+    class Advisor:
+        calls = 0
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            self.calls += 1
+            return AdvisorResult(actions.binding, "candidate", candidate_id=actions.actions[0].id)
+    world, advisor = WanderingWorld(), Advisor()
+    result = await ComputerUseController(world, world, selector=PickFirst(), advisor=advisor).run(
+        wandering_request(), context())
+    assert result.reason == "advisor_limit" and advisor.calls == 4
+    assert len(world.dispatched) == 15
+    progress = result.details["progress"]
+    assert isinstance(progress, dict) and progress["unverified_goal_steps"] == 15
+
+
+async def test_advisor_can_recover_a_repeated_state_without_repeating_selector():
+    class World(WanderingWorld):
+        async def dispatch(self, binding, action, ctx):
+            receipt = await super().dispatch(binding, action, ctx)
+            if action.target_ref == "wander":
+                self.value = str(len(self.dispatched) % 2)
+            return receipt
+    class Advisor:
+        calls = 0
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            self.calls += 1
+            assert actions.reason == "repeated_state"
+            return AdvisorResult(actions.binding, "candidate", candidate_id=next(
+                a.id for a in actions.actions if a.target_ref == "finish"))
+    world, selector, advisor = World(), PickFirst(), Advisor()
+    result = await ComputerUseController(world, world, selector=selector, advisor=advisor).run(
+        wandering_request(), context())
+    assert result.status == "completed"
+    assert selector.calls == 2 and advisor.calls == 1
+    assert world.dispatched == ["wander", "wander", "finish"]
+
+
+async def test_advisor_cannot_generate_an_undeclared_user_value():
+    task = export_goal().model_dump(mode="json")
+    task["inputs"][0]["value"] = None
+    world, advisor = ExportWorld(), SupplyFilename()
+    result = await ComputerUseController(world, world, advisor=advisor).run(
+        SubAgentRequest("Export", "", "task", task), context())
+    assert result.status == "needs_input"
+    assert result.reason == "missing_user_input"
+    assert advisor.calls == 0 and world.dispatched == []

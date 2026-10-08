@@ -182,6 +182,7 @@ class GoalProgress:
     verified_actions: tuple[str, ...] = ()
     pending_action: Action | None = None
     no_progress: int = 0
+    unverified_goal_steps: int = 0
     input_bindings: tuple[tuple[str, str], ...] = ()
     verified_outcomes: tuple[str, ...] = ()
 

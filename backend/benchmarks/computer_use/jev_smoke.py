@@ -175,7 +175,7 @@ async def run_smoke(output: Path) -> dict[str, Any]:
                     terminal["status"] == case["expected_status"]
                     and terminal["cleanup"] == "confirmed" and len(capture.calls) == 1
                     and (case["name"] != "no-target" or (
-                        terminal["reason"] == "jev_eligible" and not terminal["details"]["receipts"]
+                        terminal["reason"] == "none" and not terminal["details"]["receipts"]
                         and next(iter(capture.calls.values()))["response"]["answers"]
                         ["next_action"]["choice"] == "none"
                     ))

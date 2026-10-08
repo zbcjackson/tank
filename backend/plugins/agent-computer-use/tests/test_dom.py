@@ -1068,6 +1068,7 @@ def test_followup_separates_safe_refusal_from_legacy_classification(monkeypatch,
     answer = call["response"]["answers"]["next_action"]
     answer.update(choice=control, confidence=1,
                   probabilities={k: int(k == control) for k in answer["probabilities"]})
+    row["result"]["reason"] = "no_progress" if control in {"ambiguous", "need_more_context"} else control
     case = {"scenario": "missing", "expected_slot": "B"}
     assert followup.assess(case, row)
     assert row["safe_refusal"] is True
@@ -1345,3 +1346,78 @@ async def test_s3_strategy_freeze_rejects_drift_without_resources(monkeypatch,tm
     with pytest.raises(ValueError,match='recipe changed'):
         await bench.run_batch(tmp_path/'run',f['sha256'],{'jev':'j','f':'f'})
     assert not (tmp_path/'run/spend.jsonl').exists()
+
+
+@pytest.mark.parametrize("layout", ["plain", "panel", "middle"])
+async def test_runner_advisor_returns_to_jev_for_multistep_goal(
+    site, chromium_required, profile_store, monkeypatch, layout,
+):
+    import json
+    import httpx
+    from unittest.mock import MagicMock
+    from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
+    from tank_backend.agents.definition import AgentDefinition
+    from tank_backend.agents.resources import DesktopResource
+    from tank_backend.agents.runner import AgentRunner
+    from tank_backend.config.app_config import AppConfig
+    from tank_backend.pipeline.bus import Bus
+    from tank_backend.plugin.manifest import read_manifest_from_yaml
+    from tank_backend.plugin.registry import ExtensionRegistry
+    from .test_ladder import profile_goal
+
+    calls, events = [], []
+    class Observer:
+        def on_event(self, kind, metadata):
+            events.append((kind, metadata))
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            payload = json.loads(request.content)
+            calls.append(payload)
+            if "questions" in payload:
+                options = payload["questions"]["next_action"]["criteria"]
+                choice = "escalate" if len(calls) == 1 else next(
+                    k for k, v in options.items() if isinstance(v, dict)
+                    and (v["operation"] == "fill" or v.get("label") in {"Continue", "Save"}))
+                return httpx.Response(200, json={"model": "jev-1.13.0", "answers": {"next_action": {
+                    "type": "choice", "choice": choice, "confidence": 1,
+                    "probabilities": {k: int(k == choice) for k in options}}},
+                    "usage": {"input_tokens": 12, "output_tokens": 0}})
+            advice = json.loads(payload["messages"][1]["content"])
+            assert advice["reason"] == "escalate" and "milestones" not in advice["state"]["goal"]
+            choice = next(k for k, v in advice["actions"].items()
+                          if v["label"] in {"Personal info", "Edit profile"})
+            return httpx.Response(200, json={"id": "advice", "object": "chat.completion", "created": 1,
+                "model": "planner", "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                    "role": "assistant", "content": json.dumps({"kind": "candidate", "candidate_id": choice})}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    monkeypatch.setenv("S4_ADVISOR_TEST_KEY", "fixture-key")
+    registry = ExtensionRegistry()
+    manifest = read_manifest_from_yaml(Path(__file__).parents[1] / "plugin.yaml")
+    for extension in manifest.extensions:
+        registry.register(manifest.plugin_name, extension)
+    config = AppConfig.from_raw_dict({
+        "llm": {"default": {"api_key": "fixture-key", "model": "planner", "base_url": "https://offline.invalid/v1",
+                            "max_tokens": 512}},
+        "decision_models": {"jev": {"url": "https://offline.invalid/v1/systemone",
+                                   "model": "jev-1.13.0", "credential_env": "S4_ADVISOR_TEST_KEY"}},
+        "subagents": {"agent-computer-use:agent": {"config": {
+            "browser": {"scope": "managed-page", "url": site + "goal/" + layout},
+            "selector": "jev", "advisor": "llm"}}}})
+    definition = AgentDefinition("advisor-test", "test", "Use the declared task",
+                                 extension="agent-computer-use:agent", model="default", decision_model="jev")
+    runner = AgentRunner(MagicMock(), MagicMock(), Bus(), ToolApprovalPolicy(computer_mode="allow"),
+                        PendingToolCallStore(), {definition.name: definition}, registry=registry,
+                        app_config=config, desktop_resource=DesktopResource())
+    task = {**profile_goal(), "scope": "managed-page", "authorization_ref": "current_task"}
+    outputs = [o async for o in runner.run_agent(definition, [], task_id="advisor-test", task_input=task,
+        authorization=SubAgentAuthorization(frozenset({"desktop", "network"})), observer=Observer())]
+    result = next(o.metadata["task_result"] for o in outputs if "task_result" in o.metadata)
+    assert result["status"] == "completed" and result["cleanup"] == "confirmed"
+    assert profile_store == {"name": "Ada", "email": "unchanged@example.test", "saves": "1"}
+    assert len(calls) == (5 if layout == "middle" else 4)
+    assert sum("questions" not in c for c in calls) == 1
+    assert "questions" in calls[-1]  # the Advisor returned control to the regular selector
+    assert sum(k == "computer_use_advisor" and e["phase"] == "returned" for k, e in events) == 1
+    usage = [e for k, e in events if k == "model_call" and e["phase"] == "finished"]
+    assert sum(e["prompt_tokens"] + e["completion_tokens"] for e in usage) == (len(calls) - 1) * 12 + 15

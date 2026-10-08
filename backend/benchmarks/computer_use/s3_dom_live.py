@@ -47,7 +47,7 @@ def freeze_inputs() -> dict[str, Any]:
     for case in cases:
         GoalContract.from_input(case["goal"])
     hashes["source/cases.json"] = hashlib.sha256(SOURCE.read_bytes()).hexdigest()
-    f = {"revision": "s3-dom-live-goal-2", "cases": cases, "source_sha256": hashes,
+    f = {"revision": "s3-dom-live-goal-3", "cases": cases, "source_sha256": hashes,
          "model": v1.MODELS["jev"], "request_limit": 15, "nano_usd_limit": 50_000_000,
          "requests_per_case": 1, "max_actions": 1, "max_observations": 4,
          "playwright": version("playwright"), "httpx": version("httpx"), "httpcore": version("httpcore"),
@@ -101,7 +101,7 @@ def accepted(case: dict[str, Any], row: dict[str, Any]) -> bool:
         receipts = result["details"]["receipts"]
         if case["scenario"] in ("missing", "conflicting"):
             return (choice in ("need_more_context", "ambiguous") and result["status"] == "stopped"
-                    and result["reason"] == "jev_eligible" and not receipts
+                    and result["reason"] == "no_progress" and not receipts
                     and row["page_clicks"] == [] and row["page_result"] == "idle")
         if selected != f"执行 {case['expected_slot']}":
             return False

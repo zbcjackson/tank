@@ -218,3 +218,10 @@ async def test_factory_is_explicitly_unavailable_without_channels():
 def test_factory_rejects_unimplemented_configuration(config):
     with pytest.raises(ValueError):
         create_subagent(config)
+
+
+@pytest.mark.parametrize("advisor", ["jev", True, {}, None])
+def test_advisor_configuration_requires_explicit_llm(advisor):
+    with pytest.raises(ValueError):
+        create_subagent({"browser": {"scope": "page", "url": "http://127.0.0.1:1"},
+                         "advisor": advisor})
