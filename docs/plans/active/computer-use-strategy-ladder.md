@@ -2363,6 +2363,29 @@ web lint/tsc-b、test tsc、docs/diff check 通过；前后端错误查询为空
 此前两次提交被 1Password 签名代理错误阻止。2026-10-08 用户要求重试后，
 按原签名配置成功提交实现 `3603c5d8`，未关闭签名绕过。
 
+#### S4-R4 第二批：真实文本 Advisor 原生试验（2026-10-08，实机 fake 通过，真实调用待授权）
+
+1. 复用 `s4_ax.py` 的九项原生矩阵，显式接入已有 Qwen 文本模型与 Jev；
+   冻结两个模型、目标、源码及共享预算。全批最多 78 次 SDK 调用、估算费用
+   $0.25，每任务 120 秒，Advisor 最多四次且计入总调用额度。价格沿用既有
+   benchmark 保守估算，不作为供应商账单；首项失败、未知用量或清理失败即停批。
+2. 先以 fake HTTP 验证两个真实 SDK 和真实 Calculator/TextEdit；再运行真实
+   Calculator `7×8=56`，通过后按原矩阵继续 AXPress、Quartz、移窗和多行文本。
+   独立 AX 读回核验目标，记录 Advisor 触发/返回与 Jev 恢复；保留旧失败分母。
+3. **Tests**：现有 native 测试新增双 SDK → Advisor → Jev → 进展复核闭环、
+   共享 token/请求额度和额度耗尽零派发；冻结涵盖 Advisor 与核心文本服务。
+4. **最终步骤**：执行 §10 完整 Verification Checklist 全部适用项，完成最多三轮
+   review-and-refactor，归档实测和限制。真实任务失败不得标记 S4 完成。
+
+真实 Calculator/TextEdit 的双 SDK fake-HTTP 矩阵 **9/9 通过**，33 次 mock 请求、
+零外部模型请求，独立 AX 读回、输入清理和窗口/前台恢复全部确认。真实命令在创建
+进程前被自动审批拒绝：新增 Dashscope/Qwen 目的地及 AX 文本、候选动作、目标载荷
+需明确授权。尚未产生真实请求，不能宣称修复之前的算式规划失败。
+[冻结配方与证据](../../../backend/benchmarks/computer_use/reports/20261008-s4-native-advisor/README.md)。
+后端 **5692 passed / 1 skipped**、E2E **18 场景 / 71 步**、native 53 项、
+ruff/pyright/web lint/tsc/docs/diff 与前后端错误查询均通过。独立评审第 1 轮
+未发现确认问题、无修改，复跑 native 53 项并核验归档后结束。
+
 #### S4-AX：Jev + AX 操作真实 macOS 应用（2026-10-07，实现与受控实机通过，真实模型首项失败停批）
 
 **目标与范围**：真实应用当前 AX 树形成语义候选，核心 Jev 选择一条完整动作，宿主
