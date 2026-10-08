@@ -106,6 +106,58 @@ Evidence: `live/result.json.gz`, `live/spend.jsonl.gz`, `live/summary.json` and
 
 ## Verification
 
+### Offline diagnosis after live execution
+
+The first Advisor call in each task sees the same goal (`7×8`, result `56`),
+current result `787`, empty expression, three verified local actions, trigger
+`goal_progress_unverified`, and all 44 candidates in the same order. Clear is
+offered in both. Both system prompts are identical. The top-level `task` is
+empty in both requests, but the complete objective, constraints and completion
+predicates are present in `state.goal`; this is not a lost-goal finding.
+
+After replacing opaque IDs/case labels and translating bounds to their respective
+minimum x/y origins, the **entire first-Advisor payloads compare equal**, including
+candidate contents, element semantics, progress, response schema and evidence
+contract. Actual requests are not identical: origins differ by `(-322, +80)` and
+the task/action/observation IDs differ. The model selected Clear in one and `8`
+in the other. First user payloads are 37,943 / 37,921 UTF-8 bytes, with provider
+prompt usage 14,240 / 14,232 tokens. Size alone does not establish a cause.
+
+All five Advisor replies name an offered candidate ID, whose label matches its
+referenced AX element and whose exact ID appears in a `sent` receipt. All five
+observations report ready/complete. Four effects are verified; only the final
+Close Parenthesis action remains unverified. In that failed request, Clear was
+still available. The emitted IDs resolve to the selected labels in the requests;
+there is no captured candidate-ID/label mismatch.
+The archive contains no model rationale, so it cannot establish whether opaque
+IDs, coordinates, prompt complexity or inference variability caused the choices.
+
+`live/offline-analysis.json` records the normalization procedure, source hash,
+normalized digest and all five mapping checks. This is an offline analysis of
+the existing sample, not a new model replay or a measurement of failure rate.
+No production behavior, candidate set, goal condition or historical result was
+changed; no new model calls or desktop actions were performed.
+
+The next bounded investigation should use the frozen requests in a **desktop-free
+controlled model replay**, retaining the original arm and varying one factor at a
+time: short question-local action aliases versus opaque IDs; relative versus
+absolute bounds; and, separately, a concise planning presentation. Keep every
+candidate and the exact goal, map proposals back to original actions, and include
+both correct and incorrect states. Repeated trials are needed before attributing
+causality. Such model replay is still an external paid call and needs a new frozen
+recipe/budget; none was executed here. Do not hardcode Clear or increase retries
+based on this one failure. Only after an evidence-supported change should the
+real native matrix be rerun.
+
+Analysis-only verification: docs consistency (50 files), JSON assertions and diff
+checks passed. Independent review-and-refactor round 1 against `03541b2e`
+recomputed the source/normalized hashes, full normalized equality, five mapping
+checks, byte counts and coordinate origins. No actionable findings or changes;
+review stopped. Production code remained unchanged, so no production suite was
+rerun for this documentation/data analysis.
+
+### Implementation and execution verification
+
 Native tests: **53 passed**, including both SDKs, shared 70-token accounting,
 Advisor→Jev return, progress review and a shared one-request cap that blocks the
 Advisor before any native action. Changed-file pyright: zero errors. Backend and

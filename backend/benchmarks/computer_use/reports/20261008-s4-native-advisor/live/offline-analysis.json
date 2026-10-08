@@ -1,0 +1,39 @@
+{
+  "source": "result.json.gz (decompressed bytes)",
+  "source_sha256": "201646d66c872104afdf040bc7dae8818c96abb5cdbeeb50e59ceb530088739b",
+  "method": {
+    "comparison": "First Advisor user payload in each executed row; system messages also compared equal",
+    "normalization": [
+      "Replace root actions dictionary by its values in original insertion order",
+      "For snapshot element bounds, subtract the minimum observed x and y from x and y; preserve width and height",
+      "Recursively replace exact 32-character lowercase hexadecimal string values with <opaque-id>",
+      "Replace the row case_id substring in all string values with <case>",
+      "Compare full normalized objects; SHA-256 uses json.dumps(sort_keys=True, ensure_ascii=False) encoded as UTF-8"
+    ],
+    "limitation": "Normalization deliberately erases identity and absolute position. Equality is not equality of actual model inputs or proof those fields caused the different answers. Candidate membership, target labels and receipts were checked separately against original IDs."
+  },
+  "first_advice_normalized_equal": true,
+  "normalized_sha256": "d003f546f4b01f5bcdbc0f3db2b33ea039588da289eef8600fe2dbf4e513189a",
+  "rows": [
+    {
+      "case_id": "calculator-ax_press-0",
+      "first_advice_payload_bytes": 37943,
+      "first_advice_origin": [612, 100],
+      "advice_checks": [
+        {"label": "Clear", "candidate_count": 44, "id_offered": true, "target_label_matches": true, "sent": true, "effect_verified": true, "ready": true, "complete": true, "clear_offered": true},
+        {"label": "7", "candidate_count": 44, "id_offered": true, "target_label_matches": true, "sent": true, "effect_verified": true, "ready": true, "complete": true, "clear_offered": false},
+        {"label": "Multiply", "candidate_count": 44, "id_offered": true, "target_label_matches": true, "sent": true, "effect_verified": true, "ready": true, "complete": true, "clear_offered": true}
+      ]
+    },
+    {
+      "case_id": "calculator-ax_press-1",
+      "first_advice_payload_bytes": 37921,
+      "first_advice_origin": [290, 180],
+      "advice_checks": [
+        {"label": "8", "candidate_count": 44, "id_offered": true, "target_label_matches": true, "sent": true, "effect_verified": true, "ready": true, "complete": true, "clear_offered": true},
+        {"label": "Close Parenthesis", "candidate_count": 44, "id_offered": true, "target_label_matches": true, "sent": true, "effect_verified": false, "ready": true, "complete": true, "clear_offered": true}
+      ]
+    }
+  ],
+  "conclusion": "Observed failure is selection of valid but unhelpful candidates, not absent Clear, lost goal, invalid candidate ID, target-label mismatch, or HTTP failure. Exact model-internal cause remains undetermined; no additional model or desktop requests were made."
+}
