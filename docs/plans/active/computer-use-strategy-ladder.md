@@ -11,6 +11,76 @@
 
 # 计划：Computer Use 子代理的宿主循环与策略阶梯（S0–S6）
 
+## 0. Harness 接续交接（2026-10-09）
+
+用户因 Codex 额度即将用完，要求将工作交给 DeepSeek Harness。**本次仅交接，
+不是授权执行此前被拒绝的真实模型批次。** 不需要重做已完成的实现或从 S4 开头重跑。
+交接前工作区干净，最近实现提交 `8a10ab28`，配方/准备记录提交 `1ec16d05`；
+本节的文档提交会在它们之后。计划仍 active，S4 不仅剩评估。
+
+### 已完成与未完成
+
+- 已完成并离线验收：单一 schema_version=2 `GoalContract`（不保留 v1/双契约兼容）、
+  DOM/原生 AXPress 与 Quartz 通道、文本 Advisor、最近十条语义执行记录、紧凑候选
+  视图与短别名、共享读数核验表、有界动态 focus 生命周期。生产默认仍不启用此策略。
+- 真实原生历史结果：上一批 **1 成功 / 1 未知失败 / 7 未运行**。成功项经 Advisor
+  纠偏后由 Jev 完成 `7×8=56`；失败项选右括号后效果未确认而停批。不是 HTTP 调用
+  失败，也未证明由窗口移动造成；后续历史/视图/focus 改进尚无真实收益结论。
+- 尚未完成：S4-G3 同进程恢复及预算/授权/资源连续性、自然语言目标契约生成、选定
+  场景所需视觉/通道能力、原生多次/移窗/Quartz/TextEdit 与规划稳定性整体验收。
+  S5-App 的 DOM 优化、Cua Driver、AX/OCR 融合、观察稳定性仍是有条件受控比较，
+  不是已实现能力或这次无桌面诊断的前置安装要求。
+
+### 当前停点与直接下一步
+
+1. **执行器已完成，真实诊断尚未启动。** 四状态 `7`、`7×`、`7×8`、`787` ×
+   四组（明确按钮定位、旧整体目标输入、当前紧凑输入+历史、Advisor 候选/focus）×
+   三重复，共 48 行。全部候选保留；最多 60 次 SDK 调用、共享 $0.25 冻结价格估算，
+   每行 60 秒，零 SDK 重试，零桌面动作。它不能证明真实 App 任务成功或泛化。
+2. 本批命令被 Codex 自动审批在创建进程前拒绝：要求明确确认存档 Calculator AX
+   文本/几何、目标、候选与历史向 `api.typesafe.ai`（Jev）及
+   `dashscope.aliyuncs.com`（Qwen Advisor）发送。**真实请求 0，48 行全部未运行**；
+   `live/` 只有 `freeze.json`，没有 started/result/spend 产物。切换 Harness 不消除
+   此授权缺口，不应换工具绕行；获得用户对上述数据、目的地及额度的明确确认再运行。
+   各服务沿用既有 `TYPESAFE_API_KEY` / `BAILIAN_API_KEY`，不把凭据写入文档或日志。
+3. 完整冻结输入、SDK/源码版本、判分和停批边界在
+   [诊断准备记录](../../../backend/benchmarks/computer_use/reports/20261009-s4-decision-diagnostic/README.md)。
+   配方摘要为 `e8d3b1c7ef987c2366c86b144d787667641a6cde30e6ac30f71596eb3958eab0`。
+   已准备好目录；**不要再次对同一路径执行准备命令**。获得确认且冻结校验通过后：
+
+   ```bash
+   cd /Users/zbcjackson/src/tank/backend
+   caffeinate -is uv run python -m benchmarks.computer_use.s4_replay \
+     --output benchmarks/computer_use/reports/20261009-s4-decision-diagnostic/live \
+     --run --approved-sha256 e8d3b1c7ef987c2366c86b144d787667641a6cde30e6ac30f71596eb3958eab0
+   ```
+
+4. 执行器会检查配方、归档、源码和 SDK 版本；不要为通过检查而改摘要。若切换环境
+   导致不匹配，先查明差异，保留旧配方并另备新目录，重新确认变化后的范围。
+   模型/未知用量/预算/审计/捕获/清理错误停止时保留分母，不覆盖结果或原地重跑。
+5. 运行后先归档原始输入/选择、各组分类、Advisor 提案种类、调用/token/估算费用/
+   耗时及所有未运行行，更新本计划及报告并独立评审。当前与旧输入同时改变多个因素，
+   不能将差异归因于某一个改进；明确按钮组改变了任务，focus 组只用冻结快照。
+   根据证据决定是否需要修复，再准备真实 native 矩阵；正式 S5 前仍须完成 S4 出口。
+
+### 接续入口、Tests 与验证
+
+- 现行行为先看 [设计文档](../../design/computer-use.md)，研究依据见
+  [Jev 开源项目比较](../../research/jev-computer-use-comparison.md)。本计划下文的
+  “S4-R4 第六批”保留完整实施/评审记录，历史失败报告不重写。
+- 代码入口：`backend/benchmarks/computer_use/s4_replay.py`；生产循环位于
+  `backend/plugins/agent-computer-use/src/agent_computer_use/controller.py`，同目录
+  `model_view.py`、`jev.py`、`advisor.py` 负责模型输入/选择/规划，
+  `channels/native.py` 负责原生通道。新增诊断测试在插件 `tests/test_jev.py`。
+- 最近完整验证：诊断定向 **15 passed**；后端 **5753 passed / 1 skipped /
+  21 warnings**；E2E **18 场景 / 71 步**；修改 Python pyright、backend/CLI lint、
+  web lint/tsc-b、开发服务日志、docs/diff 全通过。两轮独立评审无遗留问题。
+  完整数字与日志路径已在下文和已提交报告记录；`/tmp` 日志可能随环境切换丢失。
+- 本次交接只改 docs，`python3 scripts/check_docs.py`（51 文件）和 diff 检查通过；
+  独立 review-and-refactor 第 1 轮无可操作问题、无修改，协调者核对后提交。
+  后续行为变更继续遵循 TDD、§10 全部适用验证清单、
+  项目独立评审及分逻辑子任务提交规则；纯文档交接不重复跑生产测试或付费诊断。
+
 ## 1. 目标、范围与本次决策
 
 目标是在不降低任务完成和执行可靠性的前提下，减少界面操作中的主 LLM 往返、
