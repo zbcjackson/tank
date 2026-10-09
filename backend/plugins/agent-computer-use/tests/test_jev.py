@@ -1783,3 +1783,171 @@ async def test_advisor_advertises_focus_only_when_a_selector_can_receive_it(monk
         assert len(sent) == 1 and ctx.budget.total_tokens == 15
     finally:
         await ctx.runtime.aclose()
+
+
+def test_native_diagnostic_prepares_frozen_states_without_network_or_desktop(tmp_path, monkeypatch):
+    from pathlib import Path
+    import socket
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_replay
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Preparation must not use network or desktop")
+    monkeypatch.setattr(socket, "getaddrinfo", forbidden)
+    monkeypatch.setattr(s4_replay.s4_ax.computer_ax, "_load_ax", forbidden)
+    frozen = s4_replay.prepare(tmp_path / "diagnostic")
+    assert len(frozen["cases"]) == 4 and len(frozen["schedule"]) == 48
+    assert frozen["request_limit"] == 60 and frozen["nano_usd_limit"] == 250_000_000
+    assert {case["display"] for case in frozen["cases"]} == {"7", "7×", "7×8", "787"}
+    assert all(len(case["actions"]["actions"]) == 44 for case in frozen["cases"])
+    assert s4_replay.load_freeze(tmp_path / "diagnostic", frozen["sha256"]) == frozen
+    with pytest.raises(ValueError, match="freeze"):
+        s4_replay.load_freeze(tmp_path / "diagnostic", "wrong")
+
+
+@pytest.mark.parametrize("advice_kind,failure", [
+    ("focus", None), ("candidate", None), ("focus", "unknown"), ("focus", "http"),
+    ("focus", "cancel"), ("focus", "budget"), ("focus", "capture"),
+    ("focus", "cleanup"), ("focus", "cancel_cleanup"),
+    ("focus", "invalid_advice"), ("focus", "semantic_miss"),
+])
+async def test_native_diagnostic_runs_official_sdks_without_desktop(tmp_path, monkeypatch, advice_kind, failure):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_replay
+    preferred = {"7": "Multiply", "7×": "8", "7×8": "Equals", "787": "Clear"}
+    next_value = {"7": "7×", "7×": "7×8", "7×8": "56", "787": "0"}
+    sent = []
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            data = json.loads(request.content)
+            sent.append(data)
+            if failure == "http":
+                return httpx.Response(503, json={"error": "offline injected error"})
+            if failure == "cancel":
+                raise asyncio.CancelledError()
+            question = data if "questions" in data else json.loads(data["messages"][1]["content"])
+            progress = question["state"]["progress"]
+            if progress.get("current_focus"):
+                assert progress["current_focus"]["started_action"] == progress["verified_action_count"]
+            display = next(fact["value"] for fact in question["state"]["snapshot"]["facts"]
+                           if fact["key"] == "ax:value:result")
+            candidates = question["questions"]["next_action"]["criteria"] if "questions" in question else question["actions"]
+            label = "9" if failure == "semantic_miss" else preferred[display]
+            choice = next(key for key, item in candidates.items() if isinstance(item, dict) and item["label"] == label)
+            if "questions" in data:
+                response = reply(request, choice)
+                if failure == "unknown":
+                    response["usage"] = {}
+                return httpx.Response(200, json=response)
+            advice = {"kind": "focus", "focus": {"objective": "Advance the calculation", "completion": [
+                {"key": "ax:value:result", "value": next_value[display]}]}} if advice_kind == "focus" else {
+                    "kind": "candidate", "candidate_id": choice}
+            return httpx.Response(200, json={"id": "advice", "object": "chat.completion", "created": 1,
+                "model": "qwen3.7-flash-2026-07-15", "choices": [{"index": 0, "finish_reason": "stop",
+                "message": {"role": "assistant", "content": "not-json" if failure == "invalid_advice" else json.dumps(advice)}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    if failure == "budget":
+        original_freeze = s4_replay.freeze_inputs
+        def limited():
+            frozen = original_freeze()
+            frozen.pop("sha256")
+            frozen["request_limit"] = 0
+            frozen["sha256"] = s4_replay.digest(frozen)
+            return frozen
+        monkeypatch.setattr(s4_replay, "freeze_inputs", limited)
+    if failure == "capture":
+        from benchmarks.computer_use.jev_smoke import Capture
+        async def reject_capture(*args):
+            raise OSError("Capture unavailable")
+        monkeypatch.setattr(Capture, "request", reject_capture)
+    if failure in ("cleanup", "cancel_cleanup"):
+        from tank_backend.agents.task_runtime import TaskRuntime
+        close = TaskRuntime.aclose
+        async def failed_close(runtime):
+            await close(runtime)
+            if failure == "cancel_cleanup":
+                raise asyncio.CancelledError()
+            raise RuntimeError("Cleanup unconfirmed")
+        monkeypatch.setattr(TaskRuntime, "aclose", failed_close)
+    output = tmp_path / "diagnostic"
+    frozen = s4_replay.prepare(output)
+    if failure in ("cancel", "cancel_cleanup"):
+        with pytest.raises(asyncio.CancelledError):
+            await s4_replay.run_batch(output, frozen["sha256"], jev_credential="test", advisor_credential="test")
+        result = json.loads((output / "result.json").read_text())
+    else:
+        result = await s4_replay.run_batch(output, frozen["sha256"], jev_credential="test", advisor_credential="test")
+    if failure not in (None, "invalid_advice", "semantic_miss"):
+        assert not result["completed"] and len(result["rows"]) == 48
+        assert result["spend"]["stop_reason"] is not None
+        assert len(sent) == (0 if failure in ("budget", "capture") else 1)
+        assert sum(row["status"] == "not_run" for row in result["rows"]) == 47
+        assert result["rows"][0]["desktop_operations"] == 0
+        return
+    assert result["completed"] and len(result["rows"]) == 48
+    if failure == "invalid_advice":
+        assert sum(row["classification"] == "invalid" for row in result["rows"]) == 12
+    else:
+        assert all(row["classification"] == ("other_action" if failure == "semantic_miss" else "preferred")
+                   for row in result["rows"])
+    assert all(row["desktop_operations"] == 0 and row["cleanup_confirmed"] for row in result["rows"])
+    uses_focus = advice_kind == "focus" and failure != "invalid_advice"
+    assert len(sent) == (60 if uses_focus else 48)
+    assert result["spend"]["batch"]["admitted_requests"] == len(sent)
+    assert result["spend"]["batch"]["known_tokens"] == (756 if uses_focus else 612)
+
+
+async def test_native_diagnostic_refuses_existing_results_before_admission(tmp_path, monkeypatch):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_replay
+    async def forbidden(*args):
+        raise AssertionError("Existing artifacts must stop admission")
+    monkeypatch.setattr(s4_replay, "select_frozen", forbidden)
+    output = tmp_path / "diagnostic"
+    frozen = s4_replay.prepare(output)
+    (output / "result.json").write_text("prior evidence")
+    with pytest.raises(FileExistsError):
+        await s4_replay.run_batch(output, frozen["sha256"], jev_credential="test", advisor_credential="test")
+    assert (output / "result.json").read_text() == "prior evidence"
+    assert not (output / "started.json").exists()
+
+
+async def test_native_diagnostic_stops_when_recipe_changes_between_rows(tmp_path, monkeypatch):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_replay
+    output = tmp_path / "diagnostic"
+    frozen = s4_replay.prepare(output)
+    sent = []
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            sent.append(request)
+            changed = json.loads((output / "freeze.json").read_text())
+            changed["seconds_per_trial"] += 1
+            (output / "freeze.json").write_text(json.dumps(changed))
+            return httpx.Response(200, json=reply(request))
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    with pytest.raises(ValueError, match="freeze"):
+        await s4_replay.run_batch(output, frozen["sha256"], jev_credential="test", advisor_credential="test")
+    result = json.loads((output / "result.json").read_text())
+    assert len(sent) == 1 and len(result["rows"]) == 48
+    assert result["spend"]["stop_reason"] == "batch_error"
+    assert sum(row["status"] == "not_run" for row in result["rows"]) == 47
+
+
+def test_native_diagnostic_history_comes_only_from_prior_verified_readbacks(monkeypatch):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_replay
+    cases = {case["id"]: case for case in s4_replay.build_cases()}
+    assert [step["label"] for step in cases["repair-787"]["actions"]["progress"]["recent_steps"]] == ["7", "8", "7"]
+    history = cases["after-operator"]["actions"]["progress"]["recent_steps"]
+    assert [step["label"] for step in history] == ["7", "8", "7", "Clear", "7", "Multiply"]
+    assert history[-1]["changes"] == [{"key": "ax:value:result", "before": "7", "after": "7×"}]
+    assert all(step["effect_status"] == "verified" for step in history)
+    assert cases["repair-787"]["archived_question_derived"]
+    case = cases["repair-787"]
+    assert s4_replay.classify(case, "current", "Delete", None) == "repair_alternative"
+    assert s4_replay.classify(case, "grounding", "Delete", None) == "other_action"

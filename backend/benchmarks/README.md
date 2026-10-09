@@ -584,3 +584,39 @@ service output boundary. Full aggregation (versions, manifests, request/token
 totals, denominators, paired results, unknowns, cost/latency, failure indexes):
 [M8 closeout report](computer_use/reports/20260925-m8-closeout/README.md).
 Condition-triggered follow-ups live in `docs/backlog.md`.
+
+## S4 frozen decision diagnostic
+
+`computer_use/s4_replay.py` extracts four previously observed Calculator states and
+compares explicit-button grounding, archived whole-goal input, current compact input
+with verified semantic history, and production Advisor proposals (candidate or validated
+focus followed by Jev). Each arm has three repetitions: 48 planned rows, at most 60 SDK
+calls and a shared $0.25 frozen-price estimate. This is not a new holdout or a desktop run.
+
+Preparation reads the hash-pinned archive without credentials, model clients or desktop
+operations. All 44 candidates and historical action/readback joins are validated. The repair
+state comes from the failed moved-window case; its old Jev question is derived from that
+Advisor observation and the same batch's recorded selector instructions. Other old questions
+are retained. The grounding arm changes the task to an explicit button instruction; it is
+a capability probe, not a same-task efficiency comparison. Delete is a separately reported
+repair alternative for the whole-goal `787` case, rather than being marked wrong by default.
+
+```bash
+cd backend
+uv run python -m benchmarks.computer_use.s4_replay --output <new-output-directory>
+uv run python -m benchmarks.computer_use.s4_replay --output <same-directory> --run --approved-sha256 <digest>
+```
+
+Only execution loads the existing TYPESAFE_API_KEY and BAILIAN_API_KEY. It uses the official
+SDK services, fresh task/client ownership per row, mandatory capture/audit and a shared spend
+ledger. No desktop observer or executor is connected; action/observation quotas are zero.
+Advisor focus validation reuses host contracts but proceeds on the same frozen snapshot,
+not a fresh live read. Historical receipts establish the focus's action offset, not runtime
+resumption. No task effect or end-to-end success is inferred from a preferred choice.
+
+Known semantic misses remain in the denominator; service failures, unknown usage, cancellation,
+budget, capture/audit or unconfirmed cleanup stop the batch and retain unrun rows. Existing
+output artifacts and changed source/recipe inputs are refused. Counts describe SDK calls,
+not independently observed wire requests. Token-price figures are estimates, not invoices;
+latencies include per-row setup/model/proposal/cleanup work, excluding archive preparation.
+Tests extend `plugins/agent-computer-use/tests/test_jev.py` with fake HTTP only.
