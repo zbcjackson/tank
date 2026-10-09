@@ -434,7 +434,7 @@ def _settled_row(**result):
     (_settled_row(), None, True),
     (_settled_row(status="needs_input", reason="needs_user_input"), None, True),
     (_settled_row(status="completed", reason="goal_verified"), None, True),
-    (_settled_row(reason="trial_call_limit"), None, True),
+    (_settled_row(reason="model_error"), None, True),
     (_settled_row(), "unknown_usage", False),
     (_settled_row(status="unknown", reason="effect_unknown"), None, False),
     (_settled_row(reason="backend_error"), None, False),
