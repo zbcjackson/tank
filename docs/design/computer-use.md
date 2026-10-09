@@ -839,8 +839,12 @@ S4-AX 的 Jev 模型视图现对全 AX 快照使用局部短引用和显式元�
 `model_view.py` 统一 Jev、文本 selector 和 Advisor 的纯数据投影：发送
 `state.recent_actions` 的动作语义与效果记录，移除历史 action/observation ID 和
 可执行元素引用；模型进展用 `verified_action_count` 代替旧 UUID 列表。宿主原始
-ActionSet、快照、授权和回执不变。当前候选 ID/内容保留，全候选不裁剪；动作短别名、
-进一步字段精简、持续 focus 和置信度门槛仍分片验证。当前原生驱动与未知效果零重放
+ActionSet、快照、授权和回执不变。模型候选使用本轮 `c1` 等短别名，Jev/文本 selector/
+Advisor 返回后都映射回该次 ActionSet 的原始完整动作，不接受原始 ID 或伪造别名。
+共享 `value_change_checks` 保存原有读数核验基线，候选用 `change_refs` 引用；它不是
+预测结果，也不是历史变化。全候选保留，目标元素上下文和几何信息保留。宿主提案事件
+记录候选集、别名与原始动作 ID，用于和派发回执关联。持续 focus、进一步视图实验和
+置信度门槛仍分片验证。当前原生驱动与未知效果零重放
 没有变化。本片验证是离线/假模型接线，不宣称真实任务选择能力已经改善。
 
 ## S4-R4 文本 Advisor 与目标进展复核（2026-10-07）

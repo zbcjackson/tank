@@ -63,9 +63,15 @@ verified local effects still do not establish goal progress or task completion.
 `model_view.py` is the shared, pure request projection for Jev, text selection and Advisor.
 It exposes `state.recent_actions` without executable references or old action/observation
 IDs, and replaces the model-facing verified-ID list with `verified_action_count`. Original
-contracts and receipts stay host-owned. Candidate IDs/content and all offered candidates
-are preserved in this slice; short action aliases and further payload compression remain
-separate experiments. No persistent Advisor focus or new confidence gate is enabled.
+contracts and receipts stay host-owned. Every offered action receives a question-local
+alias (`c1`, `c2`, ...), resolved against that call's original ActionSet after the response.
+Original action IDs and malformed/unoffered aliases are not accepted as model choices.
+Repeated readout baselines live in `state.value_change_checks`; candidate `change_refs`
+point to them. These are local verification checks, not predicted effects or prior changes.
+All candidates and their execution semantics remain available; target context and geometry
+are retained. `computer_use_proposal` events tie the model alias and candidate-set identity
+to the original action ID for receipt auditing. No persistent Advisor focus or new
+confidence gate is enabled.
 
 ## Tests
 
