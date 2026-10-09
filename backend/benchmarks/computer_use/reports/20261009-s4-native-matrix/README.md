@@ -1,7 +1,8 @@
 # Native matrix with history, compact view and focus
 
-Date: 2026-10-09. Status: fake HTTP 9/9 passed on real applications; the live
-real-model batch is frozen and awaits explicit authorization (0 external calls).
+Date: 2026-10-09. Status: fake HTTP 9/9 passed on real applications; after
+explicit authorization the live real-model batch ran once and **passed 9/9**
+(34 SDK calls with known usage, no batch stop). See [Live results](#live-results).
 
 ## Recipe and boundaries
 
@@ -50,8 +51,8 @@ Artifacts: `fake/result.json.gz`
 
 ## Live gate
 
-Not run. After explicit confirmation of the data, both destinations, 78 calls and
-the $0.25 ceiling, and with the desktop left idle, the unchanged recipe runs once:
+The user explicitly confirmed the data, both destinations, 78 calls and the $0.25
+ceiling, with the desktop left idle; the unchanged recipe then ran once:
 
 ```bash
 cd backend
@@ -59,6 +60,54 @@ caffeinate -is uv run python -m benchmarks.computer_use.s4_ax \
   --output benchmarks/computer_use/reports/20261009-s4-native-matrix/live \
   --run live --approved-sha256 5da381139cfa1f4d0653206bec2a7a7ea668977e2d1cdf063c3de80ea1a2ef8f
 ```
+
+## Live results
+
+**9/9 passed**, every case `completed / goal_verified` with independent AX readback
+(`7×8` / `56`, exact TextEdit bodies) and all process, position and foreground
+cleanups confirmed; 76.1 s of case time. Every owned window opened outside the
+primary display this time, so all nine recorded `move_owned_window` before
+observation; only the `-1` cases (marked *shifted*) used the deliberate offset position. 34 SDK calls (26 Jev, 8 Advisor), all
+settled with known usage: 391,494 tokens, **$0.0259** under the frozen price
+contract; no stop, no continue-policy row was needed.
+
+| Case | Calls (Jev+Advisor) | Actions (S = Jev selector, A = Advisor) | Advisor trigger → advice |
+|---|---|---|---|
+| ax_press-0 | 3+1 | 7 S, Multiply S, 8 S, Equals A | progress review → candidate |
+| ax_press-1 (shifted) | 5+2 | 7 S, 8 S, **Clear S**, 7 A, Multiply A, 8 S, Equals S | repeated state → candidate ×2 |
+| ax_press-2 | 3+1 | 7 S, Multiply S, 8 S, Equals A | progress review → candidate |
+| quartz-0 | 6+2 | 7 S, 8 S, **Clear S**, 7 S, Multiply S, 8 S, Equals A | repeated state → focus; focus expired → candidate |
+| quartz-1 (shifted) | 3+1 | 7 S, Multiply S, 8 S, Equals A | progress review → candidate |
+| quartz-2 | 3+1 | 7 S, Multiply S, 8 S, Equals A | progress review → candidate |
+| textedit-0/1/2 | 1+0 each | fill body S | — |
+
+Observations, limited to this batch:
+
+- On fresh observations Jev still skipped the operator after `7` in 2 of 6
+  Calculator cases (one shifted, one not), unlike the 0/3 frozen-state miss for the
+  current input. In both, Jev itself chose Clear on the next step (`78` contradicted
+  the goal), the return to `0` triggered `repeated_state`, and the Advisor
+  (candidates or a focus) steered back; each case then completed in 7 actions.
+  No digit/operator loop, effect-unknown stop or Close-Parenthesis-type action
+  occurred, unlike the 2026-10-08 batch.
+- In the other four Calculator cases Jev entered `7`, Multiply, `8` and the
+  progress review (three verified actions without a new goal predicate) handed the
+  final Equals to the Advisor, so Equals came from the Advisor whenever the review
+  fired first. This costs one Advisor call per clean case.
+- Fake/live and history/view/focus changes since the previous batch differ in several
+  factors, and nine cases do not establish stable planning, generalisation or
+  production thresholds; production defaults are unchanged.
+
+Artifacts: [live/summary.json](live/summary.json) (per-case trace, calls, readbacks,
+cleanup), `live/result.json.gz`
+(`d1872f414456419a364b659d12554ed1eebe5a6cee2fde1cc3635011b07a7dd9`; uncompressed
+`360cbf254a09703248683d674cddb6bb0a29f77f47e1a2b08fece9daa8de1013`),
+`live/spend.jsonl.gz`
+(`94ec85a44cc8c0a68085110d23e8217e6404ec5a98806e5b67126e4e60170a1e`; uncompressed
+`f07cc19e914855578489c1f1985343575ae880ce50554b161217a1ebc406f045`),
+`live/started.json`. `live/freeze.json` is unchanged. A scan for both credential
+values and bearer/authorization fields found none. Run log:
+`/tmp/tank-s4-native-matrix-live.log`.
 
 ## Tests and verification
 

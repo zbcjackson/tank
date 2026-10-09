@@ -1,0 +1,479 @@
+{
+ "recipe_sha256": "5da381139cfa1f4d0653206bec2a7a7ea668977e2d1cdf063c3de80ea1a2ef8f",
+ "completed": true,
+ "external_model_requests": 34,
+ "spend": {
+  "limit_tokens": 12000000,
+  "limit_nano_usd": 250000000,
+  "charged_tokens": 391494,
+  "charged_nano_usd": 25857243,
+  "known_tokens": 391494,
+  "known_nano_usd": 25857243,
+  "reserved_tokens": 0,
+  "reserved_nano_usd": 0,
+  "limit_requests": 78,
+  "admitted_requests": 34
+ },
+ "stop_reason": null,
+ "request_statuses": [
+  "known"
+ ],
+ "rows": [
+  {
+   "case_id": "calculator-ax_press-0",
+   "status": "finished",
+   "passed": true,
+   "result": "completed/goal_verified",
+   "independent_values": {
+    "expression": "7×8",
+    "result": "56"
+   },
+   "setup_actions": [
+    "move_owned_window",
+    "clear_owned_calculator"
+   ],
+   "application_cleanup": {
+    "confirmed": true,
+    "position_restored": true,
+    "frontmost_restored": true
+   },
+   "elapsed_ms": 8379.709041910246,
+   "models": [
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "steps": [
+    {
+     "label": "7",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Multiply",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "8",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Equals",
+     "selected_by": "advisor",
+     "effect": "verified"
+    }
+   ],
+   "advisor": [
+    {
+     "reason": "goal_progress_unverified",
+     "advice_kind": "candidate"
+    }
+   ]
+  },
+  {
+   "case_id": "calculator-ax_press-1",
+   "status": "finished",
+   "passed": true,
+   "result": "completed/goal_verified",
+   "independent_values": {
+    "expression": "7×8",
+    "result": "56"
+   },
+   "setup_actions": [
+    "move_owned_window",
+    "clear_owned_calculator"
+   ],
+   "application_cleanup": {
+    "confirmed": true,
+    "position_restored": true,
+    "frontmost_restored": true
+   },
+   "elapsed_ms": 14670.080291107297,
+   "models": [
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "qwen3.7-flash-2026-07-15",
+    "qwen3.7-flash-2026-07-15",
+    "jev-1.13.0",
+    "jev-1.13.0"
+   ],
+   "steps": [
+    {
+     "label": "7",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "8",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Clear",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "7",
+     "selected_by": "advisor",
+     "effect": "verified"
+    },
+    {
+     "label": "Multiply",
+     "selected_by": "advisor",
+     "effect": "verified"
+    },
+    {
+     "label": "8",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Equals",
+     "selected_by": "selector",
+     "effect": "verified"
+    }
+   ],
+   "advisor": [
+    {
+     "reason": "repeated_state",
+     "advice_kind": "candidate"
+    },
+    {
+     "reason": "repeated_state",
+     "advice_kind": "candidate"
+    }
+   ]
+  },
+  {
+   "case_id": "calculator-ax_press-2",
+   "status": "finished",
+   "passed": true,
+   "result": "completed/goal_verified",
+   "independent_values": {
+    "expression": "7×8",
+    "result": "56"
+   },
+   "setup_actions": [
+    "move_owned_window",
+    "clear_owned_calculator"
+   ],
+   "application_cleanup": {
+    "confirmed": true,
+    "position_restored": true,
+    "frontmost_restored": true
+   },
+   "elapsed_ms": 10181.62929196842,
+   "models": [
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "steps": [
+    {
+     "label": "7",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Multiply",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "8",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Equals",
+     "selected_by": "advisor",
+     "effect": "verified"
+    }
+   ],
+   "advisor": [
+    {
+     "reason": "goal_progress_unverified",
+     "advice_kind": "candidate"
+    }
+   ]
+  },
+  {
+   "case_id": "calculator-quartz-0",
+   "status": "finished",
+   "passed": true,
+   "result": "completed/goal_verified",
+   "independent_values": {
+    "expression": "7×8",
+    "result": "56"
+   },
+   "setup_actions": [
+    "move_owned_window",
+    "clear_owned_calculator"
+   ],
+   "application_cleanup": {
+    "confirmed": true,
+    "position_restored": true,
+    "frontmost_restored": true
+   },
+   "elapsed_ms": 15120.423041982576,
+   "models": [
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "qwen3.7-flash-2026-07-15",
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "steps": [
+    {
+     "label": "7",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "8",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Clear",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "7",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Multiply",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "8",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Equals",
+     "selected_by": "advisor",
+     "effect": "verified"
+    }
+   ],
+   "advisor": [
+    {
+     "reason": "repeated_state",
+     "advice_kind": "focus"
+    },
+    {
+     "reason": "focus_expired",
+     "advice_kind": "candidate"
+    }
+   ]
+  },
+  {
+   "case_id": "calculator-quartz-1",
+   "status": "finished",
+   "passed": true,
+   "result": "completed/goal_verified",
+   "independent_values": {
+    "expression": "7×8",
+    "result": "56"
+   },
+   "setup_actions": [
+    "move_owned_window",
+    "clear_owned_calculator"
+   ],
+   "application_cleanup": {
+    "confirmed": true,
+    "position_restored": true,
+    "frontmost_restored": true
+   },
+   "elapsed_ms": 8283.822499914095,
+   "models": [
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "steps": [
+    {
+     "label": "7",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Multiply",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "8",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Equals",
+     "selected_by": "advisor",
+     "effect": "verified"
+    }
+   ],
+   "advisor": [
+    {
+     "reason": "goal_progress_unverified",
+     "advice_kind": "candidate"
+    }
+   ]
+  },
+  {
+   "case_id": "calculator-quartz-2",
+   "status": "finished",
+   "passed": true,
+   "result": "completed/goal_verified",
+   "independent_values": {
+    "expression": "7×8",
+    "result": "56"
+   },
+   "setup_actions": [
+    "move_owned_window",
+    "clear_owned_calculator"
+   ],
+   "application_cleanup": {
+    "confirmed": true,
+    "position_restored": true,
+    "frontmost_restored": true
+   },
+   "elapsed_ms": 10433.643874945119,
+   "models": [
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "jev-1.13.0",
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "steps": [
+    {
+     "label": "7",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Multiply",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "8",
+     "selected_by": "selector",
+     "effect": "verified"
+    },
+    {
+     "label": "Equals",
+     "selected_by": "advisor",
+     "effect": "verified"
+    }
+   ],
+   "advisor": [
+    {
+     "reason": "goal_progress_unverified",
+     "advice_kind": "candidate"
+    }
+   ]
+  },
+  {
+   "case_id": "textedit-0",
+   "status": "finished",
+   "passed": true,
+   "result": "completed/goal_verified",
+   "independent_values": {
+    "document": "Tank AX / Jev\n中文验证 0\n"
+   },
+   "setup_actions": [
+    "move_owned_window"
+   ],
+   "application_cleanup": {
+    "confirmed": true,
+    "position_restored": true,
+    "frontmost_restored": true
+   },
+   "elapsed_ms": 3029.996749944985,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "steps": [
+    {
+     "label": "First Text View",
+     "selected_by": "selector",
+     "effect": "verified"
+    }
+   ],
+   "advisor": []
+  },
+  {
+   "case_id": "textedit-1",
+   "status": "finished",
+   "passed": true,
+   "result": "completed/goal_verified",
+   "independent_values": {
+    "document": "Tank AX / Jev\n中文验证 1\n"
+   },
+   "setup_actions": [
+    "move_owned_window"
+   ],
+   "application_cleanup": {
+    "confirmed": true,
+    "position_restored": true,
+    "frontmost_restored": true
+   },
+   "elapsed_ms": 2958.570250077173,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "steps": [
+    {
+     "label": "First Text View",
+     "selected_by": "selector",
+     "effect": "verified"
+    }
+   ],
+   "advisor": []
+  },
+  {
+   "case_id": "textedit-2",
+   "status": "finished",
+   "passed": true,
+   "result": "completed/goal_verified",
+   "independent_values": {
+    "document": "Tank AX / Jev\n中文验证 2\n"
+   },
+   "setup_actions": [
+    "move_owned_window"
+   ],
+   "application_cleanup": {
+    "confirmed": true,
+    "position_restored": true,
+    "frontmost_restored": true
+   },
+   "elapsed_ms": 3053.2887920271605,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "steps": [
+    {
+     "label": "First Text View",
+     "selected_by": "selector",
+     "effect": "verified"
+    }
+   ],
+   "advisor": []
+  }
+ ]
+}
