@@ -977,3 +977,23 @@ async def test_configured_native_advisor_interrupts_wandering_jev(world, monkeyp
     finally:
         await agent.aclose()
         await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize(("readouts", "valid"), [
+    ([], True),
+    ([{"name": "draft", "role": "AXStaticText", "ancestor_identifier": "region",
+       "aggregation": "compact_text", "allow_empty": True}], False),
+    ([{"name": "result", "role": "AXStaticText"}] * 2, False),
+])
+def test_native_readouts_may_be_empty_but_keep_rules_when_present(readouts, valid):
+    import json
+    from agent_computer_use.channels.native import NativeAXChannel, NativeConfig
+    from pydantic import ValidationError
+
+    payload = json.dumps({**native_config(), "readouts": readouts})
+    if not valid:
+        with pytest.raises(ValidationError):
+            NativeConfig.model_validate_json(payload)
+        return
+    channel = NativeAXChannel(NativeConfig.model_validate_json(payload))
+    assert channel.completion_keys == frozenset()

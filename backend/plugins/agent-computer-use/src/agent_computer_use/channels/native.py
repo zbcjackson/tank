@@ -64,13 +64,13 @@ class NativeConfig(BaseModel):
     labels: Literal["accessible_name", "identifier"] = "accessible_name"
     blocked_identifiers: tuple[str, ...] = Field(default=(), max_length=32)
     blocked_labels: tuple[str, ...] = Field(default=(), max_length=32)
-    readouts: tuple[Readout, ...] = Field(min_length=1, max_length=8)
+    readouts: tuple[Readout, ...] = Field(default=(), max_length=8)
 
     @model_validator(mode="after")
     def unique_readouts(self) -> NativeConfig:
         if len({r.name for r in self.readouts}) != len(self.readouts):
             raise ValueError("Readout names must be unique")
-        if all(r.allow_empty for r in self.readouts):
+        if self.readouts and all(r.allow_empty for r in self.readouts):
             raise ValueError("At least one readout must require native evidence")
         return self
 
