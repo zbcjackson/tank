@@ -1,0 +1,13 @@
+{
+  "status": "not_started_approval_rejected",
+  "date": "2026-10-09",
+  "implementation_commit": "8a10ab28",
+  "recipe_sha256": "e8d3b1c7ef987c2366c86b144d787667641a6cde30e6ac30f71596eb3958eab0",
+  "freeze_file_sha256": "b2c1e475f2b769e277ee70231a5c8fd4818794900cb479c1ca7b8dc1de1a69f6",
+  "planned_rows": 48,
+  "not_run_rows": 48,
+  "external_model_calls": 0,
+  "desktop_operations": 0,
+  "live_process_created": false,
+  "reason": "Automatic approval review requires explicit confirmation of AX states, goals, candidates and history export to both api.typesafe.ai and dashscope.aliyuncs.com for this batch."
+}
