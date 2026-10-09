@@ -6,7 +6,7 @@ import importlib
 import plistlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -179,6 +179,10 @@ class BoundApplication:
     config: NativeConfig
 
 
+class LaunchedApp(Protocol):
+    def processIdentifier(self) -> int: ...
+
+
 class SystemPlatform:
     """NSWorkspace / Quartz adapter; tests inject a fake platform instead."""
 
@@ -218,10 +222,9 @@ class SystemPlatform:
             if completed:
                 break
         app, _error = completed[0] if completed else (None, None)
-        identifier = getattr(app, "processIdentifier", None)
-        if app is None or not callable(identifier):
+        if app is None or not callable(getattr(app, "processIdentifier", None)):
             raise SubAgentStopped("launch_unconfirmed")
-        pid = int(identifier())
+        pid = int(cast(LaunchedApp, app).processIdentifier())
         identity = process_identity(pid)
         if identity.bundle_id != bundle_id:
             raise SubAgentStopped("launch_unconfirmed")
