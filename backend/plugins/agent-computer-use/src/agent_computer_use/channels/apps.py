@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import plistlib
 from dataclasses import dataclass
 from pathlib import Path
@@ -182,13 +183,11 @@ class SystemPlatform:
     """NSWorkspace / Quartz adapter; tests inject a fake platform instead."""
 
     def running(self, bundle_id: str) -> list[RunningInstance]:
-        import AppKit
-
         from .native import process_identity
 
-        apps = AppKit.NSWorkspace.sharedWorkspace().runningApplications()
+        workspace = importlib.import_module("AppKit").NSWorkspace.sharedWorkspace()
         found: list[RunningInstance] = []
-        for app in apps:
+        for app in workspace.runningApplications():
             if app.bundleIdentifier() != bundle_id or app.activationPolicy() != 0:
                 continue
             pid = int(app.processIdentifier())
@@ -199,13 +198,12 @@ class SystemPlatform:
         return found
 
     def launch(self, path: Path, bundle_id: str) -> RunningInstance:
-        import AppKit
-        import Foundation
-
         from .native import process_identity
 
-        workspace = AppKit.NSWorkspace.sharedWorkspace()
-        configuration = AppKit.NSWorkspaceOpenConfiguration.configuration()
+        appkit = importlib.import_module("AppKit")
+        foundation = importlib.import_module("Foundation")
+        workspace = appkit.NSWorkspace.sharedWorkspace()
+        configuration = appkit.NSWorkspaceOpenConfiguration.configuration()
         configuration.setCreatesNewApplicationInstance_(False)
         configuration.setActivates_(True)
         completed: list[tuple[object, object]] = []
@@ -214,7 +212,7 @@ class SystemPlatform:
             completed.append((app, error))
 
         workspace.openApplicationAtURL_configuration_completionHandler_(
-            Foundation.NSURL.fileURLWithPath_(str(path)), configuration, launched)
+            foundation.NSURL.fileURLWithPath_(str(path)), configuration, launched)
         for _ in range(200):
             self.pump()
             if completed:
@@ -229,9 +227,8 @@ class SystemPlatform:
         return RunningInstance(pid, identity.start, bundle_id)
 
     def activate(self, pid: int) -> None:
-        import AppKit
-
-        app = AppKit.NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
+        appkit = importlib.import_module("AppKit")
+        app = appkit.NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
         if app is None:
             raise SubAgentStopped("instance_unavailable")
         app.activateWithOptions_(0)
@@ -245,10 +242,9 @@ class SystemPlatform:
                 if item.get("kCGWindowOwnerPID") == pid and item.get("kCGWindowLayer") == 0]
 
     def pump(self, seconds: float = 0.05) -> None:
-        import Foundation
-
-        Foundation.NSRunLoop.currentRunLoop().runUntilDate_(
-            Foundation.NSDate.dateWithTimeIntervalSinceNow_(seconds))
+        foundation = importlib.import_module("Foundation")
+        foundation.NSRunLoop.currentRunLoop().runUntilDate_(
+            foundation.NSDate.dateWithTimeIntervalSinceNow_(seconds))
 
 
 def _wait_for_window(platform: AppPlatform, pid: int, *, waits: int = 200) -> int:

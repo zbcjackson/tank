@@ -9,7 +9,7 @@ import time
 import unicodedata
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -319,7 +319,10 @@ class NativeAXChannel:
                     use_identifiers=self.config.labels == "identifier")
             elif self.source.window_id != window.window_id:
                 self.source.window_id = window.window_id
-                self.source.display_geometry = window.display_geometry
+                if len(window.display_geometry) != 7:
+                    raise SubAgentStopped("unsupported_display")
+                self.source.display_geometry = cast(
+                    tuple[int, int, int, int, int, int, int], window.display_geometry)
                 self.source.targets.clear()
             snapshot = await self.source.observe(scope, context)
             self.check(context)
