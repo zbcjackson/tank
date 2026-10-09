@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from unittest.mock import MagicMock, patch
 
-from agent_computer_use import action_builder, advisor, agent, contracts, controller, factory, observation, jev
+from agent_computer_use import action_builder, advisor, agent, contracts, controller, factory, observation, jev, model_view
 from agent_computer_use.channels import native
 from tank_backend.tools import computer_ax, computer_native, computer_use_macos
 
@@ -125,9 +125,9 @@ def freeze_inputs() -> dict[str, Any]:
         action_builder, contracts, controller, factory, observation, native, computer_ax,
         computer_native, computer_use_macos, subagent, task_runtime, decision_model,
         task_decision_model, model_call, agent, jev, runner, subagent_adapter, task_resources,
-        decision_profile, jev_smoke, advisor, task_model, model_policy, spend_ledger,
+        decision_profile, jev_smoke, advisor, task_model, model_policy, spend_ledger, model_view,
     ))]
-    data = {"revision": "s4-ax-advisor-1", "cases": list(CASES), "model": MODELS["jev"],
+    data = {"revision": "s4-ax-history-1", "cases": list(CASES), "model": MODELS["jev"],
             "advisor_model": {**MODELS["qwen"], "output_ceiling": 2048},
             "fake_advisor_endpoint": FAKE_ADVISOR_ENDPOINT,
             "advisor_call_limit": 4,

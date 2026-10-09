@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from agent_computer_use.jev import CONTROLS
+from agent_computer_use.model_view import CONTROLS
 
 from benchmarks.computer_use import s3_dom_live as prior
 from benchmarks.computer_use import s3_replay as v1

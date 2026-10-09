@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import httpx
 from agent_computer_use.contracts import ActionSet, DecisionResult
-from agent_computer_use.jev import CONTROLS
+from agent_computer_use.model_view import CONTROLS
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 from tank_backend.agents.task_runtime import ExecutionRecord
 from tank_backend.llm.model_call import TaskModelCallRunner
@@ -84,4 +84,3 @@ def parse_choice(
 
 def probability(value: object) -> bool:
     return type(value) in (int, float) and isinstance(value, (int, float)) and 0 <= value <= 1
-

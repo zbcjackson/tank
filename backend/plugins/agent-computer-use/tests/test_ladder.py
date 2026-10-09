@@ -166,10 +166,10 @@ def test_goal_candidates_mix_operations_and_bind_only_compatible_inputs() -> Non
     ))
     actions = ActionBuilder().build("goal", 1, goal, snapshot)
     assert actions.reason == "jev_eligible"
-    from agent_computer_use.jev import decision_question
+    from agent_computer_use.model_view import decision_question
 
     question = json.loads(json.dumps(decision_question(goal, snapshot, actions)))
-    assert question["state"]["progress"]["pending_action"] is None
+    assert question["state"]["recent_actions"] == []
     fill = next(a for a in actions.actions if a.operation == "fill")
     option = question["questions"]["next_action"]["criteria"][fill.id]
     assert option["label"] == "Public name"
@@ -218,6 +218,24 @@ async def test_goal_v2_selects_mixed_actions_and_verifies_save_separately(save_e
             target = "name" if not world.dispatched else "save"
             if not world.dispatched:
                 assert {a.operation for a in actions.actions} == {"click", "fill"}
+            else:
+                assert actions.progress is not None
+                previous = actions.progress.recent_steps[-1]
+                assert (previous.label, previous.operation, previous.selected_by) == (
+                    "Public name", "fill", "selector")
+                expected_dispatch = "unknown" if save_effect in {"lost_reply", "delayed_reply", "unknown"} else "sent"
+                assert (previous.dispatch_status, previous.effect_status) == (expected_dispatch, "verified")
+                assert [(change.key, change.before, change.after) for change in previous.changes] == [
+                    ("target_value", "Bob", "Ada")]
+                from agent_computer_use.model_view import decision_question
+                view = decision_question(goal, snapshot, actions)["state"]
+                assert isinstance(view, dict)
+                assert "verified_actions" not in view["progress"]
+                assert view["progress"]["verified_action_count"] == 1
+                history = view["recent_actions"]
+                assert history[-1]["label"] == "Public name"
+                assert history[-1]["effect_status"] == "verified"
+                assert "action_id" not in history[-1] and "observation_before" not in history[-1]
             return DecisionResult(actions.binding, "candidate",
                                   next(a.id for a in actions.actions if a.target_ref == target))
 
@@ -447,6 +465,9 @@ async def test_host_verifies_known_goal_with_no_models() -> None:
     assert [record.operation for record in ctx.runtime.records] == [
         "computer_use.observe", "computer_use.dispatch", "computer_use.observe",
     ]
+    step = controller.progress.recent_steps[0]
+    assert (step.selected_by, step.label, step.value, step.effect_status) == (
+        "rules", "File name", "报告.pdf", "verified")
     assert all(record.task_id == "task" for record in ctx.runtime.records)
 
 
@@ -588,6 +609,40 @@ async def test_dispatch_uncertainty_is_preserved_without_replay(failure: str) ->
     assert len(world.dispatched) == (0 if failure == "not_sent" else 1)
     assert isinstance(result.details["receipts"], list)
     assert len(result.details["receipts"]) == 1
+    step = controller.progress.recent_steps[-1]
+    expected = "not_sent" if failure == "not_sent" else "unknown"
+    assert step.dispatch_status == step.effect_status == expected
+    assert step.changes == ()
+    assert step.observation_before == "1"
+
+
+@pytest.mark.parametrize("failure", ["error", "cancel", "incomplete", "stale"])
+async def test_history_preserves_sent_action_when_followup_observation_fails(failure):
+    class World(ExportWorld):
+        async def observe(self, scope, ctx):
+            if self.dispatched:
+                if failure == "error":
+                    raise OSError("Read failed after input")
+                if failure == "cancel":
+                    raise asyncio.CancelledError()
+                if failure == "stale":
+                    return replace(await super().observe(scope, ctx), observation_id="obs-1")
+                return replace(await super().observe(scope, ctx), complete=False)
+            return await super().observe(scope, ctx)
+    world = World()
+    controller = ComputerUseController(world, world)
+    request = SubAgentRequest("Export", "", "task", export_goal().model_dump(mode="json"))
+    if failure == "cancel":
+        with pytest.raises(SubAgentCancelled) as stopped:
+            await controller.run(request, context())
+        result = stopped.value.task_result
+    else:
+        result = await controller.run(request, context())
+    assert result is not None and result.status == "unknown"
+    assert len(world.dispatched) == 1
+    step = controller.progress.recent_steps[-1]
+    assert step.dispatch_status == "sent" and step.effect_status == "unknown"
+    assert step.changes == ()
 
 
 @pytest.mark.parametrize("change", ["scope", "generation", "observation", "goal", "candidate_set"])
@@ -922,12 +977,17 @@ async def test_unhelpful_planning_advisor_cannot_reset_its_call_limit():
             self.calls += 1
             return AdvisorResult(actions.binding, "candidate", candidate_id=actions.actions[0].id)
     world, advisor = WanderingWorld(), Advisor()
-    result = await ComputerUseController(world, world, selector=PickFirst(), advisor=advisor).run(
+    controller = ComputerUseController(world, world, selector=PickFirst(), advisor=advisor)
+    result = await controller.run(
         wandering_request(), context())
     assert result.reason == "advisor_limit" and advisor.calls == 4
     assert len(world.dispatched) == 15
     progress = result.details["progress"]
     assert isinstance(progress, dict) and progress["unverified_goal_steps"] == 15
+    history = controller.progress.recent_steps
+    assert [step.step for step in history] == list(range(6, 16))
+    assert all(step.effect_status == "verified" for step in history)
+    assert {step.selected_by for step in history} == {"selector", "advisor"}
 
 
 async def test_advisor_can_recover_a_repeated_state_without_repeating_selector():

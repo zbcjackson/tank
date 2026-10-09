@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import asdict, replace
+import json
+from dataclasses import asdict, dataclass, replace
 from typing import Protocol
 from uuid import uuid4
 
@@ -27,9 +28,12 @@ from .contracts import (
     Binding,
     DecisionResult,
     DispatchReceipt,
+    ExecutionStep,
     Fact,
     GoalContract,
     GoalProgress,
+    ObservedChange,
+    SelectionSource,
     Snapshot,
 )
 
@@ -104,6 +108,15 @@ def effect_achieved(snapshot: Snapshot, action: Action, detail: ActionDetails) -
                for change in detail.changes)
 
 
+@dataclass(frozen=True)
+class ActionAttempt:
+    binding: Binding
+    action: Action
+    detail: ActionDetails
+    before: Snapshot
+    selected_by: SelectionSource
+
+
 class ComputerUseController:
     """Single task instance; budgets and authorization remain in the supplied context."""
 
@@ -135,7 +148,7 @@ class ComputerUseController:
         self.progress = GoalProgress()
         self.started = False
         self.observation: TaskOperation[str, Snapshot] | None = None
-        self.dispatch: TaskOperation[tuple[Binding, Action], DispatchReceipt] | None = None
+        self.dispatch: TaskOperation[ActionAttempt, DispatchReceipt] | None = None
 
     def result(self, status: TaskStatus, reason: str) -> TaskResult:
         if self.pending_effect:
@@ -164,10 +177,7 @@ class ComputerUseController:
                     for item, binding in zip(self.receipts, self.bindings, strict=True)
                 ],
                 "pending_effect": self.pending_effect,
-                "progress": {**asdict(self.progress),
-                             "verified_actions": list(self.progress.verified_actions),
-                             "verified_outcomes": list(self.progress.verified_outcomes),
-                             "input_bindings": [list(item) for item in self.progress.input_bindings]},
+                "progress": json.loads(json.dumps(asdict(self.progress))),
             },
         )
 
@@ -185,17 +195,23 @@ class ComputerUseController:
         return snapshot
 
     def register_operations(self, context: SubAgentContext) -> None:
-        async def preflight(value: tuple[Binding, Action]) -> None:
-            if not await self.executor.is_current(*value, context):
+        async def preflight(value: ActionAttempt) -> None:
+            if not await self.executor.is_current(value.binding, value.action, context):
                 raise SubAgentStopped("stale_reference")
 
-        async def dispatch(value: tuple[Binding, Action]) -> DispatchReceipt:
-            binding, action = value
+        async def dispatch(value: ActionAttempt) -> DispatchReceipt:
+            binding, action = value.binding, value.action
             # Journal at the admitted boundary, before a possible external effect.
             self.bindings.append(binding)
             self.receipts.append(DispatchReceipt(action.id, "unknown"))
             self.pending_effect = True
-            self.progress = replace(self.progress, recent_action=action, pending_action=action)
+            step = ExecutionStep(
+                len(self.receipts), action.id, action.operation, value.detail.role,
+                value.detail.label, value.detail.ancestors, action.value, value.selected_by,
+                value.before.observation_id,
+            )
+            self.progress = replace(self.progress, recent_action=action, pending_action=action,
+                                    recent_steps=(*self.progress.recent_steps[-9:], step))
             return await self.executor.dispatch(binding, action, context)
 
         self.observation = TaskOperation(
@@ -207,6 +223,33 @@ class ComputerUseController:
         )
         context.runtime.register(self.observation)
         context.runtime.register(self.dispatch)
+
+    def record_result(
+        self, attempt: ActionAttempt, receipt: DispatchReceipt,
+        after: Snapshot | None = None, *, verified: bool = False,
+    ) -> None:
+        changes: list[ObservedChange] = []
+        if after is not None and after.ready and after.complete:
+            if attempt.action.operation == "fill":
+                before_values = {e.ref: e.value for e in attempt.before.elements}
+                after_values = {e.ref: e.value for e in after.elements}
+                ref = attempt.action.target_ref
+                if ref in before_values and ref in after_values and before_values[ref] != after_values[ref]:
+                    changes.append(ObservedChange("target_value", before_values[ref], after_values[ref]))
+            else:
+                before_facts = {fact.key: fact.value for fact in attempt.before.facts}
+                after_facts = {fact.key: fact.value for fact in after.facts}
+                keys = dict.fromkeys((*[fact.key for fact in attempt.detail.effect],
+                                      *[change.key for change in attempt.detail.changes]))
+                changes.extend(ObservedChange(key, before_facts.get(key), after_facts.get(key))
+                               for key in keys if before_facts.get(key) != after_facts.get(key))
+        step = replace(
+            self.progress.recent_steps[-1], dispatch_status=receipt.status,
+            effect_status="not_sent" if receipt.status == "not_sent" else "verified" if verified else "unknown",
+            observation_after=after.observation_id if after is not None else None,
+            changes=tuple(changes),
+        )
+        self.progress = replace(self.progress, recent_steps=(*self.progress.recent_steps[:-1], step))
 
     async def run(self, request: SubAgentRequest, context: SubAgentContext) -> TaskResult:
         if self.started:
@@ -298,6 +341,7 @@ class ComputerUseController:
             context.observe("computer_use_route", goal_id=self.goal_id, goal_version=self.version,
                             observation_id=snapshot.observation_id, reason=actions.reason)
             action = actions.actions[0] if actions.reason == "rules_unique" else None
+            selected_by: SelectionSource = "rules"
             if actions.reason == "jev_eligible" and self.selector is not None:
                 context.check("desktop")
                 decision = await self.selector.choose(goal, snapshot, actions, context)
@@ -306,6 +350,7 @@ class ComputerUseController:
                     raise SubAgentStopped("stale_decision")
                 if decision.choice == "candidate":
                     action = self.candidate(actions, decision.candidate_id)
+                    selected_by = "selector"
                 elif decision.choice not in {"none", "ambiguous", "need_more_context", "escalate"}:
                     raise SubAgentStopped("invalid_decision")
                 else:
@@ -350,21 +395,25 @@ class ComputerUseController:
                 if advice.kind != "candidate":
                     return self.result("stopped", "advisor_unable")
                 action = self.candidate(actions, advice.candidate_id)
+                selected_by = "advisor"
             detail = next(item for item in actions.details if item.action_id == action.id)
             assert self.dispatch is not None
-            receipt = await context.runtime.execute(self.dispatch, (actions.binding, action))
+            attempt = ActionAttempt(actions.binding, action, detail, snapshot, selected_by)
+            receipt = await context.runtime.execute(self.dispatch, attempt)
             if receipt.action_id != action.id or receipt.status not in {"not_sent", "sent", "unknown"}:
                 raise SubAgentStopped("invalid_receipt")
             self.receipts[-1] = receipt
+            self.record_result(attempt, receipt)
             if receipt.status == "not_sent":
                 self.pending_effect = False
                 self.progress = replace(self.progress, pending_action=None)
                 return self.result("stopped", "not_sent")
-            for attempt in range(3):
-                if attempt:
+            for retry in range(3):
+                if retry:
                     await asyncio.sleep(0.05)
                 snapshot = await self.observe(goal, context)
                 verified = effect_achieved(snapshot, action, detail)
+                self.record_result(attempt, receipt, snapshot, verified=verified)
                 if verified:
                     self.pending_effect = False
                     inputs = dict(self.progress.input_bindings)

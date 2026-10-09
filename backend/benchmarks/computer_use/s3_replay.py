@@ -34,13 +34,13 @@ def digest(value: object) -> str:
 
 
 def code_hashes() -> dict[str, str]:
-    from agent_computer_use import contracts, jev
+    from agent_computer_use import contracts, jev, model_view
     from tank_backend.llm import model_call, decision_model, task_decision_model, decision_profile
     from benchmarks.computer_use import legacy_json_model as task_json_model
     from tank_backend.benchmarks import model_policy, spend_ledger
 
     paths = [Path(__file__), Path(inspect.getfile(ActionBuilder))]
-    paths.extend(Path(inspect.getfile(module)) for module in (contracts, jev, model_call, task_json_model, decision_model, task_decision_model, decision_profile,
+    paths.extend(Path(inspect.getfile(module)) for module in (contracts, jev, model_view, model_call, task_json_model, decision_model, task_decision_model, decision_profile,
                                                            model_policy, spend_ledger))
     return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
@@ -119,7 +119,7 @@ def score(case: dict[str, Any], choice: str | None, status: str) -> dict[str, An
 
 
 def public_question(case: dict[str, Any], stage: str) -> dict[str, Any]:
-    from agent_computer_use.jev import CONTROLS
+    from agent_computer_use.model_view import CONTROLS
 
     public = case["public"]
     elements = {element["ref"]: element for element in public["snapshot"]["elements"]}

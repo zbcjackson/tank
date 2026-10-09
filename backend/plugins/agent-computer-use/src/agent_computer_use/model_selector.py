@@ -8,7 +8,8 @@ from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 from tank_backend.llm.model_data import json_object
 
 from .contracts import ActionSet, DecisionResult, GoalContract, Snapshot
-from .jev import CONTROLS, JevSelector, check_eligible, decision_question
+from .jev import JevSelector, check_eligible
+from .model_view import CONTROLS, decision_question
 
 
 class ModelSelector:

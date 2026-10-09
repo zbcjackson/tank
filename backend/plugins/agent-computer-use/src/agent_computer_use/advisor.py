@@ -11,7 +11,7 @@ from tank_backend.agents.subagent import SubAgentContext, SubAgentRequest, SubAg
 from tank_backend.llm.model_data import json_object
 
 from .contracts import ActionSet, AdvisorResult, Fact, GoalContract, GoalModel, Snapshot
-from .jev import decision_question
+from .model_view import decision_question
 
 
 class AdviceReply(GoalModel):
@@ -55,7 +55,9 @@ class LLMAdvisor:
             {"role": "system", "content": (
                 "Return one JSON object matching response_schema. Help plan the next step toward "
                 "the declared goal, considering current evidence and prior progress. Local effects "
-                "and changing values do not prove goal progress. References are question-local; "
+                "and changing values do not prove goal progress. state.recent_actions contains "
+                "host-recorded attempts and observed changes, with separate dispatch and effect statuses. "
+                "References are question-local; "
                 "target_ref resolves to state.snapshot.elements, with omitted fields supplied by "
                 "element_defaults when present. Propose at most one offered candidate_id; the host "
                 "rechecks it before executing and then resumes its own loop. Never invent actions, "

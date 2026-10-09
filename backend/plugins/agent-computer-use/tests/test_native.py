@@ -326,6 +326,7 @@ def test_native_pilot_prepares_bounded_cases_without_desktop_or_credentials(tmp_
     assert frozen["advisor_model"]["output_ceiling"] == 2048
     assert any(path.endswith("/advisor.py") for path in frozen["source_sha256"])
     assert any(path.endswith("/task_model.py") for path in frozen["source_sha256"])
+    assert any(path.endswith("/model_view.py") for path in frozen["source_sha256"])
     assert s4_ax.load_freeze(tmp_path / "pilot", frozen["sha256"]) == frozen
     with pytest.raises(ValueError, match="freeze"):
         s4_ax.load_freeze(tmp_path / "pilot", "wrong")
@@ -797,7 +798,7 @@ async def test_native_model_view_compacts_references_without_dropping_candidates
     from agent_computer_use.action_builder import ActionBuilder
     from agent_computer_use.channels.native import NativeAXChannel, NativeConfig
     from agent_computer_use.contracts import snapshot_json
-    from agent_computer_use.jev import decision_question
+    from agent_computer_use.model_view import decision_question
 
     world.buttons = [replace(world.button, index=i, title=str(i), identifier=str(i),
                              element=AXElementRef(object(), False, 80)) for i in range(54)]
@@ -864,6 +865,14 @@ async def test_configured_native_advisor_interrupts_wandering_jev(world, monkeyp
         payload = json.loads(data["messages"][1]["content"])
         assert payload["reason"] == "goal_progress_unverified"
         assert payload["state"]["progress"]["unverified_goal_steps"] == 3
+        history = payload["state"]["recent_actions"]
+        assert [step["label"] for step in history] == ["Increment"] * 3
+        assert [step["changes"] for step in history] == [
+            [{"key": "ax:value:result", "before": str(index), "after": str(index + 1)}]
+            for index in range(3)]
+        assert all(step["selected_by"] == "selector" and step["effect_status"] == "verified"
+                   for step in history)
+        assert "verified_actions" not in payload["state"]["progress"]
         choice = next(k for k, v in payload["actions"].items() if v["label"] == "Finish")
         if stop == "stale":
             world.buttons[-1] = replace(finish, enabled=False)

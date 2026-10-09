@@ -20,7 +20,7 @@ from agent_computer_use.contracts import (
     GoalModel,
     Snapshot,
 )
-from agent_computer_use.jev import Control, decision_question
+from agent_computer_use.model_view import Control, decision_question
 from pydantic import TypeAdapter, model_validator
 
 from benchmarks.computer_use import s3_replay as v1

@@ -176,6 +176,33 @@ class ActionDetails:
 
 
 @dataclass(frozen=True)
+class ObservedChange:
+    key: str
+    before: str | None
+    after: str | None
+
+
+SelectionSource = Literal["rules", "selector", "advisor"]
+
+
+@dataclass(frozen=True)
+class ExecutionStep:
+    step: int
+    action_id: str
+    operation: Operation
+    role: str
+    label: str
+    ancestors: tuple[tuple[str, str], ...]
+    value: str | None
+    selected_by: SelectionSource
+    observation_before: str
+    observation_after: str | None = None
+    dispatch_status: Literal["not_sent", "sent", "unknown"] = "unknown"
+    effect_status: Literal["not_sent", "verified", "unknown"] = "unknown"
+    changes: tuple[ObservedChange, ...] = ()
+
+
+@dataclass(frozen=True)
 class GoalProgress:
     goal_version: int = 1
     recent_action: Action | None = None
@@ -185,6 +212,7 @@ class GoalProgress:
     unverified_goal_steps: int = 0
     input_bindings: tuple[tuple[str, str], ...] = ()
     verified_outcomes: tuple[str, ...] = ()
+    recent_steps: tuple[ExecutionStep, ...] = ()
 
 
 @dataclass(frozen=True)

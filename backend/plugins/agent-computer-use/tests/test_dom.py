@@ -1418,6 +1418,13 @@ async def test_runner_advisor_returns_to_jev_for_multistep_goal(
     assert len(calls) == (5 if layout == "middle" else 4)
     assert sum("questions" not in c for c in calls) == 1
     assert "questions" in calls[-1]  # the Advisor returned control to the regular selector
+    history = calls[-1]["state"]["recent_actions"]
+    assert history[0]["selected_by"] == "advisor"
+    assert history[0]["label"] in {"Personal info", "Edit profile"}
+    filled = next(step for step in history if step["operation"] == "fill")
+    assert filled["value"] == "Ada" and filled["effect_status"] == "verified"
+    assert filled["changes"] == [{"key": "target_value", "before": "Bob", "after": "Ada"}]
+    assert all("action_id" not in step and "target_ref" not in step for step in history)
     assert sum(k == "computer_use_advisor" and e["phase"] == "returned" for k, e in events) == 1
     usage = [e for k, e in events if k == "model_call" and e["phase"] == "finished"]
     assert sum(e["prompt_tokens"] + e["completion_tokens"] for e in usage) == (len(calls) - 1) * 12 + 15
