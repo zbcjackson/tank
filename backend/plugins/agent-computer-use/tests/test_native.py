@@ -2,6 +2,7 @@
 
 import asyncio
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +19,13 @@ def native_config(mode: str = "ax_press") -> dict[str, object]:
             "readouts": [{"name": "result", "role": "AXStaticText", "identifier": "result"}]}
 
 
+def macos_policy(mode: str = "ax_press", **profile: object) -> dict[str, object]:
+    fields = {key: value for key, value in native_config(mode).items()
+              if key not in {"scope", "bundle_id", "pid", "process_start", "window_id"}}
+    fields.update(profile)
+    return {"profiles": {"test.counter": fields}}
+
+
 def goal() -> GoalContract:
     return GoalContract.from_input({
         "schema_version": 2, "goal_id": "increment", "intent": "Increment once",
@@ -25,6 +33,12 @@ def goal() -> GoalContract:
         "allowed_operations": ["click"],
         "completion": [{"key": "ax:value:result", "value": "1"}],
     })
+
+
+def targeted(task: GoalContract | dict[str, object] | None = None) -> dict[str, object]:
+    payload = goal().model_dump(mode="json") if task is None else (
+        task.model_dump(mode="json") if isinstance(task, GoalContract) else dict(task))
+    return {"target": {"application": "test.counter"}, **payload}
 
 
 class Select:
@@ -77,6 +91,34 @@ def world(monkeypatch):
     monkeypatch.setattr(native.macos, "_click_macos", world.click)
     monkeypatch.setattr(native, "pointer_target_is_exposed", lambda *args: world.exposed)
     monkeypatch.setattr(native, "inputs_idle", lambda: True)
+
+    from agent_computer_use.channels.apps import ApplicationRef
+    from .test_apps import FakeInstance, FakePlatform
+
+    platform = FakePlatform()
+    for bundle_id in ("test.counter", "com.apple.calculator", "com.apple.TextEdit"):
+        platform.apps[bundle_id] = [FakeInstance(42, "1:0", bundle_id)]
+    platform.window_ids[42] = [7]
+
+    def resolve(application: str, **kwargs: object) -> ApplicationRef:
+        aliases = {
+            "test.counter": "test.counter",
+            "com.apple.calculator": "com.apple.calculator",
+            "com.apple.TextEdit": "com.apple.TextEdit",
+            "Calculator": "com.apple.calculator",
+            "TextEdit": "com.apple.TextEdit",
+        }
+        bundle_id = aliases.get(application, application if "." in application else "test.counter")
+        return ApplicationRef(bundle_id, Path(f"/tmp/{bundle_id}.app"))
+
+    monkeypatch.setattr("agent_computer_use.channels.apps.resolve_application", resolve)
+    original = native.NativeAXChannel.__init__
+
+    def init(self, policy=None, **kwargs):
+        kwargs.setdefault("platform", platform)
+        original(self, policy, **kwargs)
+
+    monkeypatch.setattr(native.NativeAXChannel, "__init__", init)
     return world
 
 
@@ -88,12 +130,12 @@ def context() -> SubAgentContext:
 async def test_native_click_uses_current_ax_evidence_and_verifies_readout(world) -> None:
     from agent_computer_use.factory import create_subagent
 
-    agent = create_subagent({"macos": native_config()})
+    agent = create_subagent({"macos": macos_policy()})
     agent.controller.selector = Select()
     ctx = context()
     try:
         outputs = [o async for o in agent.run(
-            SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+            SubAgentRequest("Increment", "", "task", targeted()), ctx)]
         result = outputs[-1].metadata["task_result"]
         assert (result["status"], result["reason"]) == ("completed", "goal_verified")
         assert len(world.sent) == 1 and len(world.reads) >= 3
@@ -109,7 +151,7 @@ async def test_native_scope_offers_all_scientific_controls_without_shortlisting(
 
     world.buttons = [replace(world.button, index=i, title=str(i), identifier=str(i),
                              element=AXElementRef(object(), False, 80)) for i in range(54)]
-    agent = create_subagent({"macos": native_config()})
+    agent = create_subagent({"macos": macos_policy()})
     class FullSet:
         async def choose(self, goal, snapshot, actions, ctx):
             assert len(actions.actions) == 54 and not actions.truncated
@@ -117,14 +159,18 @@ async def test_native_scope_offers_all_scientific_controls_without_shortlisting(
     agent.controller.selector = FullSet()
     ctx = context()
     ctx.runtime.bind("task")
+    from agent_computer_use.channels.native import NativeAXChannel, NativeConfig
+    import json
+    probe = NativeAXChannel(config=NativeConfig.model_validate_json(json.dumps(native_config())))
     try:
-        snapshot = await agent.controller.source.observe("counter", ctx)
+        snapshot = await probe.observe("counter", ctx)
         # Other channels keep their existing ceiling and reject incomplete choices.
         assert ActionBuilder().build("goal", 1, goal(), snapshot).truncated
         outputs = [o async for o in agent.run(
-            SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+            SubAgentRequest("Increment", "", "task", targeted()), ctx)]
         assert outputs[-1].metadata["task_result"]["status"] == "completed"
     finally:
+        await probe.aclose()
         await agent.aclose()
         await ctx.runtime.aclose()
 
@@ -137,18 +183,17 @@ async def test_identifier_bound_textarea_preserves_unicode_without_enabled_attri
     world.value = ""
     world.output = replace(world.output, role="AXTextArea", identifier="First Text View",
                            title="", enabled=None, value_settable=True)
-    config = {**native_config(), "labels": "identifier",
-              "readouts": [{"name": "document", "role": "AXTextArea",
-                            "identifier": "First Text View"}]}
     task = goal().model_dump(mode="json")
     task.update(objective="Replace the document body", allowed_operations=["fill"],
                 inputs=[{"key": "body", "purpose": "document body", "value": text}],
                 completion=[{"key": "ax:value:document", "value": text}])
-    agent = create_subagent({"macos": config})
+    agent = create_subagent({"macos": macos_policy(
+        labels="identifier",
+        readouts=[{"name": "document", "role": "AXTextArea", "identifier": "First Text View"}])})
     agent.controller.selector = Select()
     ctx = context()
     try:
-        outputs = [o async for o in agent.run(SubAgentRequest("Write", "", "task", task), ctx)]
+        outputs = [o async for o in agent.run(SubAgentRequest("Write", "", "task", targeted(task)), ctx)]
         assert outputs[-1].metadata["task_result"]["status"] == "completed"
         assert world.sent == [("fill", text)] and world.value == text
     finally:
@@ -169,19 +214,18 @@ async def test_display_readout_tracks_expression_and_result_as_bound_regions(wor
             outputs.append(replace(expression, value="\u200e7 × 8"))
         return [world.button, *outputs], False
     monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", read)
-    config = {**native_config(), "readouts": [
-        {"name": "expression", "role": "AXStaticText", "aggregation": "compact_text",
-         "ancestor_identifier": "StandardResultView", "allow_empty": True},
-        {"name": "result", "role": "AXStaticText", "aggregation": "compact_text",
-         "ancestor_identifier": "StandardInputView"}]}
     task = goal().model_dump(mode="json")
     task["completion"] = [{"key": "ax:value:expression", "value": "7×8"},
                           {"key": "ax:value:result", "value": "56"}]
-    agent = create_subagent({"macos": config})
+    agent = create_subagent({"macos": macos_policy(readouts=[
+        {"name": "expression", "role": "AXStaticText", "aggregation": "compact_text",
+         "ancestor_identifier": "StandardResultView", "allow_empty": True},
+        {"name": "result", "role": "AXStaticText", "aggregation": "compact_text",
+         "ancestor_identifier": "StandardInputView"}])})
     agent.controller.selector = Select()
     ctx = context()
     try:
-        outputs = [o async for o in agent.run(SubAgentRequest("Compute", "", "task", task), ctx)]
+        outputs = [o async for o in agent.run(SubAgentRequest("Compute", "", "task", targeted(task)), ctx)]
         assert outputs[-1].metadata["task_result"]["status"] == "completed"
         assert len(world.sent) == 1
         assert isinstance(agent.controller.source, native.NativeAXChannel)
@@ -213,12 +257,12 @@ async def test_native_stale_state_never_dispatches(world, mode, change):
                 world.incomplete = True
             return result
 
-    agent = create_subagent({"macos": native_config(mode)})
+    agent = create_subagent({"macos": macos_policy(mode)})
     agent.controller.selector = Mutate()
     ctx = context()
     try:
         outputs = [o async for o in agent.run(
-            SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+            SubAgentRequest("Increment", "", "task", targeted()), ctx)]
         assert outputs[-1].metadata["task_result"]["reason"] == "stale_reference"
         assert not world.sent
     finally:
@@ -240,12 +284,12 @@ async def test_native_uncertain_effects_are_read_back_never_replayed(world, monk
         raise RuntimeError("lost native reply")
     monkeypatch.setattr(native, "ax_press", press)
     world.exposed = case != "occluded"
-    agent = create_subagent({"macos": native_config("quartz" if case == "occluded" else "ax_press")})
+    agent = create_subagent({"macos": macos_policy("quartz" if case == "occluded" else "ax_press")})
     agent.controller.selector = Select()
     ctx = context()
     try:
         outputs = [o async for o in agent.run(
-            SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+            SubAgentRequest("Increment", "", "task", targeted()), ctx)]
         result = outputs[-1].metadata["task_result"]
         assert result["status"] == {"unknown": "unknown", "lost_reply": "completed",
                                     "occluded": "stopped"}[case]
@@ -263,12 +307,12 @@ async def test_window_move_during_pointer_exposure_check_prevents_send(world, mo
         world.window = replace(world.window, bounds=(5, 0, 95, 80))
         return True
     monkeypatch.setattr(native, "pointer_target_is_exposed", exposed)
-    agent = create_subagent({"macos": native_config("quartz")})
+    agent = create_subagent({"macos": macos_policy("quartz")})
     agent.controller.selector = Select()
     ctx = context()
     try:
         outputs = [o async for o in agent.run(
-            SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+            SubAgentRequest("Increment", "", "task", targeted()), ctx)]
         assert outputs[-1].metadata["task_result"]["reason"] == "not_sent"
         assert not world.sent
     finally:
@@ -281,12 +325,12 @@ async def test_active_user_input_prevents_native_send(world, monkeypatch):
     from agent_computer_use.factory import create_subagent
 
     monkeypatch.setattr(native, "inputs_idle", lambda: False)
-    agent = create_subagent({"macos": native_config()})
+    agent = create_subagent({"macos": macos_policy()})
     agent.controller.selector = Select()
     ctx = context()
     try:
         outputs = [o async for o in agent.run(
-            SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+            SubAgentRequest("Increment", "", "task", targeted()), ctx)]
         assert outputs[-1].metadata["task_result"]["reason"] == "not_sent"
         assert agent.controller.receipts[0].reason == "user_input_active"
         assert not world.sent
@@ -298,13 +342,12 @@ async def test_active_user_input_prevents_native_send(world, monkeypatch):
 async def test_native_explicit_scope_exclusions_are_not_executable(world):
     from agent_computer_use.factory import create_subagent
 
-    config = {**native_config(), "blocked_identifiers": ["increment"]}
-    agent = create_subagent({"macos": config})
+    agent = create_subagent({"macos": macos_policy(blocked_identifiers=["increment"])})
     agent.controller.selector = Select()
     ctx = context()
     try:
         outputs = [o async for o in agent.run(
-            SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+            SubAgentRequest("Increment", "", "task", targeted()), ctx)]
         assert outputs[-1].metadata["task_result"]["reason"] == "no_viable_actions"
         assert not world.sent
     finally:
@@ -331,7 +374,10 @@ def test_native_pilot_prepares_bounded_cases_without_desktop_or_credentials(tmp_
     with pytest.raises(ValueError, match="freeze"):
         s4_ax.load_freeze(tmp_path / "pilot", "wrong")
     for case in frozen["cases"]:
-        contract = GoalContract.from_input(s4_ax.task_goal(case))
+        task = s4_ax.task_goal(case)
+        assert task["target"]["application"].startswith("com.apple.")
+        task.pop("target")
+        contract = GoalContract.from_input(task)
         assert "milestones" not in contract.model_dump()
         assert all(f.key.startswith("ax:value:") for f in contract.completion)
 
@@ -392,6 +438,27 @@ async def _run_fake_calculator_batch(world, monkeypatch, tmp_path, cases):
     monkeypatch.setattr(s4_ax.OwnedApplication, "close", lambda self: {"confirmed": True})
     monkeypatch.setattr(MacOSInputCleanup, "_state", staticmethod(lambda: ([], [])))
     monkeypatch.setattr(MacOSInputCleanup, "_release", lambda self: {"errors": []})
+    profile = {
+        "dispatch": "ax_press", "labels": "accessible_name",
+        "readouts": [
+            {"name": "result", "role": "AXStaticText", "identifier": "result"},
+            {"name": "expression", "role": "AXStaticText", "ancestor_identifier": "expression-region",
+             "aggregation": "compact_text", "allow_empty": True}],
+    }
+    monkeypatch.setattr(s4_ax, "channel_policy", lambda case: {
+        "profiles": {"test.counter": {**profile, "dispatch": case["dispatch"]}}})
+    # Keep goals aligned with the fake AX tree while targeting the fixture bundle.
+    def fake_goal(case):
+        return {
+            "target": {"application": "test.counter"},
+            "schema_version": 2, "goal_id": case["id"], "intent": "calc", "objective": "calc",
+            "scope": case["id"], "authorization_ref": "current_task",
+            "allowed_operations": ["click"], "inputs": [],
+            "completion": [{"key": "ax:value:expression", "value": "7×8"},
+                           {"key": "ax:value:result", "value": "56"}],
+            "constraints": [],
+        }
+    monkeypatch.setattr(s4_ax, "task_goal", fake_goal)
     output = tmp_path / "pilot"
     frozen = s4_ax.prepare(output)
     return frozen, await s4_ax.run_batch(output, frozen["sha256"], mode="fake")
@@ -628,15 +695,15 @@ async def test_native_selector_uses_real_sdk_and_preserves_stop_boundaries(world
     if stop == "budget":
         ctx.budget.limit = 1
         ctx.budget.record("existing", 1, 0)
-    agent = create_subagent({"macos": native_config(), "selector": "jev"})
+    agent = create_subagent({"macos": macos_policy(), "selector": "jev"})
     try:
         if stop == "cancel":
             with pytest.raises(SubAgentCancelled):
                 _ = [o async for o in agent.run(
-                    SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+                    SubAgentRequest("Increment", "", "task", targeted()), ctx)]
         else:
             outputs = [o async for o in agent.run(
-                SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+                SubAgentRequest("Increment", "", "task", targeted()), ctx)]
             assert outputs[-1].metadata["task_result"]["status"] == ("completed" if stop is None else "stopped")
         assert len(sent) == (0 if stop == "budget" else 1)
         assert len(world.sent) == (1 if stop is None else 0)
@@ -662,12 +729,12 @@ async def test_native_cleanup_failure_cannot_claim_success(world, monkeypatch):
         raise RuntimeError("left button still held")
     monkeypatch.setattr(native.macos, "_click_macos", click)
     monkeypatch.setattr(native, "release_uncertain_pointer", cleanup)
-    agent = create_subagent({"macos": native_config("quartz")})
+    agent = create_subagent({"macos": macos_policy("quartz")})
     agent.controller.selector = Select()
     ctx = context()
     try:
         adapter = SubAgentAdapter("native", agent, SubAgentRequest(
-            "Increment", "", "task", goal().model_dump(mode="json")), ctx)
+            "Increment", "", "task", targeted()), ctx)
         with pytest.raises(SubAgentCleanupError) as error:
             _ = [o async for o in adapter.run(AgentState())]
         assert error.value.task_result is not None
@@ -692,11 +759,11 @@ async def test_native_cancel_joins_inflight_action_before_cleanup(world, monkeyp
         world.sent.append(("press", ref))
         world.value = "1"
     monkeypatch.setattr(native, "ax_press", press)
-    agent = create_subagent({"macos": native_config()})
+    agent = create_subagent({"macos": macos_policy()})
     agent.controller.selector = Select()
     ctx = context()
     adapter = SubAgentAdapter("native", agent, SubAgentRequest(
-        "Increment", "", "task", goal().model_dump(mode="json")), ctx)
+        "Increment", "", "task", targeted()), ctx)
     async def run():
         return [o async for o in adapter.run(AgentState())]
     running = asyncio.create_task(run())
@@ -719,13 +786,13 @@ async def test_native_cancel_joins_inflight_action_before_cleanup(world, monkeyp
 async def test_native_channel_cannot_reset_existing_operation_limits(world, kind):
     from agent_computer_use.factory import create_subagent
 
-    agent = create_subagent({"macos": native_config()})
+    agent = create_subagent({"macos": macos_policy()})
     agent.controller.selector = Select()
     ctx = context()
     ctx.runtime.restrict_operations(**{kind: 0})
     try:
         outputs = [o async for o in agent.run(
-            SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+            SubAgentRequest("Increment", "", "task", targeted()), ctx)]
         assert outputs[-1].metadata["task_result"]["status"] == "stopped"
         assert not world.sent
         if kind == "observations":
@@ -772,7 +839,7 @@ async def test_native_foreground_lost_at_dispatch_is_known_not_sent(world, monke
     from agent_computer_use.factory import create_subagent
     from tank_backend.agents.subagent import SubAgentStopped
 
-    agent = create_subagent({"macos": native_config()})
+    agent = create_subagent({"macos": macos_policy()})
     agent.controller.selector = Select()
     original = agent.controller.executor.is_current
     async def preflight(*args):
@@ -785,7 +852,7 @@ async def test_native_foreground_lost_at_dispatch_is_known_not_sent(world, monke
     ctx = context()
     try:
         outputs = [o async for o in agent.run(
-            SubAgentRequest("Increment", "", "task", goal().model_dump(mode="json")), ctx)]
+            SubAgentRequest("Increment", "", "task", targeted()), ctx)]
         result = outputs[-1].metadata["task_result"]
         assert result["status"] == "stopped"
         assert result["details"]["receipts"][0]["status"] == "not_sent"
@@ -815,7 +882,8 @@ async def test_pilot_records_sdk_failure_before_unknown_usage_stop(world, monkey
         def close(self):
             return {"confirmed": True}
     monkeypatch.setattr(s4_ax, "OwnedApplication", Owner)
-    monkeypatch.setattr(s4_ax, "task_goal", lambda case: goal().model_dump(mode="json"))
+    monkeypatch.setattr(s4_ax, "channel_policy", lambda case: macos_policy(case["dispatch"]))
+    monkeypatch.setattr(s4_ax, "task_goal", lambda case: targeted())
     monkeypatch.setattr(MacOSInputCleanup, "_state", staticmethod(lambda: ([], [])))
     monkeypatch.setattr(MacOSInputCleanup, "_release", lambda self: {"errors": []})
     original_http = s4_ax.fake_model_http
@@ -849,7 +917,8 @@ async def test_native_model_view_compacts_references_without_dropping_candidates
 
     world.buttons = [replace(world.button, index=i, title=str(i), identifier=str(i),
                              element=AXElementRef(object(), False, 80)) for i in range(54)]
-    channel = NativeAXChannel(NativeConfig.model_validate_json(json.dumps(native_config())))
+    channel = NativeAXChannel(
+        config=NativeConfig.model_validate_json(json.dumps(native_config())))
     ctx = context()
     ctx.runtime.bind("task")
     try:
@@ -951,12 +1020,13 @@ async def test_configured_native_advisor_interrupts_wandering_jev(world, monkeyp
         ctx.budget.limit = 40
     ctx.runtime.configure_model("task", LLMProfile(
         "advisor", "test-key", "planner", "https://offline.invalid/v1", max_tokens=128))
-    agent = create_subagent({"macos": native_config(), "selector": "jev", "advisor": "llm"})
+    agent = create_subagent({"macos": macos_policy(), "selector": "jev", "advisor": "llm"})
     task = goal().model_dump(mode="json")
     task["completion"] = [{"key": "ax:value:result", "value": "100"}]
     try:
         async def run():
-            return [o async for o in agent.run(SubAgentRequest("Finish", "", "task", task), ctx)]
+            return [o async for o in agent.run(
+                SubAgentRequest("Finish", "", "task", targeted(task)), ctx)]
         if stop == "cancel":
             with pytest.raises(SubAgentCancelled):
                 await run()
@@ -995,5 +1065,5 @@ def test_native_readouts_may_be_empty_but_keep_rules_when_present(readouts, vali
         with pytest.raises(ValidationError):
             NativeConfig.model_validate_json(payload)
         return
-    channel = NativeAXChannel(NativeConfig.model_validate_json(payload))
+    channel = NativeAXChannel(config=NativeConfig.model_validate_json(payload))
     assert channel.completion_keys == frozenset()

@@ -100,7 +100,8 @@ def task_goal(case: PilotCase) -> dict[str, Any]:
         inputs = [{"key": "body", "purpose": "the complete document body", "value": text}]
         completion = [{"key": "ax:value:document", "value": text}]
         operations = ["fill"]
-    return {"schema_version": 2, "goal_id": case["id"], "intent": objective,
+    return {"target": {"application": BUNDLES[case["application"]]},
+            "schema_version": 2, "goal_id": case["id"], "intent": objective,
             "objective": objective, "scope": case["id"], "authorization_ref": "current_task",
             "allowed_operations": operations, "inputs": inputs, "completion": completion,
             "constraints": ["Operate only this bound application window; do not change modes or memory."]}
@@ -115,21 +116,42 @@ def channel_readouts(application: str) -> list[dict[str, Any]]:
     return [{"name": "document", "role": "AXTextArea", "identifier": "First Text View"}]
 
 
+def macos_policy() -> dict[str, Any]:
+    return {"profiles": {
+        BUNDLES["calculator"]: {
+            "dispatch": "ax_press", "labels": "accessible_name",
+            "blocked_identifiers": list(BLOCKED_IDS), "blocked_labels": list(BLOCKED_LABELS),
+            "readouts": channel_readouts("calculator"),
+        },
+        BUNDLES["textedit"]: {
+            "dispatch": "ax_press", "labels": "identifier",
+            "readouts": channel_readouts("textedit"),
+        },
+    }}
+
+
+def channel_policy(case: PilotCase) -> dict[str, Any]:
+    policy = macos_policy()
+    profile = {**policy["profiles"][BUNDLES[case["application"]]], "dispatch": case["dispatch"]}
+    return {"profiles": {**policy["profiles"], BUNDLES[case["application"]]: profile}}
+
+
 def freeze_inputs() -> dict[str, Any]:
     from tank_backend.agents import subagent, task_runtime, runner, subagent_adapter, task_resources
     from tank_backend.llm import decision_model, task_decision_model, model_call, decision_profile, task_model
     from tank_backend.benchmarks import model_policy, spend_ledger
     from benchmarks.computer_use import jev_smoke
+    from agent_computer_use.channels import apps as apps_channel
 
     root = Path(__file__).resolve().parents[2]
     paths = [Path(__file__), root / "plugins/agent-computer-use/plugin.yaml",
              *(Path(inspect.getfile(module)) for module in (
-        action_builder, contracts, controller, factory, observation, native, computer_ax,
-        computer_native, computer_use_macos, subagent, task_runtime, decision_model,
+        action_builder, contracts, controller, factory, observation, native, apps_channel,
+        computer_ax, computer_native, computer_use_macos, subagent, task_runtime, decision_model,
         task_decision_model, model_call, agent, jev, runner, subagent_adapter, task_resources,
         decision_profile, jev_smoke, advisor, task_model, model_policy, spend_ledger, model_view,
     ))]
-    data = {"revision": "s4-ax-focus-1", "cases": list(CASES), "model": MODELS["jev"],
+    data = {"revision": "s4-ax-bind-1", "cases": list(CASES), "model": MODELS["jev"],
             "advisor_model": {**MODELS["qwen"], "output_ceiling": 2048},
             "fake_advisor_endpoint": FAKE_ADVISOR_ENDPOINT,
             "advisor_call_limit": 4,
@@ -140,8 +162,10 @@ def freeze_inputs() -> dict[str, Any]:
             "readouts": {app: channel_readouts(app) for app in ("calculator", "textedit")},
             "calculator_exclusions": {"identifiers": BLOCKED_IDS, "labels": BLOCKED_LABELS},
             "goals": {case["id"]: task_goal(case) for case in CASES},
+            "macos_policy": macos_policy(),
             "scope": "new owned Calculator and temporary TextEdit documents, main display only",
-            "setup": "fresh process; Calculator All Clear; optional window move before observation",
+            "setup": ("fresh process owned by the pilot; plugin reuses that instance via production "
+                      "bind; Calculator All Clear; optional window move before observation"),
             "acceptance": "all nine goals independently verified, at least one model-selected native action per trial, cleanup confirmed",
             "stop_policy": ("known settled case failures stay in the denominator and the batch continues; "
                             "errors, unknown effects/receipts/usage, cancellation or unconfirmed cleanup "
@@ -586,18 +610,20 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                         "decision_models": {"jev": {"url": endpoint,
                             "model": frozen["model"]["model"], "credential_env": "TANK_S4_JEV_KEY"}},
                         "subagents": {"agent-computer-use:agent": {"config": {
-                            "macos": config.model_dump(mode="json"), "selector": "jev", "advisor": "llm"}}},
+                            "macos": channel_policy(case), "selector": "jev", "advisor": "llm"}}},
                     })
                     runner = AgentRunner(MagicMock(spec=LLM), MagicMock(spec=ToolManager), Bus(),
                         ToolApprovalPolicy(computer_mode="allow"), PendingToolCallStore(),
                         {definition.name: definition}, registry=registry, app_config=app_config,
                         desktop_resource=resource)
+                    # Bind consumes one audited action before the model-selected steps.
                     outputs = [item async for item in runner.run_agent(
                         definition, [], task_id=case["id"], task_input=task_goal(case),
                         authorization=SubAgentAuthorization(frozenset({"desktop", "network"})),
                         model_policy=Policy(case["max_decisions"]), model_capture=capture, audit=audit,
                         observer=observer,
-                        max_actions=case["max_decisions"], max_observations=1 + 3 * case["max_decisions"],
+                        max_actions=case["max_decisions"] + 1,
+                        max_observations=1 + 3 * case["max_decisions"],
                         deadline=time.monotonic() + frozen["seconds_per_task"], desktop_cleanup=MacOSInputCleanup(),
                     )]
                     result = next(item.metadata["task_result"] for item in outputs if "task_result" in item.metadata)

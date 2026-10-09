@@ -9,7 +9,7 @@ import time
 import unicodedata
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -20,7 +20,12 @@ from tank_backend.tools.computer_native import run_native
 from tank_backend.tools import computer_use_macos as macos
 
 from .. import observation
-from ..contracts import Action, Binding, DispatchReceipt, Element, Fact, Snapshot, ValueChange
+from ..contracts import (
+    Action, Binding, DispatchReceipt, Element, Fact, Snapshot, Target, TargetBinding, ValueChange,
+)
+
+if TYPE_CHECKING:
+    from .apps import AppPlatform, MacOSPolicy
 
 
 class Readout(BaseModel):
@@ -189,19 +194,62 @@ def release_uncertain_pointer() -> None:
 
 
 class NativeAXChannel:
-    """Borrow a single process/window. Task shutdown never quits the user's app."""
+    """Resolve a request target, then borrow that process/window for the task."""
 
-    def __init__(self, config: NativeConfig) -> None:
-        self.config = config
-        self.completion_keys = frozenset(r.key for r in config.readouts)
+    def __init__(
+        self,
+        policy: MacOSPolicy | None = None,
+        *,
+        platform: AppPlatform | None = None,
+        roots: tuple[Path, ...] | None = None,
+        config: NativeConfig | None = None,
+    ) -> None:
+        from .apps import DEFAULT_ROOTS, MacOSPolicy, SystemPlatform
+
+        self.policy = policy if policy is not None else MacOSPolicy()
+        self.platform = platform if platform is not None else SystemPlatform()
+        self.roots = roots if roots is not None else DEFAULT_ROOTS
+        self.config: NativeConfig | None = None
+        self.completion_keys: frozenset[str] = frozenset()
         self.closed = False
         self.task_id: str | None = None
         self.window: NativeWindow | None = None
         self.source: observation.AXObservationSource | None = None
         self.previous: Snapshot | None = None
         self.lock = asyncio.Lock()
-        self.readout_refs = {r.name: uuid4().hex for r in config.readouts}
+        self.readout_refs: dict[str, str] = {}
         self.pointer_uncertain = False
+        self.launched = False
+        if config is not None:
+            self.apply_config(config)
+
+    def apply_config(self, config: NativeConfig, *, launched: bool = False) -> None:
+        self.config = config
+        self.completion_keys = frozenset(r.key for r in config.readouts)
+        self.readout_refs = {r.name: uuid4().hex for r in config.readouts}
+        self.launched = launched
+        self.window = None
+        self.source = None
+        self.previous = None
+
+    async def bind(self, target: Target, scope: str, context: SubAgentContext) -> TargetBinding:
+        from .apps import bind_application
+
+        async with self.lock:
+            self.check(context)
+            if self.config is not None:
+                raise SubAgentStopped("already_bound")
+
+            def run() -> TargetBinding:
+                bound = bind_application(
+                    target.application, scope=scope, platform=self.platform,
+                    profiles=dict(self.policy.profiles), roots=self.roots,
+                    denied_bundles=frozenset(self.policy.denied_bundles),
+                )
+                self.apply_config(bound.config, launched=bound.launched)
+                return bound.binding
+
+            return await run_native(run)
 
     def check(self, context: SubAgentContext) -> None:
         context.check("desktop")
@@ -213,6 +261,8 @@ class NativeAXChannel:
 
     def bound_window(self, context: SubAgentContext) -> NativeWindow:
         self.check(context)
+        if self.config is None:
+            raise SubAgentStopped("unbound_channel")
         window = read_window(self.config)
         self.check(context)
         return window
@@ -220,6 +270,8 @@ class NativeAXChannel:
     async def observe(self, scope: str, context: SubAgentContext) -> Snapshot:
         async with self.lock:
             self.check(context)
+            if self.config is None:
+                raise SubAgentStopped("unbound_channel")
             if scope != self.config.scope:
                 raise SubAgentStopped("scope_mismatch")
             self.task_id = context.runtime.task_id
@@ -280,11 +332,12 @@ class NativeAXChannel:
 
     def current(self, binding: Binding, action: Action, context: SubAgentContext) -> AXCandidate | None:
         self.check(context)
-        snapshot, source, window = self.previous, self.source, self.window
-        if (snapshot is None or source is None or window is None or not snapshot.complete
+        snapshot, source, window, config = self.previous, self.source, self.window, self.config
+        if (config is None or snapshot is None or source is None or window is None
+                or not snapshot.complete
                 or (binding.observation_id, binding.generation, binding.scope) !=
                 (snapshot.observation_id, snapshot.generation, snapshot.scope)
-                or read_window(self.config) != window):
+                or read_window(config) != window):
             return None
         selected = next((e for e in snapshot.elements if e.ref == action.target_ref), None)
         if (selected is None or not selected.enabled or action.operation not in selected.actions
@@ -318,16 +371,17 @@ class NativeAXChannel:
     ) -> DispatchReceipt:
         def send() -> DispatchReceipt:
             try:
+                config = self.config
                 target = self.current(binding, action, context)
                 window = self.window
-                if target is None or window is None or target.frame is None:
+                if config is None or target is None or window is None or target.frame is None:
                     return DispatchReceipt(action.id, "not_sent", "stale_reference")
                 x, y, width, height = target.frame
                 wx, wy, ww, wh = window.bounds
                 if not (wx <= x < x + width <= wx + ww and wy <= y < y + height <= wy + wh):
                     return DispatchReceipt(action.id, "not_sent", "target_outside_window")
                 point = (x + width // 2, y + height // 2)
-                if (action.operation == "click" and self.config.dispatch == "quartz"
+                if (action.operation == "click" and config.dispatch == "quartz"
                         and not pointer_target_is_exposed(window, *point)):
                     return DispatchReceipt(action.id, "not_sent", "target_occluded")
                 if self.bound_window(context) != window:
@@ -341,7 +395,7 @@ class NativeAXChannel:
                 if action.operation == "fill":
                     assert action.value is not None
                     ax_set_value(target.element, action.value)
-                elif self.config.dispatch == "ax_press":
+                elif config.dispatch == "ax_press":
                     ax_press(target.element)
                 else:
                     self.pointer_uncertain = True

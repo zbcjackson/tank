@@ -9,6 +9,8 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from tank_backend.agents.subagent import SubAgentStopped
+
 from ..contracts import TargetBinding, TargetUnavailable
 from .native import NativeConfig, Readout
 
@@ -174,6 +176,79 @@ class BoundApplication:
     launched: bool
     binding: TargetBinding
     config: NativeConfig
+
+
+class SystemPlatform:
+    """NSWorkspace / Quartz adapter; tests inject a fake platform instead."""
+
+    def running(self, bundle_id: str) -> list[RunningInstance]:
+        import AppKit
+
+        from .native import process_identity
+
+        apps = AppKit.NSWorkspace.sharedWorkspace().runningApplications()
+        found: list[RunningInstance] = []
+        for app in apps:
+            if app.bundleIdentifier() != bundle_id or app.activationPolicy() != 0:
+                continue
+            pid = int(app.processIdentifier())
+            identity = process_identity(pid)
+            if identity.bundle_id != bundle_id:
+                continue
+            found.append(RunningInstance(pid, identity.start, bundle_id))
+        return found
+
+    def launch(self, path: Path, bundle_id: str) -> RunningInstance:
+        import AppKit
+        import Foundation
+
+        from .native import process_identity
+
+        workspace = AppKit.NSWorkspace.sharedWorkspace()
+        configuration = AppKit.NSWorkspaceOpenConfiguration.configuration()
+        configuration.setCreatesNewApplicationInstance_(False)
+        configuration.setActivates_(True)
+        completed: list[tuple[object, object]] = []
+
+        def launched(app: object, error: object) -> None:
+            completed.append((app, error))
+
+        workspace.openApplicationAtURL_configuration_completionHandler_(
+            Foundation.NSURL.fileURLWithPath_(str(path)), configuration, launched)
+        for _ in range(200):
+            self.pump()
+            if completed:
+                break
+        app, _error = completed[0] if completed else (None, None)
+        if app is None:
+            raise SubAgentStopped("launch_unconfirmed")
+        pid = int(app.processIdentifier())  # type: ignore[attr-defined]
+        identity = process_identity(pid)
+        if identity.bundle_id != bundle_id:
+            raise SubAgentStopped("launch_unconfirmed")
+        return RunningInstance(pid, identity.start, bundle_id)
+
+    def activate(self, pid: int) -> None:
+        import AppKit
+
+        app = AppKit.NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
+        if app is None:
+            raise SubAgentStopped("instance_unavailable")
+        app.activateWithOptions_(0)
+
+    def windows(self, pid: int) -> list[int]:
+        from tank_backend.tools import computer_use_macos as macos
+
+        quartz = macos._load_quartz()
+        windows = quartz.CGWindowListCopyWindowInfo(quartz.kCGWindowListOptionOnScreenOnly, 0) or []
+        return [int(item["kCGWindowNumber"]) for item in windows
+                if item.get("kCGWindowOwnerPID") == pid and item.get("kCGWindowLayer") == 0]
+
+    def pump(self, seconds: float = 0.05) -> None:
+        import Foundation
+
+        Foundation.NSRunLoop.currentRunLoop().runUntilDate_(
+            Foundation.NSDate.dateWithTimeIntervalSinceNow_(seconds))
 
 
 def _wait_for_window(platform: AppPlatform, pid: int, *, waits: int = 200) -> int:

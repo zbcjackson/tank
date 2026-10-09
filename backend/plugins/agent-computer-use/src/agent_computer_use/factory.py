@@ -33,14 +33,16 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
                 or ("selector" in config and config["selector"] not in ("jev", "llm", "jev-fallback"))
                 or ("advisor" in config and config["advisor"] != "llm")):
             raise ValueError("Specify one explicit browser or macos channel")
-        from .channels.native import NativeAXChannel, NativeConfig
-
+        binder = None
         completion_keys = None
         max_candidates = 32
         if "macos" in config:
-            channel = NativeAXChannel(NativeConfig.model_validate_json(
-                json.dumps(config["macos"], allow_nan=False)))
-            completion_keys = channel.completion_keys
+            from .channels.apps import MacOSPolicy
+            from .channels.native import NativeAXChannel
+
+            policy = MacOSPolicy.model_validate_json(json.dumps(config["macos"], allow_nan=False))
+            channel = NativeAXChannel(policy)
+            binder = channel
             max_candidates = 64
         else:
             from .channels.dom import BrowserConfig, ManagedChromiumChannel
@@ -60,7 +62,7 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
         advisor = LLMAdvisor(allow_focus=selector is not None) if config.get("advisor") == "llm" else None
         return ComputerUseSubAgent(
             ComputerUseController(channel, channel, selector=selector, advisor=advisor,
-                                  completion_keys=completion_keys,
+                                  binder=binder, completion_keys=completion_keys,
                                   max_candidates=max_candidates), resources=(channel,),
         )
     channel = UnavailableChannel()
