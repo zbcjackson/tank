@@ -1232,3 +1232,80 @@ async def test_advisor_cannot_generate_an_undeclared_user_value():
     assert result.status == "needs_input"
     assert result.reason == "missing_user_input"
     assert advisor.calls == 0 and world.dispatched == []
+
+
+class Binder:
+    def __init__(self, error: Exception | None = None, keys=frozenset({"status:new_pdf"})):
+        from agent_computer_use.contracts import TargetBinding
+
+        self.calls = []
+        self.error = error
+        self.binding = TargetBinding("com.example.writer", True, keys)
+
+    async def bind(self, target, scope, ctx):
+        ctx.check("desktop")
+        self.calls.append((target.application, scope))
+        if self.error is not None:
+            raise self.error
+        return self.binding
+
+
+def targeted_goal(target: JsonValue = None) -> dict[str, JsonValue]:
+    task = export_goal().model_dump(mode="json")
+    if target is not None:
+        task["target"] = target
+    return task
+
+
+async def test_target_is_bound_before_observation_and_supplies_completion_keys() -> None:
+    world, binder = ExportWorld(), Binder()
+
+    class Witness(PickFirst):
+        async def choose(self, goal, snapshot, actions, ctx):
+            assert "target" not in goal.model_dump()
+            return await super().choose(goal, snapshot, actions, ctx)
+
+    ctx = context()
+    controller = ComputerUseController(world, world, selector=Witness(), binder=binder)
+    result = await controller.run(SubAgentRequest(
+        "Export", "", "task", targeted_goal({"application": "Writer"})), ctx)
+    assert (result.status, result.reason) == ("completed", "goal_verified")
+    assert binder.calls == [("Writer", "document")]
+    assert result.details["target"] == {"bundle_id": "com.example.writer", "launched": True}
+    assert [record.operation for record in ctx.runtime.records][:2] == [
+        "computer_use.bind", "computer_use.observe"]
+
+
+@pytest.mark.parametrize(("binder", "target", "status", "reason"), [
+    (Binder(), None, "needs_input", "target_required"),
+    (None, {"application": "Writer"}, "needs_input", "invalid_target"),
+    (Binder(), {"application": ""}, "needs_input", "invalid_target"),
+    (Binder(), {"application": "Writer", "pid": 1}, "needs_input", "invalid_target"),
+    (Binder(keys=frozenset()), {"application": "Writer"}, "needs_input",
+     "unsupported_completion_evidence"),
+])
+async def test_target_must_match_the_channel_before_any_observation(
+    binder, target, status, reason,
+) -> None:
+    world = ExportWorld()
+    result = await ComputerUseController(world, world, binder=binder).run(
+        SubAgentRequest("Export", "", "task", targeted_goal(target)), context())
+    assert (result.status, result.reason) == (status, reason)
+    assert world.observations == 0 and not world.dispatched
+
+
+async def test_target_binding_failures_end_without_observation_or_dispatch() -> None:
+    from agent_computer_use.contracts import TargetUnavailable
+    from tank_backend.agents.subagent import SubAgentStopped
+
+    for error, status, reason in (
+        (TargetUnavailable("application_ambiguous"), "needs_input", "application_ambiguous"),
+        (SubAgentStopped("launch_unconfirmed"), "stopped", "launch_unconfirmed"),
+    ):
+        world = ExportWorld()
+        result = await ComputerUseController(world, world, binder=Binder(error)).run(
+            SubAgentRequest("Export", "", "task", targeted_goal({"application": "Writer"})),
+            context())
+        assert (result.status, result.reason) == (status, reason)
+        assert "target" not in result.details
+        assert world.observations == 0 and not world.dispatched

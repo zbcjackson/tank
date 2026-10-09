@@ -36,6 +36,9 @@ from .contracts import (
     PlanningFocus,
     SelectionSource,
     Snapshot,
+    Target,
+    TargetBinding,
+    TargetUnavailable,
     progress_json,
 )
 
@@ -62,6 +65,12 @@ class ActionExecutor(Protocol):
     ) -> DispatchReceipt:
         """Recheck authority and reference at native dispatch; never retry unknown effects."""
         ...
+
+
+class TargetBinder(Protocol):
+    async def bind(
+        self, target: Target, scope: str, context: SubAgentContext, /,
+    ) -> TargetBinding: ...
 
 
 class Selector(Protocol):
@@ -129,11 +138,13 @@ class ComputerUseController:
         *,
         selector: Selector | None = None,
         advisor: Advisor | None = None,
+        binder: TargetBinder | None = None,
         completion_keys: frozenset[str] | None = None,
         max_candidates: int = 32,
     ) -> None:
         self.source, self.executor = source, executor
-        self.selector, self.advisor = selector, advisor
+        self.selector, self.advisor, self.binder = selector, advisor, binder
+        self.target: TargetBinding | None = None
         self.completion_keys = completion_keys
         self.builder = ActionBuilder(max_candidates)
         self.version = 1
@@ -151,6 +162,7 @@ class ComputerUseController:
         self.started = False
         self.observation: TaskOperation[str, Snapshot] | None = None
         self.dispatch: TaskOperation[ActionAttempt, DispatchReceipt] | None = None
+        self.binding: TaskOperation[tuple[Target, str], TargetBinding] | None = None
 
     def result(self, status: TaskStatus, reason: str) -> TaskResult:
         self.finish_focus("invalidated", reason)
@@ -181,6 +193,8 @@ class ComputerUseController:
                 ],
                 "pending_effect": self.pending_effect,
                 "progress": progress_json(self.progress),
+                **({"target": {"bundle_id": self.target.bundle_id, "launched": self.target.launched}}
+                   if self.target is not None else {}),
             },
         )
 
@@ -228,6 +242,13 @@ class ComputerUseController:
         )
         context.runtime.register(self.observation)
         context.runtime.register(self.dispatch)
+        if self.binder is not None:
+            binder = self.binder
+            self.binding = TaskOperation(
+                "computer_use.bind", frozenset({"desktop"}), "action",
+                lambda value: binder.bind(*value, context),
+            )
+            context.runtime.register(self.binding)
 
     def record_result(
         self, attempt: ActionAttempt, receipt: DispatchReceipt,
@@ -318,14 +339,28 @@ class ComputerUseController:
             self.register_operations(context)
             if request.task_input is None:
                 return self.result("needs_input", "goal_contract_required")
+            task_input = dict(request.task_input)
+            target_input = task_input.pop("target", None)
             try:
-                goal = GoalContract.from_input(request.task_input)
+                goal = GoalContract.from_input(task_input)
             except (ValueError, ValidationError):
                 return self.result("needs_input", "invalid_goal_contract")
+            try:
+                target = None if target_input is None else Target.from_input(target_input)
+            except (ValueError, ValidationError):
+                return self.result("needs_input", "invalid_target")
+            if (target is None) != (self.binder is None):
+                return self.result("needs_input", "target_required" if target is None else "invalid_target")
             if goal.authorization_ref not in {"current_task", request.task_id}:
                 raise SubAgentStopped("authorization_mismatch")
             self.goal_id = goal.goal_id
+            if target is not None:
+                assert self.binding is not None
+                self.target = await context.runtime.execute(self.binding, (target, goal.scope))
+                self.completion_keys = self.target.completion_keys
             return await self.loop(request, goal, context)
+        except TargetUnavailable as exc:
+            return self.result("needs_input", exc.reason)
         except asyncio.CancelledError as exc:
             raise SubAgentCancelled(self.result("stopped", "cancelled")) from exc
         except SubAgentStopped as exc:

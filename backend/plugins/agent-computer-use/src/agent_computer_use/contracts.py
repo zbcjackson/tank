@@ -4,15 +4,42 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeVar, cast
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 Operation = Literal["click", "fill"]
+Model = TypeVar("Model", bound="GoalModel")
 
 
 class GoalModel(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    @classmethod
+    def from_input(cls: type[Model], value: object) -> Model:
+        # JSON arrays become immutable tuples without coercing scalar values.
+        return cls.model_validate_json(json.dumps(value, allow_nan=False))
+
+
+class Target(GoalModel):
+    """Where the task runs; host-only, kept outside the goal shown to models."""
+
+    application: str = Field(min_length=1, max_length=256)
+
+
+@dataclass(frozen=True)
+class TargetBinding:
+    bundle_id: str
+    launched: bool
+    completion_keys: frozenset[str]
+
+
+class TargetUnavailable(Exception):
+    """The requested target cannot be bound uniquely; the user can clarify it."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 class Fact(GoalModel):
@@ -80,12 +107,6 @@ class GoalContract(GoalModel):
             resolved.update(ready)
             remaining = {key: value for key, value in remaining.items() if key not in ready}
         return self
-
-
-    @classmethod
-    def from_input(cls, value: object) -> GoalContract:
-        # JSON arrays become immutable tuples without coercing scalar values.
-        return cls.model_validate_json(json.dumps(value, allow_nan=False))
 
 
 @dataclass(frozen=True)
