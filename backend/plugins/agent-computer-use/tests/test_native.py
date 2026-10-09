@@ -1069,7 +1069,10 @@ def test_native_readouts_may_be_empty_but_keep_rules_when_present(readouts, vali
     assert channel.completion_keys == frozenset()
 
 
-async def test_native_observe_follows_a_new_window_of_the_same_process(world, monkeypatch):
+@pytest.mark.parametrize("missing_reason", ["foreground_changed", "window_unavailable"])
+async def test_native_observe_follows_a_new_window_of_the_same_process(
+    world, monkeypatch, missing_reason,
+):
     from agent_computer_use.channels.native import (
         NativeAXChannel, NativeConfig, NativeWindow, ProcessIdentity,
     )
@@ -1087,7 +1090,7 @@ async def test_native_observe_follows_a_new_window_of_the_same_process(world, mo
 
     def read_window(config):
         if config.window_id == 7:
-            raise SubAgentStopped("foreground_changed")
+            raise SubAgentStopped(missing_reason)
         assert config.window_id == 99
         return moved
 

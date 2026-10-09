@@ -275,7 +275,9 @@ class NativeAXChannel:
         try:
             window = read_window(self.config)
         except SubAgentStopped as exc:
-            if not follow or exc.reason != "foreground_changed":
+            # Same-process frontmost may change while the old window is still listed
+            # (foreground_changed) or already gone from the screen (window_unavailable).
+            if not follow or exc.reason not in ("foreground_changed", "window_unavailable"):
                 raise
             window = self.follow_window(context)
         self.check(context)
