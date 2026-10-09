@@ -218,9 +218,10 @@ class SystemPlatform:
             if completed:
                 break
         app, _error = completed[0] if completed else (None, None)
-        if app is None:
+        identifier = getattr(app, "processIdentifier", None)
+        if app is None or not callable(identifier):
             raise SubAgentStopped("launch_unconfirmed")
-        pid = int(app.processIdentifier())  # type: ignore[attr-defined]
+        pid = int(identifier())
         identity = process_identity(pid)
         if identity.bundle_id != bundle_id:
             raise SubAgentStopped("launch_unconfirmed")
