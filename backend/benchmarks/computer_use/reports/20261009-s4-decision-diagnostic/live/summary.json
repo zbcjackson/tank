@@ -1,0 +1,1057 @@
+{
+ "recipe_sha256": "e8d3b1c7ef987c2366c86b144d787667641a6cde30e6ac30f71596eb3958eab0",
+ "started_sha256": "e8d3b1c7ef987c2366c86b144d787667641a6cde30e6ac30f71596eb3958eab0",
+ "completed": true,
+ "desktop_operations": 0,
+ "sdk_calls": 51,
+ "spend": {
+  "limit_tokens": 6000000,
+  "limit_nano_usd": 250000000,
+  "charged_tokens": 752449,
+  "charged_nano_usd": 45491640,
+  "known_tokens": 752449,
+  "known_nano_usd": 45491640,
+  "reserved_tokens": 0,
+  "reserved_nano_usd": 0,
+  "limit_requests": 60,
+  "admitted_requests": 51
+ },
+ "stop_reason": null,
+ "request_statuses": [
+  "known"
+ ],
+ "arms": {
+  "grounding": {
+   "planned": 12,
+   "preferred": 12,
+   "repair_alternative": 0,
+   "handoff": 0,
+   "other_action": 0,
+   "invalid": 0,
+   "error": 0,
+   "not_run": 0,
+   "sdk_calls": 12,
+   "timed_returned_n": 12,
+   "median_returned_ms": 1374.1521044867113,
+   "known_estimate_nano_usd": 6885522,
+   "charged_estimate_nano_usd": 6885522,
+   "known_tokens": 169230
+  },
+  "archived": {
+   "planned": 12,
+   "preferred": 6,
+   "repair_alternative": 0,
+   "handoff": 0,
+   "other_action": 6,
+   "invalid": 0,
+   "error": 0,
+   "not_run": 0,
+   "sdk_calls": 12,
+   "timed_returned_n": 12,
+   "median_returned_ms": 1974.488437990658,
+   "known_estimate_nano_usd": 9676422,
+   "charged_estimate_nano_usd": 9676422,
+   "known_tokens": 249713
+  },
+  "current": {
+   "planned": 12,
+   "preferred": 12,
+   "repair_alternative": 0,
+   "handoff": 0,
+   "other_action": 0,
+   "invalid": 0,
+   "error": 0,
+   "not_run": 0,
+   "sdk_calls": 12,
+   "timed_returned_n": 12,
+   "median_returned_ms": 1409.4192915363237,
+   "known_estimate_nano_usd": 6910218,
+   "charged_estimate_nano_usd": 6910218,
+   "known_tokens": 169818
+  },
+  "advisor": {
+   "planned": 12,
+   "preferred": 11,
+   "repair_alternative": 0,
+   "handoff": 0,
+   "other_action": 1,
+   "invalid": 0,
+   "error": 0,
+   "not_run": 0,
+   "sdk_calls": 15,
+   "timed_returned_n": 12,
+   "median_returned_ms": 1373.4980416484177,
+   "known_estimate_nano_usd": 22019478,
+   "charged_estimate_nano_usd": 22019478,
+   "known_tokens": 163688
+  }
+ },
+ "rows": [
+  {
+   "case_id": "after-7",
+   "arm": "grounding",
+   "repeat": 0,
+   "trial": "after-7-grounding-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Multiply",
+   "control": null,
+   "elapsed_ms": 1300.000041956082,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13553,
+   "estimate_nano_usd": 550704
+  },
+  {
+   "case_id": "after-7",
+   "arm": "archived",
+   "repeat": 0,
+   "trial": "after-7-archived-0",
+   "status": "returned",
+   "classification": "other_action",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1439.7399160079658,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 20568,
+   "estimate_nano_usd": 796866
+  },
+  {
+   "case_id": "after-7",
+   "arm": "current",
+   "repeat": 0,
+   "trial": "after-7-current-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Multiply",
+   "control": null,
+   "elapsed_ms": 1385.5215411167592,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13602,
+   "estimate_nano_usd": 552762
+  },
+  {
+   "case_id": "after-7",
+   "arm": "advisor",
+   "repeat": 0,
+   "trial": "after-7-advisor-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Multiply",
+   "control": null,
+   "elapsed_ms": 1442.359667038545,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "advice_kind": "candidate",
+   "tokens": 9736,
+   "estimate_nano_usd": 1617330
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "archived",
+   "repeat": 0,
+   "trial": "after-operator-archived-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 5496.743333060294,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 20835,
+   "estimate_nano_usd": 807702
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "current",
+   "repeat": 0,
+   "trial": "after-operator-current-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1397.1747499890625,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14453,
+   "estimate_nano_usd": 588504
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "advisor",
+   "repeat": 0,
+   "trial": "after-operator-advisor-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1331.3577910885215,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "advice_kind": "candidate",
+   "tokens": 10312,
+   "estimate_nano_usd": 1712370
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "grounding",
+   "repeat": 0,
+   "trial": "after-operator-grounding-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1926.5281250700355,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14405,
+   "estimate_nano_usd": 586488
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "current",
+   "repeat": 0,
+   "trial": "before-equals-current-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 2355.0207500811666,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14630,
+   "estimate_nano_usd": 595938
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "advisor",
+   "repeat": 0,
+   "trial": "before-equals-advisor-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 1199.403417063877,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "advice_kind": "candidate",
+   "tokens": 10434,
+   "estimate_nano_usd": 1732500
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "grounding",
+   "repeat": 0,
+   "trial": "before-equals-grounding-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 1982.1839579381049,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14581,
+   "estimate_nano_usd": 593880
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "archived",
+   "repeat": 0,
+   "trial": "before-equals-archived-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 2460.1344580296427,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 21005,
+   "estimate_nano_usd": 813960
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "advisor",
+   "repeat": 0,
+   "trial": "repair-787-advisor-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Clear",
+   "control": null,
+   "elapsed_ms": 3472.852834034711,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 2,
+   "models": [
+    "qwen3.7-flash-2026-07-15",
+    "jev-1.13.0"
+   ],
+   "advice_kind": "focus",
+   "focus": {
+    "objective": "Clear the current incorrect input (787) and start entering the correct expression '7×8'.",
+    "completion": [
+     {
+      "key": "ax:value:expression",
+      "value": ""
+     },
+     {
+      "key": "ax:value:result",
+      "value": "0"
+     }
+    ]
+   },
+   "tokens": 24081,
+   "estimate_nano_usd": 2277846
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "grounding",
+   "repeat": 0,
+   "trial": "repair-787-grounding-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Clear",
+   "control": null,
+   "elapsed_ms": 1408.0193748231977,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13871,
+   "estimate_nano_usd": 564102
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "archived",
+   "repeat": 0,
+   "trial": "repair-787-archived-0",
+   "status": "returned",
+   "classification": "other_action",
+   "label": "Multiply",
+   "control": null,
+   "elapsed_ms": 2357.03816707246,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 20829,
+   "estimate_nano_usd": 806946
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "current",
+   "repeat": 0,
+   "trial": "repair-787-current-0",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Clear",
+   "control": null,
+   "elapsed_ms": 2273.6604169476777,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13921,
+   "estimate_nano_usd": 566202
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "archived",
+   "repeat": 1,
+   "trial": "after-operator-archived-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 2154.9454589840025,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 20835,
+   "estimate_nano_usd": 807702
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "current",
+   "repeat": 1,
+   "trial": "after-operator-current-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1179.6986658591777,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14453,
+   "estimate_nano_usd": 588504
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "advisor",
+   "repeat": 1,
+   "trial": "after-operator-advisor-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1162.9279998596758,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "advice_kind": "candidate",
+   "tokens": 10312,
+   "estimate_nano_usd": 1712370
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "grounding",
+   "repeat": 1,
+   "trial": "after-operator-grounding-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1293.590165907517,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14405,
+   "estimate_nano_usd": 586488
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "current",
+   "repeat": 1,
+   "trial": "before-equals-current-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 1388.7926251627505,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14630,
+   "estimate_nano_usd": 595938
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "advisor",
+   "repeat": 1,
+   "trial": "before-equals-advisor-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 1415.638292208314,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "advice_kind": "candidate",
+   "tokens": 10434,
+   "estimate_nano_usd": 1732500
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "grounding",
+   "repeat": 1,
+   "trial": "before-equals-grounding-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 1340.284834150225,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14581,
+   "estimate_nano_usd": 593880
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "archived",
+   "repeat": 1,
+   "trial": "before-equals-archived-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 1323.1399999931455,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 21005,
+   "estimate_nano_usd": 813960
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "advisor",
+   "repeat": 1,
+   "trial": "repair-787-advisor-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Clear",
+   "control": null,
+   "elapsed_ms": 2969.4304161239415,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 2,
+   "models": [
+    "qwen3.7-flash-2026-07-15",
+    "jev-1.13.0"
+   ],
+   "advice_kind": "focus",
+   "focus": {
+    "objective": "Clear the current incorrect input (787) and start entering the expression '7×8' correctly.",
+    "completion": [
+     {
+      "key": "ax:value:expression",
+      "value": ""
+     },
+     {
+      "key": "ax:value:result",
+      "value": "0"
+     }
+    ]
+   },
+   "tokens": 24082,
+   "estimate_nano_usd": 2277888
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "grounding",
+   "repeat": 1,
+   "trial": "repair-787-grounding-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Clear",
+   "control": null,
+   "elapsed_ms": 1986.4921669941396,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13871,
+   "estimate_nano_usd": 564102
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "archived",
+   "repeat": 1,
+   "trial": "repair-787-archived-1",
+   "status": "returned",
+   "classification": "other_action",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1019.6240418590605,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 20830,
+   "estimate_nano_usd": 806946
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "current",
+   "repeat": 1,
+   "trial": "repair-787-current-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Clear",
+   "control": null,
+   "elapsed_ms": 1427.9217920266092,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13921,
+   "estimate_nano_usd": 566202
+  },
+  {
+   "case_id": "after-7",
+   "arm": "grounding",
+   "repeat": 1,
+   "trial": "after-7-grounding-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Multiply",
+   "control": null,
+   "elapsed_ms": 1140.301916981116,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13553,
+   "estimate_nano_usd": 550704
+  },
+  {
+   "case_id": "after-7",
+   "arm": "archived",
+   "repeat": 1,
+   "trial": "after-7-archived-1",
+   "status": "returned",
+   "classification": "other_action",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 2439.0844590961933,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 20568,
+   "estimate_nano_usd": 796866
+  },
+  {
+   "case_id": "after-7",
+   "arm": "current",
+   "repeat": 1,
+   "trial": "after-7-current-1",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Multiply",
+   "control": null,
+   "elapsed_ms": 3038.940457860008,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13602,
+   "estimate_nano_usd": 552762
+  },
+  {
+   "case_id": "after-7",
+   "arm": "advisor",
+   "repeat": 1,
+   "trial": "after-7-advisor-1",
+   "status": "returned",
+   "classification": "other_action",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 873.7652078270912,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "advice_kind": "candidate",
+   "tokens": 9736,
+   "estimate_nano_usd": 1617330
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "current",
+   "repeat": 2,
+   "trial": "before-equals-current-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 1102.607375010848,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14630,
+   "estimate_nano_usd": 595938
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "advisor",
+   "repeat": 2,
+   "trial": "before-equals-advisor-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 1631.8441659677774,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "advice_kind": "candidate",
+   "tokens": 10434,
+   "estimate_nano_usd": 1732500
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "grounding",
+   "repeat": 2,
+   "trial": "before-equals-grounding-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 2769.9889589566737,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14581,
+   "estimate_nano_usd": 593880
+  },
+  {
+   "case_id": "before-equals",
+   "arm": "archived",
+   "repeat": 2,
+   "trial": "before-equals-archived-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Equals",
+   "control": null,
+   "elapsed_ms": 1794.0314169973135,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 21005,
+   "estimate_nano_usd": 813960
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "advisor",
+   "repeat": 2,
+   "trial": "repair-787-advisor-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Clear",
+   "control": null,
+   "elapsed_ms": 3374.5841670315713,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 2,
+   "models": [
+    "qwen3.7-flash-2026-07-15",
+    "jev-1.13.0"
+   ],
+   "advice_kind": "focus",
+   "focus": {
+    "objective": "Clear the current incorrect input (787) and start entering the expression '7×8'.",
+    "completion": [
+     {
+      "key": "ax:value:expression",
+      "value": ""
+     },
+     {
+      "key": "ax:value:result",
+      "value": "0"
+     }
+    ]
+   },
+   "tokens": 24079,
+   "estimate_nano_usd": 2277144
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "grounding",
+   "repeat": 2,
+   "trial": "repair-787-grounding-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Clear",
+   "control": null,
+   "elapsed_ms": 1286.0194169916213,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13871,
+   "estimate_nano_usd": 564102
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "archived",
+   "repeat": 2,
+   "trial": "repair-787-archived-2",
+   "status": "returned",
+   "classification": "other_action",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 2174.254707992077,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 20830,
+   "estimate_nano_usd": 806946
+  },
+  {
+   "case_id": "repair-787",
+   "arm": "current",
+   "repeat": 2,
+   "trial": "repair-787-current-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Clear",
+   "control": null,
+   "elapsed_ms": 1421.663833083585,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13921,
+   "estimate_nano_usd": 566202
+  },
+  {
+   "case_id": "after-7",
+   "arm": "grounding",
+   "repeat": 2,
+   "trial": "after-7-grounding-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Multiply",
+   "control": null,
+   "elapsed_ms": 1204.3720420915633,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13553,
+   "estimate_nano_usd": 550704
+  },
+  {
+   "case_id": "after-7",
+   "arm": "archived",
+   "repeat": 2,
+   "trial": "after-7-archived-2",
+   "status": "returned",
+   "classification": "other_action",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1237.7888748887926,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 20568,
+   "estimate_nano_usd": 796866
+  },
+  {
+   "case_id": "after-7",
+   "arm": "current",
+   "repeat": 2,
+   "trial": "after-7-current-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Multiply",
+   "control": null,
+   "elapsed_ms": 1335.7463330030441,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 13602,
+   "estimate_nano_usd": 552762
+  },
+  {
+   "case_id": "after-7",
+   "arm": "advisor",
+   "repeat": 2,
+   "trial": "after-7-advisor-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "Multiply",
+   "control": null,
+   "elapsed_ms": 970.3157499898225,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "advice_kind": "candidate",
+   "tokens": 9736,
+   "estimate_nano_usd": 1617330
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "archived",
+   "repeat": 2,
+   "trial": "after-operator-archived-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 906.8257920444012,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 20835,
+   "estimate_nano_usd": 807702
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "current",
+   "repeat": 2,
+   "trial": "after-operator-current-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1436.394624877721,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14453,
+   "estimate_nano_usd": 588504
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "advisor",
+   "repeat": 2,
+   "trial": "after-operator-advisor-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1046.267416095361,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "qwen3.7-flash-2026-07-15"
+   ],
+   "advice_kind": "candidate",
+   "tokens": 10312,
+   "estimate_nano_usd": 1712370
+  },
+  {
+   "case_id": "after-operator",
+   "arm": "grounding",
+   "repeat": 2,
+   "trial": "after-operator-grounding-2",
+   "status": "returned",
+   "classification": "preferred",
+   "label": "8",
+   "control": null,
+   "elapsed_ms": 1487.6893749460578,
+   "desktop_operations": 0,
+   "cleanup_confirmed": true,
+   "sdk_calls": 1,
+   "models": [
+    "jev-1.13.0"
+   ],
+   "tokens": 14405,
+   "estimate_nano_usd": 586488
+  }
+ ]
+}

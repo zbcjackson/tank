@@ -1,8 +1,10 @@
 # Frozen native decision diagnostic
 
-Date: 2026-10-09. Status: executor verified and reviewed; live execution blocked
-before process creation by automatic approval review. **0 external calls, 0 desktop
-operations, all 48 planned rows not run.** This is not a failed model response.
+Date: 2026-10-09. Status: executor verified and reviewed; the first live attempt
+was blocked before process creation by automatic approval review. After the user
+explicitly confirmed this scope, the unchanged recipe ran once: **48/48 rows
+completed, 51 SDK calls with known usage, 0 desktop operations, no batch stop.**
+Results are in [Live results](#live-results).
 
 ## Frozen recipe
 
@@ -66,7 +68,7 @@ substitute endpoint followed. There is no `started.json`, live model result or
 spend journal for this batch. [preparation.json](preparation.json) records this
 state separately, without fabricating model results.
 
-After explicit confirmation of this scope, the unchanged recipe can be run once:
+After explicit confirmation of this scope, the unchanged recipe was run once:
 
 ```bash
 cd backend
@@ -74,6 +76,63 @@ caffeinate -is uv run python -m benchmarks.computer_use.s4_replay \
   --output benchmarks/computer_use/reports/20261009-s4-decision-diagnostic/live \
   --run --approved-sha256 e8d3b1c7ef987c2366c86b144d787667641a6cde30e6ac30f71596eb3958eab0
 ```
+
+## Live results
+
+The user explicitly confirmed the data, both destinations, 60 calls and the $0.25
+estimate ceiling on 2026-10-09; the command above ran once (94.5 s wall) with the
+executor's recipe, archive, source and SDK checks passing. `freeze.json` is
+unchanged (same file SHA-256 as above). All 51 admitted requests settled with
+known usage: **752,449 tokens, $0.0455 under the frozen price contract**; no
+budget, provider, audit, capture, cancellation or cleanup stop.
+
+| Arm | Preferred | Other action | Invalid/handoff/error | SDK calls | Median ms | Estimate |
+|---|---|---|---|---|---|---|
+| Explicit-button grounding | 12/12 | 0 | 0 | 12 | 1374 | $0.0069 |
+| Archived whole-goal input | 6/12 | 6 | 0 | 12 | 1974 | $0.0097 |
+| Current compact view + history | **12/12** | 0 | 0 | 12 | 1409 | $0.0069 |
+| Advisor candidate/focus → Jev | 11/12 | 1 | 0 | 15 | 1373 | $0.0220 |
+
+Per state (preferred / 3 repeats):
+
+| State | Grounding | Archived | Current | Advisor |
+|---|---|---|---|---|
+| `7` → Multiply | 3 | **0** (`8` ×3) | 3 | 2 (`8` ×1) |
+| `7×` → `8` | 3 | 3 | 3 | 3 |
+| `7×8` → Equals | 3 | 3 | 3 | 3 |
+| `787` → Clear | 3 | **0** (Multiply, `8`, `8`) | 3 | 3 (focus) |
+
+Observations, limited to these four frozen states:
+
+- The archived input repeated the original live failure pattern: after `7` it
+  skipped the operator, and on `787` it kept entering digits instead of repairing.
+  That input carried only `progress.recent_action` / `verified_actions` UUIDs. The
+  current arm sent the same 44 candidates plus `recent_actions` (label, operation,
+  dispatch/effect status and readback `before→after`, e.g. `result 7→78`) and
+  chose the preferred action in every row. Presentation, aliases, shared checks and
+  history changed together, so the gain is not attributable to any single factor.
+- Advisor returned a candidate on the `7`, `7×` and `7×8` states (one Advisor call,
+  no Jev call) and a validated focus on all three `787` rows ("clear 787, then
+  enter 7×8"; completion `expression=""`, `result="0"`), after which Jev chose
+  Clear on the same frozen snapshot — hence 15 calls. The single miss
+  (`after-7-advisor-1`) was the Advisor's own candidate `8`, not a Jev choice.
+  The Advisor arm's estimate was about 2.3–3.2× each Jev-only arm's.
+- Delete (repair alternative), handoff controls and invalid proposals never
+  occurred, so this batch says nothing about abstention or control calibration.
+
+These are selection judgements on frozen snapshots, not UI effects, task success,
+planning stability across fresh observations or G3 resumption. Three repeats of
+four states do not support generalisation or production thresholds.
+
+Archived artifacts (uncompressed originals stay local): [live/summary.json](live/summary.json)
+(per-row arm/state/choice/calls/tokens), `live/result.json.gz` (inline model
+requests/responses), `live/spend.jsonl.gz`, `live/audit.jsonl.gz` and
+`live/started.json`. Uncompressed SHA-256: `result.json`
+`4f38d9446aed5ca4f939febef4e507e583654881b819bc6b3dd2f35f1bfbd4eb`, `spend.jsonl`
+`f7de7d54e60b5728422d12d96eda2d047cec6cfdfc6dc7d38efa7a632f396455`, `audit.jsonl`
+`2826a9af9b74c17d963eed5c3e4f0ffa246584a0c7adb934c4f2705fda9d1d52`. The local
+`calls.jsonl` duplicates the inline calls and is not archived. A credential scan
+of all live files found no key material. Run log: `/tmp/tank-s4-diagnostic-live.log`.
 
 ## Tests and verification
 
