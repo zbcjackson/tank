@@ -51,6 +51,22 @@ outcomes, native input bindings, receipts and pending effects are retained in pr
 Generic task resume is not implemented. The PDF fixture is synthetic and does not prove
 filesystem output or overwrite protection.
 
+`GoalProgress.recent_steps` retains the last ten admitted action attempts, numbered across
+the task. Each records target semantics, input, selection source (`rules`, `selector`, or
+`advisor`), before/after observation identity, separate dispatch/effect status, and observed
+changes for the selected field or the candidate's readout/effect facts. A missing fact is
+`null`, distinct from an observed empty string. Incomplete/not-ready observations do not
+produce change evidence. The entry is created before dispatch, so exceptions/cancellation
+cannot erase an attempted mutation. `not_sent` is distinct from an unresolved effect;
+verified local effects still do not establish goal progress or task completion.
+
+`model_view.py` is the shared, pure request projection for Jev, text selection and Advisor.
+It exposes `state.recent_actions` without executable references or old action/observation
+IDs, and replaces the model-facing verified-ID list with `verified_action_count`. Original
+contracts and receipts stay host-owned. Candidate IDs/content and all offered candidates
+are preserved in this slice; short action aliases and further payload compression remain
+separate experiments. No persistent Advisor focus or new confidence gate is enabled.
+
 ## Tests
 
 From `backend/`, after installing the workspace plugin:

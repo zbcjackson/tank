@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-08：S0–S2 按各自范围完成；S3 修订后的 R1–R4 验收收口，48 次真实策略对照未证明净收益，Jev 保持默认禁用；S3-M 核心 SDK 迁移验收完成，S4 首批 DOM 闭环已验收，S4-AX 原生实现与 fake HTTP 实机九项通过，真实 Jev 超长请求问题已定位并压缩，十二次选择/AXPress 成功但任务到限停批（0/1/8）；S4-R4 文本 Advisor 首批离线验收与评审完成；完整原生实测、恢复及真实 Advisor 规划能力尚未验收，S5–S6 未完成）。
+> 状态：进行中（2026-10-09：S0–S3 按各自范围收口，Jev 仍默认禁用；S4 DOM 与原生通道已实现，双模型原生 fake HTTP 九项通过，真实 Advisor 批次 1 成功 / 1 未知失败 / 7 未运行；语义执行记录与独立模型视图首片离线验收及评审完成，真实重测留待后续；原生整体、恢复、规划稳定性及 S5–S6 尚未完成）。
 
 > 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
 > 2026-10-03 当前决策：S3 按下文“当前计划”收口，验证 Jev 作为可回退策略环节的边际价值。历史批次按原协议的判分保留；`conflicting` 三例预期缺少充分任务契约支持，不作为 Jev 错误或宿主缺陷证据，不据此新增身份一致性拦截。
@@ -2402,6 +2402,52 @@ ruff/pyright/web lint/tsc/docs/diff 与前后端错误查询均通过。独立�
 规划呈现，每次只变一个因素，保留全部候选和目标、正反状态与重复试验，再决定
 生产改动。**Tests**：回放前验证原始 ID 可逆映射、全候选保留、目标不变、限额与
 停批；**最终步骤**仍执行 §10 全部适用检查及最多三轮独立评审。当前未执行该回放。
+
+#### S4-R4 第三批：语义执行记录与模型视图（2026-10-09，首片离线验收与评审完成）
+
+用户要求先更新计划、再改进，之后继续测试。本批依据
+[三项目源码对比](../../research/jev-computer-use-comparison.md)，优先补齐模型可理解的
+动作历史与独立视图构建；生产目标契约不引入兼容分支。
+
+**应用交互差异**：ultrafast 使用浏览器 DOM/CDP，jev-bot 通过 Cua Driver 的窗口与
+元素 token 操作原生 AX，awlevin 合并 OCR/AX 且部分动作有坐标回退。Tank 当前原生
+读取 AX，按进程实例/窗口绑定做 AXPress、显式 Quartz 或 AXValue，动作后重新读回。
+这次 Calculator 已有真实成功和完整候选，不据此更换驱动、追加 OCR 或放宽未知重放。
+
+1. **先做语义记录**：在运行时准许派发的边界、任何外部效果之前记录动作、目标标签/
+   角色/语义上下文、输入、选择来源及观察身份；分别更新派发状态与效果核验状态。
+   后续观察产生事实/目标值 before→after，观察失败保留 unknown，不把变化等同于
+   目标进展。只将最近十条记录传入模型；旧执行引用不能变成本轮可用操作。
+2. **独立模型视图**：从 Jev 模块提取无 I/O 的视图/问题构建，Jev、文本 selector、
+   Advisor 与当前 benchmark 共用；模型进展展示语义历史和核验动作数量，不再依赖
+   更早动作的 UUID 列表。宿主保留原始 snapshot、ActionSet 和完整回执，保证目标、
+   全候选、绑定及授权一致。此片先保持候选 ID/候选内容，便于后续独立比较短别名和
+   字段压缩，不把多种提示变化混在一次不可归因的真实试验里。
+3. **后续分片**：候选短别名与精简/去重视图、动态 focus 生命周期、经过独立校准的
+   不确定性交接分别实施和验收。focus 不改变整体目标/输入/权限；不直接照搬 0.7。
+   多 Choice 与自动应用/通道路由另外评估，不作为本次全 click 失败的既定修复。
+4. **Tests（TDD）**：扩展已有 ladder/jev/native/DOM 测试，覆盖连续 click/fill 的语义
+   历史、前后值、rules/selector/Advisor 来源、最近十条边界、not_sent/unknown/
+   观察失败/取消/过期引用、目标进展不被局部变化伪造，以及真实 Runner/SDK 的 fake
+   HTTP 收到一致记录。纯视图构建不修改原契约或丢失候选；冻结新增模块，旧真实配方
+   因源码变化失效但历史档案保留。本批不运行付费模型或真实 macOS 应用试验。
+5. **最终步骤**：执行 §10 完整 Verification Checklist 所有适用项：web lint/tsc-b、
+   backend/CLI ruff、backend 全量 pytest、修改 Python 文件 pyright、开发服务错误查询、
+   现有 E2E、docs check；协议若有变动执行 protocol sync。完成最多三轮独立
+   review-and-refactor 后提交。离线通过不宣称真实规划已改善，后续再冻结回放/实机批次。
+
+**首片实现与验证**：上述第 1、2 项已实现，新增 `ExecutionStep`/`ObservedChange` 与
+`model_view.py`，所有现用 selector/Advisor/benchmark 导入已迁移，冻结包含新模块。
+代码保留候选 ID 与完整数据绑定，第 3 项仍是后续分片。插件 **386 passed**，全后端
+**5696 passed / 1 skipped / 21 warnings**（340.89 秒，要求 Chromium），E2E **18 场景 /
+71 步**（85.73 秒）；修改文件 pyright 零错误，backend/CLI ruff、web lint/tsc-b、
+docs/diff check 通过，前后端开发服务错误查询为空。协议未变。日志：
+`/tmp/tank-s4-history-targeted.log`、`/tmp/tank-s4-history-backend.log`、
+`/tmp/tank-s4-history-e2e.log`。本片没有付费模型或真实 macOS 应用操作。
+独立 review-and-refactor 第 1 轮基线 `10726fff`，核对完整差异、新模型视图与全部
+验证日志，未发现确认的可操作问题，无修改；复跑 ladder/jev/native **256 passed**、
+Advisor→Jev 真 Chromium 接线 **3 passed**，docs/diff check 通过后立即结束。
+协调者核对评审与此收尾元数据；后续分片及真实任务改善仍待验证。
 
 #### S4-AX：Jev + AX 操作真实 macOS 应用（2026-10-07，实现与受控实机通过，真实模型首项失败停批）
 
