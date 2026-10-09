@@ -138,6 +138,15 @@ def process_identity(pid: int) -> ProcessIdentity:
     return ProcessIdentity(start, identifier)
 
 
+def frontmost_window_id(pid: int) -> int | None:
+    """On-screen layer-0 window ordered first for this process, if any."""
+    quartz = macos._load_quartz()
+    windows = [w for w in (quartz.CGWindowListCopyWindowInfo(
+        quartz.kCGWindowListOptionOnScreenOnly, 0) or [])
+        if w.get("kCGWindowOwnerPID") == pid and w.get("kCGWindowLayer") == 0]
+    return int(windows[0]["kCGWindowNumber"]) if windows else None
+
+
 def read_window(config: NativeConfig) -> NativeWindow:
     """Read OS identity and geometry; never launch, activate or attach by window title."""
     identity = process_identity(config.pid)
@@ -259,13 +268,38 @@ class NativeAXChannel:
         if self.task_id not in (None, context.runtime.task_id):
             raise SubAgentStopped("task_mismatch")
 
-    def bound_window(self, context: SubAgentContext) -> NativeWindow:
+    def bound_window(self, context: SubAgentContext, *, follow: bool = False) -> NativeWindow:
         self.check(context)
         if self.config is None:
             raise SubAgentStopped("unbound_channel")
-        window = read_window(self.config)
+        try:
+            window = read_window(self.config)
+        except SubAgentStopped as exc:
+            if not follow or exc.reason != "foreground_changed":
+                raise
+            window = self.follow_window(context)
         self.check(context)
         return window
+
+    def follow_window(self, context: SubAgentContext) -> NativeWindow:
+        """Rebind to the same process's new frontmost window; never follow another app."""
+        self.check(context)
+        config = self.config
+        if config is None:
+            raise SubAgentStopped("unbound_channel")
+        if ax_focused_pid() != config.pid:
+            raise SubAgentStopped("foreground_changed")
+        if process_identity(config.pid) != ProcessIdentity(config.process_start, config.bundle_id):
+            raise SubAgentStopped("process_changed")
+        new_id = frontmost_window_id(config.pid)
+        if new_id is None or new_id == config.window_id:
+            raise SubAgentStopped("foreground_changed")
+        self.config = config.model_copy(update={"window_id": new_id})
+        if self.source is not None:
+            self.source.window_id = new_id
+            self.source.targets.clear()
+        self.window = None
+        return read_window(self.config)
 
     async def observe(self, scope: str, context: SubAgentContext) -> Snapshot:
         async with self.lock:
@@ -275,7 +309,7 @@ class NativeAXChannel:
             if scope != self.config.scope:
                 raise SubAgentStopped("scope_mismatch")
             self.task_id = context.runtime.task_id
-            window = await run_native(self.bound_window, context)
+            window = await run_native(lambda: self.bound_window(context, follow=True))
             self.check(context)
             if self.window and self.window.display_geometry != window.display_geometry:
                 raise SubAgentStopped("display_changed")
@@ -283,6 +317,10 @@ class NativeAXChannel:
                 self.source = observation.AXObservationSource(
                     window.window_id, window.display_geometry, scope,
                     use_identifiers=self.config.labels == "identifier")
+            elif self.source.window_id != window.window_id:
+                self.source.window_id = window.window_id
+                self.source.display_geometry = window.display_geometry
+                self.source.targets.clear()
             snapshot = await self.source.observe(scope, context)
             self.check(context)
             if await run_native(self.bound_window, context) != window:

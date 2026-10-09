@@ -1067,3 +1067,66 @@ def test_native_readouts_may_be_empty_but_keep_rules_when_present(readouts, vali
         return
     channel = NativeAXChannel(config=NativeConfig.model_validate_json(payload))
     assert channel.completion_keys == frozenset()
+
+
+async def test_native_observe_follows_a_new_window_of_the_same_process(world, monkeypatch):
+    from agent_computer_use.channels.native import (
+        NativeAXChannel, NativeConfig, NativeWindow, ProcessIdentity,
+    )
+    from agent_computer_use.contracts import Action, Binding
+    from tank_backend.agents.subagent import SubAgentStopped
+    import json
+
+    channel = NativeAXChannel(
+        config=NativeConfig.model_validate_json(json.dumps(native_config())))
+    ctx = context()
+    ctx.runtime.bind("task")
+    first = await channel.observe("counter", ctx)
+    moved = NativeWindow(42, "1:0", "test.counter", 99, (10, 10, 100, 80),
+                         world.window.display_geometry)
+
+    def read_window(config):
+        if config.window_id == 7:
+            raise SubAgentStopped("foreground_changed")
+        assert config.window_id == 99
+        return moved
+
+    monkeypatch.setattr("agent_computer_use.channels.native.read_window", read_window)
+    monkeypatch.setattr("agent_computer_use.channels.native.frontmost_window_id",
+                        lambda pid: 99)
+    monkeypatch.setattr("agent_computer_use.channels.native.ax_focused_pid", lambda: 42)
+    monkeypatch.setattr("agent_computer_use.channels.native.process_identity",
+                        lambda pid: ProcessIdentity("1:0", "test.counter"))
+    world.buttons = [replace(world.button, window_id=99,
+                             element=AXElementRef(object(), False, 80))]
+    world.output = replace(world.output, window_id=99,
+                           element=AXElementRef(object(), False, 80))
+    second = await channel.observe("counter", ctx)
+    assert channel.config is not None and channel.config.window_id == 99
+    assert second.generation > first.generation
+    binding = Binding("g", 1, first.observation_id, "counter", first.generation, "c")
+    action = Action("a", first.elements[0].ref, "click", None)
+    assert not await channel.is_current(binding, action, ctx)
+    await channel.aclose()
+    await ctx.runtime.aclose()
+
+
+async def test_native_observe_does_not_follow_another_process(world, monkeypatch):
+    from agent_computer_use.channels.native import NativeAXChannel, NativeConfig
+    from tank_backend.agents.subagent import SubAgentStopped
+    import json
+
+    channel = NativeAXChannel(
+        config=NativeConfig.model_validate_json(json.dumps(native_config())))
+    ctx = context()
+    ctx.runtime.bind("task")
+    await channel.observe("counter", ctx)
+    monkeypatch.setattr(
+        "agent_computer_use.channels.native.read_window",
+        lambda config: (_ for _ in ()).throw(SubAgentStopped("foreground_changed")))
+    monkeypatch.setattr(
+        "agent_computer_use.channels.native.ax_focused_pid", lambda: 99)
+    with pytest.raises(SubAgentStopped, match="foreground_changed"):
+        await channel.observe("counter", ctx)
+    await channel.aclose()
+    await ctx.runtime.aclose()
