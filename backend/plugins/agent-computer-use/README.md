@@ -35,7 +35,7 @@ chooses a whole candidate. Parameters, native references, scope and observation 
 remain host-owned. Missing evidence never establishes completion.
 
 The Advisor may supplement only existing `source: generated` inputs whose value is absent,
-choose an offered candidate, request observation, or report unable/needs-user-input.
+choose an offered candidate, propose bounded planning focus, request observation, or report unable/needs-user-input.
 Validated supplementation increments goal version while retaining authority, progress and
 usage. It cannot replace existing values, remove completion conditions or widen scope.
 The configured text Advisor uses the core task model. Visual advice and natural-language
@@ -70,8 +70,23 @@ Repeated readout baselines live in `state.value_change_checks`; candidate `chang
 point to them. These are local verification checks, not predicted effects or prior changes.
 All candidates and their execution semantics remain available; target context and geometry
 are retained. `computer_use_proposal` events tie the model alias and candidate-set identity
-to the original action ID for receipt auditing. No persistent Advisor focus or new
-confidence gate is enabled.
+to the original action ID for receipt auditing. No new confidence gate is enabled.
+
+With a configured selector, the Advisor may return `kind: focus` and a `focus` object with
+an objective and one to eight exact fact completion conditions. This is planning guidance,
+not native keyboard focus. The host accepts only known observation/goal/candidate-evidence
+keys and rejects conditions already satisfied. It reobserves before returning to the selector;
+the original goal, candidate set construction, authority and cumulative budgets remain intact.
+Without a selector the model schema does not offer focus, and unsolicited focus is rejected.
+
+`progress.current_focus` persists across observations for at most three admitted actions.
+Verified focus completion clears it without completing the overall goal. Repeated states,
+incomplete observations, changed goals, escalation and task termination invalidate it;
+completion is checked before action expiry. Completed/invalidated records remain in
+`focus_history`, bounded by the existing four-Advisor-call limit. Focus updates create a new
+decision context but do not reset actual goal-progress, action, observation or model budgets.
+The initial version supports exact fact predicates; it does not accept scripts, action IDs,
+arbitrary tool parameters or unobservable free-text completion claims.
 
 ## Tests
 
@@ -586,7 +601,7 @@ advisor: llm
 
 `LLMAdvisor` receives the goal, current structured observation/action set, progress, trigger
 reason and parent task context. It returns one strict JSON object: an offered candidate ID,
-values for declared missing generated inputs, `need_observation`, `needs_user_input` or
+a supported planning focus, values for declared missing generated inputs, `need_observation`, `needs_user_input` or
 `unable`. Extra fields, duplicate JSON keys and mismatched kinds/fields are rejected. The
 host validates goal patches and candidate membership, then uses the normal reference,
 permission and effect gates. One proposal returns control to the host loop; no nested agent
