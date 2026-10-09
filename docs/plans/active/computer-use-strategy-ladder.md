@@ -2759,8 +2759,10 @@ Advisor 调用），在 `787` 三次均给出经校验的“先清空”focus，
    通道要求必填，浏览器通道禁止出现；`NativeConfig` 保留为运行时绑定结果，不再是用户配置。
 2. **插件配置改为策略**：`macos: {denied_bundles?, profiles?}`。内置禁止名单（终端类、
    系统设置、钥匙串/密码、活动监视器、脚本/自动化工具），配置只能追加。`profiles` 按
-   bundle id 提供可选的 dispatch/labels/blocked/readouts；无画像时用通用默认（`ax_press`、
-   无障碍名称、无读数），完成核验在 S4-V 前对其返回 `unsupported_completion_evidence`。
+   bundle id 提供可选的 dispatch/labels/blocked_identifiers/blocked_labels/readouts；无画像时用
+   通用默认（`ax_press`、无障碍名称、无读数），故 `NativeConfig.readouts` 由“至少一项且至少一项
+   非空”放宽为允许为空（有读数时原校验不变）；完成核验在 S4-V 前对其返回
+   `unsupported_completion_evidence`。
 3. **解析**：bundle id 直接查；显示名在标准应用目录（`/Applications`、`/System/Applications`
    及其 `Utilities`、`~/Applications`）按 `CFBundleName`/`CFBundleDisplayName`/本地化显示名
    不区分大小写精确匹配，不用 Spotlight。0 个→`application_not_found`，多个→
@@ -2780,7 +2782,8 @@ Advisor 调用），在 `787` 三次均给出经校验的“先清空”focus，
 重名、禁止名单（内置不可被配置移除）；绑定——未运行则启动并等到唯一窗口、启动超时/取消、
 复用单实例单窗口、多实例/多窗口/无窗口停止、身份不符停止、清理不终止进程；契约——
 `application` 校验、macOS 缺失与浏览器出现时拒绝；接线——绑定失败不观察不派发、details
-记录、画像生效与无画像默认；fake native 九例复跑。
+记录、画像生效与无画像默认（空读数通过校验且完成条件返回 `unsupported_completion_evidence`）；
+fake native 九例复跑。
 
 **最终步骤**：§10 全部适用验证清单、最多三轮独立 review-and-refactor，分逻辑子任务提交。
 
@@ -2792,6 +2795,11 @@ Advisor 调用），在 `787` 三次均给出经校验的“先清空”focus，
 本地 OCR（AX 差的 App，同样规则）与视觉模型判断（仅语义条件，结果标为“视觉确认”、
 必要时请用户确认）并入“视觉/通道能力”，端到端验收证明需要时再做。S4-N 因此只需写出
 期望值与条件类型，不负责挑选控件。
+
+**Tests（TDD，快照注入）**：值出现——基线已有不算、新出现且唯一判成功、多处匹配判不确定、
+按钮标签同文不算；元素消失与标题包含各自的成立/不成立；条件类型校验；有画像时仍走读数。
+
+**最终步骤**：§10 全部适用验证清单、最多三轮独立 review-and-refactor，分逻辑子任务提交。
 
 #### S4-G3 第一片：同进程等待用户输入（2026-10-09，设计保留，已推迟至 S6 交付前）
 
