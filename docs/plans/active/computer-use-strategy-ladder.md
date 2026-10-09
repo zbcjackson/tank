@@ -61,7 +61,7 @@
    2. **按证据修复**：只修实测暴露的问题，每项 TDD、§10 验证、独立评审后再复测。
       **2026-10-09 评估后暂不修**（运算符跳步、复核接管 Equals 均有可用恢复路径，候选
       修法依赖 Calculator 专用字符串启发式），理由见第七批“修复评估”。
-   3. **S4-B 动态 App/窗口绑定**（下一步，设计待确认）：当前插件 macOS 通道在配置中静态写死
+   3. **S4-B 动态 App/窗口绑定**（实施中）：当前插件 macOS 通道在配置中静态写死
       `pid`/`window_id`（`factory.py` 读取 `NativeConfig`），生产无法按任务找到或启动
       目标 App 并绑定窗口。按请求解析任意已安装 App，打开或复用并唯一绑定窗口，禁止
       名单不操作；设计见 S4 下“S4-B”。
@@ -2743,7 +2743,7 @@ Advisor 调用），在 `787` 三次均给出经校验的“先清空”focus，
 加入邮件等真实多步应用任务后再按数据评估“复核只给建议、
 动作交回 Jev”或提前由 Advisor 规划 focus。
 
-#### S4-B：按请求打开/复用 App 并绑定窗口（2026-10-09，设计待确认）
+#### S4-B：按请求打开/复用 App 并绑定窗口（2026-10-09，设计已确认，实施中）
 
 **现状**：Runner 每个任务新建插件实例，但 `macos` 配置即 `NativeConfig`，必须写死
 `bundle_id`/`pid`/`process_start`/`window_id`；生产无法按请求定位 App。只有 benchmark 的
@@ -2755,8 +2755,11 @@ Advisor 调用），在 `787` 三次均给出经校验的“先清空”focus，
 
 **设计**：
 
-1. **目标指定 App**：`GoalContract` 增加可选 `application`（bundle id 或显示名）。macOS
-   通道要求必填，浏览器通道禁止出现；`NativeConfig` 保留为运行时绑定结果，不再是用户配置。
+1. **目标指定 App**：`task_input` 顶层增加可选 `target: {application}`（bundle id 或显示名），
+   与目标字段并列；宿主先取出 `target`，其余仍按 `GoalContract` 解析，故 `target` 不进
+   GoalContract、不发给 Jev/Advisor。值由父代理写 `task_input` 时从用户请求得出（S4-N），
+   不另调模型。macOS 通道要求必填，浏览器通道禁止出现；`NativeConfig` 保留为运行时绑定
+   结果，不再是用户配置。
 2. **插件配置改为策略**：`macos: {denied_bundles?, profiles?}`。内置禁止名单（终端类、
    系统设置、钥匙串/密码、活动监视器、脚本/自动化工具），配置只能追加。`profiles` 按
    bundle id 提供可选的 dispatch/labels/blocked_identifiers/blocked_labels/readouts；无画像时用
@@ -2771,17 +2774,25 @@ Advisor 调用），在 `787` 三次均给出经校验的“先清空”focus，
    1 个→激活后取其屏上 layer-0 窗口；多实例或多窗口→停止。用 `process_identity` 校验
    bundle 与启动时间，生成 `NativeConfig` 后沿用现有 `read_window`/前台/显示器校验；
    不移动窗口，不在主显示器内即 `unsupported_display`。等待计入任务期限并响应取消。
-5. **接线**：controller 解析目标后、首次观察前调用通道的 `bind(goal, context)`；DOM 与
-   `UnavailableChannel` 为空操作。绑定失败以 `needs_input` + 上述原因结束，不派发任何动作；
-   结果 details 记录 bundle id、是否由插件启动。清理只关闭通道，从不终止进程。
-6. **benchmark 迁移**：`s4_ax.py` 仍先由 `OwnedApplication` 启动独占实例（负责终止），
-   插件改走生产复用路径绑定到该实例，画像放进 `profiles`；配方修订号递增，fake HTTP 九例
-   复跑确认等价。
+5. **接线**：controller 持有可选 binder（仅 macOS 通道提供），解析目标后、首次观察前经
+   登记的 `computer_use.bind` 操作（action 类，受授权、期限、取消与审计约束，计一次动作）
+   绑定并取得该 App 的完成读数键。解析/实例/窗口不唯一等以 `needs_input` + 原因结束，
+   平台失败以 `stopped` 结束，均不观察不派发；结果 details 记录 bundle id 与是否由插件
+   启动。清理只关闭通道，从不终止进程。
+6. **跟随同进程新窗口**：观察时若同一进程（身份不变）的最前窗口换成另一个窗口（如“新邮件”
+   撰写窗口），换绑到该窗口并新建观察源，代次延续递增，旧引用全部失效；派发时窗口变化仍
+   `not_sent`。其他进程到前台仍按 `foreground_changed` 停止。
+7. **跨 App**：一个任务只绑定一个 App；跨 App 任务由父代理拆成单 App 子任务，经结果与
+   输入传值。任务内切换 App 记入 [backlog](../../backlog.md)。
+8. **benchmark 迁移**：`s4_ax.py` 仍先由 `OwnedApplication` 启动独占实例（负责终止），
+   插件改走生产复用路径绑定到该实例，画像放进 `profiles`，动作上限为绑定 +1；配方修订号
+   递增，fake HTTP 九例复跑确认等价。
 
 **Tests（TDD，平台调用全部注入）**：解析——bundle id、显示名/本地化名、大小写、未找到、
 重名、禁止名单（内置不可被配置移除）；绑定——未运行则启动并等到唯一窗口、启动超时/取消、
 复用单实例单窗口、多实例/多窗口/无窗口停止、身份不符停止、清理不终止进程；契约——
-`application` 校验、macOS 缺失与浏览器出现时拒绝；接线——绑定失败不观察不派发、details
+`target` 不进 GoalContract/模型视图、macOS 缺失与浏览器出现时拒绝；跟随——同进程新窗口
+换绑且代次递增、旧引用失效、其他进程前台停止；接线——绑定失败不观察不派发、details
 记录、画像生效与无画像默认（空读数通过校验且完成条件返回 `unsupported_completion_evidence`）；
 fake native 九例复跑。
 
