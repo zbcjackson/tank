@@ -1700,6 +1700,11 @@ async def test_llm_advisor_uses_task_model_and_returns_bound_structured_action(m
     '{"kind":"unable","candidate_id":"a"}',
     '{"kind":"inputs","inputs":[]}',
     '{"kind":"unable","kind":"need_observation"}',
+    '{"kind":"focus"}',
+    '{"kind":"focus","focus":{"objective":"Prepare","completion":[]}}',
+    '{"kind":"focus","focus":{"objective":"Prepare","completion":[{"key":"x","value":"1"},{"key":"x","value":"2"}]}}',
+    '{"kind":"focus","candidate_id":"c1","focus":{"objective":"Prepare","completion":[{"key":"x","value":"1"}]}}',
+    '{"kind":"focus","focus":{"objective":"Prepare","completion":[{"key":"x","value":"1"}],"scope":"other"}}',
 ])
 async def test_llm_advisor_rejects_invalid_structured_reply(monkeypatch, body):
     from agent_computer_use.advisor import LLMAdvisor
@@ -1747,5 +1752,34 @@ async def test_llm_advisor_generates_only_declared_missing_inputs(monkeypatch):
             assert result.kind == ("needs_user_input" if source == "user" else "inputs")
         assert result.inputs == (Fact(key="filename", value="报告.pdf"),)
         assert len(sent) == 1
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("allowed", [False, True])
+async def test_advisor_advertises_focus_only_when_a_selector_can_receive_it(monkeypatch, allowed):
+    from agent_computer_use.advisor import LLMAdvisor
+    from tank_backend.agents.subagent import SubAgentRequest, SubAgentStopped
+    from tank_backend.llm.profile import LLMProfile
+    async def respond(request):
+        payload = json.loads(json.loads(request.content)["messages"][1]["content"])
+        assert payload["focus_available"] is allowed
+        assert ("focus" in payload["response_schema"]["properties"]["kind"]["enum"]) is allowed
+        return httpx.Response(200, json={"id": "focus", "object": "chat.completion", "created": 1,
+            "model": "planner", "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                "role": "assistant", "content": json.dumps({"kind": "focus", "focus": {
+                    "objective": "Save the document", "completion": [{"key": "status:saved", "value": "yes"}]}})}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    ctx.runtime.configure_model("task", LLMProfile("advisor", "key", "planner", "https://offline.invalid/v1", max_tokens=128))
+    try:
+        advisor = LLMAdvisor(allow_focus=allowed)
+        if allowed:
+            result = await advisor.assist(SubAgentRequest("Save", "", "task"), *selection(), ctx)
+            assert result.kind == "focus" and result.focus is not None
+        else:
+            with pytest.raises(SubAgentStopped, match="invalid_advice"):
+                await advisor.assist(SubAgentRequest("Save", "", "task"), *selection(), ctx)
+        assert len(sent) == 1 and ctx.budget.total_tokens == 15
     finally:
         await ctx.runtime.aclose()

@@ -1349,8 +1349,9 @@ async def test_s3_strategy_freeze_rejects_drift_without_resources(monkeypatch,tm
 
 
 @pytest.mark.parametrize("layout", ["plain", "panel", "middle"])
+@pytest.mark.parametrize("focus_mode", [False, True])
 async def test_runner_advisor_returns_to_jev_for_multistep_goal(
-    site, chromium_required, profile_store, monkeypatch, layout,
+    site, chromium_required, profile_store, monkeypatch, layout, focus_mode,
 ):
     import json
     import httpx
@@ -1377,7 +1378,8 @@ async def test_runner_advisor_returns_to_jev_for_multistep_goal(
                 options = payload["questions"]["next_action"]["criteria"]
                 choice = "escalate" if len(calls) == 1 else next(
                     k for k, v in options.items() if isinstance(v, dict)
-                    and (v["operation"] == "fill" or v.get("label") in {"Continue", "Save"}))
+                    and (v["operation"] == "fill" or v.get("label") in {
+                        "Personal info", "Edit profile", "Continue", "Save"}))
                 return httpx.Response(200, json={"model": "jev-1.13.0", "answers": {"next_action": {
                     "type": "choice", "choice": choice, "confidence": 1,
                     "probabilities": {k: int(k == choice) for k in options}}},
@@ -1386,9 +1388,12 @@ async def test_runner_advisor_returns_to_jev_for_multistep_goal(
             assert advice["reason"] == "escalate" and "milestones" not in advice["state"]["goal"]
             choice = next(k for k, v in advice["actions"].items()
                           if v["label"] in {"Personal info", "Edit profile"})
+            response = {"kind": "focus", "focus": {"objective": "Open the editing region",
+                "completion": advice["actions"][choice]["effect"]}} if focus_mode else {
+                    "kind": "candidate", "candidate_id": choice}
             return httpx.Response(200, json={"id": "advice", "object": "chat.completion", "created": 1,
                 "model": "planner", "choices": [{"index": 0, "finish_reason": "stop", "message": {
-                    "role": "assistant", "content": json.dumps({"kind": "candidate", "candidate_id": choice})}}],
+                    "role": "assistant", "content": json.dumps(response)}}],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
     monkeypatch.setenv("S4_ADVISOR_TEST_KEY", "fixture-key")
@@ -1415,16 +1420,21 @@ async def test_runner_advisor_returns_to_jev_for_multistep_goal(
     result = next(o.metadata["task_result"] for o in outputs if "task_result" in o.metadata)
     assert result["status"] == "completed" and result["cleanup"] == "confirmed"
     assert profile_store == {"name": "Ada", "email": "unchanged@example.test", "saves": "1"}
-    assert len(calls) == (5 if layout == "middle" else 4)
+    assert len(calls) == (5 if layout == "middle" else 4) + int(focus_mode)
     assert sum("questions" not in c for c in calls) == 1
     assert "questions" in calls[-1]  # the Advisor returned control to the regular selector
     history = calls[-1]["state"]["recent_actions"]
-    assert history[0]["selected_by"] == "advisor"
+    assert history[0]["selected_by"] == ("selector" if focus_mode else "advisor")
     assert history[0]["label"] in {"Personal info", "Edit profile"}
     filled = next(step for step in history if step["operation"] == "fill")
     assert filled["value"] == "Ada" and filled["effect_status"] == "verified"
     assert filled["changes"] == [{"key": "target_value", "before": "Bob", "after": "Ada"}]
     assert all("action_id" not in step and "target_ref" not in step for step in history)
     assert sum(k == "computer_use_advisor" and e["phase"] == "returned" for k, e in events) == 1
+    if focus_mode:
+        assert calls[2]["state"]["progress"]["current_focus"]["proposal"]["objective"] == "Open the editing region"
+        assert calls[3]["state"]["progress"]["current_focus"] is None
+        assert result["details"]["progress"]["focus_history"][0]["status"] == "completed"
+        assert calls[2]["state"]["goal"]["completion"] == task["completion"]
     usage = [e for k, e in events if k == "model_call" and e["phase"] == "finished"]
     assert sum(e["prompt_tokens"] + e["completion_tokens"] for e in usage) == (len(calls) - 1) * 12 + 15

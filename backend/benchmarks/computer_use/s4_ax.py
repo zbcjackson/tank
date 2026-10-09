@@ -129,7 +129,7 @@ def freeze_inputs() -> dict[str, Any]:
         task_decision_model, model_call, agent, jev, runner, subagent_adapter, task_resources,
         decision_profile, jev_smoke, advisor, task_model, model_policy, spend_ledger, model_view,
     ))]
-    data = {"revision": "s4-ax-compact-1", "cases": list(CASES), "model": MODELS["jev"],
+    data = {"revision": "s4-ax-focus-1", "cases": list(CASES), "model": MODELS["jev"],
             "advisor_model": {**MODELS["qwen"], "output_ceiling": 2048},
             "fake_advisor_endpoint": FAKE_ADVISOR_ENDPOINT,
             "advisor_call_limit": 4,

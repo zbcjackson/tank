@@ -971,6 +971,216 @@ async def test_planning_review_returns_to_selector_after_one_advisor_action():
     assert selector.calls == 4 and advisor.calls == 1
 
 
+async def test_focus_guides_selector_then_clears_without_completing_the_goal():
+    from agent_computer_use.contracts import FocusProposal
+    from agent_computer_use.model_view import decision_question
+
+    seen = []
+    class Selector(PickFirst):
+        async def choose(self, goal, snapshot, actions, ctx):
+            view = json.loads(json.dumps(decision_question(goal, snapshot, actions)))
+            focus = view["state"]["progress"]["current_focus"]
+            seen.append((snapshot.facts[0].value, focus, actions.progress.unverified_goal_steps))
+            assert goal.completion == (Fact(key="status:result", value="done"),)
+            target = "repair" if focus else "finish" if snapshot.facts[0].value == "ready" else "wander"
+            return DecisionResult(actions.binding, "candidate", next(
+                action.id for action in actions.actions if action.target_ref == target))
+    class Advisor:
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            return AdvisorResult(actions.binding, "focus", focus=FocusProposal(
+                objective="Prepare the result before finishing",
+                completion=(Fact(key="status:result", value="ready"),)))
+    world = WanderingWorld()
+    controller = ComputerUseController(world, world, selector=Selector(), advisor=Advisor())
+    result = await controller.run(wandering_request(), context())
+    assert result.status == "completed"
+    assert world.dispatched == ["wander"] * 3 + ["repair", "finish"]
+    assert seen[-2][1]["proposal"]["objective"] == "Prepare the result before finishing"
+    assert seen[-1] == ("ready", None, 4)
+    assert controller.advisor_calls == 1
+    assert controller.progress.current_focus is None
+    assert controller.progress.focus_history[-1].status == "completed"
+
+
+@pytest.mark.parametrize("target_value", ["5", "unreachable"])
+async def test_focus_persists_until_verified_or_three_actions_expire(target_value):
+    from agent_computer_use.contracts import FocusProposal
+    active = []
+    class Selector(PickFirst):
+        async def choose(self, goal, snapshot, actions, ctx):
+            focus = actions.progress.current_focus
+            if focus:
+                active.append((focus.revision, snapshot.facts[0].value))
+            target = "finish" if not focus and snapshot.facts[0].value == "5" else "wander"
+            return DecisionResult(actions.binding, "candidate", next(
+                action.id for action in actions.actions if action.target_ref == target))
+    class Advisor:
+        calls = 0
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            self.calls += 1
+            if self.calls == 1:
+                return AdvisorResult(actions.binding, "focus", focus=FocusProposal(
+                    objective="Advance the readout", completion=(Fact(key="status:result", value=target_value),)))
+            assert actions.reason == "focus_expired"
+            assert actions.progress.current_focus is None
+            assert actions.progress.unverified_goal_steps == 6
+            return AdvisorResult(actions.binding, "candidate", candidate_id=next(
+                action.id for action in actions.actions if action.target_ref == "finish"))
+    world, advisor = WanderingWorld(), Advisor()
+    controller = ComputerUseController(world, world, selector=Selector(), advisor=advisor)
+    result = await controller.run(wandering_request(), context())
+    assert result.status == "completed"
+    assert [value for _, value in active] == (["3", "4"] if target_value == "5" else ["3", "4", "5"])
+    assert {revision for revision, _ in active} == {1}
+    record = controller.progress.focus_history[-1]
+    assert record.reason == ("focus_verified" if target_value == "5" else "action_limit")
+
+
+@pytest.mark.parametrize("kind", ["unknown_key", "already_satisfied"])
+async def test_invalid_focus_stops_without_additional_actions(kind):
+    from agent_computer_use.contracts import FocusProposal
+    class Advisor:
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            return AdvisorResult(actions.binding, "focus", focus=FocusProposal(
+                objective="Prepare", completion=(Fact(
+                    key="unknown:result" if kind == "unknown_key" else "status:result", value="3"),)))
+    world = WanderingWorld()
+    controller = ComputerUseController(world, world, selector=PickFirst(), advisor=Advisor())
+    result = await controller.run(wandering_request(), context())
+    assert result.reason == ("unsupported_focus_evidence" if kind == "unknown_key" else "focus_already_satisfied")
+    assert world.dispatched == ["wander"] * 3
+    assert controller.progress.current_focus is None
+
+
+async def test_focus_only_planning_cannot_reset_advisor_budget():
+    from agent_computer_use.contracts import FocusProposal
+    class Selector:
+        async def choose(self, goal, snapshot, actions, ctx):
+            return DecisionResult(actions.binding, "escalate")
+    class Advisor:
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            return AdvisorResult(actions.binding, "focus", focus=FocusProposal(
+                objective="Prepare", completion=(Fact(key="status:result", value="ready"),)))
+    world = WanderingWorld()
+    controller = ComputerUseController(world, world, selector=Selector(), advisor=Advisor())
+    result = await controller.run(wandering_request(), context())
+    assert result.reason == "advisor_limit" and controller.advisor_calls == 4
+    assert world.dispatched == []
+    assert len(controller.progress.focus_history) == 4
+    assert all(focus.status == "invalidated" for focus in controller.progress.focus_history)
+
+
+@pytest.mark.parametrize("change", ["repeated", "incomplete"])
+async def test_focus_is_invalidated_when_observation_cannot_support_progress(change):
+    from agent_computer_use.contracts import FocusProposal
+    class World(WanderingWorld):
+        async def observe(self, scope, ctx):
+            observed = await super().observe(scope, ctx)
+            return replace(observed, complete=False) if change == "incomplete" and self.observations == 5 else observed
+        async def dispatch(self, binding, action, ctx):
+            receipt = await super().dispatch(binding, action, ctx)
+            if change == "repeated" and len(self.dispatched) == 5:
+                self.value = "3"
+            return receipt
+    class Advisor:
+        calls = 0
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            self.calls += 1
+            if self.calls == 1:
+                return AdvisorResult(actions.binding, "focus", focus=FocusProposal(
+                    objective="Prepare", completion=(Fact(key="status:result", value="ready"),)))
+            assert actions.progress.current_focus is None
+            assert actions.progress.focus_history[-1].reason == "repeated_state"
+            return AdvisorResult(actions.binding, "candidate", candidate_id=next(
+                action.id for action in actions.actions if action.target_ref == "finish"))
+    world = World()
+    controller = ComputerUseController(world, world, selector=PickFirst(), advisor=Advisor())
+    result = await controller.run(wandering_request(), context())
+    assert result.status == ("completed" if change == "repeated" else "partial")
+    assert len(world.dispatched) == (6 if change == "repeated" else 3)
+    assert controller.progress.focus_history[0].reason == (
+        "repeated_state" if change == "repeated" else "observation_unavailable")
+
+
+async def test_generated_input_patch_invalidates_focus_and_preserves_original_goal():
+    from agent_computer_use.contracts import FocusProposal
+    class World(WanderingWorld):
+        field_value = ""
+        async def observe(self, scope, ctx):
+            observed = await super().observe(scope, ctx)
+            if "repair" in self.dispatched:
+                return replace(observed, elements=(
+                    Element("field", "textbox", "Generated", ("fill",), value=self.field_value),
+                    observed.elements[-1]))
+            return observed
+        async def dispatch(self, binding, action, ctx):
+            if action.operation == "fill":
+                self.dispatched.append(action.target_ref)
+                self.field_value, self.value = action.value, "done"
+                return DispatchReceipt(action.id, "sent")
+            return await super().dispatch(binding, action, ctx)
+    class Selector(PickFirst):
+        async def choose(self, goal, snapshot, actions, ctx):
+            target = "repair" if actions.progress.current_focus else "wander"
+            return DecisionResult(actions.binding, "candidate", next(
+                action.id for action in actions.actions if action.target_ref == target))
+    class Advisor:
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            if actions.progress.current_focus:
+                return AdvisorResult(actions.binding, "inputs", inputs=(Fact(key="name", value="Ada"),))
+            return AdvisorResult(actions.binding, "focus", focus=FocusProposal(
+                objective="Prepare and fill the form", completion=goal.completion))
+    request = wandering_request()
+    assert isinstance(request.task_input, dict)
+    request = replace(request, task_input={**request.task_input,
+        "allowed_operations": ["click", "fill"],
+        "inputs": [{"key": "name", "purpose": "Generate name", "source": "generated", "field_label": "Generated"}]})
+    world = World()
+    controller = ComputerUseController(world, world, selector=Selector(), advisor=Advisor())
+    result = await controller.run(request, context())
+    assert result.status == "completed" and controller.version == 2
+    assert controller.progress.focus_history[-1].reason == "goal_changed"
+    assert world.dispatched == ["wander"] * 3 + ["repair", "field"]
+
+
+@pytest.mark.parametrize("unavailable", ["incomplete", "not_ready"])
+async def test_transient_unavailable_effect_readback_invalidates_focus_without_replay(unavailable):
+    from agent_computer_use.contracts import FocusProposal
+
+    class World(WanderingWorld):
+        async def observe(self, scope, ctx):
+            observed = await super().observe(scope, ctx)
+            if self.observations == 6:
+                return replace(observed, complete=unavailable != "incomplete",
+                               ready=unavailable != "not_ready")
+            return observed
+
+    class Selector(PickFirst):
+        async def choose(self, goal, snapshot, actions, ctx):
+            if snapshot.facts[0].value == "ready":
+                assert actions.progress.current_focus is None
+                assert actions.progress.focus_history[-1].reason == "observation_unavailable"
+                target = "finish"
+            else:
+                target = "repair" if actions.progress.current_focus else "wander"
+            return DecisionResult(actions.binding, "candidate", next(
+                action.id for action in actions.actions if action.target_ref == target))
+
+    class Advisor:
+        async def assist(self, request, goal, snapshot, actions, ctx):
+            return AdvisorResult(actions.binding, "focus", focus=FocusProposal(
+                objective="Prepare the result", completion=(Fact(key="status:result", value="ready"),)))
+
+    world = World()
+    controller = ComputerUseController(world, world, selector=Selector(), advisor=Advisor())
+    result = await controller.run(wandering_request(), context())
+    assert result.status == "completed"
+    assert world.dispatched == ["wander"] * 3 + ["repair", "finish"]
+    assert controller.advisor_calls == 1 and world.observations == 8
+    assert controller.progress.recent_steps[-2].effect_status == "verified"
+    assert controller.progress.focus_history[0].final_observation_id == "6"
+
+
 async def test_unhelpful_planning_advisor_cannot_reset_its_call_limit():
     class Advisor:
         calls = 0

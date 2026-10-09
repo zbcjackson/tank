@@ -50,7 +50,6 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
 
         from .advisor import LLMAdvisor
 
-        advisor = LLMAdvisor() if config.get("advisor") == "llm" else None
         selector: Selector | None = None
         if config.get("selector") == "jev":
             selector = JevSelector()
@@ -58,6 +57,7 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
             from .model_selector import ModelSelector
 
             selector = ModelSelector(use_jev=config["selector"] == "jev-fallback")
+        advisor = LLMAdvisor(allow_focus=selector is not None) if config.get("advisor") == "llm" else None
         return ComputerUseSubAgent(
             ComputerUseController(channel, channel, selector=selector, advisor=advisor,
                                   completion_keys=completion_keys,

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from typing import Literal
+from typing import Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 Operation = Literal["click", "fill"]
 
@@ -182,6 +182,30 @@ class ObservedChange:
     after: str | None
 
 
+class FocusProposal(GoalModel):
+    objective: str = Field(min_length=1, max_length=1024)
+    completion: tuple[Fact, ...] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def unique_conditions(self) -> FocusProposal:
+        if not self.objective.strip() or len({fact.key for fact in self.completion}) != len(self.completion):
+            raise ValueError("Focus needs an objective and unique completion keys")
+        return self
+
+
+@dataclass(frozen=True)
+class PlanningFocus:
+    revision: int
+    proposal: FocusProposal
+    scope: str
+    goal_version: int
+    started_action: int
+    observation_id: str
+    status: Literal["active", "completed", "invalidated"] = "active"
+    reason: str = ""
+    final_observation_id: str | None = None
+
+
 SelectionSource = Literal["rules", "selector", "advisor"]
 
 
@@ -213,6 +237,15 @@ class GoalProgress:
     input_bindings: tuple[tuple[str, str], ...] = ()
     verified_outcomes: tuple[str, ...] = ()
     recent_steps: tuple[ExecutionStep, ...] = ()
+    current_focus: PlanningFocus | None = None
+    focus_history: tuple[PlanningFocus, ...] = ()
+
+
+_PROGRESS_ADAPTER = TypeAdapter(GoalProgress)
+
+
+def progress_json(progress: GoalProgress) -> dict[str, Any]:
+    return cast(dict[str, Any], _PROGRESS_ADAPTER.dump_python(progress, mode="json"))
 
 
 @dataclass(frozen=True)
@@ -232,9 +265,10 @@ class DecisionResult:
 @dataclass(frozen=True)
 class AdvisorResult:
     binding: Binding
-    kind: Literal["inputs", "candidate", "need_observation", "needs_user_input", "unable"]
+    kind: Literal["inputs", "candidate", "focus", "need_observation", "needs_user_input", "unable"]
     inputs: tuple[Fact, ...] = ()
     candidate_id: str | None = None
+    focus: FocusProposal | None = None
 
 
 def snapshot_json(snapshot: Snapshot) -> dict[str, object]:

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
-from dataclasses import asdict, dataclass, replace
-from typing import Protocol
+from dataclasses import dataclass, replace
+from typing import Literal, Protocol
 from uuid import uuid4
 
 from pydantic import JsonValue, ValidationError
@@ -30,11 +29,14 @@ from .contracts import (
     DispatchReceipt,
     ExecutionStep,
     Fact,
+    FocusProposal,
     GoalContract,
     GoalProgress,
     ObservedChange,
+    PlanningFocus,
     SelectionSource,
     Snapshot,
+    progress_json,
 )
 
 
@@ -151,6 +153,7 @@ class ComputerUseController:
         self.dispatch: TaskOperation[ActionAttempt, DispatchReceipt] | None = None
 
     def result(self, status: TaskStatus, reason: str) -> TaskResult:
+        self.finish_focus("invalidated", reason)
         if self.pending_effect:
             status = "unknown"
         elif status == "stopped" and self.progress.verified_actions:
@@ -177,7 +180,7 @@ class ComputerUseController:
                     for item, binding in zip(self.receipts, self.bindings, strict=True)
                 ],
                 "pending_effect": self.pending_effect,
-                "progress": json.loads(json.dumps(asdict(self.progress))),
+                "progress": progress_json(self.progress),
             },
         )
 
@@ -192,6 +195,8 @@ class ComputerUseController:
             raise SubAgentStopped("stale_observation")
         self.observation_ids.add(snapshot.observation_id)
         self.generation = snapshot.generation
+        if not snapshot.ready or not snapshot.complete:
+            self.finish_focus("invalidated", "observation_unavailable", snapshot)
         return snapshot
 
     def register_operations(self, context: SubAgentContext) -> None:
@@ -251,6 +256,53 @@ class ComputerUseController:
         )
         self.progress = replace(self.progress, recent_steps=(*self.progress.recent_steps[:-1], step))
 
+    def finish_focus(
+        self, status: Literal["completed", "invalidated"], reason: str, snapshot: Snapshot | None = None,
+    ) -> None:
+        focus = self.progress.current_focus
+        if focus is not None:
+            finished = replace(focus, status=status, reason=reason,
+                               final_observation_id=snapshot.observation_id if snapshot else None)
+            self.progress = replace(self.progress, current_focus=None,
+                                    focus_history=(*self.progress.focus_history, finished))
+
+    def check_focus(self, snapshot: Snapshot) -> str | None:
+        focus = self.progress.current_focus
+        if focus is None:
+            return None
+        if focus.goal_version != self.version or focus.scope != snapshot.scope:
+            self.finish_focus("invalidated", "goal_changed", snapshot)
+            return "focus_invalidated"
+        if achieved(snapshot, focus.proposal.completion):
+            self.finish_focus("completed", "focus_verified", snapshot)
+        elif len(self.receipts) - focus.started_action >= 3:
+            self.finish_focus("invalidated", "action_limit", snapshot)
+            return "focus_expired"
+        return None
+
+    def adopt_focus(self, proposal: FocusProposal | None, goal: GoalContract,
+                    snapshot: Snapshot, actions: ActionSet) -> None:
+        if not isinstance(proposal, FocusProposal):
+            raise SubAgentStopped("invalid_focus")
+        try:
+            proposal = FocusProposal.model_validate_json(proposal.model_dump_json())
+        except ValueError:
+            raise SubAgentStopped("invalid_focus") from None
+        keys = {fact.key for fact in (*snapshot.facts, *goal.completion)}
+        keys.update(fact.key for outcome in goal.outcomes for fact in outcome.conditions)
+        keys.update(fact.key for detail in actions.details for fact in detail.effect)
+        keys.update(change.key for detail in actions.details for change in detail.changes)
+        if (not snapshot.ready or not snapshot.complete or actions.truncated
+                or any(fact.key not in keys for fact in proposal.completion)):
+            raise SubAgentStopped("unsupported_focus_evidence")
+        if achieved(snapshot, proposal.completion):
+            raise SubAgentStopped("focus_already_satisfied")
+        if self.selector is None:
+            raise SubAgentStopped("focus_selector_unavailable")
+        self.finish_focus("invalidated", "replaced", snapshot)
+        self.progress = replace(self.progress, current_focus=PlanningFocus(
+            self.advisor_calls, proposal, goal.scope, self.version, len(self.receipts), snapshot.observation_id))
+
     async def run(self, request: SubAgentRequest, context: SubAgentContext) -> TaskResult:
         if self.started:
             raise RuntimeError("A controller cannot restart a task or reset its budget")
@@ -296,6 +348,7 @@ class ComputerUseController:
         seen_evidence: set[tuple[str, str, str]] = set()
         while True:
             context.check("desktop")
+            focus_reason = self.check_focus(snapshot)
             # A changed readout is a local effect, not evidence of goal advancement.
             conditions = (*goal.completion, *(f for item in goal.outcomes for f in item.conditions))
             markers = {("fact", f.key, f.value) for f in conditions
@@ -319,12 +372,15 @@ class ComputerUseController:
                                       "goal_version": self.version,
                                       "completion": [item.key for item in goal.completion]})
                 return self.result("completed", "goal_verified")
-            state = (self.version, snapshot.ready, snapshot.complete,
+            state = (self.version,
+                self.progress.current_focus.revision if self.progress.current_focus else 0,
+                snapshot.ready, snapshot.complete,
                 tuple((e.role, e.label, e.ancestors, e.value, e.enabled, e.actions)
                       for e in snapshot.elements), snapshot.facts,
             )
             repeated = state in visited
             if repeated:
+                self.finish_focus("invalidated", "repeated_state", snapshot)
                 self.progress = replace(self.progress, no_progress=self.progress.no_progress + 1)
                 if (self.advisor is None
                         or visited[state] == len(self.progress.verified_actions)):
@@ -335,6 +391,8 @@ class ComputerUseController:
                               progress=self.progress)
             if repeated:
                 actions = replace(actions, reason="repeated_state")
+            elif focus_reason is not None:
+                actions = replace(actions, reason=focus_reason)
             elif (self.progress.unverified_goal_steps >= 3
                     and len(self.progress.verified_actions) - self.last_review_action >= 3):
                 actions = replace(actions, reason="goal_progress_unverified")
@@ -354,7 +412,9 @@ class ComputerUseController:
                 elif decision.choice not in {"none", "ambiguous", "need_more_context", "escalate"}:
                     raise SubAgentStopped("invalid_decision")
                 else:
-                    actions = replace(actions, reason=decision.choice)
+                    if decision.choice in {"none", "escalate"}:
+                        self.finish_focus("invalidated", decision.choice, snapshot)
+                    actions = replace(actions, reason=decision.choice, progress=self.progress)
             if action is None:
                 if any(item.value is None and item.source == "user" for item in goal.inputs):
                     return self.result("needs_input", "missing_user_input")
@@ -371,6 +431,7 @@ class ComputerUseController:
                     return self.result("needs_input" if actions.reason == "missing_parameters"
                                        else "stopped", actions.reason)
                 if advice.kind == "inputs":
+                    self.finish_focus("invalidated", "goal_changed", snapshot)
                     missing = {item.key for item in goal.inputs
                                if item.value is None and item.source == "generated"}
                     supplied = {item.key: item.value for item in advice.inputs}
@@ -385,6 +446,10 @@ class ComputerUseController:
                     })
                     self.version += 1
                     self.progress = replace(self.progress, goal_version=self.version)
+                    snapshot = await self.observe(goal, context)
+                    continue
+                if advice.kind == "focus":
+                    self.adopt_focus(advice.focus, goal, snapshot, actions)
                     snapshot = await self.observe(goal, context)
                     continue
                 if advice.kind == "need_observation":
@@ -453,11 +518,12 @@ class ComputerUseController:
         if advice.binding != actions.binding:
             raise SubAgentStopped("stale_advice")
         if (
-            advice.kind not in {"inputs", "candidate", "need_observation", "needs_user_input", "unable"}
+            advice.kind not in {"inputs", "candidate", "focus", "need_observation", "needs_user_input", "unable"}
             or advice.kind != "inputs"
             and advice.inputs
             or advice.kind != "candidate"
             and advice.candidate_id is not None
+            or (advice.kind == "focus") != (advice.focus is not None)
         ):
             raise SubAgentStopped("invalid_advice")
         context.observe("computer_use_advisor", phase="returned", advice_kind=advice.kind,

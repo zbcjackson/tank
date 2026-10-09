@@ -842,7 +842,8 @@ async def test_native_model_view_compacts_references_without_dropping_candidates
 
 
 @pytest.mark.parametrize("stop", [None, "stale", "revoke", "cancel", "budget", "unknown"])
-async def test_configured_native_advisor_interrupts_wandering_jev(world, monkeypatch, stop):
+@pytest.mark.parametrize("focus_mode", [False, True])
+async def test_configured_native_advisor_interrupts_wandering_jev(world, monkeypatch, stop, focus_mode):
     import json
     import httpx
     from agent_computer_use.factory import create_subagent
@@ -864,8 +865,14 @@ async def test_configured_native_advisor_interrupts_wandering_jev(world, monkeyp
         data = json.loads(request.content)
         if "questions" in data:
             routes.append("jev")
-            choice = next(k for k, v in data["questions"]["next_action"]["criteria"].items()
-                          if isinstance(v, dict) and v.get("label") == "Increment")
+            focus = data["state"]["progress"]["current_focus"]
+            if focus:
+                assert focus["proposal"]["completion"] == [{"key": "ax:value:result", "value": "100"}]
+                assert "observation_id" not in focus
+                assert data["state"]["goal"]["completion"] == [{"key": "ax:value:result", "value": "100"}]
+            label = "Finish" if focus else "Increment"
+            choice = next((k for k, v in data["questions"]["next_action"]["criteria"].items()
+                           if isinstance(v, dict) and v.get("label") == label), "none")
             return httpx.Response(200, json=reply(request, choice))
         routes.append("advisor")
         payload = json.loads(data["messages"][1]["content"])
@@ -886,9 +893,11 @@ async def test_configured_native_advisor_interrupts_wandering_jev(world, monkeyp
             ctx.authorization.revoke()
         elif stop == "cancel":
             ctx.cancel.set()
+        advice = {"kind": "focus", "focus": {"objective": "Finish the result", "completion": [
+            {"key": "ax:value:result", "value": "100"}]}} if focus_mode else {"kind": "candidate", "candidate_id": choice}
         return httpx.Response(200, json={"id": "advice", "object": "chat.completion", "created": 1,
             "model": "planner", "choices": [{"index": 0, "finish_reason": "stop", "message": {
-                "role": "assistant", "content": json.dumps({"kind": "candidate", "candidate_id": choice})}}],
+                "role": "assistant", "content": json.dumps(advice)}}],
             "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
     ctx, _, _, _ = setup(monkeypatch, respond)
     if stop == "budget":
@@ -908,11 +917,16 @@ async def test_configured_native_advisor_interrupts_wandering_jev(world, monkeyp
             outputs = await run()
             expected = "completed" if stop is None else "unknown" if stop == "unknown" else "partial"
             assert outputs[-1].metadata["task_result"]["status"] == expected
-        assert routes == ["jev", "jev", "jev", "advisor"]
+        resumed = focus_mode and stop in (None, "stale", "unknown")
+        assert routes == ["jev", "jev", "jev", "advisor"] + (["jev"] if resumed else [])
         assert len(world.sent) == (4 if stop in (None, "unknown") else 3)
         if stop != "cancel":
-            assert ctx.budget.total_tokens == 51
+            assert ctx.budget.total_tokens == (63 if resumed else 51)
         assert agent.controller.advisor_calls == 1
+        if resumed:
+            history = agent.controller.progress.focus_history
+            assert len(history) == 1
+            assert history[0].status == ("completed" if stop is None else "invalidated")
     finally:
         await agent.aclose()
         await ctx.runtime.aclose()
