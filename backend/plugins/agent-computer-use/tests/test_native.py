@@ -418,6 +418,89 @@ async def test_native_pilot_runs_both_sdks_with_shared_accounting(world, monkeyp
     assert [event["reason"] for event in advice] == ["escalate", "goal_progress_unverified"]
 
 
+def _settled_row(**result):
+    return {"status": "finished", "application_cleanup": {"confirmed": True},
+            "result": {"status": "stopped", "reason": "none", "cleanup": "confirmed",
+                       "details": {"receipts": [{"status": "sent"}]}, **result}}
+
+
+@pytest.mark.parametrize(("row", "stop_reason", "expected"), [
+    (_settled_row(), None, True),
+    (_settled_row(status="needs_input", reason="needs_user_input"), None, True),
+    (_settled_row(status="completed", reason="goal_verified"), None, True),
+    (_settled_row(reason="trial_call_limit"), None, True),
+    (_settled_row(), "unknown_usage", False),
+    (_settled_row(status="unknown", reason="effect_unknown"), None, False),
+    (_settled_row(reason="backend_error"), None, False),
+    (_settled_row(reason="cancelled"), None, False),
+    (_settled_row(cleanup="unconfirmed"), None, False),
+    (_settled_row(details={"receipts": [{"status": "unknown"}]}), None, False),
+    ({**_settled_row(), "application_cleanup": {"confirmed": False}}, None, False),
+    ({"status": "error", "application_cleanup": {"confirmed": True}}, None, False),
+    ({"status": "cancelled", "application_cleanup": {"confirmed": True}}, None, False),
+])
+def test_pilot_continues_only_after_settled_known_outcomes(monkeypatch, row, stop_reason, expected):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use.s4_ax import batch_may_continue
+
+    assert batch_may_continue(row, stop_reason) is expected
+
+
+async def test_pilot_records_known_case_failure_and_runs_next_case(world, monkeypatch, tmp_path):
+    import json
+    from pathlib import Path
+    from agent_computer_use.channels.native import NativeConfig
+    from tank_backend.benchmarks.desktop_cleanup import MacOSInputCleanup
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_ax
+
+    monkeypatch.setattr(s4_ax, "CASES", ({**s4_ax.CASES[0], "max_decisions": 1}, s4_ax.CASES[2]))
+    world.buttons = [replace(world.button, title=label, identifier=label,
+                            element=AXElementRef(object(), False, 80))
+                     for label in ("7", "Multiply", "8", "Equals")]
+    expression = ""
+    expression_element = AXElementRef(object(), False, 80)
+    def press(ref):
+        nonlocal expression
+        label = next(button.title for button in world.buttons if button.element == ref)
+        world.sent.append(label)
+        world.value = {"7": "7", "Multiply": "7", "8": "8", "Equals": "56"}[label]
+        expression = {"7": "", "Multiply": "7×", "8": "7×", "Equals": "7×8"}[label]
+    def read(*args, **kwargs):
+        return [*world.buttons, replace(world.output, value=world.value),
+                replace(world.output, index=3, title="Expression", identifier="expression", value=expression,
+                        element=expression_element,
+                        ancestor_identifiers=("expression-region",))], False
+    monkeypatch.setattr("agent_computer_use.channels.native.ax_press", press)
+    monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", read)
+    def start(owner):
+        config = native_config()
+        config["scope"] = owner.case["id"]
+        config["readouts"] = [
+            {"name": "result", "role": "AXStaticText", "identifier": "result"},
+            {"name": "expression", "role": "AXStaticText", "ancestor_identifier": "expression-region",
+             "aggregation": "compact_text", "allow_empty": True}]
+        return NativeConfig.model_validate_json(json.dumps(config))
+    monkeypatch.setattr(s4_ax.OwnedApplication, "start", start)
+    monkeypatch.setattr(s4_ax.OwnedApplication, "read_values",
+                        lambda self: {"expression": expression, "result": world.value})
+    monkeypatch.setattr(s4_ax.OwnedApplication, "close", lambda self: {"confirmed": True})
+    monkeypatch.setattr(MacOSInputCleanup, "_state", staticmethod(lambda: ([], [])))
+    monkeypatch.setattr(MacOSInputCleanup, "_release", lambda self: {"errors": []})
+    output = tmp_path / "pilot"
+    frozen = s4_ax.prepare(output)
+    report = await s4_ax.run_batch(output, frozen["sha256"], mode="fake")
+
+    first, second = report["rows"]
+    assert first["status"] == "finished" and not first["passed"]
+    assert second["status"] == "finished" and second["passed"], second
+    assert world.sent == ["7", "Multiply", "8", "Equals"]
+    assert report["spend"]["stop_reason"] is None
+    assert not report["completed"]
+
+
 async def test_standalone_fake_transport_intercepts_sdk_without_pytest_bridge(monkeypatch):
     from pathlib import Path
     import httpx2

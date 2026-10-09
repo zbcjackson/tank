@@ -143,7 +143,9 @@ def freeze_inputs() -> dict[str, Any]:
             "scope": "new owned Calculator and temporary TextEdit documents, main display only",
             "setup": "fresh process; Calculator All Clear; optional window move before observation",
             "acceptance": "all nine goals independently verified, at least one model-selected native action per trial, cleanup confirmed",
-            "stop_policy": "stop on any failed/unknown outcome, unknown usage or cleanup; retain all planned rows",
+            "stop_policy": ("known settled case failures stay in the denominator and the batch continues; "
+                            "errors, unknown effects/receipts/usage, cancellation or unconfirmed cleanup "
+                            "stop and retain all planned rows"),
             "source_sha256": {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
                               for path in paths}}
     data["sha256"] = digest(data)
@@ -162,6 +164,15 @@ def load_freeze(output: Path, approved: str) -> dict[str, Any]:
     if frozen["sha256"] != approved or json.loads((output / "freeze.json").read_text()) != frozen:
         raise ValueError("Native pilot freeze changed; prepare and approve a new recipe")
     return frozen
+
+
+def batch_may_continue(row: dict[str, Any], stop_reason: str | None) -> bool:
+    """Known semantic misses stay in the denominator; anything unsettled stops the batch."""
+    result = row.get("result")
+    return (stop_reason is None and row["status"] == "finished" and result is not None
+            and result["status"] != "unknown" and result["reason"] not in {"backend_error", "cancelled"}
+            and result["cleanup"] == "confirmed" and row["application_cleanup"]["confirmed"]
+            and all(receipt["status"] != "unknown" for receipt in result["details"]["receipts"]))
 
 
 def pump(seconds: float = 0.05) -> None:
@@ -536,7 +547,6 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
 
         def reserve(self, call_id, request):
             if self.calls >= self.maximum:
-                ledger.stop("trial_call_limit")
                 raise SpendLimitExceeded("trial_call_limit")
             super().reserve(call_id, request)
             self.calls += 1
@@ -628,7 +638,7 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                     (output / "result.json").write_text(json.dumps({**report, "spend": ledger.snapshot()}, ensure_ascii=False, indent=2) + "\n")
                 print(json.dumps({"case_id": case["id"], "status": row["status"], "passed": row["passed"],
                                   "model_calls": len(row["calls"]), "error": row.get("error")}), flush=True)
-                if not row["passed"] or ledger.snapshot()["stop_reason"]:
+                if not batch_may_continue(row, ledger.snapshot()["stop_reason"]):
                     ledger.stop("native_case_failed")
                     break
             report["completed"] = all(row["passed"] for row in rows)
