@@ -75,10 +75,57 @@ async def test_choice_is_bound_to_whole_action_and_accounted_once(monkeypatch):
         assert set(body) == {"model", "state", "questions"}
         assert body["state"]["snapshot"]["observation_id"] == "obs"
         assert sent[0].headers["authorization"] == "Bearer host-secret"
-        assert len(body["questions"]["next_action"]["criteria"]) == 6
+        assert set(body["questions"]["next_action"]["criteria"]) == {
+            "c1", "c2", "none", "ambiguous", "need_more_context", "escalate"}
     finally:
         await ctx.runtime.aclose()
     assert closed == [True]
+
+
+@pytest.mark.parametrize("route", ["jev", "text", "advisor"])
+@pytest.mark.parametrize("invalid", [None, "original_id", "c0", "c01", "c99"])
+async def test_model_aliases_resolve_only_against_the_current_action_set(monkeypatch, route, invalid):
+    from agent_computer_use.advisor import LLMAdvisor
+    from agent_computer_use.model_selector import ModelSelector
+    from tank_backend.agents.subagent import SubAgentRequest, SubAgentStopped
+    from tank_backend.llm.profile import LLMProfile
+
+    goal, snapshot, actions = selection()
+    original_id = actions.actions[0].id
+    async def respond(request):
+        payload = json.loads(request.content)
+        choice = original_id if invalid == "original_id" else invalid or "c1"
+        if "questions" in payload:
+            return httpx.Response(200, json=reply(request, choice))
+        content = {"kind": "candidate", "candidate_id": choice} if route == "advisor" else {"choice": choice}
+        return httpx.Response(200, json={"id": "choice", "object": "chat.completion", "created": 1,
+            "model": "planner", "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                "role": "assistant", "content": json.dumps(content)}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
+    ctx, selector, sent, _ = setup(monkeypatch, respond)
+    ctx.runtime.configure_model("task", LLMProfile("text", "key", "planner", "https://offline.invalid/v1", max_tokens=128))
+    async def choose(current, observed):
+        if route == "advisor":
+            return await LLMAdvisor().assist(SubAgentRequest("Save", "", "task"), goal, observed, current, ctx)
+        selected = selector if route == "jev" else ModelSelector(use_jev=False)
+        return await selected.choose(goal, observed, current, ctx)
+    try:
+        if invalid:
+            with pytest.raises(SubAgentStopped):
+                await choose(actions, snapshot)
+            assert len(sent) == 1
+        else:
+            first = await choose(actions, snapshot)
+            assert first.candidate_id == original_id and first.binding == actions.binding
+            observed = replace(snapshot, observation_id="next", generation=2)
+            current = replace(actions, actions=tuple(reversed(actions.actions)),
+                              binding=replace(actions.binding, observation_id="next", generation=2,
+                                              candidate_set_id="next-set"))
+            second = await choose(current, observed)
+            assert second.candidate_id == actions.actions[1].id and second.binding == current.binding
+            assert first.binding != second.binding
+    finally:
+        await ctx.runtime.aclose()
 
 
 @pytest.mark.parametrize("invalid", [
@@ -1639,7 +1686,8 @@ async def test_llm_advisor_uses_task_model_and_returns_bound_structured_action(m
         assert result.kind == 'candidate' and result.binding == actions.binding
         assert result.candidate_id == actions.actions[0].id
         assert captured[0]['reason'] == 'goal_progress_unverified'
-        assert set(captured[0]['actions']) == {a.id for a in actions.actions}
+        assert set(captured[0]['actions']) == {"c1", "c2"}
+        assert [item["label"] for item in captured[0]['actions'].values()] == [d.label for d in actions.details]
         assert captured[0]['context'] == 'Keep other data'
         assert ctx.budget.total_tokens == 15 and len(sent) == 1
     finally:

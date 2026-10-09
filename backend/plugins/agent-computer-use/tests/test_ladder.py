@@ -166,12 +166,13 @@ def test_goal_candidates_mix_operations_and_bind_only_compatible_inputs() -> Non
     ))
     actions = ActionBuilder().build("goal", 1, goal, snapshot)
     assert actions.reason == "jev_eligible"
-    from agent_computer_use.model_view import decision_question
+    from agent_computer_use.model_view import candidate_aliases, decision_question
 
     question = json.loads(json.dumps(decision_question(goal, snapshot, actions)))
     assert question["state"]["recent_actions"] == []
     fill = next(a for a in actions.actions if a.operation == "fill")
-    option = question["questions"]["next_action"]["criteria"][fill.id]
+    alias = next(key for key, action in candidate_aliases(actions).items() if action.id == fill.id)
+    option = question["questions"]["next_action"]["criteria"][alias]
     assert option["label"] == "Public name"
     assert option["input_key"] == "name"
     assert option["current_value"] == "Bob"

@@ -9,7 +9,7 @@ from tank_backend.llm.model_data import json_object
 
 from .contracts import ActionSet, DecisionResult, GoalContract, Snapshot
 from .jev import JevSelector, check_eligible
-from .model_view import CONTROLS, decision_question
+from .model_view import CONTROLS, candidate_aliases, decision_question
 
 
 class ModelSelector:
@@ -59,8 +59,10 @@ class ModelSelector:
                 if choice not in ("none", "ambiguous", "need_more_context", "escalate"):
                     raise ValueError("unsupported control")
                 result = DecisionResult(actions.binding, choice)
-            elif any(action.id == choice for action in actions.actions):
-                result = DecisionResult(actions.binding, "candidate", choice)
+            elif (action := candidate_aliases(actions).get(choice)) is not None:
+                context.observe("computer_use_proposal", source="text", model_choice=choice,
+                                action_id=action.id, candidate_set_id=actions.binding.candidate_set_id)
+                result = DecisionResult(actions.binding, "candidate", action.id)
             else:
                 raise ValueError("choice outside offered set")
         except ValueError:

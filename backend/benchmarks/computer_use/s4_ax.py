@@ -56,11 +56,13 @@ class PilotObserver:
         self.events: list[dict[str, object]] = []
 
     def on_event(self, kind: str, metadata: dict[str, Any]) -> None:
-        if kind not in {"decision_error", "computer_use_error", "model_call", "computer_use_advisor"}:
+        if kind not in {"decision_error", "computer_use_error", "model_call", "computer_use_advisor",
+                        "computer_use_proposal"}:
             return
         keys = {"task_id", "call_id", "phase", "status", "prompt_tokens",
                 "completion_tokens", "elapsed_ms", "error_type", "http_status", "cause_type",
-                "reason", "call_number", "observation_id", "advice_kind"}
+                "reason", "call_number", "observation_id", "advice_kind", "source",
+                "model_choice", "action_id", "candidate_set_id"}
         self.events.append({"kind": kind, **{key: value for key, value in metadata.items()
                            if key in keys and (value is None or type(value) in (str, int, float))}})
 
@@ -127,7 +129,7 @@ def freeze_inputs() -> dict[str, Any]:
         task_decision_model, model_call, agent, jev, runner, subagent_adapter, task_resources,
         decision_profile, jev_smoke, advisor, task_model, model_policy, spend_ledger, model_view,
     ))]
-    data = {"revision": "s4-ax-history-1", "cases": list(CASES), "model": MODELS["jev"],
+    data = {"revision": "s4-ax-compact-1", "cases": list(CASES), "model": MODELS["jev"],
             "advisor_model": {**MODELS["qwen"], "output_ceiling": 2048},
             "fake_advisor_endpoint": FAKE_ADVISOR_ENDPOINT,
             "advisor_call_limit": 4,
@@ -596,9 +598,15 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                         valid = values.get("expression") == "7×8" and values.get("result") == "56"
                     else:
                         valid = values.get("document") == task_goal(case)["inputs"][0]["value"]
-                    choices = {(call.get("response", {}).get("answers") or {}).get("next_action", {}).get("choice")
-                               for call in capture.calls.values()}
-                    executed = {r["action_id"] for r in result["details"]["receipts"] if r["status"] != "not_sent"}
+                    resolved = {(event["candidate_set_id"], event["model_choice"]): event["action_id"]
+                                for event in observer.events if event["kind"] == "computer_use_proposal"
+                                and event.get("source") == "jev"}
+                    choices = {(call["request"]["state"]["binding"]["candidate_set_id"],
+                                resolved.get((call["request"]["state"]["binding"]["candidate_set_id"],
+                                              call["response"]["answers"]["next_action"]["choice"])))
+                               for call in capture.calls.values() if call.get("response", {}).get("answers")}
+                    executed = {(r["candidate_set_id"], r["action_id"]) for r in result["details"]["receipts"]
+                                if r["status"] != "not_sent"}
                     row["passed"] = bool(valid and result["status"] == "completed"
                                          and result["cleanup"] == "confirmed" and choices & executed)
                     row["status"] = "finished"

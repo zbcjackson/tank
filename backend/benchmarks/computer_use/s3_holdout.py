@@ -120,7 +120,7 @@ def score(
 def freeze_inputs() -> dict[str, object]:
     cases, labels = load_dataset()
     data: dict[str, object] = {
-        "revision": "s3-holdout-goal-2", "preparation_only": True,
+        "revision": "s3-holdout-compact-1", "preparation_only": True,
         "purpose": "unseen synthetic domains, shared two-row layout; no model responses observed",
         "cases": [{"id": c.id, "family": c.family, "condition": c.condition,
                    "gold": labels[c.id].model_dump(mode="json"), "requests": requests(c)} for c in cases],

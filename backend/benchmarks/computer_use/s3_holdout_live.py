@@ -32,7 +32,7 @@ from benchmarks.computer_use import s3_replay_v2 as v2
 def freeze_inputs() -> dict[str, Any]:
     f = json.loads(json.dumps(dataset.freeze_inputs()))
     f["base_preparation_sha256"] = f.pop("sha256")
-    f.update(revision="s3-holdout-live-1", preparation_only=False,
+    f.update(revision="s3-holdout-live-compact-1", preparation_only=False,
              httpx=version("httpx"), httpcore=version("httpcore"),
              http2=False, keepalive_expiry_seconds=60, warmup_requests=0)
     for source in (Path(__file__), Path(v2.__file__)):
@@ -144,7 +144,7 @@ async def run_replay(output: Path, approved: str, credential: str) -> dict[str, 
         criteria = request["questions"]["next_action"]["criteria"]
         actions[case_id] = TypeAdapter(ActionSet).validate_json(json.dumps({
             "binding": request["state"]["binding"], "reason": "jev_eligible",
-            "actions": [value for value in criteria.values() if isinstance(value, dict)],
+            "actions": [{"id": alias, **value} for alias, value in criteria.items() if isinstance(value, dict)],
         }))
         labels[case_id] = dataset.Expected.model_validate_json(json.dumps(case["gold"]))
     rows = [{"case_id": item["case_id"], "arm": item["arm"],

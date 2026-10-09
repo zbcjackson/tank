@@ -798,7 +798,7 @@ async def test_native_model_view_compacts_references_without_dropping_candidates
     from agent_computer_use.action_builder import ActionBuilder
     from agent_computer_use.channels.native import NativeAXChannel, NativeConfig
     from agent_computer_use.contracts import snapshot_json
-    from agent_computer_use.model_view import decision_question
+    from agent_computer_use.model_view import candidate_aliases, decision_question
 
     world.buttons = [replace(world.button, index=i, title=str(i), identifier=str(i),
                              element=AXElementRef(object(), False, 80)) for i in range(54)]
@@ -812,18 +812,24 @@ async def test_native_model_view_compacts_references_without_dropping_candidates
         question = json.loads(json.dumps(decision_question(goal(), snapshot, actions)))
         state = question["state"]
         criteria = question["questions"]["next_action"]["criteria"]
-        assert set(criteria) == {a.id for a in actions.actions} | {
+        aliases = candidate_aliases(actions)
+        assert set(criteria) == set(aliases) | {
             "none", "ambiguous", "need_more_context", "escalate"}
         elements = {e["ref"]: {**state["snapshot"]["element_defaults"], **e}
                     for e in state["snapshot"]["elements"]}
-        for action in actions.actions:
-            candidate = criteria[action.id]
+        checks = state["value_change_checks"]
+        assert len(checks) == 1
+        assert all("click_changes" not in element for element in state["snapshot"]["elements"])
+        for alias, action in aliases.items():
+            candidate = criteria[alias]
+            assert "id" not in candidate and "action_id" not in candidate and "changes" not in candidate
             element = elements[candidate["target_ref"]]
             old = next(e for e in snapshot.elements if e.ref == action.target_ref)
             assert (element["label"], element["role"], element["enabled"], element["value"]) == (
                 old.label, old.role, old.enabled, old.value)
             assert candidate["operation"] == action.operation
-            for change in candidate["changes"]:
+            for reference in candidate["change_refs"]:
+                change = checks[reference]
                 assert elements[change["source_ref"]]["value"] == change["before"]
         assert snapshot_json(snapshot) == original  # execution keeps original references
         old_bytes = len(json.dumps({"snapshot": original, "criteria": [

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any, Literal, cast
 
-from .contracts import ActionSet, GoalContract, GoalProgress, Snapshot, snapshot_json
+from .contracts import Action, ActionSet, GoalContract, GoalProgress, Snapshot, snapshot_json
 
 Control = Literal["none", "ambiguous", "need_more_context", "escalate"]
 CONTROLS: dict[Control, str] = {
@@ -16,7 +16,13 @@ CONTROLS: dict[Control, str] = {
 }
 
 
-def compact_model_view(snapshot: Snapshot, actions: ActionSet) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def candidate_aliases(actions: ActionSet) -> dict[str, Action]:
+    return {f"c{index}": action for index, action in enumerate(actions.actions, 1)}
+
+
+def compact_model_view(snapshot: Snapshot, actions: ActionSet) -> tuple[
+    dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any],
+]:
     """Compact model-only references; execution retains every original bound action."""
     compact = bool(snapshot.elements) and all(e.source == "ax" for e in snapshot.elements)
     references: dict[str, str] = {}
@@ -28,55 +34,64 @@ def compact_model_view(snapshot: Snapshot, actions: ActionSet) -> tuple[dict[str
             references[value] = f"e{len(references) + 1}"
         return references[value]
 
-    def changes(items: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> None:
-        for item in items:
-            item["source_ref"] = reference(item["source_ref"])
-
     defaults = {"enabled": True, "kind": "control", "value": "", "focused": None,
                 "ancestors": (), "bounds": None, "actions": ()}
     view = snapshot_json(snapshot)
     for element in cast(list[dict[str, Any]], view["elements"]):
         element["ref"] = reference(element["ref"])
-        changes(element.get("click_changes", ()))
+        element.pop("click_changes", None)
         for key, value in defaults.items():
             if compact and element.get(key) == value:
                 element.pop(key, None)
     if compact:
         view["element_defaults"] = defaults
     criteria: dict[str, Any] = {}
+    checks: dict[str, Any] = {}
+    check_ids: dict[tuple[str, str, str], str] = {}
     details = {d.action_id: d for d in actions.details}
-    for action in actions.actions:
+    for alias, action in candidate_aliases(actions).items():
         candidate = asdict(action)
-        if compact:
-            candidate.pop("id")  # already the Choice key
+        candidate.pop("id")
         candidate["target_ref"] = reference(action.target_ref)
         if action.id in details:
             detail = details[action.id]
             candidate.update(**asdict(detail))
+            candidate.pop("action_id")
+            candidate.pop("changes")
             if compact:
-                for key in ("action_id", "role", "ancestors", "current_value"):
+                for key in ("role", "ancestors", "current_value"):
                     candidate.pop(key)
             candidate.update(label=detail.label, input_key=detail.input_key,
-                             effect=[f.model_dump(mode="json") for f in detail.effect],
-                             changes=[asdict(c) for c in detail.changes])
-            changes(candidate["changes"])
-        criteria[action.id] = candidate
+                             effect=[f.model_dump(mode="json") for f in detail.effect])
+            if detail.changes:
+                change_refs = []
+                for change in detail.changes:
+                    identity = (change.key, change.source_ref, change.before)
+                    if identity not in check_ids:
+                        check_id = f"v{len(check_ids) + 1}"
+                        check_ids[identity] = check_id
+                        checks[check_id] = {"key": change.key, "source_ref": reference(change.source_ref),
+                                            "before": change.before}
+                    change_refs.append(check_ids[identity])
+                candidate["change_refs"] = change_refs
+        criteria[alias] = candidate
     progress = asdict(actions.progress or GoalProgress())
     progress["verified_action_count"] = len(progress.pop("verified_actions"))
     for key in ("recent_action", "pending_action", "recent_steps"):
         progress.pop(key)
     progress["input_bindings"] = tuple((key, reference(ref)) for key, ref in progress["input_bindings"])
-    return view, criteria, progress
+    return view, criteria, progress, checks
 
 
 def decision_question(
     goal: GoalContract, snapshot: Snapshot, actions: ActionSet,
 ) -> dict[str, object]:
     """Same semantic question for native Choice and governed text selection."""
-    model_snapshot, criteria, progress = compact_model_view(snapshot, actions)
+    model_snapshot, criteria, progress, checks = compact_model_view(snapshot, actions)
     criteria.update((key, value) for key, value in CONTROLS.items())
     payload = {
         "state": {"goal": goal.model_dump(mode="json"), "snapshot": model_snapshot,
+                  "value_change_checks": checks,
                   "binding": asdict(actions.binding),
                   "evidence_contract": {
                       "schema_version": 1,
@@ -87,6 +102,7 @@ def decision_question(
                           "goal.completion": "desired_outcomes",
                           "snapshot.facts": "current_observation_channel_reports",
                           "recent_actions": "host_recorded_attempts_and_observed_changes",
+                          "value_change_checks": "local_effect_checks_not_predictions",
                           "snapshot.elements": "current_observation_channel_reports",
                       },
                       "business_validation": "not_established_by_this_contract",
@@ -95,6 +111,8 @@ def decision_question(
             "type": "choice", "instructions": (
                 "Each action target_ref refers to snapshot.elements. Read role, ancestors and current "
                 "value from that element; omitted element fields use snapshot.element_defaults. "
+                "Candidate change_refs refer to state.value_change_checks: before values are "
+                "baselines for local effect verification, not predicted outcomes or past changes. "
                 "References are local to this question. Select one complete offered action or a control option. Your output is a "
                 "proposal; the host rechecks authority and references before execution. "
                 "Do not infer business approval from permission to request a proposal. "

@@ -11,7 +11,7 @@ from tank_backend.agents.subagent import SubAgentContext, SubAgentRequest, SubAg
 from tank_backend.llm.model_data import json_object
 
 from .contracts import ActionSet, AdvisorResult, Fact, GoalContract, GoalModel, Snapshot
-from .model_view import decision_question
+from .model_view import candidate_aliases, decision_question
 
 
 class AdviceReply(GoalModel):
@@ -48,7 +48,7 @@ class LLMAdvisor:
         payload = {
             "task": request.task, "context": request.context, "reason": actions.reason,
             "state": question["state"],
-            "actions": {a.id: criteria[a.id] for a in actions.actions},
+            "actions": {alias: criteria[alias] for alias in candidate_aliases(actions)},
             "response_schema": AdviceReply.model_json_schema(),
         }
         text = await model.complete([
@@ -59,7 +59,9 @@ class LLMAdvisor:
                 "host-recorded attempts and observed changes, with separate dispatch and effect statuses. "
                 "References are question-local; "
                 "target_ref resolves to state.snapshot.elements, with omitted fields supplied by "
-                "element_defaults when present. Propose at most one offered candidate_id; the host "
+                "element_defaults when present. change_refs resolve to state.value_change_checks; "
+                "these before values are local verification baselines, not predicted effects. "
+                "Propose at most one offered candidate_id; the host "
                 "rechecks it before executing and then resumes its own loop. Never invent actions, "
                 "declare completion or weaken the goal. Generate missing input values only when "
                 "their declaration has source=generated; do not replace known values or guess "
@@ -77,5 +79,12 @@ class LLMAdvisor:
             reply = AdviceReply.model_validate_json(json.dumps(json_object(text), allow_nan=False))
         except (ValueError, ValidationError):
             raise SubAgentStopped("invalid_advice") from None
-        return AdvisorResult(actions.binding, reply.kind, inputs=reply.inputs,
-                             candidate_id=reply.candidate_id)
+        candidate_id = None
+        if reply.kind == "candidate":
+            action = candidate_aliases(actions).get(reply.candidate_id or "")
+            if action is None:
+                raise SubAgentStopped("invalid_advice")
+            candidate_id = action.id
+            context.observe("computer_use_proposal", source="advisor", model_choice=reply.candidate_id,
+                            action_id=action.id, candidate_set_id=actions.binding.candidate_set_id)
+        return AdvisorResult(actions.binding, reply.kind, inputs=reply.inputs, candidate_id=candidate_id)

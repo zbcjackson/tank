@@ -9,7 +9,7 @@ from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 from .contracts import (
     ActionSet, DecisionResult, GoalContract, Snapshot,
 )
-from .model_view import decision_question
+from .model_view import candidate_aliases, decision_question
 
 
 def check_eligible(goal: GoalContract, snapshot: Snapshot, actions: ActionSet) -> None:
@@ -37,6 +37,9 @@ class JevSelector:
                                     options=cast(dict[str, object], question["criteria"]))
         if result.choice in ("none", "ambiguous", "need_more_context", "escalate"):
             return DecisionResult(actions.binding, result.choice)
-        if any(action.id == result.choice for action in actions.actions):
-            return DecisionResult(actions.binding, "candidate", result.choice)
+        action = candidate_aliases(actions).get(result.choice)
+        if action is not None:
+            context.observe("computer_use_proposal", source="jev", model_choice=result.choice,
+                            action_id=action.id, candidate_set_id=actions.binding.candidate_set_id)
+            return DecisionResult(actions.binding, "candidate", action.id)
         raise SubAgentStopped("invalid_decision")
