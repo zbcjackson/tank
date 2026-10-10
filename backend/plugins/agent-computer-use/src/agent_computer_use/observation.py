@@ -104,7 +104,8 @@ class AXObservationSource:
             tuple(elements) != self.previous.elements or (not truncated) != self.previous.complete
         ):
             generation += 1
-        snapshot = Snapshot(uuid4().hex, scope, generation, tuple(elements), complete=not truncated)
+        snapshot = Snapshot(uuid4().hex, scope, generation, tuple(elements), complete=not truncated,
+                            window=str(self.window_id))
         self.targets, self.previous = targets, snapshot
         return snapshot
 

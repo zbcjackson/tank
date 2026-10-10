@@ -58,6 +58,22 @@ async def test_ax_identity_survives_reordering_but_not_disappearance(monkeypatch
     assert fourth.elements[0].ref != first.elements[0].ref
 
 
+async def test_ax_snapshot_names_the_observed_window(monkeypatch) -> None:
+    from agent_computer_use.observation import AXObservationSource
+
+    first, second = candidate(object(), "Save"), candidate(object(), "Send")
+    read = Mock(side_effect=[([first], False), ([replace(second, window_id=9)], False)])
+    monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", read)
+    source = AXObservationSource(7, frame().display_geometry, "window-7")
+    ctx = context()
+    from agent_computer_use.contracts import snapshot_json
+
+    snapshot = await source.observe("window-7", ctx)
+    assert snapshot.window == "7" and "window" not in snapshot_json(snapshot)
+    source.window_id = 9
+    assert (await source.observe("window-7", ctx)).window == "9"
+
+
 async def test_ax_document_change_cannot_reuse_an_existing_field(monkeypatch) -> None:
     from agent_computer_use.observation import AXObservationSource
     from tank_backend.agents.subagent import SubAgentStopped

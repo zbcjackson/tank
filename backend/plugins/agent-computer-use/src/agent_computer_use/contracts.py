@@ -155,6 +155,7 @@ class Snapshot:
     facts: tuple[Fact, ...] = ()
     complete: bool = True
     ready: bool = True
+    window: str | None = None
 
     def __post_init__(self) -> None:
         if not self.observation_id or not self.scope or self.generation < 0:
@@ -318,7 +319,10 @@ def snapshot_json(snapshot: Snapshot) -> dict[str, object]:
         if element.submits:
             data["submits"] = True
         elements.append(data)
-    return {**asdict(snapshot), "elements": elements,
+    view = asdict(snapshot)
+    # Window identity is host-side baseline bookkeeping, not model evidence.
+    view.pop("window")
+    return {**view, "elements": elements,
             "facts": [fact.model_dump(mode="json") for fact in snapshot.facts]}
 
 
