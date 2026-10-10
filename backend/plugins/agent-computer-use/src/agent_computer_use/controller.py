@@ -19,7 +19,6 @@ from tank_backend.agents.task_result import TaskResult, TaskStatus
 from tank_backend.agents.task_runtime import TaskOperation
 
 from .action_builder import ActionBuilder
-from .intake import TaskBrief, goal_from_brief
 from .contracts import (
     GENERIC_CONDITIONS,
     Action,
@@ -44,6 +43,7 @@ from .contracts import (
     plain_text,
     progress_json,
 )
+from .intake import TaskBrief, goal_from_brief
 
 
 class ObservationSource(Protocol):
