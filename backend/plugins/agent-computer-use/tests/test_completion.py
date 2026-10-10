@@ -223,3 +223,16 @@ async def test_generic_outcomes_never_hold_without_a_generic_target() -> None:
         SubAgentRequest("Note", "", "task", goal), context())
     assert world.dispatched
     assert (result.status, result.reason) == ("partial", "no_viable_actions")
+
+
+def test_fill_inputs_suppress_unrelated_observable_clicks() -> None:
+    goal = GoalContract.from_input({
+        **generic_goal(("ax:present:body", "56")),
+        "inputs": BODY_INPUT,
+    })
+    snapshot = Snapshot("obs", "window", 1, (
+        field("body", "Body"), button("new", "New Note"), button("fmt", "Bold"),
+    ))
+    actions = ActionBuilder().build("g", 1, goal, snapshot)
+    assert [a.operation for a in actions.actions] == ["fill"]
+    assert actions.actions[0].value == "56"

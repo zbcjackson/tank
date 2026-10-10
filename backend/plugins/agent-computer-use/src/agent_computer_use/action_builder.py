@@ -68,6 +68,10 @@ class ActionBuilder:
                 facts = {fact.key: fact.value for fact in snapshot.facts}
                 if not effect and not element.click_changes and not element.click_observable:
                     continue
+                # Unverifiable clicks must not crowd out declared fills on profile-less apps.
+                if (element.click_observable and not effect and not element.click_changes
+                        and goal.inputs and not inputs_satisfied):
+                    continue
                 if effect and all(facts.get(f.key) == f.value for f in effect):
                     continue
                 action = Action(uuid4().hex, element.ref, "click", None)
