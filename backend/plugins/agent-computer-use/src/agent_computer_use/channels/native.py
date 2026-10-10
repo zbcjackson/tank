@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import ctypes
 import plistlib
+import re
 import time
 import unicodedata
 from dataclasses import dataclass, replace
@@ -69,6 +70,8 @@ class NativeConfig(BaseModel):
     labels: Literal["accessible_name", "identifier"] = "accessible_name"
     blocked_identifiers: tuple[str, ...] = Field(default=(), max_length=32)
     blocked_labels: tuple[str, ...] = Field(default=(), max_length=32)
+    # Labels containing these terms lose click but keep fill (e.g. "Sender" fields).
+    blocked_terms: tuple[str, ...] = Field(default=(), max_length=128)
     readouts: tuple[Readout, ...] = Field(default=(), max_length=8)
 
     @model_validator(mode="after")
@@ -78,6 +81,19 @@ class NativeConfig(BaseModel):
         if self.readouts and all(r.allow_empty for r in self.readouts):
             raise ValueError("At least one readout must require native evidence")
         return self
+
+
+def names_term(label: str, terms: tuple[str, ...]) -> bool:
+    """Whole-word match for ASCII terms, substring match for CJK terms."""
+    text = label.casefold().replace("\u2019", "'")
+    for term in terms:
+        term = term.casefold().replace("\u2019", "'")
+        if term.isascii():
+            if re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text):
+                return True
+        elif term in text:
+            return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -254,6 +270,7 @@ class NativeAXChannel:
                     target.application, scope=scope, platform=self.platform,
                     profiles=dict(self.policy.profiles), roots=self.roots,
                     denied_bundles=frozenset(self.policy.denied_bundles),
+                    blocked_terms=self.policy.blocked_terms,
                 )
                 self.apply_config(bound.config, launched=bound.launched)
                 return bound.binding
@@ -363,11 +380,13 @@ class NativeAXChannel:
             blocked = {e.ref for e in snapshot.elements
                        if not e.label or e.label in self.config.blocked_labels
                        or targets[e.ref].identifier in self.config.blocked_identifiers}
-            clickable = {e.ref for e in snapshot.elements if "click" in e.actions and e.ref not in blocked}
+            clickable = {e.ref for e in snapshot.elements if "click" in e.actions and e.ref not in blocked
+                         and not names_term(e.label, self.config.blocked_terms)}
             elements = tuple(replace(
                 e, click_changes=tuple(changes) if e.ref in clickable else (),
                 click_observable=e.ref in clickable and not changes,
-                actions=e.actions if e.ref not in blocked else (),
+                actions=() if e.ref in blocked else tuple(
+                    a for a in e.actions if a != "click" or e.ref in clickable),
                 enabled=(True if "fill" in e.actions and targets[e.ref].enabled is None
                          and targets[e.ref].value_settable else e.enabled),
             ) for e in snapshot.elements) + tuple(regions)

@@ -1092,6 +1092,46 @@ async def test_native_clicks_are_observable_only_without_readouts(world, readout
     await ctx.runtime.aclose()
 
 
+async def test_blocked_terms_remove_clicks_but_keep_fields(world):
+    from agent_computer_use.channels.native import NativeAXChannel, NativeConfig
+    import json
+
+    def control(title: str, role: str = "AXButton", **extra: object) -> AXCandidate:
+        return replace(world.button, role=role, title=title, identifier="",
+                       element=AXElementRef(object(), False, 80), **extra)
+
+    world.buttons = [control("Delete Note"), control("发送"), control("Don’t Save"),
+                     control("Deleted Items"), control("Increment"),
+                     control("Sender", "AXTextField", actions=(), value_settable=True)]
+    config = {**native_config(), "readouts": [],
+              "blocked_terms": ["delete", "发送", "don't save"]}
+    channel = NativeAXChannel(config=NativeConfig.model_validate_json(json.dumps(config)))
+    ctx = context()
+    ctx.runtime.bind("task")
+    snapshot = await channel.observe("counter", ctx)
+    actions = {e.label: e.actions for e in snapshot.elements}
+    assert actions["Delete Note"] == actions["发送"] == actions["Don’t Save"] == ()
+    assert actions["Deleted Items"] == actions["Increment"] == ("click",)
+    assert actions["Sender"] == ("fill",)
+    await channel.aclose()
+    await ctx.runtime.aclose()
+
+
+async def test_policy_blocked_terms_extend_the_built_in_list(world):
+    from agent_computer_use.channels.apps import DANGER_TERMS, MacOSPolicy
+    from agent_computer_use.channels.native import NativeAXChannel
+    from agent_computer_use.contracts import Target
+
+    channel = NativeAXChannel(MacOSPolicy.model_validate_json('{"blocked_terms": ["archive"]}'))
+    ctx = context()
+    ctx.runtime.bind("task")
+    await channel.bind(Target(application="test.counter"), "counter", ctx)
+    assert channel.config is not None
+    assert channel.config.blocked_terms == (*DANGER_TERMS, "archive")
+    await channel.aclose()
+    await ctx.runtime.aclose()
+
+
 @pytest.mark.parametrize("missing_reason", ["foreground_changed", "window_unavailable"])
 async def test_native_observe_follows_a_new_window_of_the_same_process(
     world, monkeypatch, missing_reason,

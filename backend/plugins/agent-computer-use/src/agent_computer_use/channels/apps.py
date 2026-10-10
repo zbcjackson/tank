@@ -27,6 +27,14 @@ DENIED_BUNDLES = frozenset({
     "com.apple.shortcuts",
 })
 
+# Irreversible or account-level actions; apps without a profile never click these.
+DANGER_TERMS = (
+    "send", "delete", "remove", "erase", "trash", "discard", "don't save", "clear", "reset",
+    "sign out", "log out", "uninstall", "buy", "purchase", "pay",
+    "发送", "删除", "移除", "抹掉", "废纸篓", "清空", "清除", "不保存", "不存储", "重置",
+    "退出登录", "注销", "卸载", "购买", "支付", "付款",
+)
+
 DEFAULT_ROOTS = (
     Path("/Applications"),
     Path("/Applications/Utilities"),
@@ -154,6 +162,7 @@ class AppProfile(BaseModel):
 class MacOSPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
     denied_bundles: tuple[str, ...] = Field(default=(), max_length=64)
+    blocked_terms: tuple[str, ...] = Field(default=(), max_length=64)
     profiles: dict[str, AppProfile] = Field(default_factory=dict)
 
 
@@ -271,9 +280,12 @@ def bind_application(
     profiles: dict[str, AppProfile] | None = None,
     roots: tuple[Path, ...] = DEFAULT_ROOTS,
     denied_bundles: frozenset[str] = frozenset(),
+    blocked_terms: tuple[str, ...] = (),
 ) -> BoundApplication:
     ref = resolve_application(application, roots=roots, denied_bundles=denied_bundles)
-    profile = profile or (profiles or {}).get(ref.bundle_id) or AppProfile()
+    profile = profile or (profiles or {}).get(ref.bundle_id)
+    terms = () if profile else (*DANGER_TERMS, *blocked_terms)
+    profile = profile or AppProfile()
     running = platform.running(ref.bundle_id)
     launched = False
     if len(running) > 1:
@@ -296,7 +308,7 @@ def bind_application(
         process_start=instance.start, window_id=window_id,
         dispatch=profile.dispatch, labels=profile.labels,
         blocked_identifiers=profile.blocked_identifiers,
-        blocked_labels=profile.blocked_labels, readouts=profile.readouts,
+        blocked_labels=profile.blocked_labels, blocked_terms=terms, readouts=profile.readouts,
     )
     return BoundApplication(
         launched,

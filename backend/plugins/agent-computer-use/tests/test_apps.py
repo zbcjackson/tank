@@ -192,6 +192,19 @@ def test_bind_waits_for_the_first_window_after_launch(apps) -> None:
     assert platform.pumps >= 3
 
 
+def test_bind_blocks_danger_terms_only_without_a_profile(apps) -> None:
+    from agent_computer_use.channels.apps import DANGER_TERMS, AppProfile, bind_application
+
+    generic = bind_application("Calculator", scope="calc", roots=apps["roots"],
+                               platform=FakePlatform(), blocked_terms=("archive",))
+    assert {"delete", "send", "删除", "发送"} <= set(DANGER_TERMS)
+    assert generic.config.blocked_terms == (*DANGER_TERMS, "archive")
+    profiled = bind_application(
+        "Calculator", scope="calc", roots=apps["roots"], platform=FakePlatform(),
+        profiles={"com.apple.calculator": AppProfile()}, blocked_terms=("archive",))
+    assert profiled.config.blocked_terms == ()
+
+
 def test_bind_applies_profile_readouts_to_completion_keys(apps) -> None:
     from agent_computer_use.channels.apps import AppProfile, bind_application
     from agent_computer_use.channels.native import Readout
