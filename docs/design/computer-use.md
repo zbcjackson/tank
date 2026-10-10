@@ -793,8 +793,10 @@ form submit，也不能证明提交意图，仍须走配置的选择器。引用
 
 真实受控 Chromium/Runner/SDK 的 fake-HTTP 测试覆盖两种布局与中间页，并独立检查
 fixture 服务端结果。仅此测试中的回执有受控服务端语义；任意页面 status 文本不构成
-外部业务系统真实性证明。核心恢复、视觉和真实模型整体 pilot 尚未验收。文本 Advisor 的现行接线见下文；
-仅能填充已声明为可生成且为空的输入，更新版本但不重置进度或用量。
+外部业务系统真实性证明。S4 能力主线已于 2026-10-10 按证据收口（见策略阶梯计划
+“S4 收口”）；同进程恢复（G3）仍于 S6 前，OCR/视觉后备与 N 第二片在 backlog。
+文本 Advisor 的现行接线见下文；仅能填充已声明为可生成且为空的输入，更新版本但不重置
+进度或用量。
 旧 schema-v1 输入被明确拒绝。当前可执行 benchmark 使用新的目标契约 revision；
 历史 S3 报告未重写，新请求/候选不能被当作历史实验的原样复现。
 
@@ -813,12 +815,10 @@ PID、内核启动标识、窗口、文档和元素身份；每次输入前重�
 数学显示采用紧凑文本，TextEdit 正文保持逐字比较。作用域超限/不完整、旧引用、用户
 输入冲突和未知效果均不盲目继续，失败的原生清理不能报告完成。普通核心不导入 benchmark。
 
-真实应用与 fake HTTP 的评审后矩阵九项通过；它只证明控制链，不证明真实 Jev 选择
-能力。代码评审与回归通过；真实模型两批均在首项 backend_error、用量未知后停批
-（各 0 通过 / 1 失败 / 8 未运行）。第二批清理全部确认，第一批前台恢复未确认；
-原生整体验收未通过。
-冻结配方及后续验收状态以[策略阶梯计划](../plans/active/computer-use-strategy-ladder.md)
-中的 S4-AX 验收记录为准。运行器及接口说明见
+真实应用 fake HTTP 与经授权真实模型矩阵均已 9/9 通过（含移窗/Quartz/TextEdit）；
+NL 端到端 live 3/3 通过。更早真实批次曾出现首项失败停批，保留为历史证据。
+冻结配方与收口状态以[策略阶梯计划](../plans/active/computer-use-strategy-ladder.md)
+“S4 收口”为准。运行器及接口说明见
 [插件说明](../../backend/plugins/agent-computer-use/README.md#s4-ax-explicitly-bound-native-macos-channel)。
 
 
@@ -879,9 +879,9 @@ focus 条件满足后完成并清除；三个准入动作仍未满足、重复�
 先只读补观察；未知效果不交给 Advisor 盲目重放。
 
 该规则不是通用语义距离或数学错误判定器；无中间目标证据的合法长任务也可能需要
-复核。文本接线有离线 SDK/原生边界及真实 Chromium 验证，尚未证明真实 Advisor
-能修复既有 Calculator 失败。视觉、自动通道发现/切换和完整恢复仍未实现，本批不将
-整个 S4 或 S4-AX 标为完成。
+复核。文本接线有离线 SDK/原生边界、真实 Chromium 验证，以及经授权原生矩阵中
+Advisor 纠偏后完成任务的证据。OCR/视觉后备与自动通道发现未实现（见 backlog）；
+同进程完整恢复属 S4-G3（S6 前）。S4 能力主线已按证据收口，见策略阶梯计划。
 
 ## S4-N 插件内自然语言 intake（2026-10-10）
 
@@ -893,6 +893,14 @@ schema_version=2 契约（`goal_id` 新生成、`authorization_ref=current_task`
 出现在 request.task/context 原文中，否则 `needs_input`/`ungrounded_input`。父代理可附
 `target` 覆盖应用名。完整契约路径不变；简述写入结果 `details.intake`。无模型时
 `intake_model_unavailable`；非法回复 `invalid_intake`。调用计入任务用量。第二片
-（绑定后看初始快照再写完成条件）按端到端证据决定是否做。桌面 fake 后：绑定若声明了
+（绑定后看初始快照再写完成条件）因 live 未暴露缺口已移交 backlog。桌面 fake 后：绑定若声明了
 `ax:value:result`，intake 的单一 `present` 会确定性对齐到该读数键；无 readout 的画像仍套用
 危险词（与完全无画像相同），有 readout 才省略。
+
+## S4 收口（2026-10-10）
+
+S4 能力主线（DOM/原生通道、Advisor、动态绑定、通用完成核验、NL intake、端到端）
+已按证据收口：原生矩阵 9/9 与 NL live 3/3 结案规划稳定性；OCR/视觉完成核验后备与
+N 第二片移交 backlog；G3 仍于 S6 交付前。生产默认与基线 A 不变。细节见
+[策略阶梯计划](../plans/active/computer-use-strategy-ladder.md) “S4 收口”。
+
