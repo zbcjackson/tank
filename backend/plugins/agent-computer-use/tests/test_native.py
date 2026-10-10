@@ -1070,14 +1070,19 @@ def test_native_readouts_may_be_empty_but_keep_rules_when_present(readouts, vali
     assert channel.completion_keys == frozenset()
 
 
-@pytest.mark.parametrize("readouts", [False, True])
-async def test_native_clicks_are_observable_only_without_readouts(world, readouts):
+@pytest.mark.parametrize(("readouts", "terms", "observable"), [
+    (False, ["delete"], True),
+    (True, [], False),
+    # A profile without readouts has no danger filter, so it gets no unverified clicks.
+    (False, [], False),
+])
+async def test_native_clicks_are_observable_only_without_readouts(world, readouts, terms, observable):
     from agent_computer_use.channels.native import NativeAXChannel, NativeConfig
     import json
 
     world.buttons = [world.button, replace(world.button, title="Erase", identifier="erase",
                                            element=AXElementRef(object(), False, 80))]
-    config = {**native_config(), "blocked_identifiers": ["erase"]}
+    config = {**native_config(), "blocked_identifiers": ["erase"], "blocked_terms": terms}
     if not readouts:
         config["readouts"] = []
     channel = NativeAXChannel(config=NativeConfig.model_validate_json(json.dumps(config)))
@@ -1086,7 +1091,7 @@ async def test_native_clicks_are_observable_only_without_readouts(world, readout
     snapshot = await channel.observe("counter", ctx)
     marks = {e.label.casefold(): (e.click_observable, bool(e.click_changes))
              for e in snapshot.elements}
-    assert marks["increment"] == (not readouts, readouts)
+    assert marks["increment"] == (observable, readouts)
     assert marks["erase"] == (False, False)
     assert not any(e.click_observable for e in snapshot.elements if "click" not in e.actions)
     await channel.aclose()

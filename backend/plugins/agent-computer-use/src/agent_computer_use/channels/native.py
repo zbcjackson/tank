@@ -384,7 +384,8 @@ class NativeAXChannel:
                          and not names_term(e.label, self.config.blocked_terms)}
             elements = tuple(replace(
                 e, click_changes=tuple(changes) if e.ref in clickable else (),
-                click_observable=e.ref in clickable and not changes,
+                # Unverifiable clicks are offered only under danger-term filtering.
+                click_observable=e.ref in clickable and not changes and bool(self.config.blocked_terms),
                 actions=() if e.ref in blocked else tuple(
                     a for a in e.actions if a != "click" or e.ref in clickable),
                 enabled=(True if "fill" in e.actions and targets[e.ref].enabled is None
