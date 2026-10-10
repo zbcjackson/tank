@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import unicodedata
 from dataclasses import dataclass, replace
 from typing import Literal, Protocol
 from uuid import uuid4
@@ -20,6 +21,7 @@ from tank_backend.agents.task_runtime import TaskOperation
 
 from .action_builder import ActionBuilder
 from .contracts import (
+    GENERIC_CONDITIONS,
     Action,
     ActionSet,
     ActionDetails,
@@ -96,12 +98,42 @@ class Advisor(Protocol):
     ) -> AdvisorResult: ...
 
 
-def achieved(snapshot: Snapshot, predicates: tuple[Fact, ...]) -> bool:
+def _text(value: str) -> str:
+    return " ".join("".join(c for c in value if unicodedata.category(c) != "Cf").split())
+
+
+def _occurrences(snapshot: Snapshot, kind: str, expected: str) -> int:
+    if kind == "ax:title:":
+        titles = {e.ancestors[0][1] for e in snapshot.elements
+                  if e.ancestors and e.ancestors[0][0] == "AXWindow"}
+        return int(len(titles) == 1 and expected in _text(titles.pop()))
+    # Labels name controls; only values show what the task produced.
+    return sum(_text(text) == expected for e in snapshot.elements
+               for text in ((e.value,) if kind == "ax:present:" else (e.value, e.label)))
+
+
+def _generic_holds(snapshot: Snapshot, baseline: Snapshot | None, condition: Fact) -> bool:
+    if baseline is None:
+        return False
+    kind = next(p for p in GENERIC_CONDITIONS if condition.key.startswith(p))
+    expected = _text(condition.value)
+    before, now = (_occurrences(s, kind, expected) for s in (baseline, snapshot))
+    if kind == "ax:absent:":
+        return before > 0 and now == 0
+    return before == 0 and now == 1
+
+
+def achieved(
+    snapshot: Snapshot, predicates: tuple[Fact, ...], baseline: Snapshot | None = None,
+) -> bool:
     facts = {fact.key: fact.value for fact in snapshot.facts}
     return (
         snapshot.ready
         and snapshot.complete
-        and all(facts.get(predicate.key) == predicate.value for predicate in predicates)
+        and all(_generic_holds(snapshot, baseline, predicate)
+                if predicate.key.startswith(GENERIC_CONDITIONS)
+                else facts.get(predicate.key) == predicate.value
+                for predicate in predicates)
     )
 
 
