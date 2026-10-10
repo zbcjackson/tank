@@ -5,6 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from pydantic import JsonValue
 
 from agent_computer_use.contracts import DecisionResult, GoalContract
 from tank_backend.agents.subagent import (
@@ -35,7 +36,7 @@ def goal() -> GoalContract:
     })
 
 
-def targeted(task: GoalContract | dict[str, object] | None = None) -> dict[str, object]:
+def targeted(task: GoalContract | dict[str, JsonValue] | None = None) -> dict[str, JsonValue]:
     payload = goal().model_dump(mode="json") if task is None else (
         task.model_dump(mode="json") if isinstance(task, GoalContract) else dict(task))
     return {"target": {"application": "test.counter"}, **payload}
