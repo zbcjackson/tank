@@ -493,6 +493,12 @@ with per-task decision ceilings in its frozen cases. No new paid comparison was 
 
 ## S4-AX: explicitly bound native macOS channel
 
+Set `intake: llm` with `macos` to accept a natural-language `task` without a full GoalContract.
+One call through the agent's configured text model returns a brief (application, objective,
+inputs, completion types); the host expands it into a v2 contract, requires input values to
+appear in the request text, and records the brief in result details. A full GoalContract in
+`task_input` still bypasses intake. Browser configs cannot enable intake.
+
 The `macos` config is a policy, not a window binding. Each task names its app in
 `task_input.target: {application}` (bundle id or display name); the target never enters the
 GoalContract shown to models. The host resolves the installed app, reuses the user's single
@@ -544,6 +550,7 @@ macos:
           ancestor_identifier: StandardInputView
           aggregation: compact_text
 selector: jev
+intake: llm
 ```
 
 TextEdit uses `labels: identifier` and a single AXTextArea readout identified by
