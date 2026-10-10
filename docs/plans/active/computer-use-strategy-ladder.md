@@ -2915,7 +2915,7 @@ controller——无契约时转换后绑定与派发、`target` 覆盖、details
 `details.intake` 存在；失败不停批规则与 s4_ax 一致。
 
 **桌面 fake HTTP 结果（2026-10-10，`/tmp/tank-s4-nl-fake`，revision `s4-nl-1`，
-sha256 `fb889a0307236ba61fc43c40e7e898604252d73402cd3d1285778270c4eef981`）**：三例均
+sha256 `e056ed5a7741015899b21bbaeee4f1262c3db27c5e31eb84ea99c74e744e7faf`）**：三例均
 `completed`/`goal_verified`，独立 AX 读回一致，cleanup 确认，10 次假 HTTP。过程中按证据修复：
 intake 的 lone `present` 对齐到画像 `ax:value:result`；声明 fill 时压制可观察点击洪流；
 不完整 AX 有界重试；长 `AXDescription` 不再整窗 truncated；无 readout 画像仍套危险词，
