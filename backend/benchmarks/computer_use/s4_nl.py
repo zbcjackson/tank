@@ -287,6 +287,16 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
 
                 try:
                     config = owner.start()
+                    if case["application"] == "textedit":
+                        for _ in range(40):
+                            s4_ax.pump(0.05)
+                            try:
+                                if "document" in owner.read_values_once():
+                                    break
+                            except RuntimeError:
+                                pass
+                        else:
+                            raise RuntimeError("TextEdit document area unavailable at setup")
                     row["binding"] = config.model_dump(mode="json")
                     row["setup_actions"] = owner.setup_actions
                     app_config = AppConfig.from_raw_dict({

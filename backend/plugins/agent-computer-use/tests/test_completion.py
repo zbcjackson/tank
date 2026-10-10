@@ -236,3 +236,26 @@ def test_fill_inputs_suppress_unrelated_observable_clicks() -> None:
     actions = ActionBuilder().build("g", 1, goal, snapshot)
     assert [a.operation for a in actions.actions] == ["fill"]
     assert actions.actions[0].value == "56"
+
+
+async def test_incomplete_observation_retries_before_no_progress() -> None:
+    from .test_ladder import Binder, PickFirst, context
+    from agent_computer_use.contracts import TargetBinding
+    from agent_computer_use.controller import ComputerUseController
+    from tank_backend.agents.subagent import SubAgentRequest
+
+    class Flaky(AppWorld):
+        async def observe(self, scope, ctx):
+            snapshot = await super().observe(scope, ctx)
+            if self.reads < 3:
+                return replace(snapshot, complete=False)
+            return snapshot
+
+    world = Flaky({"A": ("1", (field("body", "Body"),))})
+    binder = Binder()
+    binder.binding = TargetBinding("com.apple.Notes", False, frozenset(), True)
+    result = await ComputerUseController(world, world, selector=PickFirst(), binder=binder).run(
+        SubAgentRequest("Note", "", "task", {**generic_goal(("ax:present:body", "56")),
+            "inputs": BODY_INPUT, "target": {"application": "Notes"}}), context())
+    assert (result.status, result.reason) == ("completed", "goal_verified")
+    assert world.reads >= 3

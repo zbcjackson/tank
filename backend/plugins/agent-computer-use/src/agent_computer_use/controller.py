@@ -452,6 +452,7 @@ class ComputerUseController:
         snapshot = await self.observe(goal, context)
         visited: dict[tuple[object, ...], int] = {}
         seen_evidence: set[tuple[str, str, str]] = set()
+        incomplete_retries = 0
         while True:
             context.check("desktop")
             focus_reason = self.check_focus(snapshot)
@@ -487,12 +488,19 @@ class ComputerUseController:
                       for e in snapshot.elements), snapshot.facts,
             )
             repeated = state in visited
+            if repeated and not snapshot.complete and incomplete_retries < 20:
+                incomplete_retries += 1
+                await asyncio.sleep(0.05)
+                snapshot = await self.observe(goal, context)
+                continue
             if repeated:
                 self.finish_focus("invalidated", "repeated_state", snapshot)
                 self.progress = replace(self.progress, no_progress=self.progress.no_progress + 1)
                 if (self.advisor is None
                         or visited[state] == len(self.progress.verified_actions)):
                     return self.result("stopped", "no_progress")
+            if snapshot.complete:
+                incomplete_retries = 0
             visited[state] = len(self.progress.verified_actions)
             actions = replace(self.builder.build(self.goal_id, self.version, goal, snapshot,
                                                         self.progress),
@@ -528,10 +536,10 @@ class ComputerUseController:
                     return self.result("needs_input", "missing_user_input")
                 if actions.reason == "none":
                     return self.result("stopped", "none")
-                if (actions.reason in {"need_more_context", "ambiguous"}
-                        or self.advisor is not None and actions.reason in {
-                            "observation_unavailable", "scope_incomplete", "ambiguous_target",
-                        }):
+                if actions.reason in {
+                    "need_more_context", "ambiguous", "observation_unavailable",
+                    "scope_incomplete", "ambiguous_target",
+                }:
                     snapshot = await self.observe(goal, context)
                     continue
                 advice = await self.advise(request, goal, snapshot, actions, context)
