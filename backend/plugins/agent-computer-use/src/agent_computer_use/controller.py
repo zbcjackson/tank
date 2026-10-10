@@ -182,7 +182,7 @@ class ComputerUseController:
         self.selector, self.advisor, self.binder = selector, advisor, binder
         self.target: TargetBinding | None = None
         self.completion_keys = completion_keys
-        self.baseline: Snapshot | None = None
+        self.baselines: dict[str | None, Snapshot] = {}
         self.builder = ActionBuilder(max_candidates)
         self.version = 1
         self.goal_id = uuid4().hex
@@ -248,10 +248,15 @@ class ComputerUseController:
         self.generation = snapshot.generation
         if not snapshot.ready or not snapshot.complete:
             self.finish_focus("invalidated", "observation_unavailable", snapshot)
-        elif (self.baseline is None and not self.receipts
-                and self.target is not None and self.target.generic_conditions):
-            self.baseline = snapshot
+        elif (self.target is not None and self.target.generic_conditions
+                and snapshot.window not in self.baselines
+                # The bound window's baseline predates any action; later windows start when first seen.
+                and (self.baselines or not self.receipts)):
+            self.baselines[snapshot.window] = snapshot
         return snapshot
+
+    def holds(self, snapshot: Snapshot, predicates: tuple[Fact, ...]) -> bool:
+        return achieved(snapshot, predicates, self.baselines.get(snapshot.window))
 
     def register_operations(self, context: SubAgentContext) -> None:
         async def preflight(value: ActionAttempt) -> None:
@@ -334,7 +339,7 @@ class ComputerUseController:
         if focus.goal_version != self.version or focus.scope != snapshot.scope:
             self.finish_focus("invalidated", "goal_changed", snapshot)
             return "focus_invalidated"
-        if achieved(snapshot, focus.proposal.completion, self.baseline):
+        if self.holds(snapshot, focus.proposal.completion):
             self.finish_focus("completed", "focus_verified", snapshot)
         elif len(self.receipts) - focus.started_action >= 3:
             self.finish_focus("invalidated", "action_limit", snapshot)
@@ -356,7 +361,7 @@ class ComputerUseController:
         if (not snapshot.ready or not snapshot.complete or actions.truncated
                 or any(fact.key not in keys for fact in proposal.completion)):
             raise SubAgentStopped("unsupported_focus_evidence")
-        if achieved(snapshot, proposal.completion, self.baseline):
+        if self.holds(snapshot, proposal.completion):
             raise SubAgentStopped("focus_already_satisfied")
         if self.selector is None:
             raise SubAgentStopped("focus_selector_unavailable")
@@ -433,7 +438,7 @@ class ComputerUseController:
             # A changed readout is a local effect, not evidence of goal advancement.
             conditions = (*goal.completion, *(f for item in goal.outcomes for f in item.conditions))
             markers = {("fact", f.key, f.value) for f in conditions
-                       if achieved(snapshot, (f,), self.baseline)}
+                       if self.holds(snapshot, (f,))}
             values = {e.ref: e.value for e in snapshot.elements}
             bindings = dict(self.progress.input_bindings)
             markers.update(("input", item.key, item.value) for item in goal.inputs
@@ -446,10 +451,10 @@ class ComputerUseController:
             for _ in goal.outcomes:
                 for item in goal.outcomes:
                     if (set(item.depends_on) <= outcomes
-                            and achieved(snapshot, item.conditions, self.baseline)):
+                            and self.holds(snapshot, item.conditions)):
                         outcomes.add(item.id)
             self.progress = replace(self.progress, verified_outcomes=tuple(sorted(outcomes)))
-            if (achieved(snapshot, goal.completion, self.baseline)
+            if (self.holds(snapshot, goal.completion)
                     and len(outcomes) == len(goal.outcomes)):
                 self.evidence.append({"observation_id": snapshot.observation_id,
                                       "goal_version": self.version,

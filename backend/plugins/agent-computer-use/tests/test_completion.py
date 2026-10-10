@@ -213,6 +213,31 @@ async def test_observable_click_is_verified_by_a_changed_snapshot(opens, status,
     assert (result.status, result.reason) == (status, reason)
 
 
+DIALOG = Element("dialog", "text", "", (), kind="text_region", source="ax",
+                 value="Save changes?", ancestors=(("AXWindow", "Notes"),))
+
+
+@pytest.mark.parametrize(("screens", "opens", "condition", "status"), [
+    # The original window still shows the dialog; another window lacking it proves nothing.
+    ({"A": ("1", (DIALOG, button("new", "New Note"))), "B": ("2", (field("body", "Body"),))},
+     {"new": "B"}, ("ax:absent:dialog", "Save changes?"), "partial"),
+    # A value the new window already showed did not appear during the task.
+    ({"A": ("1", (button("new", "New Note"),)), "B": ("2", (field("body", "Body", "56"),))},
+     {"new": "B"}, ("ax:present:body", "56"), "partial"),
+    ({"A": ("1", (button("new", "New Note"),)), "B": ("2", (field("body", "Body"),))},
+     {"new": "B"}, ("ax:present:body", "56"), "completed"),
+    # Returning to the original window keeps its task-start baseline.
+    ({"A": ("1", (DIALOG, button("new", "New Note"))),
+      "B": ("2", (button("close", "Close"),)), "C": ("1", (button("new", "New Note"),))},
+     {"new": "B", "close": "C"}, ("ax:absent:dialog", "Save changes?"), "completed"),
+])
+async def test_each_window_is_judged_against_its_own_baseline(
+    screens, opens, condition, status,
+) -> None:
+    result = await run_app(AppWorld(screens, opens), condition)
+    assert result.status == status
+
+
 async def test_generic_outcomes_never_hold_without_a_generic_target() -> None:
     world = NoteWorld(facts=(Fact(key="status:open", value="yes"),))
     goal = {**generic_goal(("status:open", "yes")), "inputs": BODY_INPUT,
