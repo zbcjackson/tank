@@ -47,8 +47,13 @@ class IntakeReply(GoalModel):
 def grounded(brief: TaskBrief, request: str) -> bool:
     """User values must be quoted from the request; expected results may be derived."""
     source = plain_text(request).casefold()
-    return all(plain_text(item.value).casefold() in source
-               for item in brief.inputs if item.value is not None)
+    for item in brief.inputs:
+        if item.value is None:
+            continue
+        value = plain_text(item.value).casefold()
+        if not value or value not in source:
+            return False
+    return True
 
 
 def goal_from_brief(brief: TaskBrief, intent: str) -> GoalContract:

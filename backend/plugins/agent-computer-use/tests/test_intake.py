@@ -70,6 +70,8 @@ def test_blank_expected_values_fail_contract_validation() -> None:
     ("Create a note", [], True),
     ("Create a note", [{"purpose": "note body", "value": "milk, eggs"}], False),
     ("记下 milk", [{"purpose": "a", "value": "milk"}, {"purpose": "b", "value": "eggs"}], False),
+    ("Create a note", [{"purpose": "note body", "value": "   "}], False),
+    ("Create a note", [{"purpose": "note body", "value": "\u200b"}], False),
 ])
 def test_input_values_must_come_from_the_request(request_text, inputs, expected) -> None:
     brief = TaskBrief.from_input({**BRIEF, "inputs": inputs,
