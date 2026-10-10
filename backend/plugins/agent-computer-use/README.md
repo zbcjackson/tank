@@ -493,13 +493,22 @@ with per-task decision ceilings in its frozen cases. No new paid comparison was 
 
 ## S4-AX: explicitly bound native macOS channel
 
-The `macos` channel borrows an already-authorized foreground application window. It does
-not discover a different app by title, launch a process, or close the user's application.
-The host supplies `bundle_id`, `pid`, `process_start` (from `channels.native.process_identity`),
-`window_id` and a logical `scope`. PID lifetime is checked with Darwin kernel birth time and
-the executable bundle; cached NSRunningApplication metadata is not used for dispatch.
-Only a fully visible primary-display window is currently supported. Replacing a process,
-window, document, element or observation invalidates the corresponding authority/reference.
+The `macos` config is a policy, not a window binding. Each task names its app in
+`task_input.target: {application}` (bundle id or display name); the target never enters the
+GoalContract shown to models. The host resolves the installed app, reuses the user's single
+running instance or launches it, and binds its unique on-screen window; multiple instances or
+windows stop with `needs_input`. Apps the plugin launched stay open and the user's apps are
+never closed. `denied_bundles` and `blocked_terms` only extend the built-in lists.
+PID lifetime is checked with Darwin kernel birth time and the executable bundle. Only a fully
+visible primary-display window is supported. A new frontmost window of the same process is
+followed; replacing the process, document, element or observation invalidates references.
+
+Apps without a profile use accessible names and no readouts. Their clicks are verified by a
+changed AX observation, and buttons whose labels contain a danger term (send, delete, clear,
+发送, 删除, … plus `blocked_terms`) lose click but keep fill. Completion then uses
+`ax:present:<name>`, `ax:absent:<name>` or `ax:title:<name>` conditions, judged against
+the first complete observation of each window: a present value must be new and unique and
+is matched on element values only.
 
 Choose `dispatch: ax_press` or `dispatch: quartz` explicitly. Quartz uses the current AX
 frame center, checks foreground/window exposure and refuses active user input. AX fill
@@ -513,29 +522,27 @@ an AX role and optional identifier/ancestor identifier. `single` preserves exact
 `compact_text` combines static display text and removes whitespace/directional formatting
 for mathematical readouts. `allow_empty` is limited to explicitly scoped static regions,
 and at least one readout must require native evidence. Facts use `ax:value:<name>` keys.
-Clicks carry a local value-change condition for these bound readouts, while final completion
-still requires all declared goal predicates. Arbitrary UI changes are not completion.
+With a profile, clicks carry a local value-change condition for these bound readouts, while
+final completion still requires all declared goal predicates. UI changes are never completion.
 
-For example, a host-bound Calculator configuration can use:
+For example, a policy with a Calculator profile can use:
 
 ```yaml
 macos:
-  scope: calculator-task
-  bundle_id: com.apple.calculator
-  pid: 12345                      # replace with the actual bound process
-  process_start: "1790000000:123" # replace with its actual kernel birth token
-  window_id: 123                  # replace with its actual foreground window
-  dispatch: ax_press
-  readouts:
-    - name: expression
-      role: AXStaticText
-      ancestor_identifier: StandardResultView
-      aggregation: compact_text
-      allow_empty: true
-    - name: result
-      role: AXStaticText
-      ancestor_identifier: StandardInputView
-      aggregation: compact_text
+  blocked_terms: [archive]        # appended to the built-in danger terms
+  profiles:
+    com.apple.calculator:
+      dispatch: ax_press
+      readouts:
+        - name: expression
+          role: AXStaticText
+          ancestor_identifier: StandardResultView
+          aggregation: compact_text
+          allow_empty: true
+        - name: result
+          role: AXStaticText
+          ancestor_identifier: StandardInputView
+          aggregation: compact_text
 selector: jev
 ```
 
