@@ -224,9 +224,13 @@ async def test_ax_controller_uses_governed_read_boundary(monkeypatch, case: str)
     result = await controller.run(SubAgentRequest("Save", "", "task", goal().model_dump(mode="json")), ctx)
     assert result.status == "stopped"
     assert not result.details["receipts"]
-    assert len(calls) == (0 if case == "quota" else 1)
-    if case == "incomplete":
+    if case == "quota":
+        assert len(calls) == 0
+    elif case == "incomplete":
+        assert len(calls) == 21  # initial observe plus bounded incomplete retries
         assert result.reason == "scope_incomplete"
+    else:
+        assert len(calls) == 1
     await ctx.runtime.aclose()
     await source.aclose()
 

@@ -540,6 +540,10 @@ class ComputerUseController:
                     snapshot = await self.observe(goal, context)
                     continue
                 if actions.reason in {"observation_unavailable", "scope_incomplete"}:
+                    if incomplete_retries >= 20:
+                        return self.result("stopped", actions.reason)
+                    incomplete_retries += 1
+                    await asyncio.sleep(0.05)
                     snapshot = await self.observe(goal, context)
                     continue
                 advice = await self.advise(request, goal, snapshot, actions, context)
