@@ -128,7 +128,7 @@ def note_request() -> SubAgentRequest:
 async def test_controller_verifies_generic_conditions_from_its_baseline(
     generic, existing, status, reason,
 ) -> None:
-    world, binder = NoteWorld(existing), Binder(keys=frozenset())
+    world, binder = NoteWorld(existing), Binder()
     binder.binding = TargetBinding("com.apple.Notes", False, frozenset(), generic)
     result = await ComputerUseController(world, world, binder=binder).run(note_request(), context())
     assert (result.status, result.reason) == (status, reason)

@@ -410,11 +410,14 @@ class ComputerUseController:
     async def loop(
         self, request: SubAgentRequest, goal: GoalContract, context: SubAgentContext,
     ) -> TaskResult:
-        generic = self.target is not None and self.target.generic_conditions
-        if any((fact.key not in self.completion_keys
-                and not (generic and fact.key.startswith(GENERIC_CONDITIONS))
-                if self.completion_keys is not None
-                else not fact.key.startswith("status:")) for fact in goal.completion):
+        def supported(key: str) -> bool:
+            if self.completion_keys is None:
+                return key.startswith("status:")
+            return key in self.completion_keys or (
+                self.target is not None and self.target.generic_conditions
+                and key.startswith(GENERIC_CONDITIONS))
+
+        if not all(supported(fact.key) for fact in goal.completion):
             return self.result("needs_input", "unsupported_completion_evidence")
         snapshot = await self.observe(goal, context)
         visited: dict[tuple[object, ...], int] = {}
