@@ -509,9 +509,11 @@ PID lifetime is checked with Darwin kernel birth time and the executable bundle.
 visible primary-display window is supported. A new frontmost window of the same process is
 followed; replacing the process, document, element or observation invalidates references.
 
-Apps without a profile use accessible names and no readouts. Their clicks are verified by a
-changed AX observation, and buttons whose labels contain a danger term (send, delete, clear,
-发送, 删除, … plus `blocked_terms`) lose click but keep fill. Completion then uses
+Apps without readout-backed profiles use accessible names (or an explicit `labels` setting) and
+no readouts. Their clicks are verified by a changed AX observation, and buttons whose labels
+contain a danger term (send, delete, clear, 发送, 删除, … plus `blocked_terms`) lose click but
+keep fill. Profiles that declare readouts skip the danger-term list because clicks carry local
+value-change checks. Completion then uses
 `ax:present:<name>`, `ax:absent:<name>` or `ax:title:<name>` conditions, judged against
 the first complete observation of each window: a present value must be new and unique and
 is matched on element values only.
