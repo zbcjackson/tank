@@ -178,6 +178,7 @@ class ComputerUseController:
         self.selector, self.advisor, self.binder = selector, advisor, binder
         self.target: TargetBinding | None = None
         self.completion_keys = completion_keys
+        self.baseline: Snapshot | None = None
         self.builder = ActionBuilder(max_candidates)
         self.version = 1
         self.goal_id = uuid4().hex
@@ -243,6 +244,8 @@ class ComputerUseController:
         self.generation = snapshot.generation
         if not snapshot.ready or not snapshot.complete:
             self.finish_focus("invalidated", "observation_unavailable", snapshot)
+        elif self.baseline is None and not self.receipts:
+            self.baseline = snapshot
         return snapshot
 
     def register_operations(self, context: SubAgentContext) -> None:
@@ -326,7 +329,7 @@ class ComputerUseController:
         if focus.goal_version != self.version or focus.scope != snapshot.scope:
             self.finish_focus("invalidated", "goal_changed", snapshot)
             return "focus_invalidated"
-        if achieved(snapshot, focus.proposal.completion):
+        if achieved(snapshot, focus.proposal.completion, self.baseline):
             self.finish_focus("completed", "focus_verified", snapshot)
         elif len(self.receipts) - focus.started_action >= 3:
             self.finish_focus("invalidated", "action_limit", snapshot)
@@ -348,7 +351,7 @@ class ComputerUseController:
         if (not snapshot.ready or not snapshot.complete or actions.truncated
                 or any(fact.key not in keys for fact in proposal.completion)):
             raise SubAgentStopped("unsupported_focus_evidence")
-        if achieved(snapshot, proposal.completion):
+        if achieved(snapshot, proposal.completion, self.baseline):
             raise SubAgentStopped("focus_already_satisfied")
         if self.selector is None:
             raise SubAgentStopped("focus_selector_unavailable")
@@ -407,7 +410,10 @@ class ComputerUseController:
     async def loop(
         self, request: SubAgentRequest, goal: GoalContract, context: SubAgentContext,
     ) -> TaskResult:
-        if any((fact.key not in self.completion_keys if self.completion_keys is not None
+        generic = self.target is not None and self.target.generic_conditions
+        if any((fact.key not in self.completion_keys
+                and not (generic and fact.key.startswith(GENERIC_CONDITIONS))
+                if self.completion_keys is not None
                 else not fact.key.startswith("status:")) for fact in goal.completion):
             return self.result("needs_input", "unsupported_completion_evidence")
         snapshot = await self.observe(goal, context)
@@ -419,7 +425,7 @@ class ComputerUseController:
             # A changed readout is a local effect, not evidence of goal advancement.
             conditions = (*goal.completion, *(f for item in goal.outcomes for f in item.conditions))
             markers = {("fact", f.key, f.value) for f in conditions
-                       if snapshot.ready and snapshot.complete and f in snapshot.facts}
+                       if achieved(snapshot, (f,), self.baseline)}
             values = {e.ref: e.value for e in snapshot.elements}
             bindings = dict(self.progress.input_bindings)
             markers.update(("input", item.key, item.value) for item in goal.inputs
@@ -431,10 +437,12 @@ class ComputerUseController:
             outcomes: set[str] = set()
             for _ in goal.outcomes:
                 for item in goal.outcomes:
-                    if set(item.depends_on) <= outcomes and achieved(snapshot, item.conditions):
+                    if (set(item.depends_on) <= outcomes
+                            and achieved(snapshot, item.conditions, self.baseline)):
                         outcomes.add(item.id)
             self.progress = replace(self.progress, verified_outcomes=tuple(sorted(outcomes)))
-            if achieved(snapshot, goal.completion) and len(outcomes) == len(goal.outcomes):
+            if (achieved(snapshot, goal.completion, self.baseline)
+                    and len(outcomes) == len(goal.outcomes)):
                 self.evidence.append({"observation_id": snapshot.observation_id,
                                       "goal_version": self.version,
                                       "completion": [item.key for item in goal.completion]})

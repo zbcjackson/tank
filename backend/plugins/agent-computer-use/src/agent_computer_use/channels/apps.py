@@ -300,6 +300,7 @@ def bind_application(
     )
     return BoundApplication(
         launched,
-        TargetBinding(ref.bundle_id, launched, frozenset(r.key for r in profile.readouts)),
+        TargetBinding(ref.bundle_id, launched, frozenset(r.key for r in profile.readouts),
+                      generic_conditions=True),
         config,
     )

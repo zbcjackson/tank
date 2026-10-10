@@ -34,6 +34,7 @@ class TargetBinding:
     bundle_id: str
     launched: bool
     completion_keys: frozenset[str]
+    generic_conditions: bool = False
 
 
 class TargetUnavailable(Exception):

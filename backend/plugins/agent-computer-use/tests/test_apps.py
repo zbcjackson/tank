@@ -153,6 +153,7 @@ def test_bind_launches_missing_app_and_reuses_a_single_instance(apps) -> None:
         "Calculator", scope="calc", roots=roots, platform=platform, profile=profile)
     assert launched.launched is True
     assert launched.binding.bundle_id == "com.apple.calculator"
+    assert launched.binding.generic_conditions is True
     assert launched.config.pid == 100 and launched.config.window_id == 11
     assert platform.launches and not platform.activations
 
@@ -206,4 +207,5 @@ def test_bind_applies_profile_readouts_to_completion_keys(apps) -> None:
     result = bind_application(
         "Calculator", scope="task", roots=apps["roots"], platform=platform, profile=profile)
     assert result.binding.completion_keys == frozenset({"ax:value:result"})
+    assert result.binding.generic_conditions is True
     assert result.config.readouts[0].name == "result"

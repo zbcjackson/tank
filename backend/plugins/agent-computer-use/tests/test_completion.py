@@ -2,8 +2,13 @@
 
 import pytest
 from pydantic import JsonValue
-from agent_computer_use.contracts import Element, Fact, GoalContract, Snapshot
-from agent_computer_use.controller import achieved
+from agent_computer_use.contracts import (
+    DispatchReceipt, Element, Fact, GoalContract, Snapshot, TargetBinding,
+)
+from agent_computer_use.controller import ComputerUseController, achieved
+from tank_backend.agents.subagent import SubAgentRequest
+
+from .test_ladder import Binder, context
 
 
 def generic_goal(*completion: tuple[str, str]) -> dict[str, JsonValue]:
@@ -83,3 +88,47 @@ def test_element_absent_requires_it_in_the_baseline(current, baseline, expected)
 def test_title_contains_must_newly_hold(current, baseline, expected) -> None:
     condition = (Fact(key="ax:title:document", value="report.txt"),)
     assert achieved(current, condition, baseline) is expected
+
+
+class NoteWorld:
+    """One editable body; `existing` is static text already in the window."""
+
+    def __init__(self, existing: str = "") -> None:
+        self.body, self.existing, self.dispatched = "", existing, []
+
+    async def observe(self, scope, ctx):
+        return Snapshot(f"obs-{len(self.dispatched)}", scope, len(self.dispatched), (
+            Element("body", "textbox", "Body", ("fill",), source="ax", value=self.body,
+                    ancestors=(("AXWindow", "Notes"),)),
+            Element("note", "text", self.existing, (), kind="text_region", source="ax",
+                    value=self.existing, ancestors=(("AXWindow", "Notes"),)),
+        ))
+
+    async def is_current(self, binding, action, ctx):
+        return binding.generation == len(self.dispatched)
+
+    async def dispatch(self, binding, action, ctx):
+        self.dispatched.append(action)
+        self.body = action.value
+        return DispatchReceipt(action.id, "sent")
+
+
+def note_request() -> SubAgentRequest:
+    goal = generic_goal(("ax:present:body", "56"))
+    goal["inputs"] = [{"key": "body", "purpose": "note body", "value": "56",
+                       "field_label": "Body"}]
+    return SubAgentRequest("Note", "", "task", {**goal, "target": {"application": "Notes"}})
+
+
+@pytest.mark.parametrize(("generic", "existing", "status", "reason"), [
+    (True, "", "completed", "goal_verified"),
+    (True, "56", "partial", "no_viable_actions"),
+    (False, "", "needs_input", "unsupported_completion_evidence"),
+])
+async def test_controller_verifies_generic_conditions_from_its_baseline(
+    generic, existing, status, reason,
+) -> None:
+    world, binder = NoteWorld(existing), Binder(keys=frozenset())
+    binder.binding = TargetBinding("com.apple.Notes", False, frozenset(), generic)
+    result = await ComputerUseController(world, world, binder=binder).run(note_request(), context())
+    assert (result.status, result.reason) == (status, reason)
