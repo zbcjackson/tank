@@ -296,3 +296,18 @@ def test_recover_inputs_leaves_short_derived_results_alone() -> None:
     })
 
     assert recover_inputs(brief, request) == brief
+
+
+def test_recover_inputs_ignores_join_newline_on_short_results() -> None:
+    from agent_computer_use.intake import TaskBrief, recover_inputs
+
+    # LLMIntake joins as f"{task}\n{context}"; a short present at the end of
+    # task must not become a fill just because that join adds a newline.
+    request = "算出结果 56\n"
+    brief = TaskBrief.from_input({
+        "application": "Calculator", "objective": "Show 56",
+        "inputs": [],
+        "completion": [{"type": "present", "value": "56"}],
+    })
+
+    assert recover_inputs(brief, request) == brief

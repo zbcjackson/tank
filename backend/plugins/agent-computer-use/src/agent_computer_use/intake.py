@@ -83,7 +83,8 @@ def recover_inputs(brief: TaskBrief, request: str) -> TaskBrief:
     completion: list[BriefCondition] = []
     for item in brief.completion:
         quoted = _quote_from_request(item.value, request) if item.type == "present" else None
-        if quoted is not None and (len(plain_text(quoted)) >= 8 or "\n" in quoted):
+        # Judge length on the model value; quote may add a join newline from task\ncontext.
+        if quoted is not None and (len(plain_text(item.value)) >= 8 or "\n" in item.value):
             inputs.append(BriefInput(purpose="entered text", value=quoted))
             completion.append(BriefCondition(type=item.type, value=quoted))
         else:
