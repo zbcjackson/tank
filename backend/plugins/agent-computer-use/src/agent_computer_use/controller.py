@@ -43,7 +43,7 @@ from .contracts import (
     plain_text,
     progress_json,
 )
-from .intake import TaskBrief, goal_from_brief
+from .intake import TaskBrief, align_completion, goal_from_brief
 
 
 class ObservationSource(Protocol):
@@ -421,6 +421,8 @@ class ComputerUseController:
                 assert self.binding is not None
                 self.target = await context.runtime.execute(self.binding, (target, goal.scope))
                 self.completion_keys = self.target.completion_keys
+                if self.brief is not None:
+                    goal = align_completion(goal, self.target.completion_keys)
             return await self.loop(request, goal, context)
         except TargetUnavailable as exc:
             return self.result("needs_input", exc.reason)

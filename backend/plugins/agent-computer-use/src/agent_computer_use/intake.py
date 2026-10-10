@@ -56,6 +56,19 @@ def grounded(brief: TaskBrief, request: str) -> bool:
     return True
 
 
+def align_completion(goal: GoalContract, completion_keys: frozenset[str]) -> GoalContract:
+    """Map a lone present check onto a profile result readout when the app declares one."""
+    presents = [fact for fact in goal.completion if fact.key.startswith("ax:present:")]
+    if len(presents) != 1 or "ax:value:result" not in completion_keys:
+        return goal
+    rest = [fact for fact in goal.completion if not fact.key.startswith("ax:present:")]
+    return GoalContract.from_input({
+        **goal.model_dump(mode="json"),
+        "completion": [{"key": "ax:value:result", "value": presents[0].value},
+                       *[fact.model_dump(mode="json") for fact in rest]],
+    })
+
+
 def goal_from_brief(brief: TaskBrief, intent: str) -> GoalContract:
     return GoalContract.from_input({
         "schema_version": 2, "goal_id": uuid4().hex, "intent": intent,

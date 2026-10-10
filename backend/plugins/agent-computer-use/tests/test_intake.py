@@ -234,3 +234,35 @@ async def test_full_contracts_bypass_intake() -> None:
 
     assert result.status == "completed"
     assert intake.calls == [] and binder.calls == [("Notes", "app")]
+
+
+def test_present_completion_aligns_to_profile_result_readout() -> None:
+    from agent_computer_use.intake import TaskBrief, align_completion, goal_from_brief
+
+    goal = goal_from_brief(TaskBrief.from_input(NOTE_BRIEF), "在备忘录写 56")
+    aligned = align_completion(goal, frozenset({"ax:value:expression", "ax:value:result"}))
+
+    assert [fact.key for fact in aligned.completion] == ["ax:value:result"]
+    assert aligned.completion[0].value == "56"
+
+
+def test_present_completion_stays_generic_without_profile_readouts() -> None:
+    from agent_computer_use.intake import TaskBrief, align_completion, goal_from_brief
+
+    goal = goal_from_brief(TaskBrief.from_input(NOTE_BRIEF), "在备忘录写 56")
+
+    assert align_completion(goal, frozenset()) == goal
+
+
+async def test_aligns_intake_present_to_profile_result_during_bind() -> None:
+    world = note()
+    world.facts = (Fact(key="ax:value:result", value="56"),)
+    binder, intake = Binder(), FakeIntake(TaskBrief.from_input(NOTE_BRIEF))
+    binder.binding = TargetBinding(
+        "com.apple.calculator", False, frozenset({"ax:value:result"}), True)
+    result = await ComputerUseController(world, world, selector=PickFirst(), binder=binder,
+                                         intake=intake).run(
+        SubAgentRequest("在备忘录写 56", "", "task", {"target": {"application": "Calculator"}}),
+        context())
+    assert (result.status, result.reason) == ("completed", "goal_verified")
+    assert result.details["intake"]["completion"][0] == {"type": "present", "value": "56"}
