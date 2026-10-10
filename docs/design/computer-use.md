@@ -630,7 +630,7 @@ AX 独立分支）均不支持切换默认，详见
 当前空配置工厂没有真实通道，返回 `stopped / observation_unavailable`；未知配置项拒绝。
 S2 的显式 `browser` 配置见下文。离线测试注入 fake UI/选择器/Advisor，不代表已接入
 Jev、LLM，也不证明 PDF 产物或不覆盖约束。通道须提供可信语义事实，后续实现具体
-身份、完成条件与派发边界。自然语言目标生成、通用恢复及 Jev/Advisor 领域适配仍待实现；
+身份、完成条件与派发边界。通用恢复及 Jev/Advisor 领域适配仍待实现；
 生产 A 与现有实验 transport 拒绝条件不变。
 
 ### 通用模型装配（2026-10-05 SDK 调用级简化）
@@ -880,5 +880,17 @@ focus 条件满足后完成并清除；三个准入动作仍未满足、重复�
 
 该规则不是通用语义距离或数学错误判定器；无中间目标证据的合法长任务也可能需要
 复核。文本接线有离线 SDK/原生边界及真实 Chromium 验证，尚未证明真实 Advisor
-能修复既有 Calculator 失败。自然语言契约生成、视觉、自动通道发现/切换和完整恢复
-仍未实现，本批不将整个 S4 或 S4-AX 标为完成。
+能修复既有 Calculator 失败。视觉、自动通道发现/切换和完整恢复仍未实现，本批不将
+整个 S4 或 S4-AX 标为完成。
+
+## S4-N 插件内自然语言 intake（2026-10-10）
+
+工厂显式 `intake: llm`（仅 `macos`）在 `task_input` 无完整 GoalContract 时，用任务文本
+模型一次调用读取 `TaskBrief`（application、objective、inputs 的 purpose/value、
+completion 的 present/absent/title + value，或 unable 原因）。宿主确定性补齐为
+schema_version=2 契约（`goal_id` 新生成、`authorization_ref=current_task`、
+`allowed_operations=[click,fill]`、条件键 `ax:<type>:c<n>`），输入非 null 值须规范化后
+出现在 request.task/context 原文中，否则 `needs_input`/`ungrounded_input`。父代理可附
+`target` 覆盖应用名。完整契约路径不变；简述写入结果 `details.intake`。无模型时
+`intake_model_unavailable`；非法回复 `invalid_intake`。调用计入任务用量。第二片
+（绑定后看初始快照再写完成条件）按端到端证据决定是否做。
