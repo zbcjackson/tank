@@ -244,7 +244,8 @@ class ComputerUseController:
         self.generation = snapshot.generation
         if not snapshot.ready or not snapshot.complete:
             self.finish_focus("invalidated", "observation_unavailable", snapshot)
-        elif self.baseline is None and not self.receipts:
+        elif (self.baseline is None and not self.receipts
+                and self.target is not None and self.target.generic_conditions):
             self.baseline = snapshot
         return snapshot
 

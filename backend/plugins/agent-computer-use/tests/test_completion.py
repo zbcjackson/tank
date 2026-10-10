@@ -93,8 +93,8 @@ def test_title_contains_must_newly_hold(current, baseline, expected) -> None:
 class NoteWorld:
     """One editable body; `existing` is static text already in the window."""
 
-    def __init__(self, existing: str = "") -> None:
-        self.body, self.existing, self.dispatched = "", existing, []
+    def __init__(self, existing: str = "", facts: tuple[Fact, ...] = ()) -> None:
+        self.body, self.existing, self.facts, self.dispatched = "", existing, facts, []
 
     async def observe(self, scope, ctx):
         return Snapshot(f"obs-{len(self.dispatched)}", scope, len(self.dispatched), (
@@ -102,7 +102,7 @@ class NoteWorld:
                     ancestors=(("AXWindow", "Notes"),)),
             Element("note", "text", self.existing, (), kind="text_region", source="ax",
                     value=self.existing, ancestors=(("AXWindow", "Notes"),)),
-        ))
+        ), self.facts)
 
     async def is_current(self, binding, action, ctx):
         return binding.generation == len(self.dispatched)
@@ -113,10 +113,13 @@ class NoteWorld:
         return DispatchReceipt(action.id, "sent")
 
 
+BODY_INPUT: JsonValue = [{"key": "body", "purpose": "note body", "value": "56",
+                          "field_label": "Body"}]
+
+
 def note_request() -> SubAgentRequest:
     goal = generic_goal(("ax:present:body", "56"))
-    goal["inputs"] = [{"key": "body", "purpose": "note body", "value": "56",
-                       "field_label": "Body"}]
+    goal["inputs"] = BODY_INPUT
     return SubAgentRequest("Note", "", "task", {**goal, "target": {"application": "Notes"}})
 
 
@@ -132,3 +135,14 @@ async def test_controller_verifies_generic_conditions_from_its_baseline(
     binder.binding = TargetBinding("com.apple.Notes", False, frozenset(), generic)
     result = await ComputerUseController(world, world, binder=binder).run(note_request(), context())
     assert (result.status, result.reason) == (status, reason)
+
+
+async def test_generic_outcomes_never_hold_without_a_generic_target() -> None:
+    world = NoteWorld(facts=(Fact(key="status:open", value="yes"),))
+    goal = {**generic_goal(("status:open", "yes")), "inputs": BODY_INPUT,
+            "outcomes": [{"id": "written", "conditions": [{"key": "ax:present:body",
+                                                           "value": "56"}]}]}
+    result = await ComputerUseController(world, world).run(
+        SubAgentRequest("Note", "", "task", goal), context())
+    assert world.dispatched
+    assert (result.status, result.reason) == ("partial", "no_viable_actions")
