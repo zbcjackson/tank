@@ -266,3 +266,33 @@ async def test_aligns_intake_present_to_profile_result_during_bind() -> None:
         context())
     assert (result.status, result.reason) == ("completed", "goal_verified")
     assert result.details["intake"]["completion"][0] == {"type": "present", "value": "56"}
+
+
+def test_recover_inputs_copies_long_present_values_from_the_request() -> None:
+    from agent_computer_use.intake import TaskBrief, recover_inputs
+
+    request = "把正文换成：\nTank NL / 中文验收\n不要保存"
+    brief = TaskBrief.from_input({
+        "application": "TextEdit", "objective": "Replace the body",
+        "inputs": [],
+        "completion": [{"type": "present", "value": "Tank NL / 中文验收"}],
+    })
+
+    recovered = recover_inputs(brief, request)
+
+    assert len(recovered.inputs) == 1
+    assert recovered.inputs[0].value == "Tank NL / 中文验收\n"
+    assert recovered.completion[0].value == "Tank NL / 中文验收\n"
+
+
+def test_recover_inputs_leaves_short_derived_results_alone() -> None:
+    from agent_computer_use.intake import TaskBrief, recover_inputs
+
+    request = "用计算器算出 7×8，让结果显示为 56。"
+    brief = TaskBrief.from_input({
+        "application": "Calculator", "objective": "Show 56",
+        "inputs": [],
+        "completion": [{"type": "present", "value": "56"}],
+    })
+
+    assert recover_inputs(brief, request) == brief

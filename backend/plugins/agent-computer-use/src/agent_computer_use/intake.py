@@ -56,6 +56,46 @@ def grounded(brief: TaskBrief, request: str) -> bool:
     return True
 
 
+def _quote_from_request(value: str, request: str) -> str | None:
+    """Return the request's verbatim span for value, preferring a trailing newline when present."""
+    if not value:
+        return None
+    if value + "\n" in request:
+        return value + "\n"
+    if value in request:
+        return value
+    folded = request.casefold()
+    needle = value.casefold()
+    index = folded.find(needle)
+    if index < 0:
+        return None
+    exact = request[index:index + len(value)]
+    if exact + "\n" in request:
+        return exact + "\n"
+    return exact
+
+
+def recover_inputs(brief: TaskBrief, request: str) -> TaskBrief:
+    """Copy long present values quoted in the request into inputs when the model omitted them."""
+    if any(item.value for item in brief.inputs):
+        return brief
+    inputs: list[BriefInput] = []
+    completion: list[BriefCondition] = []
+    for item in brief.completion:
+        quoted = _quote_from_request(item.value, request) if item.type == "present" else None
+        if quoted is not None and (len(plain_text(quoted)) >= 8 or "\n" in quoted):
+            inputs.append(BriefInput(purpose="entered text", value=quoted))
+            completion.append(BriefCondition(type=item.type, value=quoted))
+        else:
+            completion.append(item)
+    if not inputs:
+        return brief
+    return TaskBrief(
+        application=brief.application, objective=brief.objective, constraints=brief.constraints,
+        inputs=tuple(inputs), completion=tuple(completion),
+    )
+
+
 def align_completion(goal: GoalContract, completion_keys: frozenset[str]) -> GoalContract:
     """Map a lone present check onto a profile result readout when the app declares one."""
     presents = [fact for fact in goal.completion if fact.key.startswith("ax:present:")]
@@ -98,14 +138,16 @@ class LLMIntake:
             {"role": "system", "content": (
                 "Return one JSON object matching response_schema that restates a desktop task for "
                 "one macOS application. application is the app to operate; use the given application "
-                "when it is not null. inputs are values the user stated for the app to enter; copy "
-                "them verbatim, or use null when the user must still provide one. Never invent user "
-                "values. completion lists text the app window shows once the task is done, written "
-                "in the language the app displays: present for a new field value, absent for a value "
-                "that disappears, title for the window title. Expected results may be derived, such "
-                "as a computed number. Return unable with application_unknown when the app is unclear, "
-                "no_observable_completion when no visible text can confirm completion, or "
-                "missing_user_input when required information is missing."
+                "when it is not null. inputs are values the user stated for the app to type or fill; "
+                "copy them verbatim including whitespace and trailing newlines, or use null when the "
+                "user must still provide one. Never invent user values. Do not put fill text only in "
+                "completion—text the app must enter belongs in inputs, and completion.present may "
+                "repeat that same text. completion lists text the app window shows once the task is "
+                "done: present for a new field value, absent for a value that disappears, title for "
+                "the window title. Expected results may be derived, such as a computed number, and "
+                "those short results are not inputs. Return unable with application_unknown when the "
+                "app is unclear, no_observable_completion when no visible text can confirm completion, "
+                "or missing_user_input when required information is missing."
             )},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False, allow_nan=False)},
         ])
@@ -119,4 +161,6 @@ class LLMIntake:
         if reply.brief is None:
             assert reply.reason is not None
             return reply.reason
-        return reply.brief if grounded(reply.brief, f"{request.task}\n{request.context}") else "ungrounded_input"
+        source = f"{request.task}\n{request.context}"
+        brief = recover_inputs(reply.brief, source)
+        return brief if grounded(brief, source) else "ungrounded_input"
