@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 from dataclasses import asdict, dataclass
 from typing import Any, Literal, TypeVar, cast
 
@@ -333,3 +334,8 @@ def snapshot_json(snapshot: Snapshot) -> dict[str, object]:
 def snapshot_text(snapshot: Snapshot) -> str:
     """Current semantic view only; native handles and image bytes have no fields here."""
     return json.dumps(snapshot_json(snapshot), ensure_ascii=False, allow_nan=False)
+
+
+def plain_text(value: str) -> str:
+    """Drops invisible format characters and collapses whitespace before text comparison."""
+    return " ".join("".join(c for c in value if unicodedata.category(c) != "Cf").split())

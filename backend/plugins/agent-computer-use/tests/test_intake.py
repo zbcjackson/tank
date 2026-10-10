@@ -2,7 +2,7 @@
 
 import pytest
 from agent_computer_use.contracts import Fact, GoalInput
-from agent_computer_use.intake import TaskBrief, goal_from_brief
+from agent_computer_use.intake import TaskBrief, goal_from_brief, grounded
 from pydantic import ValidationError
 
 BRIEF = {
@@ -45,3 +45,17 @@ def test_blank_expected_values_fail_contract_validation() -> None:
 
     with pytest.raises(ValueError, match="Invalid AX completion condition"):
         goal_from_brief(brief, "remove it")
+
+
+@pytest.mark.parametrize(("request_text", "inputs", "expected"), [
+    ("在备忘录里记下 Milk,\u200b  Eggs", [{"purpose": "note body", "value": "milk, eggs"}], True),
+    ("Create a note", [{"purpose": "note body", "value": None}], True),
+    ("Create a note", [], True),
+    ("Create a note", [{"purpose": "note body", "value": "milk, eggs"}], False),
+    ("记下 milk", [{"purpose": "a", "value": "milk"}, {"purpose": "b", "value": "eggs"}], False),
+])
+def test_input_values_must_come_from_the_request(request_text, inputs, expected) -> None:
+    brief = TaskBrief.from_input({**BRIEF, "inputs": inputs,
+                                  "completion": [{"type": "present", "value": "derived 56"}]})
+
+    assert grounded(brief, request_text) is expected
