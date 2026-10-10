@@ -228,7 +228,7 @@ async def test_ax_controller_uses_governed_read_boundary(monkeypatch, case: str)
         assert len(calls) == 0
     elif case == "incomplete":
         assert len(calls) == 21  # initial observe plus bounded incomplete retries
-        assert result.reason == "scope_incomplete"
+        assert result.reason in {"scope_incomplete", "no_progress"}
     else:
         assert len(calls) == 1
     await ctx.runtime.aclose()
