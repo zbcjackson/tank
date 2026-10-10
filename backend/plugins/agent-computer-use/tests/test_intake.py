@@ -5,7 +5,8 @@ import json
 
 import httpx
 import pytest
-from agent_computer_use.contracts import Fact, GoalInput
+from agent_computer_use.contracts import Fact, GoalInput, TargetBinding
+from agent_computer_use.controller import ComputerUseController
 from agent_computer_use.intake import LLMIntake, TaskBrief, goal_from_brief, grounded
 from pydantic import ValidationError
 
@@ -17,6 +18,9 @@ from tank_backend.agents.subagent import (
     SubAgentStopped,
 )
 from tank_backend.llm.profile import LLMProfile
+
+from .test_completion import generic_goal, note
+from .test_ladder import Binder, PickFirst, context
 
 BRIEF = {
     "application": "Notes",
@@ -156,3 +160,75 @@ async def test_intake_without_a_task_model_sends_nothing(intake) -> None:
     with pytest.raises(SubAgentStopped, match="intake_model_unavailable"):
         await read({"kind": "brief", "brief": BRIEF}, model=False)
     assert sent == []
+
+
+NOTE_BRIEF = {"application": "Notes", "objective": "The note shows 56",
+              "inputs": [{"purpose": "note body", "value": "56"}],
+              "completion": [{"type": "present", "value": "56"}]}
+
+
+class FakeIntake:
+    def __init__(self, reply):
+        self.reply, self.calls = reply, []
+
+    async def read(self, request, application, ctx):
+        self.calls.append((request.task, application))
+        if isinstance(self.reply, Exception):
+            raise self.reply
+        return self.reply
+
+
+async def run_intake(reply, task_input=None):
+    world, binder, intake = note(), Binder(), FakeIntake(reply)
+    binder.binding = TargetBinding("com.apple.Notes", False, frozenset(), True)
+    result = await ComputerUseController(world, world, selector=PickFirst(), binder=binder,
+                                         intake=intake).run(
+        SubAgentRequest("在备忘录写 56", "", "task", task_input), context())
+    return result, world, binder, intake
+
+
+async def test_request_without_a_contract_is_read_then_bound_and_verified() -> None:
+    brief = TaskBrief.from_input(NOTE_BRIEF)
+
+    result, world, binder, intake = await run_intake(brief)
+
+    assert (result.status, result.reason) == ("completed", "goal_verified")
+    assert intake.calls == [("在备忘录写 56", None)]
+    assert binder.calls == [("Notes", "app")]
+    assert [(a.operation, a.value) for a in world.dispatched] == [("fill", "56")]
+    assert result.details["intake"] == brief.model_dump(mode="json")
+
+
+async def test_parent_target_overrides_the_brief_application() -> None:
+    result, _, binder, intake = await run_intake(
+        TaskBrief.from_input(NOTE_BRIEF), {"target": {"application": "com.apple.Notes"}})
+
+    assert result.status == "completed"
+    assert intake.calls == [("在备忘录写 56", "com.apple.Notes")]
+    assert binder.calls == [("com.apple.Notes", "app")]
+
+
+@pytest.mark.parametrize(("reply", "status", "reason"), [
+    ("ungrounded_input", "needs_input", "ungrounded_input"),
+    ("application_unknown", "needs_input", "application_unknown"),
+    (SubAgentStopped("invalid_intake"), "stopped", "invalid_intake"),
+    (TaskBrief.from_input({**NOTE_BRIEF, "completion": [{"type": "present", "value": " "}]}),
+     "stopped", "invalid_intake"),
+])
+async def test_failed_intake_never_binds_or_dispatches(reply, status, reason) -> None:
+    result, world, binder, _ = await run_intake(reply)
+
+    assert (result.status, result.reason) == (status, reason)
+    assert binder.calls == [] and world.dispatched == []
+    assert "intake" not in result.details
+
+
+async def test_full_contracts_bypass_intake() -> None:
+    goal = {**generic_goal(("ax:present:body", "56")), "scope": "app",
+            "inputs": [{"key": "body", "purpose": "note body", "value": "56"}],
+            "target": {"application": "Notes"}}
+
+    result, _, binder, intake = await run_intake(TaskBrief.from_input(NOTE_BRIEF), goal)
+
+    assert result.status == "completed"
+    assert intake.calls == [] and binder.calls == [("Notes", "app")]

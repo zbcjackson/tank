@@ -19,6 +19,7 @@ from tank_backend.agents.task_result import TaskResult, TaskStatus
 from tank_backend.agents.task_runtime import TaskOperation
 
 from .action_builder import ActionBuilder
+from .intake import TaskBrief, goal_from_brief
 from .contracts import (
     GENERIC_CONDITIONS,
     Action,
@@ -73,6 +74,12 @@ class TargetBinder(Protocol):
     async def bind(
         self, target: Target, scope: str, context: SubAgentContext, /,
     ) -> TargetBinding: ...
+
+
+class Intake(Protocol):
+    async def read(
+        self, request: SubAgentRequest, application: str | None, context: SubAgentContext, /,
+    ) -> TaskBrief | str: ...
 
 
 class Selector(Protocol):
@@ -171,11 +178,13 @@ class ComputerUseController:
         selector: Selector | None = None,
         advisor: Advisor | None = None,
         binder: TargetBinder | None = None,
+        intake: Intake | None = None,
         completion_keys: frozenset[str] | None = None,
         max_candidates: int = 32,
     ) -> None:
         self.source, self.executor = source, executor
-        self.selector, self.advisor, self.binder = selector, advisor, binder
+        self.selector, self.advisor, self.binder, self.intake = selector, advisor, binder, intake
+        self.brief: TaskBrief | None = None
         self.target: TargetBinding | None = None
         self.completion_keys = completion_keys
         self.baselines: dict[str | None, Snapshot] = {}
@@ -228,6 +237,7 @@ class ComputerUseController:
                 "progress": progress_json(self.progress),
                 **({"target": {"bundle_id": self.target.bundle_id, "launched": self.target.launched}}
                    if self.target is not None else {}),
+                **({"intake": self.brief.model_dump(mode="json")} if self.brief is not None else {}),
             },
         )
 
@@ -378,18 +388,30 @@ class ComputerUseController:
                 observations=64,
             )
             self.register_operations(context)
-            if request.task_input is None:
-                return self.result("needs_input", "goal_contract_required")
-            task_input = dict(request.task_input)
+            task_input = dict(request.task_input or {})
             target_input = task_input.pop("target", None)
-            try:
-                goal = GoalContract.from_input(task_input)
-            except (ValueError, ValidationError):
-                return self.result("needs_input", "invalid_goal_contract")
             try:
                 target = None if target_input is None else Target.from_input(target_input)
             except (ValueError, ValidationError):
                 return self.result("needs_input", "invalid_target")
+            if self.intake is not None and not task_input:
+                brief = await self.intake.read(
+                    request, None if target is None else target.application, context)
+                if isinstance(brief, str):
+                    return self.result("needs_input", brief)
+                try:
+                    goal = goal_from_brief(brief, request.task)
+                except ValueError:
+                    raise SubAgentStopped("invalid_intake") from None
+                self.brief = brief
+                target = target or Target(application=brief.application)
+            elif request.task_input is None:
+                return self.result("needs_input", "goal_contract_required")
+            else:
+                try:
+                    goal = GoalContract.from_input(task_input)
+                except (ValueError, ValidationError):
+                    return self.result("needs_input", "invalid_goal_contract")
             if (target is None) != (self.binder is None):
                 return self.result("needs_input", "target_required" if target is None else "invalid_target")
             if goal.authorization_ref not in {"current_task", request.task_id}:
