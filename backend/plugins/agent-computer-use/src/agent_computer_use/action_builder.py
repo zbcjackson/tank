@@ -66,7 +66,7 @@ class ActionBuilder:
                     continue
                 effect = goal.completion if element.submits else element.click_effect
                 facts = {fact.key: fact.value for fact in snapshot.facts}
-                if not effect and not element.click_changes:
+                if not effect and not element.click_changes and not element.click_observable:
                     continue
                 if effect and all(facts.get(f.key) == f.value for f in effect):
                     continue
@@ -74,7 +74,7 @@ class ActionBuilder:
                 actions.append(action)
                 details.append(ActionDetails(action.id, element.role, element.label,
                                              element.ancestors, element.value, None, effect,
-                                             element.click_changes))
+                                             element.click_changes, element.click_observable))
         if len(actions) > self.max_candidates:
             return ActionSet(binding, (), "candidate_limit", len(actions), truncated=True)
         identities = [(d.role, d.label, d.ancestors, d.current_value, d.input_key, d.effect, d.changes)

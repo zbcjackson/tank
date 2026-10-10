@@ -58,6 +58,7 @@ def compact_model_view(snapshot: Snapshot, actions: ActionSet) -> tuple[
             candidate.update(**asdict(detail))
             candidate.pop("action_id")
             candidate.pop("changes")
+            candidate.pop("observable")
             if compact:
                 for key in ("role", "ancestors", "current_value"):
                     candidate.pop(key)

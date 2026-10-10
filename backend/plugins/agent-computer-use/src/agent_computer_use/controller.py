@@ -137,7 +137,9 @@ def achieved(
     )
 
 
-def effect_achieved(snapshot: Snapshot, action: Action, detail: ActionDetails) -> bool:
+def effect_achieved(
+    snapshot: Snapshot, action: Action, detail: ActionDetails, generation: int,
+) -> bool:
     if not snapshot.ready or not snapshot.complete:
         return False
     values = {element.ref: element.value for element in snapshot.elements}
@@ -145,10 +147,12 @@ def effect_achieved(snapshot: Snapshot, action: Action, detail: ActionDetails) -
         return action.target_ref in values and values[action.target_ref] == action.value
     if detail.effect:
         return achieved(snapshot, detail.effect)
-    facts = {fact.key: fact.value for fact in snapshot.facts}
-    return any(change.source_ref in values and change.key in facts
-               and values[change.source_ref] == facts[change.key] != change.before
-               for change in detail.changes)
+    if detail.changes:
+        facts = {fact.key: fact.value for fact in snapshot.facts}
+        return any(change.source_ref in values and change.key in facts
+                   and values[change.source_ref] == facts[change.key] != change.before
+                   for change in detail.changes)
+    return detail.observable and snapshot.generation > generation
 
 
 @dataclass(frozen=True)
@@ -556,7 +560,7 @@ class ComputerUseController:
                 if retry:
                     await asyncio.sleep(0.05)
                 snapshot = await self.observe(goal, context)
-                verified = effect_achieved(snapshot, action, detail)
+                verified = effect_achieved(snapshot, action, detail, actions.binding.generation)
                 self.record_result(attempt, receipt, snapshot, verified=verified)
                 if verified:
                     self.pending_effect = False

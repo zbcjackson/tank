@@ -144,6 +144,8 @@ class Element:
     submits: bool = False
     input_type: str = "text"
     click_changes: tuple[ValueChange, ...] = ()
+    # No readout can verify this click; a changed observation is its local effect.
+    click_observable: bool = False
 
 
 @dataclass(frozen=True)
@@ -204,6 +206,7 @@ class ActionDetails:
     input_key: str | None
     effect: tuple[Fact, ...] = ()
     changes: tuple[ValueChange, ...] = ()
+    observable: bool = False
 
 
 @dataclass(frozen=True)
@@ -310,6 +313,7 @@ def snapshot_json(snapshot: Snapshot) -> dict[str, object]:
         # Preserve the v1 wire shape when no goal-driven capability was observed.
         data.pop("click_effect")
         data.pop("submits")
+        data.pop("click_observable")
         if not element.click_changes:
             data.pop("click_changes")
         if element.input_type == "text":

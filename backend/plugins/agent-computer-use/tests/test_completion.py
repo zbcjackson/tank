@@ -1,14 +1,18 @@
 """Generic completion evidence for apps without a profile."""
 
+from dataclasses import replace
+
 import pytest
 from pydantic import JsonValue
+from agent_computer_use.action_builder import ActionBuilder
 from agent_computer_use.contracts import (
     DispatchReceipt, Element, Fact, GoalContract, Snapshot, TargetBinding,
 )
 from agent_computer_use.controller import ComputerUseController, achieved
+from agent_computer_use.model_view import compact_model_view
 from tank_backend.agents.subagent import SubAgentRequest
 
-from .test_ladder import Binder, context
+from .test_ladder import Binder, PickFirst, context
 
 
 def generic_goal(*completion: tuple[str, str]) -> dict[str, JsonValue]:
@@ -134,6 +138,78 @@ async def test_controller_verifies_generic_conditions_from_its_baseline(
     world, binder = NoteWorld(existing), Binder()
     binder.binding = TargetBinding("com.apple.Notes", False, frozenset(), generic)
     result = await ComputerUseController(world, world, binder=binder).run(note_request(), context())
+    assert (result.status, result.reason) == (status, reason)
+
+
+def button(ref: str, label: str, title: str = "Notes") -> Element:
+    return Element(ref, "button", label, ("click",), source="ax", click_observable=True,
+                   ancestors=(("AXWindow", title),))
+
+
+def field(ref: str, label: str, value: str = "", title: str = "Notes") -> Element:
+    return Element(ref, "textbox", label, ("fill",), source="ax", value=value,
+                   ancestors=(("AXWindow", title),))
+
+
+class AppWorld:
+    """Scripted AX app: clicking a ref listed in `opens` shows another screen."""
+
+    def __init__(self, screens: dict[str, tuple[str, tuple[Element, ...]]],
+                 opens: dict[str, str] | None = None) -> None:
+        self.screens = {name: (window, {e.ref: e for e in elements})
+                        for name, (window, elements) in screens.items()}
+        self.opens, self.screen, self.version, self.reads = opens or {}, "A", 0, 0
+        self.dispatched = []
+
+    async def observe(self, scope, ctx):
+        self.reads += 1
+        window, elements = self.screens[self.screen]
+        return Snapshot(f"obs-{self.reads}", scope, self.version, tuple(elements.values()),
+                        window=window)
+
+    async def is_current(self, binding, action, ctx):
+        return binding.generation == self.version
+
+    async def dispatch(self, binding, action, ctx):
+        self.dispatched.append(action)
+        if action.operation == "fill":
+            elements = self.screens[self.screen][1]
+            elements[action.target_ref] = replace(elements[action.target_ref], value=action.value)
+            self.version += 1
+        elif action.target_ref in self.opens:
+            self.screen = self.opens[action.target_ref]
+            self.version += 1
+        return DispatchReceipt(action.id, "sent")
+
+
+async def run_app(world: AppWorld, *completion: tuple[str, str]):
+    goal = {**generic_goal(*completion), "inputs": BODY_INPUT,
+            "target": {"application": "Notes"}}
+    binder = Binder()
+    binder.binding = TargetBinding("com.apple.Notes", False, frozenset(), True)
+    return await ComputerUseController(world, world, selector=PickFirst(), binder=binder).run(
+        SubAgentRequest("Note", "", "task", goal), context())
+
+
+def test_observable_click_is_a_candidate_without_declared_effects() -> None:
+    goal = GoalContract.from_input(generic_goal(("ax:present:body", "56")))
+    plain = replace(button("new", "New Note"), click_observable=False)
+    assert ActionBuilder().build("g", 1, goal, Snapshot("obs", "window", 1, (plain,))).actions == ()
+    snapshot = Snapshot("obs", "window", 1, (button("new", "New Note"),))
+    actions = ActionBuilder().build("g", 1, goal, snapshot)
+    assert [a.operation for a in actions.actions] == ["click"] and actions.details[0].observable
+    view, criteria, _, _ = compact_model_view(snapshot, actions)
+    assert "observable" not in str(view) and "observable" not in str(criteria)
+
+
+@pytest.mark.parametrize(("opens", "status", "reason"), [
+    ({"new": "B"}, "completed", "goal_verified"),
+    ({}, "unknown", "effect_unknown"),
+])
+async def test_observable_click_is_verified_by_a_changed_snapshot(opens, status, reason) -> None:
+    world = AppWorld({"A": ("1", (button("new", "New Note"),)),
+                      "B": ("1", (field("body", "Body"),))}, opens)
+    result = await run_app(world, ("ax:present:body", "56"))
     assert (result.status, result.reason) == (status, reason)
 
 
