@@ -94,51 +94,8 @@ def test_title_contains_must_newly_hold(current, baseline, expected) -> None:
     assert achieved(current, condition, baseline) is expected
 
 
-class NoteWorld:
-    """One editable body; `existing` is static text already in the window."""
-
-    def __init__(self, existing: str = "", facts: tuple[Fact, ...] = ()) -> None:
-        self.body, self.existing, self.facts, self.dispatched = "", existing, facts, []
-
-    async def observe(self, scope, ctx):
-        return Snapshot(f"obs-{len(self.dispatched)}", scope, len(self.dispatched), (
-            Element("body", "textbox", "Body", ("fill",), source="ax", value=self.body,
-                    ancestors=(("AXWindow", "Notes"),)),
-            Element("note", "text", self.existing, (), kind="text_region", source="ax",
-                    value=self.existing, ancestors=(("AXWindow", "Notes"),)),
-        ), self.facts)
-
-    async def is_current(self, binding, action, ctx):
-        return binding.generation == len(self.dispatched)
-
-    async def dispatch(self, binding, action, ctx):
-        self.dispatched.append(action)
-        self.body = action.value
-        return DispatchReceipt(action.id, "sent")
-
-
 BODY_INPUT: JsonValue = [{"key": "body", "purpose": "note body", "value": "56",
                           "field_label": "Body"}]
-
-
-def note_request() -> SubAgentRequest:
-    goal = generic_goal(("ax:present:body", "56"))
-    goal["inputs"] = BODY_INPUT
-    return SubAgentRequest("Note", "", "task", {**goal, "target": {"application": "Notes"}})
-
-
-@pytest.mark.parametrize(("generic", "existing", "status", "reason"), [
-    (True, "", "completed", "goal_verified"),
-    (True, "56", "partial", "no_viable_actions"),
-    (False, "", "needs_input", "unsupported_completion_evidence"),
-])
-async def test_controller_verifies_generic_conditions_from_its_baseline(
-    generic, existing, status, reason,
-) -> None:
-    world, binder = NoteWorld(existing), Binder()
-    binder.binding = TargetBinding("com.apple.Notes", False, frozenset(), generic)
-    result = await ComputerUseController(world, world, binder=binder).run(note_request(), context())
-    assert (result.status, result.reason) == (status, reason)
 
 
 def button(ref: str, label: str, title: str = "Notes") -> Element:
@@ -151,21 +108,26 @@ def field(ref: str, label: str, value: str = "", title: str = "Notes") -> Elemen
                    ancestors=(("AXWindow", title),))
 
 
+def text(ref: str, value: str, title: str = "Notes") -> Element:
+    return Element(ref, "text", "", (), kind="text_region", source="ax", value=value,
+                   ancestors=(("AXWindow", title),))
+
+
 class AppWorld:
     """Scripted AX app: clicking a ref listed in `opens` shows another screen."""
 
     def __init__(self, screens: dict[str, tuple[str, tuple[Element, ...]]],
-                 opens: dict[str, str] | None = None) -> None:
+                 opens: dict[str, str] | None = None, facts: tuple[Fact, ...] = ()) -> None:
         self.screens = {name: (window, {e.ref: e for e in elements})
                         for name, (window, elements) in screens.items()}
-        self.opens, self.screen, self.version, self.reads = opens or {}, "A", 0, 0
+        self.opens, self.facts, self.screen, self.version, self.reads = opens or {}, facts, "A", 0, 0
         self.dispatched = []
 
     async def observe(self, scope, ctx):
         self.reads += 1
         window, elements = self.screens[self.screen]
         return Snapshot(f"obs-{self.reads}", scope, self.version, tuple(elements.values()),
-                        window=window)
+                        self.facts, window=window)
 
     async def is_current(self, binding, action, ctx):
         return binding.generation == self.version
@@ -182,13 +144,29 @@ class AppWorld:
         return DispatchReceipt(action.id, "sent")
 
 
-async def run_app(world: AppWorld, *completion: tuple[str, str]):
+def note(*elements: Element) -> AppWorld:
+    return AppWorld({"A": ("1", (field("body", "Body"), *elements))})
+
+
+async def run_app(world: AppWorld, *completion: tuple[str, str], generic: bool = True):
     goal = {**generic_goal(*completion), "inputs": BODY_INPUT,
             "target": {"application": "Notes"}}
     binder = Binder()
-    binder.binding = TargetBinding("com.apple.Notes", False, frozenset(), True)
+    binder.binding = TargetBinding("com.apple.Notes", False, frozenset(), generic)
     return await ComputerUseController(world, world, selector=PickFirst(), binder=binder).run(
         SubAgentRequest("Note", "", "task", goal), context())
+
+
+@pytest.mark.parametrize(("generic", "world", "status", "reason"), [
+    (True, note(), "completed", "goal_verified"),
+    (True, note(text("note", "56")), "partial", "no_viable_actions"),
+    (False, note(), "needs_input", "unsupported_completion_evidence"),
+])
+async def test_controller_verifies_generic_conditions_from_its_baseline(
+    generic, world, status, reason,
+) -> None:
+    result = await run_app(world, ("ax:present:body", "56"), generic=generic)
+    assert (result.status, result.reason) == (status, reason)
 
 
 def test_observable_click_is_a_candidate_without_declared_effects() -> None:
@@ -213,10 +191,7 @@ async def test_observable_click_is_verified_by_a_changed_snapshot(opens, status,
     assert (result.status, result.reason) == (status, reason)
 
 
-DIALOG = Element("dialog", "text", "", (), kind="text_region", source="ax",
-                 value="Save changes?", ancestors=(("AXWindow", "Notes"),))
-
-
+DIALOG = text("dialog", "Save changes?")
 @pytest.mark.parametrize(("screens", "opens", "condition", "status"), [
     # The original window still shows the dialog; another window lacking it proves nothing.
     ({"A": ("1", (DIALOG, button("new", "New Note"))), "B": ("2", (field("body", "Body"),))},
@@ -239,7 +214,8 @@ async def test_each_window_is_judged_against_its_own_baseline(
 
 
 async def test_generic_outcomes_never_hold_without_a_generic_target() -> None:
-    world = NoteWorld(facts=(Fact(key="status:open", value="yes"),))
+    world = AppWorld({"A": ("1", (field("body", "Body"),))},
+                     facts=(Fact(key="status:open", value="yes"),))
     goal = {**generic_goal(("status:open", "yes")), "inputs": BODY_INPUT,
             "outcomes": [{"id": "written", "conditions": [{"key": "ax:present:body",
                                                            "value": "56"}]}]}
