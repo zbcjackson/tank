@@ -92,6 +92,10 @@ class AXObservationSource:
             label = (candidate.identifier or candidate.title if self.use_identifiers else
                      candidate.title or candidate.description or candidate.identifier)
             label = label or (candidate.role if role == "textbox" else candidate.value)
+            # Shared AX titles are common for stacked text views; keep fills distinguishable.
+            if (role == "textbox" and not self.use_identifiers and candidate.identifier
+                    and label != candidate.identifier):
+                label = f"{label} · {candidate.identifier}"
             elements.append(Element(
                 ref, _ROLES.get(candidate.role, candidate.role),
                 label,

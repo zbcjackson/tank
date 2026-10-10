@@ -536,10 +536,10 @@ class ComputerUseController:
                     return self.result("needs_input", "missing_user_input")
                 if actions.reason == "none":
                     return self.result("stopped", "none")
-                if actions.reason in {
-                    "need_more_context", "ambiguous", "observation_unavailable",
-                    "scope_incomplete", "ambiguous_target",
-                }:
+                if actions.reason in {"need_more_context", "ambiguous"}:
+                    snapshot = await self.observe(goal, context)
+                    continue
+                if actions.reason in {"observation_unavailable", "scope_incomplete"}:
                     snapshot = await self.observe(goal, context)
                     continue
                 advice = await self.advise(request, goal, snapshot, actions, context)

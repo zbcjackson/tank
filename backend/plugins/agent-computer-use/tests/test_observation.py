@@ -247,3 +247,19 @@ async def test_ax_closed_while_native_read_is_queued_does_not_read(monkeypatch) 
     with pytest.raises(SubAgentStopped, match="channel_closed"):
         await source.observe("window-7", context())
     read.assert_not_called()
+
+
+
+async def test_textbox_labels_include_identifier_when_title_is_shared(monkeypatch) -> None:
+    from agent_computer_use.observation import AXObservationSource
+
+    first = replace(candidate(object(), "Text View"), role="AXTextArea", actions=(),
+                    value_settable=True, identifier="First Text View")
+    second = replace(candidate(object(), "Text View", 2), role="AXTextArea", actions=(),
+                     value_settable=True, identifier="Second Text View")
+    monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates",
+                        lambda *args: ([first, second], False))
+    snapshot = await AXObservationSource(7, frame().display_geometry, "window-7").observe(
+        "window-7", context())
+    assert [e.label for e in snapshot.elements] == [
+        "Text View · First Text View", "Text View · Second Text View"]
