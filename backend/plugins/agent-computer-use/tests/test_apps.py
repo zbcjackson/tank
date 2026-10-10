@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from agent_computer_use.channels.apps import RunningInstance as FakeInstance
 from agent_computer_use.contracts import TargetUnavailable
 
 
@@ -39,7 +40,7 @@ def write_app(
 
 
 @pytest.fixture
-def apps(tmp_path: Path) -> dict[str, Path]:
+def apps(tmp_path: Path) -> dict[str, Any]:
     applications = tmp_path / "Applications"
     system = tmp_path / "System" / "Applications"
     utilities = system / "Utilities"
@@ -101,13 +102,6 @@ def test_resolve_denylist_can_only_grow(apps) -> None:
     # Bundle ids on the denylist are refused even when the app is not installed here.
     with pytest.raises(TargetUnavailable, match="application_denied"):
         resolve_application("com.apple.keychainaccess", roots=roots)
-
-
-@dataclass
-class FakeInstance:
-    pid: int
-    start: str
-    bundle_id: str
 
 
 class FakePlatform:
