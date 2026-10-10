@@ -45,6 +45,12 @@ class ActionBuilder:
             item.value is not None and len(fields[item.key]) == 1
             and fields[item.key][0].value == item.value for item in goal.inputs
         )
+        # Prefer pending fills over unverifiable clicks; keep clicks that reveal fields.
+        pending_fill = any(
+            item.value is not None
+            and any(field.value != item.value for field in fields[item.key])
+            for item in goal.inputs
+        )
         for element in snapshot.elements:
             if element.kind != "control" or not element.enabled:
                 continue
@@ -68,9 +74,8 @@ class ActionBuilder:
                 facts = {fact.key: fact.value for fact in snapshot.facts}
                 if not effect and not element.click_changes and not element.click_observable:
                     continue
-                # Unverifiable clicks must not crowd out declared fills on profile-less apps.
                 if (element.click_observable and not effect and not element.click_changes
-                        and goal.inputs and not inputs_satisfied):
+                        and pending_fill):
                     continue
                 if effect and all(facts.get(f.key) == f.value for f in effect):
                     continue
