@@ -197,7 +197,7 @@ def test_bind_blocks_danger_terms_only_without_a_profile(apps) -> None:
 
     generic = bind_application("Calculator", scope="calc", roots=apps["roots"],
                                platform=FakePlatform(), blocked_terms=("archive",))
-    assert {"delete", "send", "删除", "发送"} <= set(DANGER_TERMS)
+    assert {"delete", "send", "discard", "删除", "发送", "丢弃", "放弃"} <= set(DANGER_TERMS)
     assert generic.config.blocked_terms == (*DANGER_TERMS, "archive")
     profiled = bind_application(
         "Calculator", scope="calc", roots=apps["roots"], platform=FakePlatform(),

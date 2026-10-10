@@ -31,7 +31,7 @@ DENIED_BUNDLES = frozenset({
 DANGER_TERMS = (
     "send", "delete", "remove", "erase", "trash", "discard", "don't save", "clear", "reset",
     "sign out", "log out", "uninstall", "buy", "purchase", "pay",
-    "发送", "删除", "移除", "抹掉", "废纸篓", "清空", "清除", "不保存", "不存储", "重置",
+    "发送", "删除", "移除", "抹掉", "废纸篓", "丢弃", "放弃", "清空", "清除", "不保存", "不存储", "重置",
     "退出登录", "注销", "卸载", "购买", "支付", "付款",
 )
 
