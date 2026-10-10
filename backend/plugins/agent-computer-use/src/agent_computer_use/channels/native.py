@@ -363,8 +363,10 @@ class NativeAXChannel:
             blocked = {e.ref for e in snapshot.elements
                        if not e.label or e.label in self.config.blocked_labels
                        or targets[e.ref].identifier in self.config.blocked_identifiers}
+            clickable = {e.ref for e in snapshot.elements if "click" in e.actions and e.ref not in blocked}
             elements = tuple(replace(
-                e, click_changes=tuple(changes) if "click" in e.actions and e.ref not in blocked else (),
+                e, click_changes=tuple(changes) if e.ref in clickable else (),
+                click_observable=e.ref in clickable and not changes,
                 actions=e.actions if e.ref not in blocked else (),
                 enabled=(True if "fill" in e.actions and targets[e.ref].enabled is None
                          and targets[e.ref].value_settable else e.enabled),
