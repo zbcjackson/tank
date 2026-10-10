@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator,
 
 Operation = Literal["click", "fill"]
 Model = TypeVar("Model", bound="GoalModel")
+# Window-wide AX conditions for apps without a profile; keys are "<prefix><name>".
+GENERIC_CONDITIONS = ("ax:present:", "ax:absent:", "ax:title:")
 
 
 class GoalModel(BaseModel):
@@ -97,6 +99,12 @@ class GoalContract(GoalModel):
         ):
             if len(set(names)) != len(names):
                 raise ValueError("Duplicate goal identity")
+        for fact in (*self.completion, *(c for o in self.outcomes for c in o.conditions)):
+            if not fact.key.startswith("ax:") or fact.key.startswith("ax:value:"):
+                continue
+            prefix = next((p for p in GENERIC_CONDITIONS if fact.key.startswith(p)), None)
+            if prefix is None or fact.key == prefix or not fact.value.strip():
+                raise ValueError("Invalid AX completion condition")
         # Resolve the bounded dependency graph without relying on declaration order.
         remaining = {item.id: set(item.depends_on) for item in self.outcomes}
         resolved: set[str] = set()
