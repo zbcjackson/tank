@@ -1206,3 +1206,79 @@ async def test_native_observe_does_not_follow_another_process(world, monkeypatch
         await channel.observe("counter", ctx)
     await channel.aclose()
     await ctx.runtime.aclose()
+
+
+async def test_nl_pilot_fake_runs_intake_then_completes_calculator(world, monkeypatch, tmp_path):
+    """Intake + Jev/Advisor fake HTTP over a fake Calculator AX tree."""
+    import json
+    from pathlib import Path
+    from agent_computer_use.channels.native import NativeConfig
+    from tank_backend.benchmarks.desktop_cleanup import MacOSInputCleanup
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_nl
+
+    monkeypatch.setattr(s4_nl, "CASES", (s4_nl.CASES[0],))
+    world.buttons = [replace(world.button, title=label, identifier=label,
+                             element=AXElementRef(object(), False, 80))
+                     for label in ("7", "Multiply", "8", "Equals")]
+    expression = ""
+    expression_element = AXElementRef(object(), False, 80)
+
+    def press(ref):
+        nonlocal expression
+        label = next(button.title for button in world.buttons if button.element == ref)
+        world.sent.append(label)
+        world.value = {"7": "7", "Multiply": "7", "8": "8", "Equals": "56"}[label]
+        expression = {"7": "", "Multiply": "7×", "8": "7×", "Equals": "7×8"}[label]
+
+    def read(*args, **kwargs):
+        return [*world.buttons, replace(world.output, value=world.value),
+                replace(world.output, index=3, title="Expression", identifier="expression",
+                        value=expression, element=expression_element,
+                        ancestor_identifiers=("expression-region",))], False
+
+    monkeypatch.setattr("agent_computer_use.channels.native.ax_press", press)
+    monkeypatch.setattr("agent_computer_use.observation.ax_window_candidates", read)
+
+    def start(owner):
+        config = native_config()
+        config["scope"] = owner.case["id"]
+        config["readouts"] = [
+            {"name": "result", "role": "AXStaticText", "identifier": "result"},
+            {"name": "expression", "role": "AXStaticText",
+             "ancestor_identifier": "expression-region", "aggregation": "compact_text",
+             "allow_empty": True}]
+        return NativeConfig.model_validate_json(json.dumps(config))
+
+    monkeypatch.setattr(s4_nl.OwnedApplication, "start", start)
+    monkeypatch.setattr(s4_nl.OwnedApplication, "read_values",
+                        lambda self: {"expression": expression, "result": world.value})
+    monkeypatch.setattr(s4_nl.OwnedApplication, "close", lambda self: {"confirmed": True})
+    monkeypatch.setattr(MacOSInputCleanup, "_state", staticmethod(lambda: ([], [])))
+    monkeypatch.setattr(MacOSInputCleanup, "_release", lambda self: {"errors": []})
+    monkeypatch.setattr(s4_nl, "channel_policy", lambda case: {
+        "profiles": {"test.counter": {
+            "dispatch": "ax_press", "labels": "accessible_name",
+            "readouts": [
+                {"name": "result", "role": "AXStaticText", "identifier": "result"},
+                {"name": "expression", "role": "AXStaticText",
+                 "ancestor_identifier": "expression-region", "aggregation": "compact_text",
+                 "allow_empty": True}],
+        }}})
+    monkeypatch.setattr(s4_nl, "task_input",
+                        lambda case: {"target": {"application": "test.counter"}})
+    monkeypatch.setattr(s4_nl, "frozen_brief", lambda case: {
+        "application": "test.counter", "objective": "Show 56", "inputs": [],
+        "completion": [{"type": "present", "value": "56"}],
+    })
+
+    output = tmp_path / "nl-pilot"
+    frozen = s4_nl.prepare(output)
+    report = await s4_nl.run_batch(output, frozen["sha256"], mode="fake")
+    assert report["completed"], report["rows"]
+    row = report["rows"][0]
+    assert row["passed"] and row["result"]["status"] == "completed"
+    assert row["result"]["details"]["intake"]["completion"][0]["value"] == "56"
+    assert world.sent == ["7", "Multiply", "8", "Equals"]
+    assert report["fake_http_requests"] >= 2
