@@ -28,12 +28,13 @@ class UnavailableChannel:
 
 def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
     if config:
-        if (set(config) - {"browser", "macos", "selector", "advisor"}
+        if (set(config) - {"browser", "macos", "selector", "advisor", "intake"}
                 or len(set(config) & {"browser", "macos"}) != 1
                 or ("selector" in config and config["selector"] not in ("jev", "llm", "jev-fallback"))
-                or ("advisor" in config and config["advisor"] != "llm")):
+                or ("advisor" in config and config["advisor"] != "llm")
+                or ("intake" in config and (config["intake"] != "llm" or "macos" not in config))):
             raise ValueError("Specify one explicit browser or macos channel")
-        binder = None
+        binder = intake = None
         completion_keys = None
         max_candidates = 32
         if "macos" in config:
@@ -43,6 +44,10 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
             policy = MacOSPolicy.model_validate_json(json.dumps(config["macos"], allow_nan=False))
             channel = NativeAXChannel(policy)
             binder = channel
+            if config.get("intake") == "llm":
+                from .intake import LLMIntake
+
+                intake = LLMIntake()
             max_candidates = 64
         else:
             from .channels.dom import BrowserConfig, ManagedChromiumChannel
@@ -62,7 +67,7 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
         advisor = LLMAdvisor(allow_focus=selector is not None) if config.get("advisor") == "llm" else None
         return ComputerUseSubAgent(
             ComputerUseController(channel, channel, selector=selector, advisor=advisor,
-                                  binder=binder, completion_keys=completion_keys,
+                                  binder=binder, intake=intake, completion_keys=completion_keys,
                                   max_candidates=max_candidates), resources=(channel,),
         )
     channel = UnavailableChannel()

@@ -225,3 +225,25 @@ def test_advisor_configuration_requires_explicit_llm(advisor):
     with pytest.raises(ValueError):
         create_subagent({"browser": {"scope": "page", "url": "http://127.0.0.1:1"},
                          "advisor": advisor})
+
+
+async def test_intake_is_explicit_and_macos_only():
+    from agent_computer_use.intake import LLMIntake
+
+    enabled, default = create_subagent({"macos": {}, "intake": "llm"}), create_subagent({"macos": {}})
+    try:
+        assert isinstance(enabled.controller.intake, LLMIntake)
+        assert default.controller.intake is None
+    finally:
+        await enabled.aclose()
+        await default.aclose()
+
+
+@pytest.mark.parametrize("config", [
+    {"browser": {"scope": "page", "url": "http://127.0.0.1:1"}, "intake": "llm"},
+    {"macos": {}, "intake": "jev"},
+    {"macos": {}, "intake": True},
+])
+def test_intake_configuration_requires_llm_on_macos(config):
+    with pytest.raises(ValueError):
+        create_subagent(config)
