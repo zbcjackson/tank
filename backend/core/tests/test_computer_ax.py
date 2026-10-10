@@ -815,6 +815,20 @@ def test_ax_focused_process_is_read_without_cached_workspace_state(monkeypatch) 
     assert computer_ax.ax_focused_pid() is None
 
 
+
+def test_ax_long_description_alone_does_not_truncate_the_window(monkeypatch) -> None:
+    quartz = MagicMock()
+    quartz.CGWindowListCopyWindowInfo.return_value = [WINDOW]
+    monkeypatch.setattr(macos, "_load_quartz", lambda: quartz)
+    control = button("Save", 10, 10)
+    control.attrs["AXDescription"] = "A" * 81
+    window = _Element({"AXRole": "AXWindow", "AXPosition": (0, 0), "AXSize": (100, 80)},
+                      [control])
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: make_api(_App(42, [window])))
+    candidates, truncated = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
+    assert not truncated and candidates[0].description == "" and candidates[0].title == "Save"
+
+
 def test_ax_truncated_text_is_not_complete_evidence(monkeypatch) -> None:
     quartz = MagicMock()
     quartz.CGWindowListCopyWindowInfo.return_value = [WINDOW]

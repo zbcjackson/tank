@@ -356,10 +356,13 @@ def ax_window_candidates(
         text = {key: _string(attribute(element, key))
                 if include_descriptions or key != "AXDescription" else ""
                 for key in ("AXTitle", "AXValue", "AXDescription", "AXIdentifier")}
-        if (not role or len(text["AXValue"]) > 4096
-                or any(len(" ".join(value.split())) > 80
-                       for key, value in text.items() if key != "AXValue")):
+        if not role or len(text["AXValue"]) > 4096:
             truncated = True
+        # Long titles/ids mean the label was clipped; long descriptions are chrome noise.
+        if any(len(" ".join(text[key].split())) > 80 for key in ("AXTitle", "AXIdentifier")):
+            truncated = True
+        if len(" ".join(text["AXDescription"].split())) > 80:
+            text["AXDescription"] = ""
         if role and (role in _ADDRESSABLE_ROLES or "AXPress" in actions):
             candidates.append(AXCandidate(
                 index=len(candidates) + 1, role=role,
