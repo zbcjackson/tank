@@ -893,4 +893,6 @@ schema_version=2 契约（`goal_id` 新生成、`authorization_ref=current_task`
 出现在 request.task/context 原文中，否则 `needs_input`/`ungrounded_input`。父代理可附
 `target` 覆盖应用名。完整契约路径不变；简述写入结果 `details.intake`。无模型时
 `intake_model_unavailable`；非法回复 `invalid_intake`。调用计入任务用量。第二片
-（绑定后看初始快照再写完成条件）按端到端证据决定是否做。
+（绑定后看初始快照再写完成条件）按端到端证据决定是否做。桌面 fake 后：绑定若声明了
+`ax:value:result`，intake 的单一 `present` 会确定性对齐到该读数键；无 readout 的画像仍套用
+危险词（与完全无画像相同），有 readout 才省略。
