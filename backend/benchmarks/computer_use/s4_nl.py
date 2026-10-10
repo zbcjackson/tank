@@ -82,7 +82,11 @@ def goal_from_case(case: PilotCase) -> dict[str, Any]:
 
 def channel_policy(case: PilotCase) -> dict[str, Any]:
     if not case["profile"]:
-        return {}
+        # Identifier labels avoid description-triggered AX truncation; no readouts keeps
+        # danger-term filtering for unverifiable clicks (generic completion path).
+        return {"profiles": {
+            BUNDLES["textedit"]: {"dispatch": case["dispatch"], "labels": "identifier"},
+        }}
     return s4_ax.channel_policy({
         "id": case["id"], "application": case["application"], "dispatch": case["dispatch"],
         "repeat": 0, "max_decisions": case["max_decisions"], "move_window": case["move_window"],

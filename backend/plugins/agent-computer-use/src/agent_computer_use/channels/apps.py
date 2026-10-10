@@ -284,7 +284,9 @@ def bind_application(
 ) -> BoundApplication:
     ref = resolve_application(application, roots=roots, denied_bundles=denied_bundles)
     profile = profile or (profiles or {}).get(ref.bundle_id)
-    terms = () if profile else (*DANGER_TERMS, *blocked_terms)
+    # Danger terms guard unverifiable clicks; readout-backed profiles verify locally instead.
+    terms = (() if profile is not None and profile.readouts
+             else (*DANGER_TERMS, *blocked_terms))
     profile = profile or AppProfile()
     running = platform.running(ref.bundle_id)
     launched = False

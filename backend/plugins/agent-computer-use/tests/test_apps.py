@@ -192,16 +192,26 @@ def test_bind_waits_for_the_first_window_after_launch(apps) -> None:
     assert platform.pumps >= 3
 
 
-def test_bind_blocks_danger_terms_only_without_a_profile(apps) -> None:
+def test_bind_blocks_danger_terms_without_readout_verified_clicks(apps) -> None:
     from agent_computer_use.channels.apps import DANGER_TERMS, AppProfile, bind_application
+    from agent_computer_use.channels.native import Readout
 
     generic = bind_application("Calculator", scope="calc", roots=apps["roots"],
                                platform=FakePlatform(), blocked_terms=("archive",))
     assert {"delete", "send", "discard", "删除", "发送", "丢弃", "放弃"} <= set(DANGER_TERMS)
     assert generic.config.blocked_terms == (*DANGER_TERMS, "archive")
+    # Labels-only profiles still use danger terms; readout-backed clicks do not.
+    labeled = bind_application(
+        "Calculator", scope="calc", roots=apps["roots"], platform=FakePlatform(),
+        profiles={"com.apple.calculator": AppProfile(labels="identifier")},
+        blocked_terms=("archive",))
+    assert labeled.config.blocked_terms == (*DANGER_TERMS, "archive")
+    assert labeled.config.labels == "identifier"
     profiled = bind_application(
         "Calculator", scope="calc", roots=apps["roots"], platform=FakePlatform(),
-        profiles={"com.apple.calculator": AppProfile()}, blocked_terms=("archive",))
+        profiles={"com.apple.calculator": AppProfile(
+            readouts=(Readout(name="result", role="AXStaticText"),))},
+        blocked_terms=("archive",))
     assert profiled.config.blocked_terms == ()
 
 
