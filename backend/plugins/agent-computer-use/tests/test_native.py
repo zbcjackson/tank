@@ -1108,6 +1108,8 @@ async def test_blocked_terms_remove_clicks_but_keep_fields(world):
 
     world.buttons = [control("Delete Note"), control("发送"), control("Don’t Save"),
                      control("Deleted Items"), control("Increment"),
+                     # Unnamed controls are labelled by their developer identifier.
+                     replace(control(""), identifier="deleteButton"),
                      control("Sender", "AXTextField", actions=(), value_settable=True)]
     config = {**native_config(), "readouts": [],
               "blocked_terms": ["delete", "发送", "don't save"]}
@@ -1117,6 +1119,7 @@ async def test_blocked_terms_remove_clicks_but_keep_fields(world):
     snapshot = await channel.observe("counter", ctx)
     actions = {e.label: e.actions for e in snapshot.elements}
     assert actions["Delete Note"] == actions["发送"] == actions["Don’t Save"] == ()
+    assert actions["deleteButton"] == ()
     assert actions["Deleted Items"] == actions["Increment"] == ("click",)
     assert actions["Sender"] == ("fill",)
     await channel.aclose()

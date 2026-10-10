@@ -85,7 +85,8 @@ class NativeConfig(BaseModel):
 
 def names_term(label: str, terms: tuple[str, ...]) -> bool:
     """Whole-word match for ASCII terms, substring match for CJK terms."""
-    text = label.casefold().replace("\u2019", "'")
+    # Identifier fallback labels are camelCase ("deleteButton"); split their words first.
+    text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", label).casefold().replace("\u2019", "'")
     for term in terms:
         term = term.casefold().replace("\u2019", "'")
         if term.isascii():
