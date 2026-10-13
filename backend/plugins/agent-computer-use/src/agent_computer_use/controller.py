@@ -496,6 +496,10 @@ class ComputerUseController:
             if repeated:
                 self.finish_focus("invalidated", "repeated_state", snapshot)
                 self.progress = replace(self.progress, no_progress=self.progress.no_progress + 1)
+                if not snapshot.ready:
+                    # A channel that never produced a usable observation is
+                    # unavailable, not merely unchanged; keep the honest reason.
+                    return self.result("stopped", "observation_unavailable")
                 if (self.advisor is None
                         or visited[state] == len(self.progress.verified_actions)):
                     return self.result("stopped", "no_progress")
