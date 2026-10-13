@@ -1,4 +1,5 @@
-> 状态：进行中（2026-10-09：S0–S3 按各自范围收口，Jev 仍默认禁用；S4 DOM 与原生通道已实现，双模型原生 fake HTTP 九项通过，真实 Advisor 批次 1 成功 / 1 未知失败 / 7 未运行；语义历史、紧凑视图和动态 focus 离线验收及评审完成；无桌面诊断经用户明确授权后 48/48 行完成（51 次调用、0 桌面操作，当前输入 12/12、旧输入 6/12、Advisor 组 11/12，仅为冻结状态选择判定）；排期调整为先真实 native 矩阵，矩阵停批改为已知失败继续，fake HTTP 9/9 与经授权真实批次 9/9 通过（34 次调用，Jev 2/6 跳过运算符后自行 Clear 并经 Advisor 纠偏），两项规划修复评估后暂不修；2026-10-10：按请求打开/复用任意 App 并绑定窗口（S4-B）与 AX 快照通用完成核验（S4-V）离线验收完成，无画像点击与分窗口基线（S4-V2）离线验收完成；自然语言→GoalContract（S4-N）离线验收完成；端到端桌面 fake/live 各 3/3 通过（2026-10-10）；S4 按证据收口完成（规划稳定性以原生矩阵 9/9 + NL live 3/3 结案；视觉/OCR 与 N 第二片无缺口证据移交 backlog）；S4-G3 仍于 S6 交付前；2026-10-12：真实模型调用不再按批授权（用户指示），S5 启动）。
+> 状态：进行中（2026-10-09：S0–S3 按各自范围收口，Jev 仍默认禁用；S4 DOM 与原生通道已实现，双模型原生 fake HTTP 九项通过，真实 Advisor 批次 1 成功 / 1 未知失败 / 7 未运行；语义历史、紧凑视图和动态 focus 离线验收及评审完成；无桌面诊断经用户明确授权后 48/48 行完成（51 次调用、0 桌面操作，当前输入 12/12、旧输入 6/12、Advisor 组 11/12，仅为冻结状态选择判定）；排期调整为先真实 native 矩阵，矩阵停批改为已知失败继续，fake HTTP 9/9 与经授权真实批次 9/9 通过（34 次调用，Jev 2/6 跳过运算符后自行 Clear 并经 Advisor 纠偏），两项规划修复评估后暂不修；2026-10-10：按请求打开/复用任意 App 并绑定窗口（S4-B）与 AX 快照通用完成核验（S4-V）离线验收完成，无画像点击与分窗口基线（S4-V2）离线验收完成；自然语言→GoalContract（S4-N）离线验收完成；端到端桌面 fake/live 各 3/3 通过（2026-10-10）；S4 按证据收口完成（规划稳定性以原生矩阵 9/9 + NL live 3/3 结案；视觉/OCR 与 N 第二片无缺口证据移交 backlog）；S4-G3 仍于 S6 交付前；2026-10-12：真实模型调用不再按批授权（用户指示），S5 启动；
+2026-10-13：S5 第一片原生 track 三臂配对 harness（s5_paired.py）离线验收完成，live pilot 待跑）。
 
 > 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
 > 2026-10-03 当前决策：S3 按下文“当前计划”收口，验证 Jev 作为可回退策略环节的边际价值。历史批次按原协议的判分保留；`conflicting` 三例预期缺少充分任务契约支持，不作为 Jev 错误或宿主缺陷证据，不据此新增身份一致性拦截。
@@ -3180,6 +3181,39 @@ S3 的 H3/J3 是有限候选、已给定目标下的策略切片；本节 A/H/J 
 - 若需要解释结构通道收益，再增加同宿主仅视觉的 V 消融；
   若 S3 的廉价生成式选择器接近/超过 Jev，再加同位置替换的 live 对照。
   不铺全因子矩阵，也不能只比较“强 LLM 每步”和“Jev”就断言没有其它低成本解。
+
+#### S5 第一片实施：原生 track 三臂配对 harness（2026-10-13，离线验收完成）
+
+**范围**：`benchmarks/computer_use/s5_paired.py`——首个把 A（生产 `computer_use`
+驱动器，SubAgentDriver 截图 grounding 路径）与 H/J（插件宿主，selector
+`llm`/`jev-fallback` + 同一 Advisor + NL intake）放进同一调度、同一 SpendLedger
+的配对 runner。原生 macOS track 先行：A 臂只能操作可见应用，无头受管 Chromium
+上无法三臂同任务配对；DOM track 的 H/J 配对与原任务集回归属后续批次。
+
+- **任务集**：3 任务（Calculator 7×8 ax_press / quartz、TextEdit 正文替换）×
+  3 repeats（repeat 1 移窗），n=3/任务满足 pilot 下限；三臂轮换先手。
+- **输入公平性**：三臂同一条自然语言指令（复用 s4_nl live 3/3 的中文 prompt）；
+  H/J 经插件内 intake 转契约，调用计入成本。A 臂 max_steps 15 / 截图工具即生产默认。
+- **评分**：`OwnedApplication.read_values` 独立新鲜 AX 遍历判 strict/partial/violation，
+  不读 TaskResult 或模型文本；已知失败留在分母继续，unknown/取消/清理未确认停批
+  保留全部行（rows.jsonl 全分母）。
+- **计费**：共享 SpendLedger；A 臂经 SpendControl+RequestLimits（M5 模式），
+  H/J 经按 URL 区分的 per-trial 调用上限；冻结 MODELS 保守价格；A 契约的
+  output ceiling 从生产 profile max_tokens 冻结（4096 不够会拒收）。
+- **结论规则（预声明）**：仅描述性 `pilot_descriptive_only_needs_confirmatory_freeze`
+  或 `incomplete_no_pilot_conclusion`；采用判定必须另冻确认实验。
+- **离线测试**（插件 `tests/test_s5_paired.py`，5 例）：冻结/调度/预算 pin、
+  独立评分、描述性结论、fake 三臂单账本全分母（A 臂 fake 为“一次 SSE 回复、
+  零桌面动作”的接线证明）、运行错误停批全分母保留。生产 macOS 边界
+  （截图/点击/Quartz）在离线测试中显式禁入。
+- **修复的过程缺陷**：`httpx.AsyncHTTPTransport` 顶层 patch 拦不住 SDK 自建
+  客户端（默认 transport 经 `httpx._client` 命名空间解析）——fake 模式需双命名空间
+  patch；首次暴露时 A 臂曾真实调用 DashScope 并截取真实屏幕（~16 次调用），
+  已修复并有测试禁入防回归。fake world 跨 trial 共享状态需在 owned seam 重置
+  （生产路径由全新实例+All Clear 保证）。
+
+未完成：live pilot（冻结配方后运行真实批次）、DOM track H/J 配对与
+原任务集回归、S5-App 各臂。生产默认与基线 A 不变。
 - 每任务 n≥3 仅为 pilot。确认实验前冻结任务族、重复数、统计方法、最小实际收益、
   错误/失败/费用容忍界限；配对轮转先手，按任务/布局相关性报告区间。
   样本不足的 p95 仅描述并列 N，禁止观察结果后修改成功标准。
