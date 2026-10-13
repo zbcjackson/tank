@@ -1,34 +1,71 @@
 """Fusion contract: OCR text is context, never a control; AX stays authoritative."""
 
+import asyncio
+
+from tank_backend.agents.subagent import (
+    SubAgentAuthorization,
+    SubAgentBudget,
+    SubAgentContext,
+)
+
 from agent_computer_use.contracts import Element, Fact, Snapshot
 from agent_computer_use.fusion import FusedObservationSource, fuse
 
 
 def ax_snapshot(elements=(), facts=(), complete=True, generation=3):
-    return Snapshot("ax-obs", "app", generation, tuple(elements), tuple(facts),
-                    ready=True, complete=complete)
+    return Snapshot(
+        "ax-obs",
+        "app",
+        generation,
+        tuple(elements),
+        tuple(facts),
+        ready=True,
+        complete=complete,
+    )
 
 
 def ocr_snapshot(elements=(), complete=True, ready=True, generation=2):
-    return Snapshot("ocr-obs", "app", generation, tuple(elements), (),
-                    ready=ready, complete=complete)
+    return Snapshot(
+        "ocr-obs",
+        "app",
+        generation,
+        tuple(elements),
+        (),
+        ready=ready,
+        complete=complete,
+    )
 
 
 def ocr_text(ref, text, bounds):
-    return Element(ref, "text", text, (), kind="text_region", source="ocr",
-                   value=text, bounds=bounds)
+    return Element(
+        ref,
+        "text",
+        text,
+        (),
+        kind="text_region",
+        source="ocr",
+        value=text,
+        bounds=bounds,
+    )
 
 
 def ax_control(ref, label, bounds, value=""):
-    return Element(ref, "button", label, ("click",), source="ax", value=value,
-                   bounds=bounds)
+    return Element(
+        ref, "button", label, ("click",), source="ax", value=value, bounds=bounds
+    )
 
 
 def test_contained_matching_text_is_deduplicated():
-    ax = ax_snapshot([ax_control("a1", "保存", (10, 10, 100, 40))],
-                     [Fact(key="ax:value:result", value="0")])
-    ocr = ocr_snapshot([ocr_text("o1", "保存", (12, 12, 96, 36)),
-                        ocr_text("o2", "别的说明", (12, 12, 96, 36))])
+    ax = ax_snapshot(
+        [ax_control("a1", "保存", (10, 10, 100, 40))],
+        [Fact(key="ax:value:result", value="0")],
+    )
+    ocr = ocr_snapshot(
+        [
+            ocr_text("o1", "保存", (12, 12, 96, 36)),
+            ocr_text("o2", "别的说明", (12, 12, 96, 36)),
+        ]
+    )
     fused = fuse(ax, ocr)
     labels = [(e.source, e.label) for e in fused.elements]
     assert labels == [("ax", "保存"), ("ocr", "别的说明")]
@@ -71,8 +108,10 @@ def test_fused_snapshot_mints_fresh_identity_and_bumps_generation():
 
 
 def test_unready_ocr_degrades_to_ax_elements_only():
-    ax = ax_snapshot([ax_control("a1", "保存", (10, 10, 100, 40))],
-                     [Fact(key="ax:value:result", value="0")])
+    ax = ax_snapshot(
+        [ax_control("a1", "保存", (10, 10, 100, 40))],
+        [Fact(key="ax:value:result", value="0")],
+    )
     ocr = ocr_snapshot([ocr_text("o1", "任意", (0, 0, 5, 5))], ready=False)
     fused = fuse(ax, ocr)
     assert [e.ref for e in fused.elements] == ["a1"]
@@ -102,11 +141,18 @@ class FakeOCR:
 
 async def test_fused_source_runs_both_and_fuses():
     ax = ax_snapshot([ax_control("a1", "保存", (10, 10, 100, 40))])
-    ocr = ocr_snapshot([ocr_text("o1", "保存", (12, 12, 96, 36)),
-                        ocr_text("o2", "发票号码 123", (12, 60, 96, 20))])
+    ocr = ocr_snapshot(
+        [
+            ocr_text("o1", "保存", (12, 12, 96, 36)),
+            ocr_text("o2", "发票号码 123", (12, 60, 96, 20)),
+        ]
+    )
     ax_source, ocr_source = FakeAX(ax), FakeOCR(ocr)
     fused_source = FusedObservationSource(ax_source, ocr_source)
-    fused = await fused_source.observe("app", None)
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"desktop"})), SubAgentBudget(), asyncio.Event()
+    )
+    fused = await fused_source.observe("app", context)
     assert ax_source.calls == 1 and ocr_source.calls == 1
     assert [e.ref for e in fused.elements] == ["a1", "o2"]
     assert fused.observation_id not in {"ax-obs", "ocr-obs"}
