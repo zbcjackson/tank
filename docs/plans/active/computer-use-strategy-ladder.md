@@ -3287,13 +3287,40 @@ phase 的 advisor 事件均为零，已记录结论不受影响），新增 summ
 该字面量（`b06483a1`）。修后新测试 9/9、全套 5886 passed / 3 failed
 （均为 tts-edge 外部 403）、ruff/pyright/docs 干净；无第三轮需要。
 
-#### S5-App 第一步：机制审计（2026-10-13，进行中）
+#### S5-App 第一步：机制审计（2026-10-13，完成）
 
 按本节前置纪律（“先验证驱动/观察契约……先确认现有实现已具备哪些机制，
 仅有实际差异才设新实验臂”），先行审计四条线的既有机制：DOM 通道的观察/
 消歧/遮挡/延迟机制（线 1）；原生 AX 观察、OCR/Vision 源、等待与稳定性机制、
 Channel 接口契约（线 2/3/4 的对照基线）。审计结论与实际缺口落定后再决定
 首个实验臂，不预先铺开。
+
+**审计结论（缺口表）**：
+
+| 线 | 已具备 | 真实缺口 |
+|----|--------|----------|
+| 1 DOM 读取 | 单次原子读（一次 evaluate 全量元素表）、身份 WeakMap 引擎（document 作用域 ref）、精确相等陈旧检测+导航失效、派发期 trial-click 遮挡门、重复标签拒绝、上限+完整性旗标 | DOM 紧凑模型视图（现为 AX 专属）、可见文本表（非角色文本从不读）、观察期几何/遮挡（bounds 恒 None）、同名“区分”（只会拒绝）、等待/稳定机制（通道内为零）、观察/派发延迟测量（完全缺失） |
+| 2 Cua Driver | 契约=controller Protocols（observe/is_current/dispatch[/bind/aclose]）；ManagedChromiumChannel 是可替换性的存在证明；cua-driver 依赖已移除 | 需重新引入外部驱动+安装审批；最重、暂缓 |
+| 3 AX+OCR | VisionObservationSource 存在（原生 Vision、纯 text_region、无动作、未接线工厂）；S1 冻结样本族现成（icon/digit/parent-child/duplicate/chinese + AX 完整负对照）；已知 AX 弱点清单（TextEdit description 不可用→identifier 模式、共享标题、>80 描述丢弃、无画像通用完成） | 融合代码为零：来源标记已有（Element.source）、父子/几何去重、召回/误候选比较全部缺失 |
+| 4 观察稳定性 | 有界重试齐全（不完整×20/效果×3、0.05s 固定间隔）、同进程窗口跟随、前台/输入空闲门 | 事件通知（无 AXObserver）、谓词等待、滚动（Operation 仅 click/fill）、对话框归属语义、观察期键盘/IME 状态 |
+
+**审计驱动决策**：线 1 的前提（原子读）已由现有实现满足，剩余差异无失败
+证据触发（S5-DOM 48/48 质量满分），按“避免重复建设”暂不设新实验臂；线 2
+暂缓。四条线共同的前置缺口是**观察/派发延迟与调用计数完全未测量**——
+先补共享测量基座。
+
+#### S5-App 第二片：控制器级观察/派发计时事件（2026-10-13，离线验收完成）
+
+controller 的 `observe()` 与派发点新增有界事件（通道无关，覆盖 DOM/原生
+两条通道）：`computer_use_observe`（phase started/returned + elapsed_ms +
+elements/facts 计数 + ready/complete）与 `computer_use_dispatch`
+（phase returned + elapsed_ms + receipt 状态 + operation + selected_by）。
+仅标量字段，绝无元素数据/标签——沿用既有 observer 键白名单纪律，既有
+harness 的 KINDS 过滤自动忽略新事件（warn-ignore 演进规则）。测试
+（test_ladder.py 新增 1 例）：ExportWorld 全流程断言两类事件的字段边界、
+计数与耗时非负；全套插件包 579 通过，ruff/pyright 干净。
+注意：controller 变更使既有 harness 冻结哈希失效（设计内漂移保护），
+后续批次重新冻结即可。
 - 每任务 n≥3 仅为 pilot。确认实验前冻结任务族、重复数、统计方法、最小实际收益、
   错误/失败/费用容忍界限；配对轮转先手，按任务/布局相关性报告区间。
   样本不足的 p95 仅描述并列 N，禁止观察结果后修改成功标准。

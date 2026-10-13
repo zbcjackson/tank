@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass, replace
 from typing import Literal, Protocol
 from uuid import uuid4
@@ -245,7 +246,15 @@ class ComputerUseController:
         self, goal: GoalContract, context: SubAgentContext,
     ) -> Snapshot:
         assert self.observation is not None
+        # Bounded timing/count events only; never element data or labels.
+        context.observe("computer_use_observe", phase="started")
+        started = time.monotonic()
         snapshot = await context.runtime.execute(self.observation, goal.scope)
+        context.observe(
+            "computer_use_observe", phase="returned",
+            elapsed_ms=(time.monotonic() - started) * 1000,
+            elements=len(snapshot.elements), facts=len(snapshot.facts),
+            ready=snapshot.ready, complete=snapshot.complete)
         if snapshot.scope != goal.scope:
             raise SubAgentStopped("scope_mismatch")
         if snapshot.observation_id in self.observation_ids or snapshot.generation < self.generation:
@@ -588,7 +597,13 @@ class ComputerUseController:
             detail = next(item for item in actions.details if item.action_id == action.id)
             assert self.dispatch is not None
             attempt = ActionAttempt(actions.binding, action, detail, snapshot, selected_by)
+            dispatch_started = time.monotonic()
             receipt = await context.runtime.execute(self.dispatch, attempt)
+            context.observe(
+                "computer_use_dispatch", phase="returned",
+                elapsed_ms=(time.monotonic() - dispatch_started) * 1000,
+                status=receipt.status, operation=action.operation,
+                selected_by=selected_by)
             if receipt.action_id != action.id or receipt.status not in {"not_sent", "sent", "unknown"}:
                 raise SubAgentStopped("invalid_receipt")
             self.receipts[-1] = receipt

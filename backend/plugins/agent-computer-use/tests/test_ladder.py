@@ -472,6 +472,54 @@ async def test_host_verifies_known_goal_with_no_models() -> None:
     assert all(record.task_id == "task" for record in ctx.runtime.records)
 
 
+class RecordingObserver:
+    def __init__(self):
+        self.events = []
+
+    def on_event(self, kind, metadata):
+        self.events.append((kind, metadata))
+
+
+async def test_observe_and_dispatch_emit_bounded_timing_events() -> None:
+    world = ExportWorld()
+    controller = ComputerUseController(world, world)
+    observer = RecordingObserver()
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"desktop"})),
+        SubAgentBudget(),
+        asyncio.Event(),
+        observer=observer,
+    )
+    result = await controller.run(
+        SubAgentRequest(
+            "Export PDF", "Do not overwrite", "task", export_goal().model_dump(mode="json")
+        ),
+        ctx,
+    )
+    assert result.status == "completed"
+    observed = [m for k, m in observer.events if k == "computer_use_observe"]
+    assert [m["phase"] for m in observed] == ["started", "returned", "started", "returned"]
+    for metadata in (m for m in observed if m["phase"] == "returned"):
+        assert metadata["elements"] == 1
+        assert metadata["facts"] in (0, 2)
+        assert metadata["ready"] is True and metadata["complete"] is True
+        assert isinstance(metadata["elapsed_ms"], (int, float)) and metadata["elapsed_ms"] >= 0
+    assert all(
+        set(m) <= {"phase", "elapsed_ms", "elements", "facts", "ready", "complete"}
+        for kind, m in observer.events
+        if kind == "computer_use_observe"
+    )
+    dispatched = [m for k, m in observer.events if k == "computer_use_dispatch"]
+    assert [m["phase"] for m in dispatched] == ["returned"]
+    assert dispatched[0]["status"] == "sent"
+    assert dispatched[0]["operation"] == "fill"
+    assert dispatched[0]["selected_by"] == "rules"
+    assert isinstance(dispatched[0]["elapsed_ms"], (int, float))
+    assert set(dispatched[0]) <= {
+        "phase", "elapsed_ms", "status", "operation", "selected_by",
+    }
+
+
 class PickFirst:
     def __init__(self):
         self.calls = 0
