@@ -3255,6 +3255,12 @@ TextEdit 为缺尾随换行的近失。J 相对 H：质量 8 vs 6、费用 −6%
 `pilot_descriptive_only_needs_confirmatory_freeze`——n=3 描述性 pilot，
 不构成采用证据；生产默认与基线 A 不变。完整配对明细见报告 README 与
 `result.json`。
+
+**独立评审（2026-10-13，review-and-refactor 第 1 轮修复 + 第 2 轮自检）**：
+修复 A 臂 `settled` 未排除 `cancelled` 停止理由的潜在策略缺口（含回归测试）及
+测试文件 pyright/空断言/命名遮蔽三项小问题（`3e2a5bbb`）。修后新测试 8/8、
+插件包 569、全套 5877 passed / 3 failed（均为 tts-edge 外部 403）、
+ruff/pyright 零错误；无第三轮需要。
 - 每任务 n≥3 仅为 pilot。确认实验前冻结任务族、重复数、统计方法、最小实际收益、
   错误/失败/费用容忍界限；配对轮转先手，按任务/布局相关性报告区间。
   样本不足的 p95 仅描述并列 N，禁止观察结果后修改成功标准。
