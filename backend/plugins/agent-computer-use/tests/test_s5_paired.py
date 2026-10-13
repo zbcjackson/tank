@@ -79,6 +79,23 @@ def test_score_case_is_independent_of_model_claims(monkeypatch):
     assert s5.score_case("textedit", {"document": "别的"}) == (False, False, False)
 
 
+def test_read_values_reactivates_defocused_owned_app(monkeypatch):
+    """Arm A may defocus the target; readback re-activates the owned instance."""
+    from unittest.mock import Mock
+
+    s5 = _bootstrap(monkeypatch)
+    owner = s5.OwnedApplication(dict(s5.TASKS[0]))
+    owner.pid, owner.app = 42, Mock()
+    monkeypatch.setattr(s5.computer_ax, "ax_focused_pid", lambda: 99)
+    pumped = []
+    monkeypatch.setattr(s5.s4_ax, "pump", lambda seconds=0: pumped.append(seconds))
+    values = {"expression": "7×8", "result": "56"}
+    monkeypatch.setattr(s5.s4_ax.OwnedApplication, "read_values", lambda self: values)
+    assert owner.read_values() == values
+    owner.app.activateWithOptions_.assert_called_once_with(0)
+    assert pumped == [0.1]
+
+
 def test_conclusion_stays_descriptive_without_adoption(monkeypatch):
     s5 = _bootstrap(monkeypatch)
     summary = {arm_name: {"strict": 9} for arm_name in s5.ARMS}

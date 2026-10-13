@@ -520,6 +520,19 @@ class OwnedApplication(s4_ax.OwnedApplication):
         super().__init__(cast(s4_ax.PilotCase, dict(task)))
         self.task = task
 
+    def read_values(self) -> dict[str, str]:
+        """Re-activate the owned app before readback.
+
+        Arm A legitimately defocuses the target (misgrounded clicks, focus
+        handoffs); the s4_ax foreground invariant would misread that as a
+        fatal error after a settled trial. The pilot owns this app instance,
+        so activation stays inside owned resources.
+        """
+        if self.app is not None and computer_ax.ax_focused_pid() != self.pid:
+            self.app.activateWithOptions_(0)
+            s4_ax.pump(0.1)
+        return super().read_values()
+
 
 def _a_driver_result(result: Any) -> dict[str, Any]:
     return {
