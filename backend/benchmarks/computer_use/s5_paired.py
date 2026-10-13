@@ -57,34 +57,89 @@ class PilotTask(TypedDict):
     repeat: int
     max_decisions: int
     move_window: bool
+    expression: str
+    result: str
 
 
-TASK_SHAPES: tuple[tuple[str, str, str, int], ...] = (
-    ("calculator-ax_press", "calculator", "ax_press", 14),
-    ("calculator-quartz", "calculator", "quartz", 14),
-    ("textedit", "textedit", "ax_press", 4),
+REPEATS = 10
+
+# Three families, five tasks: calc-short x2, textedit x1, calc-long x2.
+# calc-long drives >= 8 model-selected decisions so the confirmatory H1
+# (per-decision serial overhead amortization) has a long-task family.
+TASK_SHAPES: tuple[dict[str, Any], ...] = (
+    {
+        "id": "calculator-ax_press",
+        "application": "calculator",
+        "dispatch": "ax_press",
+        "expression": "7×8",
+        "result": "56",
+        "max_decisions": 14,
+    },
+    {
+        "id": "calculator-quartz",
+        "application": "calculator",
+        "dispatch": "quartz",
+        "expression": "7×8",
+        "result": "56",
+        "max_decisions": 14,
+    },
+    {
+        "id": "textedit",
+        "application": "textedit",
+        "dispatch": "ax_press",
+        "expression": "",
+        "result": "",
+        "max_decisions": 4,
+    },
+    {
+        "id": "calculator-long-ax_press",
+        "application": "calculator",
+        "dispatch": "ax_press",
+        "expression": "12×3−8+5",
+        "result": "33",
+        "max_decisions": 20,
+    },
+    {
+        "id": "calculator-long-quartz",
+        "application": "calculator",
+        "dispatch": "quartz",
+        "expression": "12×3−8+5",
+        "result": "33",
+        "max_decisions": 20,
+    },
 )
 
 TASKS: tuple[PilotTask, ...] = tuple(
     PilotTask(
-        id=f"{name}-{repeat}",
-        application=application,
-        dispatch=dispatch,
+        id=f"{shape['id']}-{repeat}",
+        application=shape["application"],
+        dispatch=shape["dispatch"],
         repeat=repeat,
-        max_decisions=decisions,
+        max_decisions=shape["max_decisions"],
         move_window=repeat == 1,
+        expression=shape["expression"],
+        result=shape["result"],
     )
-    for name, application, dispatch, decisions in TASK_SHAPES
-    for repeat in range(3)
+    for shape in TASK_SHAPES
+    for repeat in range(REPEATS)
 )
+
+_BUTTON_NAMES = {"×": "Multiply", "+": "Add", "−": "Subtract", "=": "Equals"}
+
+
+def button_sequence(expression: str) -> tuple[str, ...]:
+    """Deterministic button labels an arm must press for an expression."""
+    return tuple(
+        _BUTTON_NAMES.get(character, character) for character in expression
+    ) + ("Equals",)
 
 
 def task_prompt(task: PilotTask) -> str:
     """One natural-language sentence per task, shared verbatim by all three arms."""
     if task["application"] == "calculator":
         return (
-            "用计算器通过按键算出 7×8，让结果显示为 56。"
-            "不要直接输入 56，也不要改模式或使用记忆键。"
+            f"用计算器通过按键算出 {task['expression']}，让结果显示为 {task['result']}。"
+            f"不要直接输入 {task['result']}，也不要改模式或使用记忆键。"
         )
     return (
         f"把 TextEdit 当前文档的正文全部替换为下面这段，不要保存或关闭窗口：\n"
@@ -100,9 +155,9 @@ def frozen_brief(task: PilotTask) -> dict[str, Any]:
     if task["application"] == "calculator":
         return {
             "application": "Calculator",
-            "objective": "Display the product 56",
+            "objective": f"Display the result {task['result']}",
             "inputs": [],
-            "completion": [{"type": "present", "value": "56"}],
+            "completion": [{"type": "present", "value": task["result"]}],
         }
     return {
         "application": "TextEdit",
@@ -153,13 +208,16 @@ def a_model_contract() -> dict[str, Any]:
     }
 
 
-def score_case(application: str, values: dict[str, str]) -> tuple[bool, bool, bool]:
+def score_case(
+    application: str, values: dict[str, str], expected: tuple[str, str] = ("7×8", "56")
+) -> tuple[bool, bool, bool]:
     """Independent strict/partial/violation verdicts from AX readback only."""
     if application == "calculator":
+        wanted, target = expected
         expression, result = values.get("expression", ""), values.get("result", "")
-        strict = expression == "7×8" and result == "56"
-        partial = expression == "7×8" and result != "56"
-        violation = result == "56" and expression not in {"7×8", ""}
+        strict = expression == wanted and result == target
+        partial = expression == wanted and result != target
+        violation = result == target and expression not in {wanted, ""}
         return strict, partial, violation
     body = TEXTEDIT_BODY
     document = values.get("document", "")
@@ -260,7 +318,8 @@ def freeze_inputs() -> dict[str, Any]:
     per_task_requests = {
         "A": A_REQUEST_LIMIT,
         "H": lambda task: task["max_decisions"] + ADVISOR_CALL_LIMIT + 1,
-        "J": lambda task: task["max_decisions"] + ADVISOR_CALL_LIMIT + 1,
+        # J also spends up to max_decisions Jev calls on top of its text budget.
+        "J": lambda task: 2 * task["max_decisions"] + ADVISOR_CALL_LIMIT + 1,
     }
     request_limit = sum(
         per_task_requests[arm]
@@ -270,7 +329,7 @@ def freeze_inputs() -> dict[str, Any]:
         for arm in ARMS
     )
     data = {
-        "revision": "s5-paired-1",
+        "revision": "s5-confirmatory-1",
         "arms": list(ARMS),
         "tasks": list(TASKS),
         "schedule": schedule(),
@@ -289,7 +348,7 @@ def freeze_inputs() -> dict[str, Any]:
         "fake_text_endpoint": FAKE_TEXT_ENDPOINT,
         "advisor_call_limit": ADVISOR_CALL_LIMIT,
         "request_limit": request_limit,
-        "nano_usd_limit": 2_000_000_000,
+        "nano_usd_limit": 4_000_000_000,
         "trial_limits": {"tokens": 4_000_000, "nano_usd": 250_000_000},
         "seconds_per_task": 240,
         "accounting": (
@@ -305,13 +364,28 @@ def freeze_inputs() -> dict[str, Any]:
             "the primary display; one natural-language prompt shared by all arms"
         ),
         "decision_rule": {
-            "kind": "descriptive_pilot",
-            "n_per_task": 3,
+            "kind": "confirmatory",
+            "repeats_per_task": REPEATS,
             "first_mover": "rotated across arms per (repeat, task) block",
+            "hypotheses": {
+                "h1_amortization": (
+                    "on calc-long (>=8 decisions), J/H elapsed ratio <= 1.10 "
+                    "with the quality gate intact"
+                ),
+                "h2_quality_not_worse": "J strict >= H strict - 1",
+                "h3_cost_lower": "J nano_usd < H nano_usd",
+                "h4_baseline_insufficient": (
+                    "A strict < H strict and A strict < J strict"
+                ),
+            },
+            "exit_mapping": (
+                "h1+h2+h3 -> trial J for multi-decision native scenarios "
+                "(still not default-enabled); not h1 but h2+h3 -> keep Jev "
+                "explicit-experimental; otherwise mixed review"
+            ),
             "statement": (
-                "the pilot reports per-arm strict/partial quality, model calls, "
-                "tokens, cost and wall time; any adoption decision belongs to a "
-                "separately frozen confirmatory experiment"
+                "predeclared confirmatory gates evaluated once on the frozen "
+                "schedule; per-scenario adoption choices belong to S6"
             ),
         },
         "stop_policy": (
@@ -480,6 +554,29 @@ def summarize(rows: list[dict[str, Any]], spend: SpendSnapshot) -> dict[str, Any
                 }
             ),
         }
+    long_rows = [row for row in rows if row["task_id"].startswith("calculator-long-")]
+    long_trials = {row["spend_trial"] for row in long_rows if row.get("spend_trial")}
+    result["long_family"] = {
+        arm: {
+            "strict": sum(
+                bool(row["strict"]) for row in long_rows if row["arm"] == arm
+            ),
+            "planned": sum(row["arm"] == arm for row in long_rows),
+            "elapsed_ms": sum(
+                row.get("elapsed_ms", 0) for row in long_rows if row["arm"] == arm
+            ),
+            "nano_usd": sum(
+                trial["known_nano_usd"]
+                for name, trial in spend["trials"].items()
+                if name in long_trials
+                and any(
+                    row["arm"] == arm and row["spend_trial"] == name
+                    for row in long_rows
+                )
+            ),
+        }
+        for arm in ARMS
+    }
     result["direction"] = {
         "j_cost_below_a": result["J"]["nano_usd"] < result["A"]["nano_usd"],
         "j_time_below_a": result["J"]["elapsed_ms"] < result["A"]["elapsed_ms"],
@@ -521,6 +618,41 @@ def conclusion(summary: dict[str, Any], *, completed: bool) -> str:
     if not completed:
         return "incomplete_no_pilot_conclusion"
     return "pilot_descriptive_only_needs_confirmatory_freeze"
+
+
+def confirmatory_verdict(summary: dict[str, Any], *, completed: bool) -> dict[str, Any]:
+    """Evaluate the predeclared confirmatory gates exactly as frozen.
+
+    h1 amortization: on calc-long, J/H elapsed ratio <= 1.10 with the quality
+    gate intact. h2: J strict >= H strict - 1. h3: J cost < H cost.
+    h4: the production baseline trails both host arms (S6 scope note).
+    """
+    if not completed:
+        return {
+            "h1": False,
+            "h2": False,
+            "h3": False,
+            "h4": False,
+            "decision": "incomplete_no_confirmatory_conclusion",
+        }
+    h, j, a = summary["H"], summary["J"], summary["A"]
+    long_h, long_j = summary["long_family"]["H"], summary["long_family"]["J"]
+    h2 = j["strict"] >= h["strict"] - 1
+    h3 = j["nano_usd"] < h["nano_usd"]
+    h1 = (
+        h2
+        and long_h["elapsed_ms"] > 0
+        and long_j["elapsed_ms"] <= long_h["elapsed_ms"] * 1.10
+        and long_j["strict"] >= long_h["strict"] - 1
+    )
+    h4 = a["strict"] < h["strict"] and a["strict"] < j["strict"]
+    if h1 and h2 and h3:
+        decision = "trial_j_for_multidecision_native_scenarios"
+    elif h2 and h3:
+        decision = "no_net_gain_keep_jev_explicit_experimental"
+    else:
+        decision = "mixed_review_before_any_adoption"
+    return {"h1": h1, "h2": h2, "h3": h3, "h4": h4, "decision": decision}
 
 
 class OwnedApplication(s4_ax.OwnedApplication):
@@ -687,7 +819,7 @@ async def run_batch(
                 fake_escalated = True
                 choice = "escalate"
             else:
-                labels = ("7", "Multiply", "8", "Equals")
+                labels = button_sequence(active_task["expression"])
                 label = labels[fake_index] if fake_index < len(labels) else None
                 choice = next(
                     (
@@ -759,7 +891,8 @@ async def run_batch(
             # Text selector fallback answers the same choice question as Jev.
             criteria = body["questions"]["next_action"]["criteria"]
             if active_task["application"] == "calculator":
-                label = ("7", "Multiply", "8", "Equals")[min(fake_index, 3)]
+                labels = button_sequence(active_task["expression"])
+                label = labels[min(fake_index, len(labels) - 1)]
                 fake_index += 1
                 key = next(
                     (
@@ -781,7 +914,8 @@ async def run_batch(
                 )
             content = {"choice": key}
         else:
-            label = ("7", "Multiply", "8", "Equals")[min(fake_index, 3)]
+            labels = button_sequence(active_task["expression"])
+            label = labels[min(fake_index, len(labels) - 1)]
             choice = next(
                 key
                 for key, value in body["actions"].items()
@@ -1065,7 +1199,9 @@ async def run_batch(
                     values = owner.read_values()
                     row["independent_values"] = values
                     row["strict"], row["partial"], row["rule_violation"] = score_case(
-                        task["application"], values
+                        task["application"],
+                        values,
+                        expected=(task["expression"], task["result"]),
                     )
                     row["status"] = "finished"
                 except asyncio.CancelledError:
@@ -1146,6 +1282,9 @@ async def run_batch(
             report["conclusion"] = conclusion(
                 report["summary"], completed=report["completed"]
             )
+            report["confirmatory"] = confirmatory_verdict(
+                report["summary"], completed=report["completed"]
+            )
             report["fake_http_requests"] = fake_received
             report["external_model_requests"] = (
                 sum(len(row.get("calls", {})) for row in rows)
@@ -1211,6 +1350,7 @@ if __name__ == "__main__":
                     "completed": result["completed"],
                     "summary": result["summary"],
                     "conclusion": result["conclusion"],
+                    "confirmatory": result["confirmatory"],
                 }
             )
         )
