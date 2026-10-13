@@ -3331,13 +3331,35 @@ harness 的 KINDS 过滤自动忽略新事件（warn-ignore 演进规则）。�
   元素，永无动作/事实（同名歧义不可能进入事实键）。
 - **几何/文本联合去重**：OCR 区域仅当被某 AX 元素 bounds 包含（±2px）且
   与其 label/value 词元重叠 ≥0.6 才判重丢弃；同文本在别处、包含但文本不同、
-  AX 无 bounds（DOM 元素）均保留。两侧 bounds 同为窗口相对坐标，直接可比。
+  AX 无 bounds（DOM 元素）均保留。`fuse` 本身坐标系无关，但两侧必须同基
+  才可比——现有两源并非天然同基（评审更正，见下）。
 - **降级**：OCR 未就绪（依赖缺失等）→ 退回纯 AX 观察并另铸新鲜
   observation_id；完整性 = AX ∧ OCR（OCR 就绪但截断时如实不完整）。
 - **身份纪律**：每次融合新 uuid、generation = max(ax, ocr)+1（单调）。
 
 下一步（3b，需实机）：冻结真实 AX 弱样本（画布/无标签图标/正文不可读 +
 AX 完整负对照）后做三臂召回/误候选比较；3a 契约为其确定性前置。
+
+**独立评审（2026-10-13，review-and-refactor 第 1 轮修复 + 第 2 轮自检）**：
+确认计时事件契约成立（observe/dispatch 单一收口点、returned 事件先于
+校验抛错、not_sent 回执同样计事件、仅标量/有界字面量字段、s5_paired
+KINDS 与 s4 PilotObserver 白名单自动忽略新 kind）。发现并修复两处：
+① 契约记录中“两侧 bounds 同为窗口相对坐标，直接可比”与实现不符——
+AX 源 bounds 出自 AXPosition/AXSize，是**屏幕全局点坐标**；OCR 源 bounds
+是绑定截图的**图像像素**（`Observation.crop`/`image_size`，随截图范围与
+放大倍数变化）。3b 接线前必须先把两侧换算到同一窗口相对基（AX 减窗口
+原点并计入截图缩放，或反向换算 OCR），否则包含判定会静默失效；`fuse`
+纯函数本身坐标系无关，测试钉的是同基输入，无需改码。② fusion.py 的
+`Any` 参数类型改为 controller 既有 `ObservationSource` Protocol 与
+`SubAgentContext`（符合后端 avoid-Any 约定；接线时签名漂移可被 pyright
+捕获）。另记录两点不修改：去重为单向包含（OCR 包住 AX 的区域保留），
+方向保守且测试已钉；Snapshot 重 ref 唯一性校验遇跨源 ref 冲突会
+ValueError 快速失败，与既有严格风格一致。附带修正：两份 fusion 新文件
+此前并非 ruff-format 干净（任务记录有误），已对本 diff 内新文件执行
+`ruff format`（controller.py/test_ladder.py 按约定不动），测试改传真实
+`SubAgentContext`（原 `None` 被 `Any` 掩盖，pyright 修复后暴露）。修后
+test_ladder+test_fusion 101 通过、全套插件包 586 通过、ruff/pyright 0
+错误、docs 检查通过；无第三轮需要。
 - 每任务 n≥3 仅为 pilot。确认实验前冻结任务族、重复数、统计方法、最小实际收益、
   错误/失败/费用容忍界限；配对轮转先手，按任务/布局相关性报告区间。
   样本不足的 p95 仅描述并列 N，禁止观察结果后修改成功标准。
