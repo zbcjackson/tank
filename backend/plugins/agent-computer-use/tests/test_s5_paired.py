@@ -29,7 +29,6 @@ def test_freeze_pins_three_arm_schedule_and_budget(monkeypatch, tmp_path):
     for index, entry in enumerate(frozen["schedule"]):
         if index % 3 == 0:
             leads[entry["arm"]] = leads.get(entry["arm"], 0) + 1
-        assert entry in frozen["schedule"]
     assert leads == {"A": 3, "H": 3, "J": 3}
     assert {entry["arm"] for entry in frozen["schedule"]} == {"A", "H", "J"}
     # Arm configs differ only in the selector; the J arm keeps the same advisor.
@@ -84,7 +83,7 @@ def test_read_values_reactivates_defocused_owned_app(monkeypatch):
     from unittest.mock import Mock
 
     s5 = _bootstrap(monkeypatch)
-    owner = s5.OwnedApplication(dict(s5.TASKS[0]))
+    owner = s5.OwnedApplication(s5.TASKS[0])
     owner.pid, owner.app = 42, Mock()
     monkeypatch.setattr(s5.computer_ax, "ax_focused_pid", lambda: 99)
     pumped = []
@@ -132,6 +131,32 @@ def test_settled_treats_readback_resolved_effect_unknown_as_known_failure(monkey
     }
     assert not s5.settled(unknown_receipt, None)
     assert not s5.settled(row, "unknown_usage")
+
+
+def test_settled_arm_a_stops_on_terminal_driver_reasons(monkeypatch):
+    """The A arm shares the declared stop policy: cancellation, driver errors,
+    request limits, unknown usage and unconfirmed cleanup stop the batch,
+    while bounded known failures (timeout, max steps) stay settled."""
+    s5 = _bootstrap(monkeypatch)
+    row = {
+        "status": "finished",
+        "arm": "A",
+        "application_cleanup": {"confirmed": True},
+        "driver": {
+            "cleanup": "confirmed",
+            "unknown_calls": 0,
+            "stop_reason": "max_steps(15) reached",
+        },
+    }
+    assert s5.settled(row, None)
+    for stop_reason in ("cancelled", "error", "request_limit"):
+        driver = {**row["driver"], "stop_reason": stop_reason}
+        assert not s5.settled({**row, "driver": driver}, None), stop_reason
+    unknown_usage = {**row["driver"], "unknown_calls": 1}
+    assert not s5.settled({**row, "driver": unknown_usage}, None)
+    unconfirmed = {**row["driver"], "cleanup": "unconfirmed"}
+    assert not s5.settled({**row, "driver": unconfirmed}, None)
+    assert not s5.settled({**row, "application_cleanup": {"confirmed": False}}, None)
 
 
 def _install_fake_calculator(monkeypatch, s5, world):

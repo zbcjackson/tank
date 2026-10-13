@@ -358,7 +358,8 @@ def settled(row: dict[str, Any], stop_reason: str | None) -> bool:
         return (
             driver_result["cleanup"] == "confirmed"
             and not driver_result["unknown_calls"]
-            and driver_result["stop_reason"] not in {"error", "request_limit"}
+            and driver_result["stop_reason"]
+            not in {"error", "request_limit", "cancelled"}
         )
     result = row.get("result")
     if result is None:
@@ -827,18 +828,18 @@ async def run_batch(
 
     class Policy(BenchmarkModelPolicy):
         def __init__(self, task: PilotTask, arm: str):
-            jev = frozen["models"]["jev"]
+            jev_model = frozen["models"]["jev"]
             super().__init__(
                 ledger,
                 (
                     ContextWindowContract(
                         jev_endpoint,
-                        jev["model"],
+                        jev_model["model"],
                         TokenAllowance(
-                            jev["input_ceiling"],
-                            jev["output_ceiling"],
-                            jev["input_price"],
-                            jev["output_price"],
+                            jev_model["input_ceiling"],
+                            jev_model["output_ceiling"],
+                            jev_model["input_price"],
+                            jev_model["output_price"],
                         ),
                         "Frozen Jev conservative token-price contract",
                         output_cap_required=False,
