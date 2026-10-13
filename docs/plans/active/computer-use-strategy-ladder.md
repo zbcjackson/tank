@@ -3214,6 +3214,16 @@ S3 的 H3/J3 是有限候选、已给定目标下的策略切片；本节 A/H/J 
 
 未完成：live pilot（冻结配方后运行真实批次）、DOM track H/J 配对与
 原任务集回归、S5-App 各臂。生产默认与基线 A 不变。
+
+**Fake 全量（2026-10-13，`reports/20261013-s5-paired-fake-2/`）**：27/27 finished、
+批完成（首次尝试因用户会话中 Calculator 已运行被 owned-seam 拒绝，保留于
+`-fake/` 作记录）。J 9/9 strict、H 6/9（3 个 textedit 失败为 fake 应答器误用
+计算器标签，已修：textedit 选择题按 fill 操作选键）、A 0/9 strict（fake A 臂
+单次 SSE 回复零动作，仅证明生产驱动器装配/账本/清理接线）。J 21 jev + 21 text
+调用、12 次回退；三臂同账本全分母。修复后源码已变，live 前重新冻结。
+**Live 预检（2026-10-13，1 次真实调用）**：生产 `computer_use` profile 流式
+调用 DashScope 返回真实 usage（`estimated: False`），A 臂不会因 unknown usage
+停批。
 - 每任务 n≥3 仅为 pilot。确认实验前冻结任务族、重复数、统计方法、最小实际收益、
   错误/失败/费用容忍界限；配对轮转先手，按任务/布局相关性报告区间。
   样本不足的 p95 仅描述并列 N，禁止观察结果后修改成功标准。

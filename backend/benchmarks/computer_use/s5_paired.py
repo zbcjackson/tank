@@ -735,16 +735,27 @@ async def run_batch(
         elif "questions" in body:
             # Text selector fallback answers the same choice question as Jev.
             criteria = body["questions"]["next_action"]["criteria"]
-            label = ("7", "Multiply", "8", "Equals")[min(fake_index, 3)]
-            fake_index += 1
-            key = next(
-                (
-                    name
-                    for name, value in criteria.items()
-                    if isinstance(value, dict) and value.get("label") == label
-                ),
-                "none",
-            )
+            if active_task["application"] == "calculator":
+                label = ("7", "Multiply", "8", "Equals")[min(fake_index, 3)]
+                fake_index += 1
+                key = next(
+                    (
+                        name
+                        for name, value in criteria.items()
+                        if isinstance(value, dict) and value.get("label") == label
+                    ),
+                    "none",
+                )
+            else:
+                fake_index += 1
+                key = next(
+                    (
+                        name
+                        for name, value in criteria.items()
+                        if isinstance(value, dict) and value.get("operation") == "fill"
+                    ),
+                    "none",
+                )
             content = {"choice": key}
         else:
             label = ("7", "Multiply", "8", "Equals")[min(fake_index, 3)]
