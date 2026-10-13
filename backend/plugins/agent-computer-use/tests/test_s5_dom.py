@@ -68,6 +68,42 @@ def test_conclusion_uses_predeclared_policy_gates(monkeypatch):
     assert s5.conclusion(quality, True) == "quality_gate_failed_keep_disabled"
 
 
+def test_summarize_counts_advisor_started_events(monkeypatch):
+    """The advisor metric must track controller events, whose phase literal is
+    "started" (selection events use "start"), so the summary field can only be
+    trusted if it counts the emitted shape."""
+    s5 = _bootstrap(monkeypatch)
+    row = {
+        "arm": "H",
+        "trial": "0-a-H",
+        "status": "finished",
+        "accepted": True,
+        "kind": "complete",
+        "calls": {},
+        "elapsed_ms": 5,
+        "events": [
+            {"kind": "computer_use_advisor", "phase": "started"},
+            {"kind": "computer_use_advisor", "phase": "returned"},
+            {"kind": "computer_use_selection", "stage": "llm", "phase": "start"},
+            {"kind": "computer_use_selection", "stage": "jev", "phase": "start"},
+        ],
+    }
+    summary = s5.summarize(
+        [row],
+        {
+            "record_only": False,
+            "cost_status": "settled",
+            "batch": {},
+            "trials": {},
+            "stop_reason": None,
+            "requests": {},
+        },
+    )
+    assert summary["H"]["advisor_calls"] == 1
+    # Only text-selector stages count; jev-stage starts are excluded.
+    assert summary["H"]["selector_f_calls"] == 1
+
+
 def _install_responder(monkeypatch, force_fallback=False):
     """One fake transport serving Jev, F-selector and Advisor request shapes."""
     import httpx

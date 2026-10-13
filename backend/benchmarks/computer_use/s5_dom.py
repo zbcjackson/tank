@@ -347,7 +347,7 @@ def summarize(rows: list[dict[str, Any]], spend: SpendSnapshot) -> dict[str, Any
                 for e in r.get("events", [])
             ),
             "advisor_calls": sum(
-                e["kind"] == "computer_use_advisor" and e.get("phase") == "start"
+                e["kind"] == "computer_use_advisor" and e.get("phase") == "started"
                 for r in group
                 for e in r.get("events", [])
             ),
