@@ -104,6 +104,36 @@ def test_conclusion_stays_descriptive_without_adoption(monkeypatch):
     assert verdict == "pilot_descriptive_only_needs_confirmatory_freeze"
 
 
+def test_settled_treats_readback_resolved_effect_unknown_as_known_failure(monkeypatch):
+    """Trials are isolated: an unknown effect with independent readback and
+    confirmed cleanup stays in the denominator instead of stopping the batch."""
+    s5 = _bootstrap(monkeypatch)
+    row = {
+        "status": "finished",
+        "arm": "H",
+        "application_cleanup": {"confirmed": True},
+        "independent_values": {"expression": "78×", "result": "78×"},
+        "result": {
+            "status": "unknown",
+            "reason": "effect_unknown",
+            "cleanup": "confirmed",
+            "details": {"receipts": [{"status": "sent"}]},
+        },
+    }
+    assert s5.settled(row, None)
+    assert not s5.settled({**row, "independent_values": None}, None)
+    assert not s5.settled({**row, "status": "error"}, None)
+    assert not s5.settled({**row, "application_cleanup": {"confirmed": False}}, None)
+    backend_error = {**row, "result": {**row["result"], "reason": "backend_error"}}
+    assert not s5.settled(backend_error, None)
+    unknown_receipt = {
+        **row,
+        "result": {**row["result"], "details": {"receipts": [{"status": "unknown"}]}},
+    }
+    assert not s5.settled(unknown_receipt, None)
+    assert not s5.settled(row, "unknown_usage")
+
+
 def _install_fake_calculator(monkeypatch, s5, world):
     """Fake AX Calculator world, owned-application seam and cleanup, as test_native."""
     from unittest.mock import Mock

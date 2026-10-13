@@ -361,9 +361,18 @@ def settled(row: dict[str, Any], stop_reason: str | None) -> bool:
             and driver_result["stop_reason"] not in {"error", "request_limit"}
         )
     result = row.get("result")
+    if result is None:
+        return False
+    # An unverified in-trial effect becomes a settled known failure once the
+    # independent readback saw the final state and cleanup confirmed the owned
+    # app: trials are isolated, so nothing is replayed or carried forward.
+    unknown_settled = (
+        result["status"] == "unknown"
+        and result["reason"] == "effect_unknown"
+        and row.get("independent_values") is not None
+    )
     return (
-        result is not None
-        and result["status"] != "unknown"
+        (result["status"] != "unknown" or unknown_settled)
         and result["reason"] not in {"backend_error", "cancelled"}
         and result["cleanup"] == "confirmed"
         and all(
