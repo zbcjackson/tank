@@ -808,9 +808,11 @@ class OwnedApplication(s4_ax.OwnedApplication):
             if self.task["dispatch"] == "quartz":
                 window = native.read_window(config)
                 for label in set(button_sequence(self.task["expression"])):
+                    # Frozen accessible_name button labels use AXObservationSource's precedence.
                     targets = [candidate for candidate in candidates
                                if candidate.role == "AXButton" and candidate.enabled
-                               and label in (candidate.title, candidate.identifier)]
+                               and (candidate.title or candidate.description
+                                    or candidate.identifier or candidate.value) == label]
                     if not any(
                         target.frame is not None
                         and native.pointer_target_is_exposed(

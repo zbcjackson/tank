@@ -160,7 +160,21 @@ def test_owned_calculator_requires_confirmed_basic_mode(
             owner.start()
 
 
-def test_owned_quartz_calculator_rejects_initial_occlusion(request, monkeypatch):
+@pytest.mark.parametrize(
+    "fields,accepted",
+    [
+        ({"title": "7", "description": "Other", "identifier": "Other"}, True),
+        ({"title": "", "description": "7", "identifier": "digit.seven"}, True),
+        ({"title": "", "description": "", "identifier": "", "value": "7"}, True),
+        ({"title": "", "description": "", "identifier": "7"}, True),
+        ({"title": "Other", "description": "7", "identifier": "7"}, False),
+        ({"title": "", "description": "Other", "identifier": "7"}, False),
+        ({"title": "", "description": "", "identifier": "Other", "value": "7"}, False),
+    ],
+)
+def test_owned_quartz_calculator_rejects_initial_occlusion(
+    request, monkeypatch, fields, accepted
+):
     world = request.getfixturevalue("shared_world")
     s5 = _bootstrap(monkeypatch)
     task = next(task for task in s5.TASKS if task["dispatch"] == "quartz")
@@ -169,7 +183,8 @@ def test_owned_quartz_calculator_rejects_initial_occlusion(request, monkeypatch)
     monkeypatch.setattr(s5.computer_use_macos, "_active_displays", lambda: [])
     monkeypatch.setattr(s5.computer_use_macos, "_main_geometry", lambda displays: world.window.display_geometry)
     candidates = [replace(world.button, identifier="Mode: basic; unitConversion: false")]
-    candidates.extend(replace(world.button, title=label, identifier=label)
+    candidates.extend(replace(world.button, **fields) if label == "7"
+                      else replace(world.button, title=label, identifier=label)
                       for label in s5.button_sequence(task["expression"]))
     monkeypatch.setattr(s5.computer_ax, "ax_window_candidates", lambda *args: (candidates, False))
     monkeypatch.setattr(s5.native, "read_window", lambda config: world.window)
@@ -178,7 +193,11 @@ def test_owned_quartz_calculator_rejects_initial_occlusion(request, monkeypatch)
     with pytest.raises(RuntimeError, match="Quartz.*occluded"):
         owner.start()
     monkeypatch.setattr(s5.native, "pointer_target_is_exposed", lambda *args: True)
-    assert owner.start() is config
+    if accepted:
+        assert owner.start() is config
+    else:
+        with pytest.raises(RuntimeError, match="Quartz.*unavailable"):
+            owner.start()
 
 
 def test_fake_confirmation_never_returns_an_adoption_conclusion(monkeypatch):
