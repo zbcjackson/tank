@@ -1,6 +1,7 @@
 """Test Edge TTS plugin with a fake provider and real MP3 decoding."""
 
 import subprocess
+from collections.abc import AsyncGenerator
 
 import pytest
 from tank_contracts.tts import AudioChunk, TTSEngine
@@ -95,6 +96,7 @@ async def test_generate_stream_basic(provider):
 
     chunks = []
     stream = engine.generate_stream("Hello", language="en")
+    assert isinstance(stream, AsyncGenerator)
     try:
         async for chunk in stream:
             chunks.append(chunk)
@@ -131,6 +133,7 @@ async def test_interruption(provider):
         language="en",
         is_interrupted=is_interrupted,
     )
+    assert isinstance(stream, AsyncGenerator)
     try:
         async for chunk in stream:
             chunks.append(chunk)
@@ -154,6 +157,7 @@ async def test_chinese_voice_selection(provider):
 
     chunks = []
     stream = engine.generate_stream("你好", language="zh")
+    assert isinstance(stream, AsyncGenerator)
     try:
         async for chunk in stream:
             chunks.append(chunk)
