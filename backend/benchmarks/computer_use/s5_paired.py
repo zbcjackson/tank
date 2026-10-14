@@ -95,7 +95,7 @@ TASK_SHAPES: tuple[dict[str, Any], ...] = (
         "id": "calculator-long-ax_press",
         "application": "calculator",
         "dispatch": "ax_press",
-        "expression": "12×3−8+5",
+        "expression": "12×3-8+5",
         "result": "33",
         "max_decisions": 20,
     },
@@ -103,7 +103,7 @@ TASK_SHAPES: tuple[dict[str, Any], ...] = (
         "id": "calculator-long-quartz",
         "application": "calculator",
         "dispatch": "quartz",
-        "expression": "12×3−8+5",
+        "expression": "12×3-8+5",
         "result": "33",
         "max_decisions": 20,
     },
@@ -124,7 +124,7 @@ TASKS: tuple[PilotTask, ...] = tuple(
     for repeat in range(REPEATS)
 )
 
-_BUTTON_NAMES = {"×": "Multiply", "+": "Add", "−": "Subtract", "=": "Equals"}
+_BUTTON_NAMES = {"×": "Multiply", "+": "Add", "-": "Subtract", "=": "Equals"}
 
 
 def button_sequence(expression: str) -> tuple[str, ...]:
@@ -661,6 +661,28 @@ class OwnedApplication(s4_ax.OwnedApplication):
     def __init__(self, task: PilotTask) -> None:
         super().__init__(cast(s4_ax.PilotCase, dict(task)))
         self.task = task
+
+    def start(self) -> Any:
+        config = super().start()
+        if config.bundle_id == BUNDLES["calculator"]:
+            # The frozen tasks assume the basic layout; Calculator's mode
+            # persists across launches, so fail fast instead of mis-dispatching.
+            from tank_backend.tools import computer_use_macos as macos_tools
+
+            candidates, incomplete = computer_ax.ax_window_candidates(
+                config.window_id,
+                macos_tools._main_geometry(macos_tools._active_displays()),
+            )
+            if incomplete or any(
+                str(candidate.identifier).startswith("Mode:")
+                and "scientific" in str(candidate.identifier)
+                for candidate in candidates
+            ):
+                raise RuntimeError(
+                    "Calculator is not in the frozen basic mode; "
+                    "switch it to basic (Cmd+1) before the batch"
+                )
+        return config
 
     def read_values(self) -> dict[str, str]:
         """Re-activate the owned app before readback.

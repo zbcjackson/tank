@@ -83,13 +83,13 @@ def test_score_case_is_independent_of_model_claims(monkeypatch):
     )
     assert s5.score_case(
         "calculator",
-        {"expression": "12×3−8+5", "result": "33"},
-        expected=("12×3−8+5", "33"),
+        {"expression": "12×3-8+5", "result": "33"},
+        expected=("12×3-8+5", "33"),
     ) == (True, False, False)
     strict, partial, violation = s5.score_case(
         "calculator",
-        {"expression": "12×3−8+5", "result": "0"},
-        expected=("12×3−8+5", "33"),
+        {"expression": "12×3-8+5", "result": "0"},
+        expected=("12×3-8+5", "33"),
     )
     assert not strict and partial and not violation
     strict, partial, violation = s5.score_case(
@@ -135,7 +135,7 @@ def test_conclusion_stays_descriptive_without_adoption(monkeypatch):
 def test_button_sequence_derives_deterministic_labels(monkeypatch):
     s5 = _bootstrap(monkeypatch)
     assert s5.button_sequence("7×8") == ("7", "Multiply", "8", "Equals")
-    assert s5.button_sequence("12×3−8+5") == (
+    assert s5.button_sequence("12×3-8+5") == (
         "1",
         "2",
         "Multiply",
@@ -281,11 +281,11 @@ def _install_fake_calculator(monkeypatch, s5, world):
     ]
     expression = {"text": ""}
     expression_element = AXElementRef(object(), False, 80)
-    symbols = {"Multiply": "×", "Add": "+", "Subtract": "−"}
+    symbols = {"Multiply": "×", "Add": "+", "Subtract": "-"}
 
     def evaluate(text):
         # Deterministic digits/+/-/× evaluation: × first, then left-to-right.
-        tokens = [int(t) if t.isdigit() else t for t in re.findall(r"\d+|[+−×]", text)]
+        tokens = [int(t) if t.isdigit() else t for t in re.findall(r"\d+|[+\-×]", text)]
         merged = [tokens[0]]
         for index in range(1, len(tokens), 2):
             operator, value = tokens[index], tokens[index + 1]
@@ -397,7 +397,7 @@ def _install_fake_calculator(monkeypatch, s5, world):
     "task_index,expected",
     [
         (0, {"expression": "7×8", "result": "56"}),
-        (30, {"expression": "12×3−8+5", "result": "33"}),
+        (30, {"expression": "12×3-8+5", "result": "33"}),
     ],
 )
 async def test_fake_pilot_runs_three_arms_on_one_ledger(
