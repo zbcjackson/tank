@@ -4,6 +4,7 @@ import json
 import re
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -124,6 +125,60 @@ def test_read_values_reactivates_defocused_owned_app(monkeypatch):
     assert owner.read_values() == values
     owner.app.activateWithOptions_.assert_called_once_with(0)
     assert pumped == [0.1]
+
+
+@pytest.mark.parametrize(
+    "identifiers,incomplete,accepted",
+    [
+        (["Mode: basic; unitConversion: false"], False, True),
+        (["Mode: scientific; unitConversion: false"], False, False),
+        (["Mode: programmer; unitConversion: false"], False, False),
+        (["Mode: basic; unitConversion: true"], False, False),
+        (["Mode: unknown; unitConversion: false"], False, False),
+        (["Mode: basic; unitConversion: unknown"], False, False),
+        ([], False, False),
+        (["Mode: basic; unitConversion: false"] * 2, False, False),
+        (["Mode: basic; unitConversion: false"], True, False),
+    ],
+)
+def test_owned_calculator_requires_confirmed_basic_mode(
+    request, monkeypatch, identifiers, incomplete, accepted
+):
+    world = request.getfixturevalue("shared_world")
+    s5 = _bootstrap(monkeypatch)
+    config = SimpleNamespace(bundle_id=s5.BUNDLES["calculator"], window_id=7)
+    monkeypatch.setattr(s5.s4_ax.OwnedApplication, "start", lambda self: config)
+    monkeypatch.setattr(s5.computer_use_macos, "_active_displays", lambda: [])
+    monkeypatch.setattr(s5.computer_use_macos, "_main_geometry", lambda displays: world.window.display_geometry)
+    candidates = [replace(world.button, identifier=identifier) for identifier in identifiers]
+    monkeypatch.setattr(s5.computer_ax, "ax_window_candidates", lambda *args: (candidates, incomplete))
+    owner = s5.OwnedApplication(s5.TASKS[0])
+    if accepted:
+        assert owner.start() is config
+    else:
+        with pytest.raises(RuntimeError, match="frozen basic mode"):
+            owner.start()
+
+
+def test_owned_quartz_calculator_rejects_initial_occlusion(request, monkeypatch):
+    world = request.getfixturevalue("shared_world")
+    s5 = _bootstrap(monkeypatch)
+    task = next(task for task in s5.TASKS if task["dispatch"] == "quartz")
+    config = SimpleNamespace(bundle_id=s5.BUNDLES["calculator"], window_id=7)
+    monkeypatch.setattr(s5.s4_ax.OwnedApplication, "start", lambda self: config)
+    monkeypatch.setattr(s5.computer_use_macos, "_active_displays", lambda: [])
+    monkeypatch.setattr(s5.computer_use_macos, "_main_geometry", lambda displays: world.window.display_geometry)
+    candidates = [replace(world.button, identifier="Mode: basic; unitConversion: false")]
+    candidates.extend(replace(world.button, title=label, identifier=label)
+                      for label in s5.button_sequence(task["expression"]))
+    monkeypatch.setattr(s5.computer_ax, "ax_window_candidates", lambda *args: (candidates, False))
+    monkeypatch.setattr(s5.native, "read_window", lambda config: world.window)
+    monkeypatch.setattr(s5.native, "pointer_target_is_exposed", lambda *args: False)
+    owner = s5.OwnedApplication(task)
+    with pytest.raises(RuntimeError, match="Quartz.*occluded"):
+        owner.start()
+    monkeypatch.setattr(s5.native, "pointer_target_is_exposed", lambda *args: True)
+    assert owner.start() is config
 
 
 def test_fake_confirmation_never_returns_an_adoption_conclusion(monkeypatch):
@@ -594,3 +649,23 @@ async def test_operational_failure_stops_and_keeps_full_denominator(
     assert journal[0]["status"] == "error"
     assert {row["status"] for row in journal[1:]} == {"not_run"}
     assert report["conclusion"] == "incomplete_no_confirmatory_conclusion"
+
+
+async def test_setup_failure_stops_before_any_model_call(request, monkeypatch, tmp_path):
+    world = request.getfixturevalue("shared_world")
+    s5 = _bootstrap(monkeypatch)
+    monkeypatch.setattr(s5, "TASKS", (s5.TASKS[0],))
+    _install_fake_calculator(monkeypatch, s5, world)
+
+    def blocked(owner):
+        raise RuntimeError("Frozen Quartz button is occluded before any model call")
+
+    monkeypatch.setattr(s5.OwnedApplication, "start", blocked)
+    output = tmp_path / "blocked"
+    frozen = s5.prepare(output)
+    report = await s5.run_batch(output, frozen["sha256"], mode="fake")
+    assert [row["status"] for row in report["rows"]] == ["environment_error", "not_run", "not_run"]
+    assert report["spend"]["batch"]["admitted_requests"] == 0
+    assert report["fake_http_requests"] == 0
+    assert report["conclusion"] == "incomplete_no_confirmatory_conclusion"
+    assert len((output / "rows.jsonl").read_text().splitlines()) == 3

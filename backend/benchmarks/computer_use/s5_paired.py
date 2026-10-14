@@ -798,15 +798,32 @@ class OwnedApplication(s4_ax.OwnedApplication):
                 config.window_id,
                 macos_tools._main_geometry(macos_tools._active_displays()),
             )
-            if incomplete or any(
-                str(candidate.identifier).startswith("Mode:")
-                and "scientific" in str(candidate.identifier)
-                for candidate in candidates
-            ):
+            modes = [candidate.identifier for candidate in candidates
+                     if candidate.identifier.startswith("Mode:")]
+            if incomplete or modes != ["Mode: basic; unitConversion: false"]:
                 raise RuntimeError(
                     "Calculator is not in the frozen basic mode; "
                     "switch it to basic (Cmd+1) before the batch"
                 )
+            if self.task["dispatch"] == "quartz":
+                window = native.read_window(config)
+                for label in set(button_sequence(self.task["expression"])):
+                    targets = [candidate for candidate in candidates
+                               if candidate.role == "AXButton" and candidate.enabled
+                               and label in (candidate.title, candidate.identifier)]
+                    if not any(
+                        target.frame is not None
+                        and native.pointer_target_is_exposed(
+                            window,
+                            target.frame[0] + target.frame[2] // 2,
+                            target.frame[1] + target.frame[3] // 2,
+                        )
+                        for target in targets
+                    ):
+                        raise RuntimeError(
+                            f"Frozen Quartz button {label!r} is unavailable or occluded "
+                            "before any model call"
+                        )
         return config
 
     def read_values(self) -> dict[str, str]:
@@ -1359,7 +1376,8 @@ async def run_batch(
                     raise
                 except Exception as exc:
                     row.update(
-                        status="error", error_type=type(exc).__name__, error=str(exc)
+                        status="error" if row.get("binding") else "environment_error",
+                        error_type=type(exc).__name__, error=str(exc)
                     )
                 finally:
                     try:
