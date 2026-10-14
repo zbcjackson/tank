@@ -15,8 +15,11 @@ import time
 from contextlib import ExitStack
 from collections import Counter
 from dataclasses import asdict, replace
+from importlib.metadata import version
+from math import comb
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from statistics import median
+from typing import Any, Protocol, TypedDict, cast
 from unittest.mock import MagicMock, patch
 
 from agent_computer_use import (
@@ -48,6 +51,12 @@ ARMS = ("A", "H", "J")
 TEXTEDIT_BODY = s4_nl.TEXTEDIT_BODY
 A_REQUEST_LIMIT = 20
 ADVISOR_CALL_LIMIT = 4
+
+
+class WilcoxonResult(Protocol):
+    """Scalar result shape obscured by SciPy's axis-policy decorator."""
+
+    pvalue: float
 
 
 class PilotTask(TypedDict):
@@ -329,7 +338,7 @@ def freeze_inputs() -> dict[str, Any]:
         for arm in ARMS
     )
     data = {
-        "revision": "s5-confirmatory-1",
+        "revision": "s5-confirmatory-2",
         "arms": list(ARMS),
         "tasks": list(TASKS),
         "schedule": schedule(),
@@ -351,6 +360,17 @@ def freeze_inputs() -> dict[str, Any]:
         "nano_usd_limit": 4_000_000_000,
         "trial_limits": {"tokens": 4_000_000, "nano_usd": 250_000_000},
         "seconds_per_task": 240,
+        "a_timeout_limit": 3,
+        "statistics": {
+            "scipy_version": version("scipy"),
+            "comparisons": ["J-H", "H-A", "J-A"],
+            "quality": "two-sided exact discordant-pair binomial; win-probability CP 95% CI",
+            "differences": "left minus right; milliseconds rounded to 0.001ms",
+            "wilcoxon": "auto, wilcox zero method; all-zero p=1",
+            "median_ci": "95% conservative binomial order-statistic interval; report coverage",
+            "long_family": "average paired differences within repeat across dispatch tasks",
+            "interpretation": "fixed-task descriptive inference; point gates only, no population adoption",
+        },
         "accounting": (
             "one durable ledger shared by all arms; frozen conservative "
             "price estimates, not provider invoices"
@@ -391,7 +411,8 @@ def freeze_inputs() -> dict[str, Any]:
         "stop_policy": (
             "known settled task failures stay in the denominator and the batch "
             "continues; errors, unknown effects/receipts/usage, cancellation or "
-            "unconfirmed cleanup stop and retain all planned rows"
+            "unconfirmed cleanup stop and retain all planned rows; the third "
+            "A timeout also stops, retaining known failed trials"
         ),
         "source_sha256": {
             str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -614,26 +635,122 @@ def paired_results(
     return pairs
 
 
-def conclusion(summary: dict[str, Any], *, completed: bool) -> str:
-    if not completed:
-        return "incomplete_no_pilot_conclusion"
-    return "pilot_descriptive_only_needs_confirmatory_freeze"
+def difference_statistics(differences: list[float]) -> dict[str, Any]:
+    """Paired signed differences, with a conservative order-statistic median CI."""
+    from scipy.stats import wilcoxon
+
+    ordered = sorted(differences)
+    n = len(ordered)
+    bounds, coverage = None, None
+    for k in range(n // 2):
+        candidate = 1 - 2 * sum(comb(n, i) for i in range(k + 1)) / 2**n
+        if candidate < 0.95:
+            break
+        bounds, coverage = [ordered[k], ordered[-k - 1]], candidate
+    return {
+        "n": n,
+        "median_difference": median(ordered),
+        "median_ci95": bounds,
+        "ci_coverage": coverage,
+        "wilcoxon_pvalue": (
+            float(
+                cast(
+                    WilcoxonResult,
+                    wilcoxon(differences, zero_method="wilcox", method="auto"),
+                ).pvalue
+            )
+            if any(differences)
+            else 1.0
+        ),
+    }
 
 
-def confirmatory_verdict(summary: dict[str, Any], *, completed: bool) -> dict[str, Any]:
+def paired_statistics(pairs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Fixed-task comparisons; long-family timing/cost use repeat blocks."""
+    from scipy.stats import binomtest
+
+    groups: dict[str, list[dict[str, Any]]] = {}
+    long_blocks: dict[str, list[dict[str, Any]]] = {}
+    for pair in pairs:
+        shape = pair["task_id"].rsplit("-", 1)[0]
+        groups.setdefault(shape, []).append(pair)
+        if shape.startswith("calculator-long-"):
+            long_blocks.setdefault(pair["repeat"], []).append(pair)
+    by_task: dict[str, Any] = {}
+    long_family: dict[str, Any] = {}
+    for left, right in (("j", "h"), ("h", "a"), ("j", "a")):
+        name = f"{left.upper()}-{right.upper()}"
+        for shape, group in groups.items():
+            wins = sum(p[f"{left}_strict"] and not p[f"{right}_strict"] for p in group)
+            losses = sum(
+                p[f"{right}_strict"] and not p[f"{left}_strict"] for p in group
+            )
+            discordant = wins + losses
+            exact = binomtest(wins, discordant) if discordant else None
+            interval = exact.proportion_ci(confidence_level=0.95) if exact else None
+            comparison = {
+                "quality": {
+                    "n": len(group),
+                    "wins": wins,
+                    "losses": losses,
+                    "discordant": discordant,
+                    "pvalue": float(exact.pvalue) if exact else 1.0,
+                    "win_probability_ci95": [float(interval.low), float(interval.high)]
+                    if interval
+                    else None,
+                },
+                **{
+                    metric: difference_statistics(
+                        [
+                            round(p[f"{left}_{suffix}"] - p[f"{right}_{suffix}"], 3)
+                            for p in group
+                        ]
+                    )
+                    for metric, suffix in (
+                        ("elapsed_ms", "ms"),
+                        ("nano_usd", "nano_usd"),
+                    )
+                },
+            }
+            by_task.setdefault(shape, {})[name] = comparison
+        if long_blocks:
+            long_family[name] = {
+                metric: difference_statistics(
+                    [
+                        round(
+                            sum(
+                                p[f"{left}_{suffix}"] - p[f"{right}_{suffix}"]
+                                for p in block
+                            )
+                            / len(block),
+                            3,
+                        )
+                        for block in long_blocks.values()
+                    ]
+                )
+                for metric, suffix in (("elapsed_ms", "ms"), ("nano_usd", "nano_usd"))
+            }
+    return {"by_task": by_task, "long_family": long_family}
+
+
+def confirmatory_verdict(
+    summary: dict[str, Any], *, completed: bool, mode: str = "live"
+) -> dict[str, Any]:
     """Evaluate the predeclared confirmatory gates exactly as frozen.
 
     h1 amortization: on calc-long, J/H elapsed ratio <= 1.10 with the quality
     gate intact. h2: J strict >= H strict - 1. h3: J cost < H cost.
     h4: the production baseline trails both host arms (S6 scope note).
     """
-    if not completed:
+    if not completed or mode == "fake":
         return {
             "h1": False,
             "h2": False,
             "h3": False,
             "h4": False,
-            "decision": "incomplete_no_confirmatory_conclusion",
+            "decision": "incomplete_no_confirmatory_conclusion"
+            if not completed
+            else "fake_wiring_only_no_adoption_conclusion",
         }
     h, j, a = summary["H"], summary["J"], summary["A"]
     long_h, long_j = summary["long_family"]["H"], summary["long_family"]["J"]
@@ -641,14 +758,22 @@ def confirmatory_verdict(summary: dict[str, Any], *, completed: bool) -> dict[st
     h3 = j["nano_usd"] < h["nano_usd"]
     h1 = (
         h2
+        and long_h["strict"] > 0
+        and long_j["strict"] > 0
         and long_h["elapsed_ms"] > 0
         and long_j["elapsed_ms"] <= long_h["elapsed_ms"] * 1.10
         and long_j["strict"] >= long_h["strict"] - 1
     )
     h4 = a["strict"] < h["strict"] and a["strict"] < j["strict"]
-    if h1 and h2 and h3:
+    usable = (
+        h["strict"] > 0
+        and j["strict"] > 0
+        and not h.get("rule_violations", 0)
+        and not j.get("rule_violations", 0)
+    )
+    if usable and h1 and h2 and h3:
         decision = "trial_j_for_multidecision_native_scenarios"
-    elif h2 and h3:
+    elif usable and h2 and h3:
         decision = "no_net_gain_keep_jev_explicit_experimental"
     else:
         decision = "mixed_review_before_any_adoption"
@@ -1082,6 +1207,7 @@ async def run_batch(
         journal = stack.enter_context((output / "rows.jsonl").open("x"))
         audits_file = stack.enter_context((output / "audit.jsonl").open("x"))
         written = 0
+        a_timeouts = 0
         try:
             for row in rows:
                 load_freeze(output, approved)
@@ -1115,6 +1241,7 @@ async def run_batch(
                             max_steps=A_CONFIG["max_steps"],
                         )
                         row["driver"] = _a_driver_result(driver_result)
+                        a_timeouts += int(row["driver"]["timed_out"])
                         row["spend_trial"] = str(
                             (output / "trials" / row["trial"]).resolve()
                         )
@@ -1291,6 +1418,9 @@ async def run_batch(
                 if not settled_now:
                     ledger.stop("s5_trial_unsettled")
                     break
+                if a_timeouts >= frozen["a_timeout_limit"]:
+                    ledger.stop("a_timeout_limit")
+                    break
             else:
                 report["completed"] = all(row["status"] == "finished" for row in rows)
         finally:
@@ -1301,12 +1431,13 @@ async def run_batch(
             report["paired"] = paired_results(
                 rows, report["spend"], report["completed"]
             )
-            report["conclusion"] = conclusion(
-                report["summary"], completed=report["completed"]
-            )
+            report["statistics"] = paired_statistics(report["paired"])
             report["confirmatory"] = confirmatory_verdict(
-                report["summary"], completed=report["completed"]
+                report["summary"],
+                completed=report["completed"],
+                mode=mode,
             )
+            report["conclusion"] = report["confirmatory"]["decision"]
             report["fake_http_requests"] = fake_received
             report["external_model_requests"] = (
                 sum(len(row.get("calls", {})) for row in rows)

@@ -22,7 +22,7 @@ def _bootstrap(monkeypatch):
 def test_freeze_pins_three_arm_schedule_and_budget(monkeypatch, tmp_path):
     s5 = _bootstrap(monkeypatch)
     frozen = s5.prepare(tmp_path / "pilot")
-    assert frozen["revision"] == "s5-confirmatory-1"
+    assert frozen["revision"] == "s5-confirmatory-2"
     assert len(frozen["tasks"]) == 50
     assert len(frozen["schedule"]) == 150
     families = {task["id"].rsplit("-", 1)[0] for task in frozen["tasks"]}
@@ -53,6 +53,8 @@ def test_freeze_pins_three_arm_schedule_and_budget(monkeypatch, tmp_path):
     assert frozen["a_config"]["input_cleanup"] is True
     assert frozen["models"]["a"]["model"] == frozen["models"]["qwen"]["model"]
     assert frozen["nano_usd_limit"] == 4_000_000_000
+    assert frozen["a_timeout_limit"] == 3
+    assert frozen["statistics"]["scipy_version"]
     assert frozen["decision_rule"]["kind"] == "confirmatory"
     assert set(frozen["decision_rule"]["hypotheses"]) == {
         "h1_amortization",
@@ -124,12 +126,11 @@ def test_read_values_reactivates_defocused_owned_app(monkeypatch):
     assert pumped == [0.1]
 
 
-def test_conclusion_stays_descriptive_without_adoption(monkeypatch):
+def test_fake_confirmation_never_returns_an_adoption_conclusion(monkeypatch):
     s5 = _bootstrap(monkeypatch)
-    summary = {arm_name: {"strict": 9} for arm_name in s5.ARMS}
-    assert s5.conclusion(summary, completed=False) == "incomplete_no_pilot_conclusion"
-    verdict = s5.conclusion(summary, completed=True)
-    assert verdict == "pilot_descriptive_only_needs_confirmatory_freeze"
+    verdict = s5.confirmatory_verdict({}, completed=True, mode="fake")
+    assert verdict["decision"] == "fake_wiring_only_no_adoption_conclusion"
+    assert not any(verdict[name] for name in ("h1", "h2", "h3", "h4"))
 
 
 def test_button_sequence_derives_deterministic_labels(monkeypatch):
@@ -146,6 +147,73 @@ def test_button_sequence_derives_deterministic_labels(monkeypatch):
         "5",
         "Equals",
     )
+
+
+def test_paired_statistics_reports_exact_quality_and_signed_differences(monkeypatch):
+    s5 = _bootstrap(monkeypatch)
+    pairs = [
+        {
+            "task_id": f"calculator-long-ax_press-{repeat}",
+            "repeat": str(repeat),
+            "a_strict": False,
+            "h_strict": False,
+            "j_strict": True,
+            "a_ms": 100,
+            "h_ms": 100,
+            "j_ms": 99 - repeat,
+            "a_nano_usd": 100,
+            "h_nano_usd": 100,
+            "j_nano_usd": 95,
+        }
+        for repeat in range(10)
+    ]
+    report = s5.paired_statistics(pairs)
+    comparison = report["by_task"]["calculator-long-ax_press"]["J-H"]
+    quality = comparison["quality"]
+    assert quality["wins"] == 10 and quality["losses"] == 0
+    assert quality["discordant"] == 10
+    assert quality["pvalue"] == pytest.approx(2 / 1024)
+    assert quality["win_probability_ci95"][1] == 1
+    elapsed = comparison["elapsed_ms"]
+    assert elapsed["n"] == 10
+    assert elapsed["median_difference"] == -5.5
+    assert elapsed["median_ci95"] == [-9, -2]
+    assert elapsed["ci_coverage"] >= 0.95
+    assert elapsed["wilcoxon_pvalue"] == pytest.approx(2 / 1024)
+    assert comparison["nano_usd"]["median_difference"] == -5
+    assert comparison["nano_usd"]["wilcoxon_pvalue"] == pytest.approx(2 / 1024)
+
+
+def test_paired_statistics_handles_ties_small_samples_and_repeat_blocks(monkeypatch):
+    s5 = _bootstrap(monkeypatch)
+    pairs = [
+        {
+            "task_id": f"calculator-long-{dispatch}-{repeat}",
+            "repeat": str(repeat),
+            "a_strict": True,
+            "h_strict": True,
+            "j_strict": True,
+            "a_ms": 10,
+            "h_ms": 10,
+            "j_ms": 10 + (2 if dispatch == "quartz" else 0),
+            "a_nano_usd": 10,
+            "h_nano_usd": 10,
+            "j_nano_usd": 10,
+        }
+        for repeat in range(3)
+        for dispatch in ("ax_press", "quartz")
+    ]
+    report = s5.paired_statistics(pairs)
+    quality = report["by_task"]["calculator-long-quartz"]["J-H"]["quality"]
+    assert quality["discordant"] == 0 and quality["pvalue"] == 1
+    assert quality["win_probability_ci95"] is None
+    elapsed = report["long_family"]["J-H"]["elapsed_ms"]
+    assert elapsed["n"] == 3  # Repeat is the block, not the six dispatch trials.
+    assert elapsed["median_difference"] == 1
+    assert elapsed["median_ci95"] is None and elapsed["ci_coverage"] is None
+    cost = report["long_family"]["J-H"]["nano_usd"]
+    assert cost["median_difference"] == 0 and cost["wilcoxon_pvalue"] == 1
+    assert s5.paired_statistics([]) == {"by_task": {}, "long_family": {}}
 
 
 def test_confirmatory_verdict_applies_predeclared_gates(monkeypatch):
@@ -185,6 +253,31 @@ def test_confirmatory_verdict_applies_predeclared_gates(monkeypatch):
     quality_break = {**summary, "J": {**base, "strict": 30, "nano_usd": 60}}
     verdict = s5.confirmatory_verdict(quality_break, completed=True)
     assert verdict["decision"] == "mixed_review_before_any_adoption"
+
+
+def test_confirmation_rejects_zero_quality_and_rule_violations(monkeypatch):
+    s5 = _bootstrap(monkeypatch)
+    summary = {
+        "H": {"strict": 0, "nano_usd": 100},
+        "J": {"strict": 0, "nano_usd": 60},
+        "A": {"strict": 0},
+        "long_family": {
+            "H": {"strict": 0, "elapsed_ms": 1000},
+            "J": {"strict": 0, "elapsed_ms": 1050},
+        },
+    }
+    assert (
+        s5.confirmatory_verdict(summary, completed=True)["decision"]
+        == "mixed_review_before_any_adoption"
+    )
+    for arm in ("H", "J"):
+        summary["H"]["strict"] = summary["J"]["strict"] = 40
+        summary["H"]["rule_violations"] = summary["J"]["rule_violations"] = 0
+        summary[arm]["rule_violations"] = 1
+        assert (
+            s5.confirmatory_verdict(summary, completed=True)["decision"]
+            == "mixed_review_before_any_adoption"
+        )
 
 
 def test_settled_treats_readback_resolved_effect_unknown_as_known_failure(monkeypatch):
@@ -436,10 +529,44 @@ async def test_fake_pilot_runs_three_arms_on_one_ledger(
     assert report["summary"]["H"]["strict"] == 1
     assert report["summary"]["J"]["strict"] == 1
     assert report["paired"] and report["paired"][0]["task_id"] == rows[0]["task_id"]
-    assert report["conclusion"] == "pilot_descriptive_only_needs_confirmatory_freeze"
+    assert report["conclusion"] == "fake_wiring_only_no_adoption_conclusion"
+    assert report["conclusion"] == report["confirmatory"]["decision"]
+    assert report["statistics"]["by_task"]
     assert (output / "rows.jsonl").exists()
     with pytest.raises(FileExistsError):
         await s5.run_batch(output, frozen["sha256"], mode="fake")
+
+
+async def test_third_a_timeout_stops_batch_and_retains_full_denominator(
+    request, monkeypatch, tmp_path
+):
+    world = request.getfixturevalue("shared_world")
+    s5 = _bootstrap(monkeypatch)
+    monkeypatch.setattr(s5, "TASKS", tuple(s5.TASKS[:3]))
+    _install_fake_calculator(monkeypatch, s5, world)
+    original = s5._a_driver_result
+    monkeypatch.setattr(
+        s5,
+        "_a_driver_result",
+        lambda result: {
+            **original(result),
+            "timed_out": True,
+        },
+    )
+    output = tmp_path / "timeouts"
+    frozen = s5.prepare(output)
+    report = await s5.run_batch(output, frozen["sha256"], mode="fake")
+    assert not report["completed"]
+    assert report["spend"]["stop_reason"] == "a_timeout_limit"
+    assert (
+        sum(row.get("driver", {}).get("timed_out", False) for row in report["rows"])
+        == 3
+    )
+    assert len(report["rows"]) == 9
+    assert any(row["status"] == "not_run" for row in report["rows"])
+    assert len((output / "rows.jsonl").read_text().splitlines()) == 9
+    assert report["statistics"] == {"by_task": {}, "long_family": {}}
+    assert report["conclusion"] == "incomplete_no_confirmatory_conclusion"
 
 
 async def test_operational_failure_stops_and_keeps_full_denominator(
@@ -466,4 +593,4 @@ async def test_operational_failure_stops_and_keeps_full_denominator(
     assert len(journal) == 3
     assert journal[0]["status"] == "error"
     assert {row["status"] for row in journal[1:]} == {"not_run"}
-    assert report["conclusion"] == "incomplete_no_pilot_conclusion"
+    assert report["conclusion"] == "incomplete_no_confirmatory_conclusion"
