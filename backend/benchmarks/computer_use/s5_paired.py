@@ -591,7 +591,7 @@ def summarize(rows: list[dict[str, Any]], spend: SpendSnapshot) -> dict[str, Any
                 for name, trial in spend["trials"].items()
                 if name in long_trials
                 and any(
-                    row["arm"] == arm and row["spend_trial"] == name
+                    row["arm"] == arm and row.get("spend_trial") == name
                     for row in long_rows
                 )
             ),

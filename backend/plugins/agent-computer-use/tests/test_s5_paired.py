@@ -611,6 +611,46 @@ async def test_fake_pilot_runs_three_arms_on_one_ledger(
         await s5.run_batch(output, frozen["sha256"], mode="fake")
 
 
+async def test_stop_after_long_task_preserves_unstarted_rows_and_summary(
+    request, monkeypatch, tmp_path
+):
+    world = request.getfixturevalue("shared_world")
+    s5 = _bootstrap(monkeypatch)
+    monkeypatch.setattr(s5, "TASKS", tuple(s5.TASKS[30:32]))
+    _install_fake_calculator(monkeypatch, s5, world)
+    original_start = s5.OwnedApplication.start
+    starts = 0
+
+    def start(owner):
+        nonlocal starts
+        starts += 1
+        if starts == 4:
+            raise RuntimeError("Target app already running")
+        return original_start(owner)
+
+    monkeypatch.setattr(s5.OwnedApplication, "start", start)
+    output = tmp_path / "long-then-stop"
+    frozen = s5.prepare(output)
+    report = await s5.run_batch(output, frozen["sha256"], mode="fake")
+    assert not report["completed"]
+    assert [r["status"] for r in report["rows"]] == [
+        "finished", "finished", "finished", "environment_error", "not_run", "not_run",
+    ]
+    assert report["spend"]["stop_reason"] == "s5_trial_unsettled"
+    assert report["external_model_requests"] == 0
+    assert report["conclusion"] == "incomplete_no_confirmatory_conclusion"
+    assert report["statistics"] == {"by_task": {}, "long_family": {}}
+    assert len((output / "rows.jsonl").read_text().splitlines()) == 6
+    saved = json.loads((output / "result.json").read_text())
+    assert saved["conclusion"] == report["conclusion"]
+    for row in report["rows"][:3]:
+        arm = row["arm"]
+        expected = report["spend"]["trials"][row["spend_trial"]]["known_nano_usd"]
+        assert report["summary"][arm]["planned"] == 2
+        assert report["summary"]["long_family"][arm]["planned"] == 2
+        assert report["summary"]["long_family"][arm]["nano_usd"] == expected
+
+
 async def test_third_a_timeout_stops_batch_and_retains_full_denominator(
     request, monkeypatch, tmp_path
 ):
