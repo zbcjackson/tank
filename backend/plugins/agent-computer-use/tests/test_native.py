@@ -383,10 +383,27 @@ def test_native_pilot_prepares_bounded_cases_without_desktop_or_credentials(tmp_
         assert all(f.key.startswith("ax:value:") for f in contract.completion)
 
 
-def test_fullscreen_system_overlays_do_not_occlude_targets(monkeypatch):
-    """A full-screen above-app-layer window (Notification Center shield) is a
-    system tracking layer, never an interactive occluder; small real banners
-    and the menu bar still block."""
+@pytest.mark.parametrize("owner,layer", [("Third-party overlay", 3), ("Notification Center", 21)])
+def test_fullscreen_overlays_block_pointer_targets(monkeypatch, owner, layer):
+    from agent_computer_use.channels import native
+
+    window = native.NativeWindow(42, "1:0", "test.counter", 7, (0, 0, 100, 80),
+                                 (5, 0, 0, 100, 80, 200, 160))
+    windows = [
+        {"kCGWindowNumber": 20, "kCGWindowOwnerName": owner,
+         "kCGWindowLayer": layer, "kCGWindowAlpha": 1.0,
+         "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 100, "Height": 80}},
+        {"kCGWindowNumber": 7, "kCGWindowLayer": 0, "kCGWindowAlpha": 1.0,
+         "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 100, "Height": 80}},
+    ]
+    monkeypatch.setattr(
+        native.macos, "_load_quartz",
+        lambda: type("Q", (), {"CGWindowListCopyWindowInfo": staticmethod(lambda *a: windows),
+                                "kCGWindowListOptionOnScreenOnly": 0})())
+    assert native.pointer_target_is_exposed(window, 40, 40) is False
+
+
+def test_transparent_overlays_and_small_banners_preserve_exposure_checks(monkeypatch):
     from agent_computer_use.channels import native
     from agent_computer_use.channels.native import NativeWindow, pointer_target_is_exposed
 
@@ -394,7 +411,7 @@ def test_fullscreen_system_overlays_do_not_occlude_targets(monkeypatch):
                           (5, 0, 0, 100, 80, 200, 160))
     windows = [
         {"kCGWindowNumber": 20, "kCGWindowOwnerName": "Notification Center",
-         "kCGWindowLayer": 21, "kCGWindowAlpha": 1.0,
+         "kCGWindowLayer": 21, "kCGWindowAlpha": 0.0,
          "kCGWindowBounds": {"X": 0.0, "Y": 0.0, "Width": 100.0, "Height": 80.0}},
         {"kCGWindowNumber": 7, "kCGWindowOwnerName": "Calculator",
          "kCGWindowLayer": 0, "kCGWindowAlpha": 1.0,
@@ -409,7 +426,7 @@ def test_fullscreen_system_overlays_do_not_occlude_targets(monkeypatch):
               "kCGWindowBounds": {"X": 30.0, "Y": 10.0, "Width": 40.0, "Height": 12.0}}
     windows.insert(0, banner)
     assert pointer_target_is_exposed(window, 40, 14) is False  # banner wins
-    assert pointer_target_is_exposed(window, 40, 40) is True  # banner misses, shield skipped
+    assert pointer_target_is_exposed(window, 40, 40) is True  # banner misses, transparent layer skipped
 
 
 def test_pilot_places_only_owned_offscreen_windows_on_primary(monkeypatch):

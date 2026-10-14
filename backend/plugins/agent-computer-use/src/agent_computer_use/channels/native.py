@@ -192,16 +192,10 @@ def read_window(config: NativeConfig) -> NativeWindow:
 
 def pointer_target_is_exposed(window: NativeWindow, x: int, y: int) -> bool:
     quartz = macos._load_quartz()
-    width, height = window.display_geometry[3], window.display_geometry[4]
     for item in quartz.CGWindowListCopyWindowInfo(quartz.kCGWindowListOptionOnScreenOnly, 0) or []:
         rect = item.get("kCGWindowBounds", {})
-        covers_screen = (
-            item.get("kCGWindowLayer", 0) != 0
-            and rect.get("Width", 0) >= width
-            and rect.get("Height", 0) >= height
-        )
+        # Window owner, layer and size do not prove that pointer input passes through.
         if (item.get("kCGWindowAlpha", 1) > 0
-                and not covers_screen
                 and rect.get("X", 0) <= x < rect.get("X", 0) + rect.get("Width", 0)
                 and rect.get("Y", 0) <= y < rect.get("Y", 0) + rect.get("Height", 0)):
             return item.get("kCGWindowNumber") == window.window_id
