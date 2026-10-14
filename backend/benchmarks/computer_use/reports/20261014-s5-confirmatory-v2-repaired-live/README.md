@@ -36,12 +36,69 @@ driver timed_out=true/unknown_calls=1与账本一致，清理确认，独立读�
 
 当前两项短任务H/J均完成7×8=56；J已知费用更低、总时延相近，仅为小样本观察。
 长任务时延摊薄与总体非劣/净收益未测，不切换生产默认、不拼接不同源码版本作正式配对。
-下一步先做不收费的A长推理/定位及请求截止配置审计，再定义新的冻结控制方案；
+零收费A长推理/定位及请求截止配置审计已完成，见下一节；下一步为控制组预检方案，
 不直接原样重付费，不放宽unknown门、不擦除预留，也不删除A失败或事后改H1–H4。
 
 原始[result.json](result.json)、[rows.jsonl](rows.jsonl)、[spend.jsonl](spend.jsonl)、
 [audit.jsonl](audit.jsonl)、[freeze.json](freeze.json)及trials保留；原始截图/模型载荷不提交。
 日志`/private/tmp/tank-s5-confirmatory-v2-repaired-live.log`。
+
+## 停批后零收费审计（2026-10-14）
+
+此次只重构本地SDK请求并回放既存坐标；11次fake HTTP，0外部模型请求、0新GUI操作，
+生产配置/冻结源码及两批原始行件/账本不变。临时文件在中断后丢失，因此本轮将
+[审计脚本](audit/a-zero-cost.py)、[脱敏收据](audit/receipts/result.json)、
+[日志](audit/audit.log)保留在本地报告目录；这些诊断文件/图片副本不提交。
+SDK代理使用offline-probe凭据和MockTransport，原生I/O被禁止；假回复只验证线路，
+不证明控制参数的真实质量/时延。
+
+### 已确认的请求差异
+
+经真实SubAgentDriver→Runner→SDK及SpendControl重构，A-production为
+qwen3.7-flash-2026-07-15、temperature=0.1、max_tokens=40000、stream=true，
+请求中没有enable_thinking或stream_options。H/J共用文本服务为同模型、temperature=0、
+max_tokens=2048、enable_thinking=false、非流式。旧真实批次没有完整wire归档，
+这里是当前源码/SDK的重构证据，不冒称逐字恢复旧HTTP请求。
+
+官方文档明确该Qwen快照默认开启思考，关闭须经extra_body发送enable_thinking=false。
+这与A的长输出/耗时记录相符，支持把思考配置作为独立控制因素；并不能由fake推断
+关闭后必定成功或不会超时。[百炼思考模式文档](https://www.alibabacloud.com/help/zh/model-studio/deep-thinking)
+
+官方流式文档要求显式include_usage=true以请求最后用量包。A未显式请求，是观测上的
+差异；但真实已结束A请求已有known用量，且本次未知请求被deadline中断，不能单独
+将未知归因于缺选项，也不能假定打开选项就能恢复中断流的用量。
+[百炼流式输出文档](https://help.aliyun.com/en/model-studio/stream)
+
+五个A重构控制配置每个完成2次fake请求，另1次H/J文本请求，字段断言通过：
+A-production保留原配置；A-usage-control仅加include_usage；A-no-think在usage-control上
+只关思考；A-output-cap在usage-control上只改输出2048；A-bounded组合关闭思考/输出2048。
+四个控制配置均保留A的temperature=0.1、原模型/系统提示/工具；不是生产配置修改，
+也不作为原A结果替换。
+
+### 坐标单位：有数值证据的假设，尚未证实
+
+重构请求的系统提示和截图消息都包含0–1000契约；第二请求图像SHA与既存PNG一致，
+尺寸1920×1080，未发现宿主将该图缩成1280或丢掉单位提示。
+按冻结任务的7/Multiply/8/Equals顺序，对两项A首个四击批次回放。参照点取此前
+[确定性实机预检](../20261014-s5-confirmatory-v2-live/README.md)已验证点击点
+(316,417)/(478,417)/(370,417)/(478,579)，不是此次同步AX扫描或精确按钮中心。
+按声明的归一化规则，RMS距离分别185.30/183.18像素，8点均未进入参照点24px范围；
+按原图像素解释也不接近。若事后假设输出是1280×720像素，距离降为12.04/9.59像素，
+8点均进入该范围。此对照提示“模型可能混用缩放图像像素与归一化单位”，
+不能据此证明供应商内部缩放尺寸、真实点意图或实际按钮命中，不写入线上1.5倍纠偏。
+
+### 下一阶段：先确认控制组可运行，再重开确认实验
+
+先做单目标、单请求、不派发输入的预检：记录reasoning_content、最终usage、声明坐标
+空间/图像尺寸以及对固定图片标注的误差。先使用usage-only和单因素控制，
+不直接将所有差异混成一个“修复后的A”，也不展开完整150项或在同一图反复调参挑成功。
+如需实机输入，先验证已有frame_id/pixels/host_restore通道及owned窗口/前台护栏；
+现有FrameTool的窗口几何验证不等于逐点所属或键盘前台校验，不宣称已满足这一点。
+
+A-production作为历史生产参考保留；任何A-control须另名、另配方/预注册和新预算，
+旧H1–H4、本批失败/未运行分母以及未知预留不变。本轮没有启动新的真实预检。
+已有截止/取消/SDK缓冲事件/已知与未知usage测试21项通过，
+[日志](audit/model-calls.log)；没有改截止门或读取迟到usage来补造已知账单。
 
 ## 为什么需要新的批次
 
