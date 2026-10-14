@@ -186,10 +186,13 @@ class CountingLLM:
                     nested_start = counter.nonstream_s
                     ttft = None
                 yield update
-        except BaseException:
+        except BaseException as exc:
             # Cancellation (task timeout / max-steps abort) or a stream
             # error: the in-flight round still consumed wall time.
-            if ttft is not None or time.monotonic() - round_start > 0.01:
+            # Closing after a settled round's tool result is not a new call.
+            if (not isinstance(exc, GeneratorExit) or ttft is not None) and (
+                ttft is not None or time.monotonic() - round_start > 0.01
+            ):
                 counter._record(ttft or 0.0, max(
                     0.0, time.monotonic() - round_start - counter.nonstream_s + nested_start,
                 ))
@@ -539,12 +542,17 @@ class SubAgentDriver:
         token_parts: list[str] = []
         stopped_reason: str | None = None
         terminal: dict[str, Any] = {}
+        model_call_statuses: dict[str, str] = {}
         primitives = 0
         non_gui_tools: set[str] = set()
 
         class Observer:
             def on_event(_self, kind: str, metadata: dict[str, Any]) -> None:
                 nonlocal primitives
+                if kind == "model_call" and metadata.get("phase") == "finished":
+                    call_id, status = metadata.get("call_id"), metadata.get("status")
+                    if isinstance(call_id, str) and isinstance(status, str):
+                        model_call_statuses[call_id] = status
                 if kind == "desktop_cleanup":
                     terminal["cleanup"] = ("confirmed" if metadata.get("confirmed") is True
                                            else "unconfirmed")
@@ -559,6 +567,9 @@ class SubAgentDriver:
             from .task_model_policy import BenchmarkTaskPolicy
 
             nonlocal steps, stopped_reason, primitives
+            if not self._agent_def.extension and max_steps <= 0:
+                stopped_reason = f"max_steps({max_steps}) reached"
+                return
             run_kwargs: dict[str, Any] = {}
             if self._input_cleanup is not None:
                 run_kwargs["desktop_cleanup"] = self._input_cleanup
@@ -613,6 +624,15 @@ class SubAgentDriver:
                         terminal.update(output.metadata)
                     if output.type != AgentOutputType.USAGE:
                         trace.output(output)
+                    if (
+                        not self._agent_def.extension
+                        and output.type == AgentOutputType.TOOL_RESULT
+                        and steps >= max_steps
+                    ):
+                        # The final tool has returned and its model usage is settled.
+                        # Stop before the LLM loop admits another request.
+                        stopped_reason = stopped_reason or f"max_steps({max_steps}) reached"
+                        break
             finally:
                 try:
                     close = getattr(outputs, "aclose", None)
@@ -650,7 +670,10 @@ class SubAgentDriver:
         wall_s = time.monotonic() - start
         call_stats = self._llm.call_stats
         ttfts = [t for t, _ in call_stats if t is not None]
-        unknown_calls = self._llm.unknown_calls
+        unknown_calls = (
+            sum(status == "unknown" for status in model_call_statuses.values())
+            if model_call_statuses else self._llm.unknown_calls
+        )
         totals = [t for _, t in call_stats]
         llm_calls = len(call_stats)
         llm_ttft_s = median(ttfts) if ttfts and not self._agent_def.extension else None

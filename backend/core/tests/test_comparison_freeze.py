@@ -215,6 +215,135 @@ async def test_generated_config_reaches_real_driver_and_sdk(
     host.assert_not_called()
 
 
+@pytest.mark.parametrize("max_steps,stall", [(0, False), (1, False), (2, False), (2, True)])
+async def test_driver_step_limit_preserves_settlement_and_cleanup(
+    runtime_bundle, monkeypatch, max_steps, stall,
+):
+    import asyncio
+    from unittest.mock import AsyncMock, Mock
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    from tank_backend.agents.approval import ToolApprovalPolicy
+    from tank_backend.benchmarks import driver as module
+    from tank_backend.benchmarks.desktop_cleanup import MacOSInputCleanup
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_http import ContextWindowContract, SpendControl
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, TokenAllowance
+    from tank_backend.benchmarks.trace import TraceSink
+    from tank_backend.llm import llm as llm_module
+    from tank_backend.tools import computer_use_macos as macos
+    from tank_backend.tools.base import ToolResult
+    from tank_backend.tools.groups import ComputerUseToolGroup
+    from tank_backend.tools.manager import ToolManager
+
+    manager = ToolManager.__new__(ToolManager)
+    manager.tools = {t.get_info().name: t for t in ComputerUseToolGroup()._create_macos_tools()}
+    manager.tool_metadata = {name: tool.get_metadata() for name, tool in manager.tools.items()}
+    manager._media_store = manager._bus = None
+    manager._approval_policy = ToolApprovalPolicy(computer_mode="allow")
+    manager.set_session_id("offline")
+    async def dispatch_click(**kwargs):
+        await asyncio.sleep(0.02)
+        return ToolResult(content="click dispatched", display="clicked")
+
+    click = AsyncMock(side_effect=dispatch_click)
+    monkeypatch.setattr(manager.tools["click"], "execute", click)
+    host = Mock(side_effect=AssertionError("Host access is forbidden"))
+    monkeypatch.setattr(macos, "_load_quartz", host)
+    monkeypatch.setattr(MacOSInputCleanup, "_state", staticmethod(lambda: ([], [])))
+    monkeypatch.setattr(MacOSInputCleanup, "_release", lambda self: {
+        "keys_before": [], "buttons_before": [], "errors": [],
+    })
+    monkeypatch.setattr(module, "ToolManager", lambda *args, **kwargs: manager)
+    monkeypatch.setattr(module, "disable_langfuse_tracing", lambda: None)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    monkeypatch.setattr(llm_module, "is_tracing_registered", lambda: False)
+    bodies, clients, closed_streams = [], [], []
+
+    def respond(request):
+        bodies.append(json.loads(request.content))
+        call = {"id": "offline", "object": "chat.completion.chunk", "created": 1,
+                "model": bodies[-1]["model"], "choices": [{"index": 0, "delta": {
+                    "tool_calls": [{"index": 0, "id": f"click-{len(bodies)}",
+                        "type": "function", "function": {"name": "click",
+                            "arguments": '{"x":500,"y":500}'}}]},
+                    "finish_reason": "tool_calls"}]}
+        usage = {"id": "offline", "object": "chat.completion.chunk", "created": 1,
+                 "model": bodies[-1]["model"], "choices": [],
+                 "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9}}
+        if stall:
+            call["choices"][0]["finish_reason"] = None
+
+            class Stalled(httpx.AsyncByteStream):
+                async def __aiter__(self):
+                    yield f"data: {json.dumps(call)}\n\n".encode()
+                    await asyncio.Event().wait()
+
+                async def aclose(self):
+                    closed_streams.append(True)
+
+            return httpx.Response(200, headers={"content-type": "text/event-stream"},
+                                  stream=Stalled())
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content="".join(
+            f"data: {json.dumps(chunk)}\n\n" for chunk in (call, usage)) + "data: [DONE]\n\n")
+
+    def client_factory(**kwargs):
+        client = AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(respond)))
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", client_factory)
+    ledger = SpendLedger(SpendLimit(8000000, 30000000))
+    spend = SpendControl(ledger, SpendLimit(8000000, 30000000), (
+        ContextWindowContract("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+            "qwen3.7-flash-2026-07-15", TokenAllowance(1000000, 40000, 2, 5), "offline contract"),
+    ))
+    trace = TraceSink(runtime_bundle.parent / "trial-step-cap")
+    try:
+        driver = module.SubAgentDriver.create(
+            "computer_use", runtime_bundle / "runtime/a/config.yaml",
+            request_limits=RequestLimits(), spend=spend, input_cleanup=max_steps > 0,
+        )
+        result = await driver.run("Keep clicking", trace, timeout_s=1 if stall else 5,
+                                  max_steps=max_steps)
+        assert result.cleanup == ("confirmed" if max_steps else "unknown")
+        snapshot = ledger.snapshot()
+        if stall:
+            assert len(bodies) == len(snapshot["requests"]) == 1
+            assert click.await_count == result.steps == result.primitives == 0
+            assert result.timed_out and result.unknown_calls == 1
+            assert closed_streams == [True]
+            assert snapshot["stop_reason"] == "unknown_usage"
+            assert snapshot["batch"]["known_tokens"] == 0
+            assert snapshot["batch"]["reserved_tokens"] == 1040000
+            assert snapshot["batch"]["reserved_nano_usd"] == 2200000
+            assert next(iter(snapshot["requests"].values()))["status"] == "unknown"
+        else:
+            assert len(bodies) == max_steps, "exhausted steps must stop the next paid request"
+            assert click.await_count == result.steps == result.primitives == max_steps
+            assert result.llm_calls == max_steps and result.tokens == 9 * max_steps
+            assert result.error == f"max_steps({max_steps}) reached" and not result.timed_out
+            assert len(snapshot["requests"]) == max_steps
+            assert all(r["status"] == "known" for r in snapshot["requests"].values())
+            assert snapshot["batch"]["known_tokens"] == 9 * max_steps
+            assert snapshot["batch"]["reserved_tokens"] == 0 and snapshot["stop_reason"] is None
+    finally:
+        trace.close()
+        ledger.close()
+        for client in clients:
+            await client.close()
+    records = [json.loads(line) for line in
+               (trace.trial_dir / "trace.jsonl").read_text().splitlines()]
+    results = [r for r in records if r.get("output_type") == "TOOL_RESULT"]
+    assert len(results) == (0 if stall else max_steps)
+    if results:
+        assert results[-1]["content"] == "clicked"
+    host.assert_not_called()
+
+
 @pytest.mark.parametrize("change", ["none", "modified", "missing", "added", "uncovered"])
 def test_frozen_input_preflight_checks_hashes_coverage_and_inventory(tmp_path, change):
     from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
