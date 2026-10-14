@@ -3416,7 +3416,15 @@ live 一次。
 **接续验证记录（2026-10-14，评审前）**：统计/停止与原生通道定向 101 passed，
 web lint/tsc-b、backend core/插件/benchmark lint、CLI lint、docs 检查通过，
 E2E 18 场景/71 步通过，开发服务 `%0` 后端 pane 日志无 error/traceback/exception。
-完整后端与最终类型检查尚在收尾，不能视作整阶段验收完成。
+完整后端 **5905 passed / 1 skipped / 21 warnings**（7 分钟，
+`/tmp/tank-s5-confirmatory-backend.log`）；Chromium 要求实际安装，不因缺依赖跳过。
+最终三份本次修改 Python 文件 pyright **0 errors / 0 warnings**
+（`/tmp/tank-s5-confirmatory-pyright-final.log`）；此前同一次根配置检查已核对未再修改的
+native.py/test_native.py，唯一错误是 SciPy 装饰器丢失标量返回类型，现用窄
+Protocol/cast 修复，未用 ignore。全量后只补该类型限定与 TTS 流的 AsyncGenerator
+类型收窄，相关 23 项回归和 lint 通过；全量结果复用于未改变的行为。
+独立评审、revision 2 的桌面 fake 全量和 live 确认仍待完成，不把旧 fake-4
+的 revision 1 冻结当作当前源码可执行配方。
 
 Edge TTS 原版本 7.2.8 的三项直连测试复现 403；官方 7.3.1 已发布，按既有
 “上游修复版发布后升级”的决定升级（`71b4ed90`），其它锁定包版本保持不变；
