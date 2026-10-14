@@ -3,7 +3,7 @@
 2026-10-13 晚：原生 live 批次 27/27 完成（A 0/9、H 6/9、J 8/9 strict，$0.35，描述性结论）；
 2026-10-13 深夜：DOM track H/J live 48/48 完成（双臂 24/24，费用 −47% 但耗时 +44%，no-net-gain 复现）；
 S5-App 机制审计+计时事件+融合契约三片完成，线 1 审计关、线 2 暂缓、线 3 用户确认挂起移交 backlog，
-线 4 无 unknown/误判证据未立项——S5-App 无活跃臂；2026-10-14：确认实验任务族、150-trial 调度和 H1–H4 点估计门槛已实现，Calculator 字符/基本模式和全屏系统覆盖层修复已提交（`3f5003cd`、`cb79b12b`、`01d164a1`）；fake-4 全量 150/150 完成、H/J 各 50/50、0 外部模型请求，冻结源码匹配。正在补齐统计、第三次 A 超时停批、完整验证和独立评审；真实确认批次未运行）。
+线 4 无 unknown/误判证据未立项——S5-App 无活跃臂；2026-10-14：确认实验任务族、150-trial 调度和 H1–H4 点估计门槛已实现，Calculator 字符/基本模式和全屏系统覆盖层修复已提交（`3f5003cd`、`cb79b12b`、`01d164a1`）；fake-4 全量 150/150 完成、H/J 各 50/50、0 外部模型请求，冻结源码匹配。配对统计、第三次 A 超时停批、基本模式/Quartz 环境前检已完成，完整验证与第 1 轮评审修复 + 第 2 轮自检通过；全屏遮挡豁免已撤销，fake-4 不作为安全验收；当前源码的桌面 fake 全量与真实确认批次未运行）。
 
 > 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
 > 2026-10-03 当前决策：S3 按下文“当前计划”收口，验证 Jev 作为可回退策略环节的边际价值。历史批次按原协议的判分保留；`conflicting` 三例预期缺少充分任务契约支持，不作为 Jev 错误或宿主缺陷证据，不据此新增身份一致性拦截。
@@ -3423,8 +3423,8 @@ E2E 18 场景/71 步通过，开发服务 `%0` 后端 pane 日志无 error/trace
 native.py/test_native.py，唯一错误是 SciPy 装饰器丢失标量返回类型，现用窄
 Protocol/cast 修复，未用 ignore。全量后只补该类型限定与 TTS 流的 AsyncGenerator
 类型收窄，相关 23 项回归和 lint 通过；全量结果复用于未改变的行为。
-独立评审、revision 2 的桌面 fake 全量和 live 确认仍待完成，不把旧 fake-4
-的 revision 1 冻结当作当前源码可执行配方。
+本轮独立评审与最小修复已完成（结果见下），revision 2 的桌面 fake 全量和 live
+确认仍待完成，不把旧 fake-4 的 revision 1 冻结当作当前源码可执行配方。
 
 Edge TTS 原版本 7.2.8 的三项直连测试复现 403；官方 7.3.1 已发布，按既有
 “上游修复版发布后升级”的决定升级（`71b4ed90`），其它锁定包版本保持不变；
@@ -3434,6 +3434,42 @@ NoAudioReceived，保留 `/tmp/tank-s5-tts-after.log`；独立中文合成烟测
 三项插件单测现按 Backend Testing 的外部 API 隔离要求使用确定性 MP3 提供方，
 仍运行真实 ffmpeg 解码，强化中文/英文 voice 选择、Int16 对齐和中断断言，并
 显式关闭早退流；8/8 通过（`a38af05d`）。没有删断言、跳过测试或吞掉提供方错误。
+
+**确认准备评审修复（2026-10-14，第 1 轮）**：
+
+- R1：`01d164a1` 按“非零层 + 覆盖屏幕尺寸”豁免所有全屏窗口，无法证明指针
+  可安全透传。第三方 layer 3 与 Notification Center layer 21 的不透明全屏遮挡
+  均被错误判为可点击；已以两项失败回归复现并撤销豁免，恢复遮挡时拒绝派发。
+  旧 fake-4 仍保留为历史接线结果，**不作为遮挡安全验收**，不得按 owner/layer
+  白名单绕过环境遮挡。
+- R2：原基本模式检查只排除 scientific，programmer、未知或缺失模式被放行。
+  已补候选边界回归，要求完整 AX 扫描中唯一的实机 basic 标识符
+  `Mode: basic; unitConversion: false`；scientific/programmer、单位换算开启、
+  未知/缺失/重复模式及扫描不完整均在模型前停止，不自动改用户模式。
+  该标识符由协调者在独立新 Calculator 实例读取（AXButton，空 title，
+  incomplete=false），随后确认关闭并恢复原前台；零输入事件、零截图、零模型
+  请求。最初合成命名假设已撤掉，以真实候选的两项失败回归修正。
+- R3：初始 Quartz 按键被遮挡时仍可启动模型，把环境不可操作混入质量失败。
+  已在模型前检查冻结算式各所需按钮的中心点；启动/预检失败记
+  `environment_error`，后续行 `not_run`，保留所有计划分母并停批，零模型请求
+  且不生成确认/采用结论。每次实际派发仍执行实时遮挡与窗口校验。
+
+**确认准备评审结论**：以 `e4d5e273` 为基线审查完整确认准备 diff（含此前
+三笔实现与本次统计、TTS/依赖变更）。第 1 轮发现并最小修复 R1–R3；第 2 轮
+复核自己的修改，无可操作或遗留问题，停止，不将自检称为独立评审。
+R1 已提交 `4ea04b16`；R2/R3 已提交 `eda16b6c`。
+
+最终完整后端 **5918 passed / 1 skipped / 21 warnings**（6:55，
+`/tmp/tank-s5-review-backend-final.log`），定向 S5/native **114 passed**，
+E2E **18 场景 / 71 步**（`/tmp/tank-s5-review-e2e-final.log`）。
+修改文件根配置 pyright **0 errors / 0 warnings**：四份文件先全部通过
+`/tmp/tank-s5-review-pyright.log`；最终实机模式字符串修正后 benchmark/test_s5
+两份再次通过 `/tmp/tank-s5-review-pyright-final.log`，未再修改的 native/test_native
+复用前次结果。backend core/涉及插件/benchmark lint 与 diff-check 通过；未变化的
+web lint/tsc-b、CLI lint 和开发服务 pane 无错误检查复用本轮已通过结果。
+协议未改，sync 检查不适用；docs 检查仍为 51 文件通过。
+本评审没有执行付费模型或桌面 fake/live 全量；下一步由协调者核对最终 diff，
+重新冻结源码，先桌面 fake 全量，再按同配方执行唯一 live 确认批次。
 
 **独立评审（2026-10-13，review-and-refactor 第 1 轮修复 + 第 2 轮自检）**：
 确认计时事件契约成立（observe/dispatch 单一收口点、returned 事件先于
