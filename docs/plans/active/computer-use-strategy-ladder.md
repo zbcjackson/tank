@@ -3,7 +3,7 @@
 2026-10-13 晚：原生 live 批次 27/27 完成（A 0/9、H 6/9、J 8/9 strict，$0.35，描述性结论）；
 2026-10-13 深夜：DOM track H/J live 48/48 完成（双臂 24/24，费用 −47% 但耗时 +44%，no-net-gain 复现）；
 S5-App 机制审计+计时事件+融合契约三片完成，线 1 审计关、线 2 暂缓、线 3 用户确认挂起移交 backlog，
-线 4 无 unknown/误判证据未立项——S5-App 无活跃臂；2026-10-14：确认实验任务族、150-trial 调度和 H1–H4 点估计门槛已实现，Calculator 字符/基本模式和全屏系统覆盖层修复已提交（`3f5003cd`、`cb79b12b`、`01d164a1`）；fake-4 全量 150/150 完成、H/J 各 50/50、0 外部模型请求，冻结源码匹配。配对统计、第三次 A 超时停批、基本模式/Quartz 环境前检已完成，完整验证与第 1 轮评审修复 + 第 2 轮自检通过；全屏遮挡豁免已撤销，fake-4 不作为安全验收；当前源码的桌面 fake 全量与真实确认批次未运行）。
+线 4 无 unknown/误判证据未立项——S5-App 无活跃臂；2026-10-14：确认实验任务族、150-trial 调度和 H1–H4 点估计门槛已实现，Calculator 字符/基本模式和全屏系统覆盖层修复已提交（`3f5003cd`、`cb79b12b`、`01d164a1`）；fake-4 全量 150/150 完成、H/J 各 50/50、0 外部模型请求，冻结源码匹配。配对统计、第三次 A 超时停批、基本模式/Quartz 环境前检已完成，第 1 轮修复 + 第 2 轮自检已通过；revision 2 的新桌面 fake 在第 4 行因预检标签不一致停批，150 分母保留、0 外部调用；第 3 轮标签优先级修复及完整验证通过，最后修改未额外独立复核。全屏遮挡豁免已撤销，fake-4 不作为安全验收；当前源码的桌面 fake 全量与真实确认批次未运行）。
 
 > 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
 > 2026-10-03 当前决策：S3 按下文“当前计划”收口，验证 Jev 作为可回退策略环节的边际价值。历史批次按原协议的判分保留；`conflicting` 三例预期缺少充分任务契约支持，不作为 Jev 错误或宿主缺陷证据，不据此新增身份一致性拦截。
@@ -3470,6 +3470,32 @@ web lint/tsc-b、CLI lint 和开发服务 pane 无错误检查复用本轮已通
 协议未改，sync 检查不适用；docs 检查仍为 51 文件通过。
 本评审没有执行付费模型或桌面 fake/live 全量；下一步由协调者核对最终 diff，
 重新冻结源码，先桌面 fake 全量，再按同配方执行唯一 live 确认批次。
+
+**第 3 轮：桌面 fake 暴露的 R4（2026-10-14，最后一轮）**：
+
+新冻结 `9df65bdc417d9b37a9d08dee9dd5bf3b83fcbcbf89648944f9e1f1aaa95e3a51`
+的 `20261014-s5-confirmatory-v2-fake/` 只执行一次，并保留原目录：首个 AX 任务
+A/H/J 三行 finished（H/J strict），第 4 行 H×Quartz 在模型前以
+`environment_error` 停批，后 146 行 not_run，全 150 行分母保留、应用清理确认、
+外部模型请求为 0（`/tmp/tank-s5-confirmatory-v2-fake.log`）。结论为
+`incomplete_no_confirmatory_conclusion`，不将这次停批计作模型质量/采用证据。
+
+协调者以独立新 Calculator 实例只读检查后确认关闭并恢复前台：完整 AX 扫描、
+窗口 `60445`、bounds `[282,207,230,408]`，真实 Mode 标识符正确且点曝光检查为
+true；title/identifier 中却没有 `7`。R4 原因是预检只看 title/identifier，实际
+`AXObservationSource` 的 accessible_name 则按 title → description → identifier
+→ value（按钮）取首个非空标签。预检遗漏 description/value，也会在 title 或
+description 优先级冲突时错误放行。已用真实候选形态及冲突反例复现四项失败，
+最小修复预检的标签优先级，保留曝光门；未改变观察模块、任务族或点估计门槛。
+本轮是第 3 轮最后修改，不开启第 4 轮；这些最后修改没有额外独立复核。
+R4 修复提交 `7648771e`。最终完整后端 **5924 passed / 1 skipped / 21 warnings**
+（6:50，`/tmp/tank-s5-review-r4-backend.log`），S5/native 定向 **120 passed**，
+E2E **18 场景 / 71 步**（`/tmp/tank-s5-review-r4-e2e.log`）；本轮两份修改文件的
+根配置 pyright **0 errors / 0 warnings**（`/tmp/tank-s5-review-r4-pyright.log`），
+backend lint、diff-check 与 docs 51 文件检查通过。未再变化的 web lint/tsc-b、
+CLI lint、服务 pane 无错误及 native/test_native 类型检查复用此前通过结果。
+本轮只执行离线验证，没有执行付费模型或桌面 fake 全量；需新目录重新冻结后
+由协调者再执行，不重跑停批旧目录。
 
 **独立评审（2026-10-13，review-and-refactor 第 1 轮修复 + 第 2 轮自检）**：
 确认计时事件契约成立（observe/dispatch 单一收口点、returned 事件先于
