@@ -728,3 +728,147 @@ async def test_setup_failure_stops_before_any_model_call(request, monkeypatch, t
     assert report["fake_http_requests"] == 0
     assert report["conclusion"] == "incomplete_no_confirmatory_conclusion"
     assert len((output / "rows.jsonl").read_text().splitlines()) == 3
+
+
+def _preflight(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import a_preflight
+
+    return a_preflight
+
+
+def _preflight_recipe(module, tmp_path, monkeypatch, name="recipe"):
+    import hashlib
+    from PIL import Image
+
+    frame = tmp_path / "image.png"
+    Image.new("RGB", (1920, 1080)).save(frame)
+    monkeypatch.setattr(module, "FRAME_SHA256", hashlib.sha256(frame.read_bytes()).hexdigest())
+    output = tmp_path / name
+    frozen = module.prepare(frame, output)
+    return output, frozen
+
+
+async def test_a_preflight_real_sdk_single_factor_wire(monkeypatch, tmp_path):
+    import base64
+    import hashlib
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    module = _preflight(monkeypatch)
+    output, frozen = _preflight_recipe(module, tmp_path, monkeypatch)
+    requests = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        requests.append(body)
+        assert request.headers["authorization"] == "Bearer offline"
+        payload = json.dumps({"coordinate_space": "normalized_1000", "image_size": [1920, 1080],
+                              "x": 165, "y": 387})
+        chunks = [
+            {"choices": [{"index": 0, "delta": {"reasoning_content": "fake reasoning"}}]},
+            {"choices": [{"index": 0, "delta": {"content": payload}, "finish_reason": "stop"}]},
+            {"choices": [], "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9}},
+        ]
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content="".join(
+            "data: " + json.dumps({"id": "fake", "object": "chat.completion.chunk", "created": 1,
+                                   "model": body["model"], **chunk}) + "\n\n" for chunk in chunks
+        ) + "data: [DONE]\n\n")
+
+    def factory(**kwargs):
+        assert kwargs["max_retries"] == 0
+        return AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(respond), trust_env=False))
+
+    monkeypatch.setattr(module, "AsyncOpenAI", factory)
+    result = await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    assert result["completed"] and len(requests) == 3
+    assert all(row["within_annotation"] and row["schema_valid"] for row in result["rows"])
+    assert all(row["reasoning_content"] == "fake reasoning" for row in result["rows"])
+    assert all(row["usage"]["prompt_tokens"] == 7 for row in result["rows"])
+    for body in requests:
+        assert "tools" not in body and body["stream_options"] == {"include_usage": True}
+        assert body["temperature"] == 0.1 and body["stream"] is True
+        png = base64.b64decode(body["messages"][1]["content"][1]["image_url"]["url"].split(",")[1])
+        assert hashlib.sha256(png).hexdigest() == frozen["image_sha256"]
+    assert requests[0]["max_tokens"] == requests[1]["max_tokens"] == 40000
+    assert "enable_thinking" not in requests[0] and requests[1]["enable_thinking"] is False
+    assert requests[2]["max_tokens"] == 2048 and "enable_thinking" not in requests[2]
+    assert requests[0]["messages"] == requests[1]["messages"] == requests[2]["messages"]
+    serialized = "".join(path.read_text() for path in output.glob("*.json*"))
+    assert "Bearer offline" not in serialized and "data:image" not in serialized
+    with pytest.raises(FileExistsError):
+        await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    assert len(requests) == 3
+
+
+@pytest.mark.parametrize("failure", ["missing_usage", "timeout", "http_error"])
+async def test_a_preflight_unknown_stops_without_replay(monkeypatch, tmp_path, failure):
+    import asyncio
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    module = _preflight(monkeypatch)
+    if failure == "timeout":
+        monkeypatch.setattr(module, "SECONDS_PER_REQUEST", 0.02)
+    output, frozen = _preflight_recipe(module, tmp_path, monkeypatch)
+    sent = []
+
+    async def respond(request):
+        sent.append(request)
+        if failure == "timeout":
+            await asyncio.Event().wait()
+        if failure == "http_error":
+            return httpx.Response(500, json={"error": {"message": "NEVER_LOG_SECRET"}})
+        return httpx.Response(200, headers={"content-type": "text/event-stream"},
+                              content="data: [DONE]\n\n")
+
+    monkeypatch.setattr(module, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(
+        **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond), trust_env=False)))
+    result = await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    assert len(sent) == 1 and not result["completed"]
+    assert [row["status"] for row in result["rows"]] == ["failed", "not_run", "not_run"]
+    assert result["spend"]["stop_reason"] == "unknown_usage"
+    assert result["spend"]["batch"]["reserved_nano_usd"] == 190048320
+    assert "NEVER_LOG_SECRET" not in (output / "result.json").read_text()
+
+
+@pytest.mark.parametrize("change", ["image", "signature", "recipe", "source"])
+async def test_a_preflight_freeze_drift_zero_client(monkeypatch, tmp_path, change):
+    from unittest.mock import Mock
+
+    module = _preflight(monkeypatch)
+    output, frozen = _preflight_recipe(module, tmp_path, monkeypatch)
+    if change == "image":
+        (output / "frame.png").write_bytes(b"changed")
+    if change == "recipe":
+        changed = json.loads((output / "freeze.json").read_text())
+        changed["temperature"] = 0
+        (output / "freeze.json").write_text(json.dumps(changed))
+    if change == "source":
+        original = module.freeze_inputs
+        monkeypatch.setattr(module, "freeze_inputs", lambda frame: {**original(frame), "revision": "changed"})
+    client = Mock()
+    monkeypatch.setattr(module, "AsyncOpenAI", client)
+    with pytest.raises(ValueError):
+        await module.run_batch(output, "wrong" if change == "signature" else frozen["sha256"],
+                               mode="live", credential="offline")
+    client.assert_not_called()
+    assert not (output / "started.json").exists()
+
+
+@pytest.mark.parametrize("answer,finish,valid,hit", [
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 165, "y": 387}, "stop", True, True),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 1, "y": 1}, "stop", True, False),
+    ({"coordinate_space": "pixels", "image_size": [1920, 1080], "x": 316, "y": 418}, "stop", False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1280, 720], "x": 165, "y": 387}, "stop", False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": True, "y": 387}, "stop", False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 165, "y": 387}, "length", False, False),
+    ('{"coordinate_space":"normalized_1000","image_size":[1920,1080],"x":165,"x":165,"y":387}', "stop", False, False),
+])
+def test_a_preflight_declared_units_and_complete_reply(monkeypatch, answer, finish, valid, hit):
+    module = _preflight(monkeypatch)
+    scored = module.score(answer if isinstance(answer, str) else json.dumps(answer), finish, False)
+    assert scored["schema_valid"] is valid and scored["within_annotation"] is hit
