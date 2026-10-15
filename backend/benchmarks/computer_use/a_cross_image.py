@@ -138,15 +138,20 @@ async def run_batch(
             and all(row["status"] in {"finished", "failed"}
                     and row.get("usage", {}).get("status") == "returned" for row in rows))
     finally:
-        ledger.close()
-        report["spend"] = ledger.snapshot()
-        report["verdict"] = verdict(rows, report["completed"], mode)
-        if report["completed"]:
-            report["pairs"] = pairs(rows, report["spend"])
-        count = sum(item["status"] != "not_sent" for item in report["spend"]["requests"].values())
-        report["external_model_requests"] = count if mode == "live" else 0
-        report["fake_http_requests"] = count if mode == "fake" else 0
-        (output / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
+        try:
+            ledger.close()
+        except Exception:
+            report["completed"] = False
+            raise
+        finally:
+            report["spend"] = ledger.snapshot()
+            report["verdict"] = verdict(rows, report["completed"], mode)
+            if report["completed"]:
+                report["pairs"] = pairs(rows, report["spend"])
+            count = sum(item["status"] != "not_sent" for item in report["spend"]["requests"].values())
+            report["external_model_requests"] = count if mode == "live" else 0
+            report["fake_http_requests"] = count if mode == "fake" else 0
+            (output / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
     return report
 
 

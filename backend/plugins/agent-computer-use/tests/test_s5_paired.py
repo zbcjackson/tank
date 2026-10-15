@@ -1305,3 +1305,43 @@ async def test_original_static_recipe_still_stops_known_invalid_json(monkeypatch
 def test_cross_image_incomplete_gate_never_implies_wiring_success(monkeypatch, mode):
     module = _cross_image(monkeypatch)
     assert module.verdict([], False, mode) == "incomplete_no_candidate_conclusion"
+
+
+@pytest.mark.parametrize("phase", ["settlement", "close"])
+async def test_cross_image_persistence_failure_retains_four_rows(monkeypatch, tmp_path, phase):
+    from tank_backend.benchmarks import spend_ledger
+
+    module = _cross_image(monkeypatch)
+    static = _preflight(monkeypatch)
+    output = tmp_path / "cross"
+    frozen = module.prepare(_cross_inputs(tmp_path), output)
+    respond = static._fake
+    sent = []
+
+    def fail_fsync(_fd):
+        raise OSError("simulated journal fsync failure")
+
+    def respond_then_fail_persistence(request):
+        sent.append(request)
+        if phase == "settlement":
+            monkeypatch.setattr(spend_ledger.os, "fsync", fail_fsync)
+        return respond(request)
+
+    close = spend_ledger.SpendLedger.close
+
+    def close_with_failure(ledger):
+        monkeypatch.setattr(spend_ledger.os, "fsync", fail_fsync)
+        close(ledger)
+
+    if phase == "close":
+        monkeypatch.setattr(spend_ledger.SpendLedger, "close", close_with_failure)
+    monkeypatch.setattr(static, "_fake", respond_then_fail_persistence)
+    with pytest.raises(spend_ledger.SpendLimitExceeded, match="persistence_error"):
+        await module.run_batch(output, frozen["sha256"], mode="fake")
+    report = json.loads((output / "result.json").read_text())
+    assert len(sent) == (1 if phase == "settlement" else 4) and len(report["rows"]) == 4
+    assert [row["status"] for row in report["rows"]] == (
+        ["failed", "not_run", "not_run", "not_run"] if phase == "settlement" else ["finished"] * 4)
+    assert report["spend"]["stop_reason"] == "persistence_error"
+    assert not report["completed"] and report["pairs"] == []
+    assert report["verdict"] == "incomplete_no_candidate_conclusion"
