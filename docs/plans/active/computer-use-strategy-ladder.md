@@ -11,6 +11,7 @@ S5-App 机制审计+计时事件+融合契约三片完成，线 1 审计关、�
 > 2026-10-15 单目标预检接续：独立静态执行器及三请求单因素配方已冻结，3次fake HTTP/0外部/0新GUI；准备阶段真实目录尚未启动，预览新增估算上限$0.60，完整验证5944/E2E18及新增片第1轮独立评审通过；用户对新增$0.60/最多3请求预览回复“继续”，同签名真实预检因JSON围栏触发invalid_reply停批（1 failed/2 not_run，31.05s，已知估算$0.002340690，0新未知/GUI）；内部点距人工中心151.86px，格式兼容不能单独解决定位。
 > 2026-10-15 格式接续：仅复用静态探针完整json围栏处理，生产工具严格协议不变；新revision 2三请求fake接线和202项相关回归通过，0新增真实请求/GUI，旧错误坐标仍未命中、原评分保持；完整验证5974/E2E18与本范围第3轮独立评审通过，无需修复；不进入第4轮。
 > 2026-10-15 新数据案例：独立owned Calculator新位置图/同步AX与目视标注已固定、清理确认；prepare --case绑定图片SHA与评分标注（不外发标注），revision 3新签名fake3/3、219相关回归通过；无新模型费用，完整验证5991/E2E18通过，新数据接线第1轮独立评审通过，用户对具体新$0.60/3请求预览回复“继续”后原签名执行，2 finished/1 failed，bound_exceeded停批；3请求全有known用量，估算$0.004974420/0新unknown。单图no-think1.742s/误差2.828px，usage-only28.932s/47.074px；max_tokens仅限回答的预算假设需纠正。
+> 2026-10-15 总输出契约接续：静态诊断revision 4只发max_completion_tokens并预留+10，新增7项/相关289回归与新签名fake3/3通过；0真实/GUI/费用，生产和旧账保持，真实provider参数执行仍待验证。完整验证5998/E2E18及本数据案例第3轮独立评审通过，无问题即结束，不开启第4轮。
 > 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
 > 2026-10-03 当前决策：S3 按下文“当前计划”收口，验证 Jev 作为可回退策略环节的边际价值。历史批次按原协议的判分保留；`conflicting` 三例预期缺少充分任务契约支持，不作为 Jev 错误或宿主缺陷证据，不据此新增身份一致性拦截。
 > 2026-10-04 设计调整：Jev 定义为核心模型，配置、官方 SDK、协议和连接由核心管理；移除 `model_route` 插件扩展列入 S3-M。插件仅经核心决策接口提交问题和候选。插件自行定义的模型仍由插件管理，不要求为其注册核心模型类型。S3-M 已按该边界实现，最终验收见实施记录；S3 原始评估结论不变。
@@ -3846,6 +3847,38 @@ Qwen的max_tokens只限回答，max_completion_tokens限制思考+回答，且�
 使其不能作为可信的真实最坏账单上界。旧unknown不释放/补造，生产默认/H1–H4未变。
 本次仅变精选报告/计划/索引，文档例外执行docs/diff；数据案例scope第2轮结果文档复核通过，无actionable/unresolved finding、无修改；
 评审核对原result/chunks/消息一致性、费用算数和官方参数语义，docs51/diff通过，立即结束。
+
+**总输出契约修正（2026-10-15，离线/完整验证5998/E2E18及本范围第3轮独立评审通过）**：仅修静态诊断新配方，不改变生产
+profile、既有S5或已停批目录。采用max_completion_tokens，SDK只发送该总输出字段；
+按官方API说明对最终completion_tokens（思考+回答）预留请求值+10tokens。
+1. **Tests（TDD）**：原test_s5_paired.py先红后绿，真实SDK/fake HTTP断言不发送
+   max_tokens且三组总输出参数正确；覆盖请求上限/余量边界、超余量known停批并记
+   实际用量、unknown保留完整预留/分母，以及复现3021>2048+10的旧错误回执情形。
+   改动余量/契约后旧冻结必须在client前拒绝，原case/格式/截止回归保持。
+2. 冻结revision升4，记录参数名/统计口径/误差余量/官方来源；生产max_tokens只保留
+   参考元数据，不继续把它当诊断总输出边界。旧冻结/判分/known费用/unknown预留不改。
+3. 新fake目录只验证预算/接线，不新增GUI/真实请求或live配方，不用已见图片调参
+   推断质量。记录新预留金额，明确fake不证明provider实际执行该总输出上限。
+4. **最终步骤**：执行§10完整Verification Checklist全部适用项，完成本数据案例
+   scope第3/最多3轮review-and-refactor（原两轮和更早范围轮次保留，不开始第4轮）。
+   修正通过后再独立设计跨图/配对或平衡顺序的no-think候选验证；S5不因此验收。
+
+**本片离线结果**：新增7项先红后绿，含原SDK/格式/case/治理与账本共289项通过；
+真实SDK验证只发max_completion_tokens，40000/40000/2048对应输出allowance40010/40010/2058。
+冻结revision 4：参数名/总量口径/10余量/官方来源及未验证声明；原production max_tokens
+仅参考元数据。新签名
+`9a8f01e28caceeac1199be9b8c568ead2a6f488138a9cb722caf24167de5e972`，
+[零收费验收](../../../backend/benchmarks/computer_use/reports/20261015-s5-total-cap-fake/README.md)
+fake3finished/3HTTP、0外部/新GUI、合成known7425nano、reserved0。
+新预留$0.190054920/$0.190054920/$0.165006600合计$0.545116440/3057502tokens；
+不是实际账单保证，精确端点/快照是否执行新参数仍须另验证。本轮无新live配方/费用。
+请求值/+1/+10已知结算，+11以实际known停批；unknown保留新完整预留；3021>2058仍
+failed且保留完整回复，原真实905结果hash与旧账保持。修改余量或契约后冻结client前拒绝。
+完整验证：后端5998 passed/1 skipped/21 warnings（417.07s）、E2E18/71、web lint/tsc-b、
+backend/CLI ruff、修改文件pyright0、runtime error为空、docs51/diff通过，协议未改/sync不适用。
+本数据案例scope第3轮独立review-and-refactor通过，无actionable/unresolved finding、无修改；
+评审重跑12项定向/docs51/diff并核对新freeze/预留/旧result哈希，立即结束、不开启第4轮。
+旧解析器/driver范围未重开，精确provider实测及S5整体验收仍待后续独立验证。
 
 #### S5-App：应用交互后端与观察方案的受控比较（2026-10-09，已纳入，待执行）
 
