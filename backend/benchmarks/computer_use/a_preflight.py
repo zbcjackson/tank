@@ -54,8 +54,33 @@ CASES = (
 )
 
 
-def freeze_inputs(frame: bytes) -> dict[str, Any]:
-    if hashlib.sha256(frame).hexdigest() != FRAME_SHA256:
+def _case_data(value: object) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != {"image_sha256", "annotation"}:
+        raise ValueError("preflight case requires image_sha256 and annotation")
+    sha = value["image_sha256"]
+    annotation = value["annotation"]
+    if (not isinstance(sha, str) or len(sha) != 64
+            or any(c not in "0123456789abcdef" for c in sha)
+            or not isinstance(annotation, dict)
+            or set(annotation) != {"center", "radius", "provenance"}):
+        raise ValueError("invalid preflight case")
+    center, radius, provenance = (annotation[k] for k in ("center", "radius", "provenance"))
+    if (not isinstance(center, list) or len(center) != 2
+            or any(type(n) is not int for n in center)
+            or type(radius) is not int or radius <= 0
+            or any(n - radius < 0 or n + radius >= size for n, size in zip(center, SIZE))
+            or not isinstance(provenance, str) or not provenance.strip()):
+        raise ValueError("invalid preflight annotation")
+    return {"image_sha256": sha, "annotation": {
+        "center": list(center), "radius": radius, "provenance": provenance,
+    }}
+
+
+def freeze_inputs(frame: bytes, case: dict[str, Any] | None = None) -> dict[str, Any]:
+    selected = _case_data(case if case is not None else {
+        "image_sha256": FRAME_SHA256, "annotation": ANNOTATION,
+    })
+    if hashlib.sha256(frame).hexdigest() != selected["image_sha256"]:
         raise ValueError("preflight image differs from the manually annotated frame")
     with Image.open(io.BytesIO(frame)) as image:
         if image.format != "PNG" or image.size != SIZE:
@@ -68,9 +93,9 @@ def freeze_inputs(frame: bytes) -> dict[str, Any]:
                  Path(inspect.getfile(unwrap_json_fence))):
         sources[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
     frozen = {
-        "revision": "a-static-preflight-2", "image_sha256": hashlib.sha256(frame).hexdigest(),
+        "revision": "a-static-preflight-3", "image_sha256": selected["image_sha256"],
         "response_format": "pure-json-or-single-json-lf-fence",
-        "image_size": list(SIZE), "annotation": ANNOTATION, "system": SYSTEM,
+        "image_size": list(SIZE), "annotation": selected["annotation"], "system": SYSTEM,
         "target": "Calculator button 7", "cases": list(CASES), "temperature": 0.1,
         "stream_options": {"include_usage": True}, "seconds_per_request": SECONDS_PER_REQUEST,
         "request_limit": 3, "model": model, "nano_usd_limit": 600000000,
@@ -82,17 +107,26 @@ def freeze_inputs(frame: bytes) -> dict[str, Any]:
     return {**frozen, "sha256": digest(frozen)}
 
 
-def prepare(frame: Path, output: Path) -> dict[str, Any]:
+def prepare(frame: Path, output: Path, *, case_path: Path | None = None) -> dict[str, Any]:
     png = frame.read_bytes()
-    frozen = freeze_inputs(png)
+    case_bytes = case_path.read_bytes() if case_path is not None else json.dumps({
+        "image_sha256": FRAME_SHA256, "annotation": ANNOTATION,
+    }).encode()
+    case = _case_data(json.loads(case_bytes, object_pairs_hook=_unique))
+    frozen = freeze_inputs(png, case)
     output.mkdir(parents=True, exist_ok=False)
     (output / "frame.png").write_bytes(png)
+    (output / "case.json").write_bytes(case_bytes)
     (output / "freeze.json").write_text(json.dumps(frozen, ensure_ascii=False, indent=2))
     return frozen
 
 
 def load_freeze(output: Path, approved: str) -> dict[str, Any]:
-    frozen = freeze_inputs((output / "frame.png").read_bytes())
+    case_path = output / "case.json"
+    if not case_path.is_file():
+        raise ValueError("preflight case missing; prepare a new directory")
+    case = _case_data(json.loads(case_path.read_bytes(), object_pairs_hook=_unique))
+    frozen = freeze_inputs((output / "frame.png").read_bytes(), case)
     if frozen["sha256"] != approved or json.loads((output / "freeze.json").read_text()) != frozen:
         raise ValueError("preflight freeze changed; prepare a new directory")
     return frozen
@@ -107,7 +141,11 @@ def _unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def score(content: str, finish: str | None, tool_requested: bool) -> dict[str, Any]:
+def score(
+    content: str, finish: str | None, tool_requested: bool,
+    annotation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    annotation = annotation if annotation is not None else ANNOTATION
     result: dict[str, Any] = {"schema_valid": False, "within_annotation": False}
     if finish != "stop" or tool_requested:
         return result
@@ -126,8 +164,8 @@ def score(content: str, finish: str | None, tool_requested: bool) -> dict[str, A
     if any(type(answer[key]) is not int or not 0 <= answer[key] <= 1000 for key in ("x", "y")):
         return result
     point = [int(answer[key] / 1000 * dimension) for key, dimension in zip(("x", "y"), SIZE)]
-    distance = math.dist(point, ANNOTATION["center"])
-    return {"schema_valid": True, "within_annotation": distance <= ANNOTATION["radius"],
+    distance = math.dist(point, annotation["center"])
+    return {"schema_valid": True, "within_annotation": distance <= annotation["radius"],
             "point": point, "distance_from_annotation": distance, "abstained": False}
 
 
@@ -215,7 +253,8 @@ async def run_batch(
                                 if isinstance(reasoning, str):
                                     row["reasoning_content"] += reasoning
                                 row["tool_requested"] |= bool(choice.delta.tool_calls)
-                row.update(score(row["content"], row["finish_reason"], row["tool_requested"]))
+                row.update(score(row["content"], row["finish_reason"], row["tool_requested"],
+                                 frozen["annotation"]))
                 row["status"] = "finished" if row["schema_valid"] else "failed"
                 if not row["schema_valid"]:
                     ledger.stop("invalid_reply")
@@ -251,6 +290,7 @@ async def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     preparation = commands.add_parser("prepare")
     preparation.add_argument("--frame", type=Path, required=True)
+    preparation.add_argument("--case", type=Path, help="Independent image SHA and scoring annotation JSON")
     preparation.add_argument("--output", type=Path, required=True)
     execution = commands.add_parser("run")
     execution.add_argument("--output", type=Path, required=True)
@@ -258,7 +298,7 @@ async def main() -> None:
     execution.add_argument("--approved-sha256", required=True)
     args = parser.parse_args()
     if args.command == "prepare":
-        print(prepare(args.frame, args.output)["sha256"])
+        print(prepare(args.frame, args.output, case_path=args.case)["sha256"])
     else:
         if args.mode == "live":
             from dotenv import load_dotenv

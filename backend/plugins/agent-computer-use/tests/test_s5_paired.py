@@ -852,7 +852,7 @@ async def test_a_preflight_freeze_drift_zero_client(monkeypatch, tmp_path, chang
         (output / "freeze.json").write_text(json.dumps(changed))
     if change == "source":
         original = module.freeze_inputs
-        monkeypatch.setattr(module, "freeze_inputs", lambda frame: {**original(frame), "revision": "changed"})
+        monkeypatch.setattr(module, "freeze_inputs", lambda frame, case=None: {**original(frame, case), "revision": "changed"})
     client = Mock()
     monkeypatch.setattr(module, "AsyncOpenAI", client)
     with pytest.raises(ValueError):
@@ -923,6 +923,105 @@ def test_a_preflight_rejects_non_whole_json_fences(monkeypatch, wrapper):
 def test_a_preflight_revision_pins_shared_format_source(monkeypatch, tmp_path):
     module = _preflight(monkeypatch)
     _, frozen = _preflight_recipe(module, tmp_path, monkeypatch)
-    assert frozen["revision"] == "a-static-preflight-2"
+    assert frozen["revision"] == "a-static-preflight-3"
     assert frozen["response_format"] == "pure-json-or-single-json-lf-fence"
     assert "core/src/tank_backend/benchmarks/grounding_probe.py" in frozen["source_sha256"]
+
+
+def _independent_static_case(tmp_path):
+    import hashlib
+
+    from PIL import Image
+
+    frame = tmp_path / "new-frame.png"
+    Image.new("RGB", (1920, 1080), "navy").save(frame)
+    case = {"image_sha256": hashlib.sha256(frame.read_bytes()).hexdigest(),
+            "annotation": {"center": [1234, 789], "radius": 20, "provenance": "TRUTH_PRIVATE"}}
+    path = tmp_path / "new-case.json"
+    path.write_text(json.dumps(case))
+    return frame, path, case
+
+
+async def test_independent_static_case_binds_sdk_image_and_scoring(monkeypatch, tmp_path):
+    import base64
+    import hashlib
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    module = _preflight(monkeypatch)
+    frame, path, case = _independent_static_case(tmp_path)
+    output = tmp_path / "new-recipe"
+    frozen = module.prepare(frame, output, case_path=path)
+    assert frozen["revision"] == "a-static-preflight-3"
+    assert frozen["annotation"] == case["annotation"]
+    assert json.loads((output / "case.json").read_text()) == case
+    assert module.load_freeze(output, frozen["sha256"]) == frozen
+    sent = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        sent.append(body)
+        assert "TRUTH_PRIVATE" not in json.dumps(body) and "annotation" not in json.dumps(body)
+        image = body["messages"][1]["content"][1]["image_url"]["url"].split(",", 1)[1]
+        assert hashlib.sha256(base64.b64decode(image)).hexdigest() == case["image_sha256"]
+        reply = "```json\n" + json.dumps({"coordinate_space": "normalized_1000",
+            "image_size": [1920, 1080], "x": 643, "y": 731}) + "\n```"
+        chunks = [
+            {"choices": [{"index": 0, "delta": {"content": reply}, "finish_reason": "stop"}]},
+            {"choices": [], "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9}},
+        ]
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content="".join(
+            "data: " + json.dumps({"id": "fake", "object": "chat.completion.chunk", "created": 1,
+                                   "model": body["model"], **chunk}) + "\n\n" for chunk in chunks
+        ) + "data: [DONE]\n\n")
+
+    monkeypatch.setattr(module, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(
+        **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond), trust_env=False)))
+    result = await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    assert result["completed"] and len(sent) == 3
+    assert all(row["point"] == [1234, 789] and row["within_annotation"] for row in result["rows"])
+    assert all(row["usage"]["prompt_tokens"] == 7 for row in result["rows"])
+    assert (output / "case.json").read_bytes() == path.read_bytes()
+
+
+@pytest.mark.parametrize("change", ["center", "radius", "provenance", "missing"])
+async def test_independent_static_case_drift_is_rejected_before_client(monkeypatch, tmp_path, change):
+    from unittest.mock import Mock
+
+    module = _preflight(monkeypatch)
+    frame, path, case = _independent_static_case(tmp_path)
+    output = tmp_path / "new-recipe"
+    frozen = module.prepare(frame, output, case_path=path)
+    bound = output / "case.json"
+    if change == "missing":
+        bound.unlink()
+    else:
+        case["annotation"][change] = {"center": [1300, 789], "radius": 21, "provenance": "changed"}[change]
+        bound.write_text(json.dumps(case))
+    client = Mock()
+    monkeypatch.setattr(module, "AsyncOpenAI", client)
+    with pytest.raises(ValueError):
+        await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    client.assert_not_called()
+    assert not (output / "started.json").exists()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("image_sha256", "0" * 64), ("image_sha256", "not-a-sha"),
+    ("center", [1920, 789]), ("center", [-1, 789]), ("center", [True, 789]),
+    ("center", [1234.0, 789]), ("center", [1234]), ("radius", 0),
+    ("radius", True), ("radius", 2000), ("provenance", ""), ("extra", "unexpected"),
+])
+def test_independent_static_case_rejects_invalid_annotation(monkeypatch, tmp_path, field, value):
+    module = _preflight(monkeypatch)
+    frame, path, case = _independent_static_case(tmp_path)
+    if field in {"image_sha256", "extra"}:
+        case[field] = value
+    else:
+        case["annotation"][field] = value
+    path.write_text(json.dumps(case))
+    output = tmp_path / "invalid-recipe"
+    with pytest.raises(ValueError):
+        module.prepare(frame, output, case_path=path)
+    assert not output.exists()
