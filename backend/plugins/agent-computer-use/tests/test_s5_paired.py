@@ -749,7 +749,8 @@ def _preflight_recipe(module, tmp_path, monkeypatch, name="recipe"):
     return output, frozen
 
 
-async def test_a_preflight_real_sdk_single_factor_wire(monkeypatch, tmp_path):
+@pytest.mark.parametrize("fenced", [False, True])
+async def test_a_preflight_real_sdk_single_factor_wire(monkeypatch, tmp_path, fenced):
     import base64
     import hashlib
 
@@ -766,6 +767,8 @@ async def test_a_preflight_real_sdk_single_factor_wire(monkeypatch, tmp_path):
         assert request.headers["authorization"] == "Bearer offline"
         payload = json.dumps({"coordinate_space": "normalized_1000", "image_size": [1920, 1080],
                               "x": 165, "y": 387})
+        if fenced:
+            payload = "```json\n" + payload + "\n```"
         chunks = [
             {"choices": [{"index": 0, "delta": {"reasoning_content": "fake reasoning"}}]},
             {"choices": [{"index": 0, "delta": {"content": payload}, "finish_reason": "stop"}]},
@@ -872,3 +875,54 @@ def test_a_preflight_declared_units_and_complete_reply(monkeypatch, answer, fini
     module = _preflight(monkeypatch)
     scored = module.score(answer if isinstance(answer, str) else json.dumps(answer), finish, False)
     assert scored["schema_valid"] is valid and scored["within_annotation"] is hit
+
+
+@pytest.mark.parametrize("body,finish,tool,valid,hit", [
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 165, "y": 387}, "stop", False, True, True),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 88, "y": 356}, "stop", False, True, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": None, "y": None}, "stop", False, True, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": None, "y": 387}, "stop", False, False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": True, "y": 387}, "stop", False, False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": "165", "y": 387}, "stop", False, False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 165.0, "y": 387}, "stop", False, False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920.0, 1080], "x": 165, "y": 387}, "stop", False, False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1280, 720], "x": 165, "y": 387}, "stop", False, False, False),
+    ({"coordinate_space": "pixels", "image_size": [1920, 1080], "x": 316, "y": 418}, "stop", False, False, False),
+    ({"image_size": [1920, 1080], "x": 165, "y": 387}, "stop", False, False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 165, "y": 387, "extra": 1}, "stop", False, False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 1001, "y": 387}, "stop", False, False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 165, "y": -1}, "stop", False, False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 165, "y": 387}, "length", False, False, False),
+    ({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": 165, "y": 387}, "stop", True, False, False),
+    ('{"coordinate_space":"normalized_1000","image_size":[1920,1080],"x":165,"x":88,"y":387}', "stop", False, False, False),
+    ('{"coordinate_space":"normalized_1000","image_size":[1920,1080],"x":165,"y":NaN}', "stop", False, False, False),
+    ('{"coordinate_space":"normalized_1000","image_size":[1920,1080],"x":165,"y":387', "stop", False, False, False),
+    ([], "stop", False, False, False),
+])
+def test_a_preflight_fenced_reply_keeps_strict_semantics(monkeypatch, body, finish, tool, valid, hit):
+    module = _preflight(monkeypatch)
+    raw = body if isinstance(body, str) else json.dumps(body)
+    result = module.score(" \n```json\n" + raw + "\n```\n ", finish, tool)
+    assert result["schema_valid"] is valid and result["within_annotation"] is hit
+    if valid:
+        assert result == module.score(raw, finish, tool)
+
+
+@pytest.mark.parametrize("wrapper", [
+    "```json\n{}", "{}\n```", "prefix\n```json\n{}\n```",
+    "```json\n{}\n```\nsuffix", "```\n{}\n```", "```python\n{}\n```",
+    "```json\n{}\n```\n```json\n{}\n```", "```json\n```json\n{}\n```\n```",
+])
+def test_a_preflight_rejects_non_whole_json_fences(monkeypatch, wrapper):
+    module = _preflight(monkeypatch)
+    body = json.dumps({"coordinate_space": "normalized_1000", "image_size": [1920, 1080],
+                       "x": 165, "y": 387})
+    assert not module.score(wrapper.replace("{}", body), "stop", False)["schema_valid"]
+
+
+def test_a_preflight_revision_pins_shared_format_source(monkeypatch, tmp_path):
+    module = _preflight(monkeypatch)
+    _, frozen = _preflight_recipe(module, tmp_path, monkeypatch)
+    assert frozen["revision"] == "a-static-preflight-2"
+    assert frozen["response_format"] == "pure-json-or-single-json-lf-fence"
+    assert "core/src/tank_backend/benchmarks/grounding_probe.py" in frozen["source_sha256"]

@@ -24,6 +24,7 @@ from PIL import Image
 
 from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
 from tank_backend.benchmarks.model_policy import BenchmarkModelPolicy
+from tank_backend.benchmarks.grounding_probe import unwrap_json_fence
 from tank_backend.benchmarks.spend_http import ContextWindowContract
 from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, TokenAllowance
 from tank_backend.llm.model_call import TaskModelCallRunner, get_model_call
@@ -63,10 +64,12 @@ def freeze_inputs(frame: bytes) -> dict[str, Any]:
     model = s5_paired.a_model_contract()
     root = Path(__file__).resolve().parents[2]
     sources = s5_paired.freeze_inputs()["source_sha256"]
-    for path in (Path(__file__), root / "uv.lock", Path(inspect.getfile(model_data))):
+    for path in (Path(__file__), root / "uv.lock", Path(inspect.getfile(model_data)),
+                 Path(inspect.getfile(unwrap_json_fence))):
         sources[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
     frozen = {
-        "revision": "a-static-preflight-1", "image_sha256": hashlib.sha256(frame).hexdigest(),
+        "revision": "a-static-preflight-2", "image_sha256": hashlib.sha256(frame).hexdigest(),
+        "response_format": "pure-json-or-single-json-lf-fence",
         "image_size": list(SIZE), "annotation": ANNOTATION, "system": SYSTEM,
         "target": "Calculator button 7", "cases": list(CASES), "temperature": 0.1,
         "stream_options": {"include_usage": True}, "seconds_per_request": SECONDS_PER_REQUEST,
@@ -109,7 +112,7 @@ def score(content: str, finish: str | None, tool_requested: bool) -> dict[str, A
     if finish != "stop" or tool_requested:
         return result
     try:
-        answer = json.loads(content, object_pairs_hook=_unique)
+        answer = json.loads(unwrap_json_fence(content), object_pairs_hook=_unique)
     except ValueError:
         return result
     if (not isinstance(answer, dict)

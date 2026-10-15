@@ -184,13 +184,18 @@ def response_point(arguments: dict) -> tuple[float, float] | None:
     return nums[0], nums[1]
 
 
-def text_response_point(text: str, *, native_bbox: bool = False) -> tuple[float, float] | None:
-    """Score a whole JSON answer, optionally fenced; never repair broken JSON."""
+def unwrap_json_fence(text: str) -> str:
+    """Remove one whole json/LF fence; leave JSON validation to the caller."""
     text = text.strip()
     if text.startswith("```json\n") and text.endswith("\n```"):
         text = text[len("```json\n"):-len("\n```")]
+    return text
+
+
+def text_response_point(text: str, *, native_bbox: bool = False) -> tuple[float, float] | None:
+    """Score a whole JSON answer, optionally fenced; never repair broken JSON."""
     try:
-        arguments = json.loads(text)
+        arguments = json.loads(unwrap_json_fence(text))
     except json.JSONDecodeError:
         return None
     if native_bbox:
