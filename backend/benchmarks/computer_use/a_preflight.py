@@ -35,6 +35,7 @@ from . import s5_paired
 from .s3_replay import digest
 
 SECONDS_PER_REQUEST = 180
+OUTPUT_USAGE_SLACK = 10
 SIZE = (1920, 1080)
 FRAME_SHA256 = "3755bd479f7b71abee464e591fea9b58f30ad6462ac5b56ac93dbc794be1eb6f"
 ANNOTATION = {"center": [316, 418], "radius": 20, "provenance": "manual image annotation"}
@@ -47,10 +48,10 @@ SYSTEM = (
     "If the target cannot be located, return x=null,y=null with the same units and size."
 )
 CASES = (
-    {"id": "A-control-locate-usage-only", "max_tokens": 40000, "extra_body": {}},
-    {"id": "A-control-locate-no-think", "max_tokens": 40000,
+    {"id": "A-control-locate-usage-only", "max_completion_tokens": 40000, "extra_body": {}},
+    {"id": "A-control-locate-no-think", "max_completion_tokens": 40000,
      "extra_body": {"enable_thinking": False}},
-    {"id": "A-control-locate-output-cap", "max_tokens": 2048, "extra_body": {}},
+    {"id": "A-control-locate-output-cap", "max_completion_tokens": 2048, "extra_body": {}},
 )
 
 
@@ -87,13 +88,21 @@ def freeze_inputs(frame: bytes, case: dict[str, Any] | None = None) -> dict[str,
             raise ValueError("preflight requires a 1920x1080 PNG")
         image.verify()
     model = s5_paired.a_model_contract()
+    production_reply_cap = model.pop("output_ceiling")
     root = Path(__file__).resolve().parents[2]
     sources = s5_paired.freeze_inputs()["source_sha256"]
     for path in (Path(__file__), root / "uv.lock", Path(inspect.getfile(model_data)),
                  Path(inspect.getfile(unwrap_json_fence))):
         sources[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
     frozen = {
-        "revision": "a-static-preflight-3", "image_sha256": selected["image_sha256"],
+        "revision": "a-static-preflight-4", "image_sha256": selected["image_sha256"],
+        "production_max_tokens_reference": production_reply_cap,
+        "output_contract": {
+            "parameter": "max_completion_tokens", "usage_slack_tokens": OUTPUT_USAGE_SLACK,
+            "usage_meter": "completion_tokens including reasoning and answer",
+            "evidence": "https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions/",
+            "provider_enforcement": "not yet independently verified for this recipe",
+        },
         "response_format": "pure-json-or-single-json-lf-fence",
         "image_size": list(SIZE), "annotation": selected["annotation"], "system": SYSTEM,
         "target": "Calculator button 7", "cases": list(CASES), "temperature": 0.1,
@@ -205,7 +214,8 @@ async def run_batch(
     try:
         for row, case in zip(rows, CASES):
             load_freeze(output, approved)
-            allowance = TokenAllowance(model["input_ceiling"], case["max_tokens"],
+            allowance = TokenAllowance(model["input_ceiling"],
+                                       case["max_completion_tokens"] + OUTPUT_USAGE_SLACK,
                                        model["input_price"], model["output_price"])
             ledger.start_trial(row["id"], SpendLimit(1100000, 200000000))
             context = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
@@ -214,7 +224,7 @@ async def run_batch(
                     model["url"], model["model"], allowance, frozen["accounting"]),)))
             runner = TaskModelCallRunner(row["id"], context)
             parameters: dict[str, Any] = {"model": model["model"], "temperature": 0.1,
-                "max_tokens": case["max_tokens"], "stream": True,
+                "max_completion_tokens": case["max_completion_tokens"], "stream": True,
                 "stream_options": {"include_usage": True}, "messages": [
                     {"role": "system", "content": SYSTEM},
                     {"role": "user", "content": [{"type": "text", "text": frozen["target"]},

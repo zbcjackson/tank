@@ -791,13 +791,13 @@ async def test_a_preflight_real_sdk_single_factor_wire(monkeypatch, tmp_path, fe
     assert all(row["reasoning_content"] == "fake reasoning" for row in result["rows"])
     assert all(row["usage"]["prompt_tokens"] == 7 for row in result["rows"])
     for body in requests:
-        assert "tools" not in body and body["stream_options"] == {"include_usage": True}
+        assert "tools" not in body and "max_tokens" not in body and body["stream_options"] == {"include_usage": True}
         assert body["temperature"] == 0.1 and body["stream"] is True
         png = base64.b64decode(body["messages"][1]["content"][1]["image_url"]["url"].split(",")[1])
         assert hashlib.sha256(png).hexdigest() == frozen["image_sha256"]
-    assert requests[0]["max_tokens"] == requests[1]["max_tokens"] == 40000
+    assert requests[0]["max_completion_tokens"] == requests[1]["max_completion_tokens"] == 40000
     assert "enable_thinking" not in requests[0] and requests[1]["enable_thinking"] is False
-    assert requests[2]["max_tokens"] == 2048 and "enable_thinking" not in requests[2]
+    assert requests[2]["max_completion_tokens"] == 2048 and "enable_thinking" not in requests[2]
     assert requests[0]["messages"] == requests[1]["messages"] == requests[2]["messages"]
     serialized = "".join(path.read_text() for path in output.glob("*.json*"))
     assert "Bearer offline" not in serialized and "data:image" not in serialized
@@ -834,7 +834,7 @@ async def test_a_preflight_unknown_stops_without_replay(monkeypatch, tmp_path, f
     assert len(sent) == 1 and not result["completed"]
     assert [row["status"] for row in result["rows"]] == ["failed", "not_run", "not_run"]
     assert result["spend"]["stop_reason"] == "unknown_usage"
-    assert result["spend"]["batch"]["reserved_nano_usd"] == 190048320
+    assert result["spend"]["batch"]["reserved_nano_usd"] == 190054920
     assert "NEVER_LOG_SECRET" not in (output / "result.json").read_text()
 
 
@@ -923,7 +923,7 @@ def test_a_preflight_rejects_non_whole_json_fences(monkeypatch, wrapper):
 def test_a_preflight_revision_pins_shared_format_source(monkeypatch, tmp_path):
     module = _preflight(monkeypatch)
     _, frozen = _preflight_recipe(module, tmp_path, monkeypatch)
-    assert frozen["revision"] == "a-static-preflight-3"
+    assert frozen["revision"] == "a-static-preflight-4"
     assert frozen["response_format"] == "pure-json-or-single-json-lf-fence"
     assert "core/src/tank_backend/benchmarks/grounding_probe.py" in frozen["source_sha256"]
 
@@ -953,7 +953,7 @@ async def test_independent_static_case_binds_sdk_image_and_scoring(monkeypatch, 
     frame, path, case = _independent_static_case(tmp_path)
     output = tmp_path / "new-recipe"
     frozen = module.prepare(frame, output, case_path=path)
-    assert frozen["revision"] == "a-static-preflight-3"
+    assert frozen["revision"] == "a-static-preflight-4"
     assert frozen["annotation"] == case["annotation"]
     assert json.loads((output / "case.json").read_text()) == case
     assert module.load_freeze(output, frozen["sha256"]) == frozen
@@ -1025,3 +1025,113 @@ def test_independent_static_case_rejects_invalid_annotation(monkeypatch, tmp_pat
     with pytest.raises(ValueError):
         module.prepare(frame, output, case_path=path)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("offset", [0, 1, 10, 11, None])
+async def test_total_output_cap_reservation_and_usage_boundaries(monkeypatch, tmp_path, offset):
+    import httpx
+    from openai import AsyncOpenAI
+
+    module = _preflight(monkeypatch)
+    output, frozen = _preflight_recipe(module, tmp_path, monkeypatch)
+    assert frozen["revision"] == "a-static-preflight-4"
+    assert frozen["output_contract"]["parameter"] == "max_completion_tokens"
+    assert frozen["output_contract"]["usage_slack_tokens"] == 10
+    assert frozen["production_max_tokens_reference"] == 40000
+    sent = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        sent.append(body)
+        assert "max_tokens" not in body
+        cap = body["max_completion_tokens"]
+        assert cap in (40000, 2048)
+        reply = json.dumps({"coordinate_space": "normalized_1000", "image_size": [1920, 1080],
+                            "x": 165, "y": 387})
+        chunks: list[dict[str, object]] = [
+            {"choices": [{"index": 0, "delta": {"content": reply}, "finish_reason": "stop"}]},
+        ]
+        if offset is not None:
+            chunks.append({"choices": [], "usage": {"prompt_tokens": 7,
+                "completion_tokens": cap + offset, "total_tokens": 7 + cap + offset,
+                "completion_tokens_details": {"reasoning_tokens": cap + offset - 2}}})
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content="".join(
+            "data: " + json.dumps({"id": "fake", "object": "chat.completion.chunk", "created": 1,
+                                   "model": body["model"], **chunk}) + "\n\n" for chunk in chunks
+        ) + "data: [DONE]\n\n")
+
+    monkeypatch.setattr(module, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(
+        **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond), trust_env=False)))
+    report = await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    batch = report["spend"]["batch"]
+    requests = list(report["spend"]["requests"].values())
+    assert requests[0]["allowance"]["output_tokens"] == 40010
+    if offset is not None and offset <= 10:
+        assert report["completed"] and len(sent) == 3
+        assert [body["max_completion_tokens"] for body in sent] == [40000, 40000, 2048]
+        assert [item["allowance"]["output_tokens"] for item in requests] == [40010, 40010, 2058]
+        assert all(item["status"] == "known" for item in requests)
+        assert batch["known_tokens"] == 21 + 82048 + 3 * offset
+        assert batch["reserved_nano_usd"] == 0
+    else:
+        assert len(sent) == 1 and not report["completed"]
+        assert [row["status"] for row in report["rows"]] == ["failed", "not_run", "not_run"]
+        if offset is None:
+            assert report["spend"]["stop_reason"] == "unknown_usage"
+            assert batch["reserved_tokens"] == 1031818
+            assert batch["reserved_nano_usd"] == 190054920
+        else:
+            assert report["spend"]["stop_reason"] == "bound_exceeded"
+            assert requests[0]["status"] == "bound_exceeded"
+            assert batch["known_tokens"] == 40018 and batch["reserved_nano_usd"] == 0
+            assert batch["known_nano_usd"] == 7 * 165 + 40011 * 660
+
+
+async def test_total_cap_known_overrun_preserves_completed_reply_and_failure(monkeypatch, tmp_path):
+    import httpx
+    from openai import AsyncOpenAI
+
+    module = _preflight(monkeypatch)
+    output, frozen = _preflight_recipe(module, tmp_path, monkeypatch)
+    sent = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        sent.append(body)
+        assert "max_tokens" not in body and body["max_completion_tokens"] in (40000, 2048)
+        count = 3021 if len(sent) == 3 else 2
+        reply = json.dumps({"coordinate_space": "normalized_1000", "image_size": [1920, 1080],
+                            "x": 165, "y": 387})
+        chunk = {"id": "fake", "object": "chat.completion.chunk", "created": 1,
+            "model": body["model"], "choices": [{"index": 0, "delta": {"content": reply},
+            "finish_reason": "stop"}], "usage": {"prompt_tokens": 7,
+            "completion_tokens": count, "total_tokens": count + 7}}
+        return httpx.Response(200, headers={"content-type": "text/event-stream"},
+                              content="data: " + json.dumps(chunk) + "\n\ndata: [DONE]\n\n")
+
+    monkeypatch.setattr(module, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(
+        **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond), trust_env=False)))
+    report = await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    assert len(sent) == 3 and not report["completed"]
+    assert [row["status"] for row in report["rows"]] == ["finished", "finished", "failed"]
+    last = report["rows"][-1]
+    assert last["finish_reason"] == "stop" and not last["schema_valid"]
+    assert last["usage"]["completion_tokens"] == 3021 and last["error"] == "SpendLimitExceeded"
+    assert report["spend"]["stop_reason"] == "bound_exceeded"
+    assert report["spend"]["batch"]["known_tokens"] == 3046
+    assert report["spend"]["batch"]["reserved_nano_usd"] == 0
+    assert module.score(last["content"], "stop", False)["schema_valid"]
+
+
+async def test_total_cap_slack_drift_rejected_before_client(monkeypatch, tmp_path):
+    from unittest.mock import Mock
+
+    module = _preflight(monkeypatch)
+    output, frozen = _preflight_recipe(module, tmp_path, monkeypatch)
+    monkeypatch.setattr(module, "OUTPUT_USAGE_SLACK", 11)
+    client = Mock()
+    monkeypatch.setattr(module, "AsyncOpenAI", client)
+    with pytest.raises(ValueError):
+        await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    client.assert_not_called()
+    assert not (output / "started.json").exists()
