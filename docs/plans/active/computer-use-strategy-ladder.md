@@ -12,6 +12,7 @@ S5-App 机制审计+计时事件+融合契约三片完成，线 1 审计关、�
 > 2026-10-15 格式接续：仅复用静态探针完整json围栏处理，生产工具严格协议不变；新revision 2三请求fake接线和202项相关回归通过，0新增真实请求/GUI，旧错误坐标仍未命中、原评分保持；完整验证5974/E2E18与本范围第3轮独立评审通过，无需修复；不进入第4轮。
 > 2026-10-15 新数据案例：独立owned Calculator新位置图/同步AX与目视标注已固定、清理确认；prepare --case绑定图片SHA与评分标注（不外发标注），revision 3新签名fake3/3、219相关回归通过；无新模型费用，完整验证5991/E2E18通过，新数据接线第1轮独立评审通过，用户对具体新$0.60/3请求预览回复“继续”后原签名执行，2 finished/1 failed，bound_exceeded停批；3请求全有known用量，估算$0.004974420/0新unknown。单图no-think1.742s/误差2.828px，usage-only28.932s/47.074px；max_tokens仅限回答的预算假设需纠正。
 > 2026-10-15 总输出契约接续：静态诊断revision 4只发max_completion_tokens并预留+10，新增7项/相关289回归与新签名fake3/3通过；0真实/GUI/费用，生产和旧账保持，真实provider参数执行仍待验证。完整验证5998/E2E18及本数据案例第3轮独立评审通过，无问题即结束，不开启第4轮。
+> 2026-10-15 回归主线：当前总目标/停止条件已前置；新的两图四请求平衡候选门准备中，采集/清理确认、302相关回归与共享账本fake4/4通过；0模型费用，第1轮R1持久化收尾缺口修复/完整验证6013/E2E18通过，改用v2新冻结，第2轮复核通过，待新$0.70预算授权。门过转护栏/短任务/长任务，门不过结束静态支线，不无限调参。
 > 2026-10-02 范围调整：N2 与 SDK 已退役，移除旧 engine/executor、供应商模型声明和专用 transport 适配。当前保留调用方为 Computer Use、普通 LLMAgent 与非 GUI 测试 SubAgent；下文已完成阶段的 N2 验证数字仅为历史记录。
 > 2026-10-03 当前决策：S3 按下文“当前计划”收口，验证 Jev 作为可回退策略环节的边际价值。历史批次按原协议的判分保留；`conflicting` 三例预期缺少充分任务契约支持，不作为 Jev 错误或宿主缺陷证据，不据此新增身份一致性拦截。
 > 2026-10-04 设计调整：Jev 定义为核心模型，配置、官方 SDK、协议和连接由核心管理；移除 `model_route` 插件扩展列入 S3-M。插件仅经核心决策接口提交问题和候选。插件自行定义的模型仍由插件管理，不要求为其注册核心模型类型。S3-M 已按该边界实现，最终验收见实施记录；S3 原始评估结论不变。
@@ -36,6 +37,18 @@ S5-App 机制审计+计时事件+融合契约三片完成，线 1 审计关、�
 交接前工作区干净，最近实现提交 `8a10ab28`，配方/准备记录提交 `1ec16d05`；
 本节的文档提交会在它们之后。计划仍 active（下一步 S5–S6）；S4 已按证据收口，见「S4 收口」。
 
+### 当前目标与收敛入口（2026-10-15）
+
+总目标：完成S5完整任务的A/H/J取舍，回答Jev在多决策长任务上是否仍有净收益；
+不是以Jev采用或A最优为预设。A保留生产参照，H规则+LLM，J同宿主Jev优先。
+H1长任务J/H耗时≤1.10、H2质量J≥H−1、H3成本J<H，H4原A边界与旧分母不改。
+S5确认尚未完成，单图no-think1.74s/2.8px仅为候选。
+
+当前收敛门：两张新预标注图/4请求平衡顺序 → 受控GUI护栏/短任务 → 长任务/配对确认
+与G3/S6场景采用或不采用结论。静态门固定样本/参数/停止规则，失败不再调同图选成功；
+不通过则结束no-think静态支线，继续H/J长任务主问题。下述10-09交接内容为历史入口，
+当前执行以本小节及S5最新记录为准。跨图配方的预算/数据范围见S5执行预览，未授权不发模型。
+
 ### 已完成与未完成
 
 - 已完成并离线验收：单一 schema_version=2 `GoalContract`（不保留 v1/双契约兼容）、
@@ -53,7 +66,7 @@ S5-App 机制审计+计时事件+融合契约三片完成，线 1 审计关、�
 - 尚未完成（阶梯后续）：S5 系统比较与 S5-App 受控臂、S6 交付（含 G1–G3 与生产默认决策）。
   S5-App 的 DOM 优化、Cua Driver、AX/OCR 融合、观察稳定性仍是有条件受控比较，不是 S4 门槛。
 
-### 当前停点与直接下一步
+### 历史停点与接续（2026-10-09）
 
 1. **无桌面诊断已完成（2026-10-09）。** 用户明确确认存档 Calculator AX 数据、
    目标、候选与历史发往 `api.typesafe.ai`（Jev）及 `dashscope.aliyuncs.com`
@@ -3879,6 +3892,59 @@ backend/CLI ruff、修改文件pyright0、runtime error为空、docs51/diff通�
 本数据案例scope第3轮独立review-and-refactor通过，无actionable/unresolved finding、无修改；
 评审重跑12项定向/docs51/diff并核对新freeze/预留/旧result哈希，立即结束、不开启第4轮。
 旧解析器/driver范围未重开，精确provider实测及S5整体验收仍待后续独立验证。
+
+#### S5 跨图候选门与回归主线（2026-10-15，准备中）
+
+总目标仍为A/H/J完整任务取舍和Jev长任务净收益确认：H1长任务J/H耗时≤1.10，
+H2质量J≥H−1，H3成本J<H；原A及H4证据保留，任何A-control单独命名/预注册，
+不拿候选结果替换生产A。当前A定位/预算诊断只是测量前提，不能成为无限调参支线。
+
+收敛路径固定为：一次跨图候选门 → owned窗口/前台护栏与短任务 → 返回长任务/配对
+确认 → 结合G3/S6给出场景采用或不采用结论。若候选不通过，结束该静态候选支线，
+不反复采图调参挑成功；不阻碍另行完成H/J长任务摊薄问题。
+
+1. 预选两张新owned Calculator位置图，采集/同步AX标注/目视复核/清理，0模型请求。
+2. 新独立跨图执行器，恰好2图×2臂=4请求，顺序图1 default→no-think，图2 no-think→default。
+   共同总输出max_completion_tokens=2048，预留2058；其余提示/模型/温度/图片按图固定。
+   只定位，不派发输入；在此资源限制下比较，不能当原生产A或普遍思考质量结论。
+3. 四项共享一个持久batch账本和4请求/$0.70/4000000tokens准入。unknown/网络或截止/
+   bound_exceeded/持久化失败停全批，保留四分母。完整known的语义错点、弃权、格式失败
+   和length截断作为本行失败继续下一行（没有GUI副作用）；这是新配方预声明，旧停批不变。
+4. 候选门仅在全4项settled且无operational stop后评估：no-think两图均schema合法且
+   命中标注，才可进入一次受控GUI短任务准备；时间/费用成对描述，不声称稳定优势。
+   未通过则candidate_not_qualified；中断则incomplete，均不得建议采用。N=2图仅可行性门。
+5. 提取原静态单请求接线复用，保留旧三请求执行器原停批语义，避免复制SDK/计量路径。
+   **Tests（TDD）**：原test_s5_paired.py新增冻结/顺序/无truth泄漏、单共享账本、不合法
+   known继续、unknown/超界全停/四行保留、重复/漂移零请求、候选门及旧行为回归。
+6. **最终步骤**：§10完整Verification Checklist全部适用项与本新跨图调度scope最多三轮
+   review-and-refactor；原解析/数据诊断封顶评审不重开。完成新图fake、冻结真实执行预览，
+   需本4请求配方的新预算授权后才发模型请求；不转用旧已终止批次的未花额度。
+
+**本片准备证据**：两预选位置(180,160)/(1400,600)各新建owned Calculator采一图，
+AX中心(214,371)/(1434,811)、20px半径，目视核对通过，两个进程/位置/前台恢复全确认。
+采集含真实move/clear setup，不是0 GUI，模型请求为0；静态模型阶段不操作桌面。
+[来源](../../../backend/benchmarks/computer_use/reports/20261015-s5-cross-image-source/README.md)、
+[fake验收](../../../backend/benchmarks/computer_use/reports/20261015-s5-cross-image-fake/README.md)、
+[真实执行预览](../../../backend/benchmarks/computer_use/reports/20261015-s5-cross-image-live/README.md)
+已归档。新a_cross_image复用提取的run_trial，旧入口invalid_reply仍停批；新入口known
+失败继续、operational全停。13新增回归（含fake incomplete门修正）先红后绿，相关302项通过。
+新签名`4e5379e3695c394b2be8869b1fe830ff4a72a2f928544f94f32429b874f320fc`，
+fake4项/1共享账本/4trials/0external/新GUI，verdict只允许fake_wiring，不产生候选结论。
+新$0.70/4请求预算待授权，live无started；完整验证6011 passed/1 skipped/21 warnings
+（421.29s）、E2E18/71、web lint/tsc-b、backend/CLI ruff、修改3个Python文件pyright0、
+runtime error检查为空、docs51/diff通过，协议未改/sync不适用；当时本新跨图调度scope第1轮评审待完成，后续R1/v2复核见下文。
+
+**第1轮R1与新冻结**：评审复现持续journal fsync失败时ledger.close先抛错而丢四行报告。
+ca30d4e2最小修复新调度finally：结果路径可写时关闭失败仍保存incomplete/四分母并继续抛错，
+完整4项后关闭失败也降completed=false；整个存储不可写不能保证落盘。故障回归先红后绿，
+定向15/full6013 passed/1skip/21warnings（421.99s）、E2E18/71、lint/type/runtime/docs全过。
+原4e5379 fake/live目录source_changed/raw保留（live未执行），禁止运行或改旧freeze；
+同两图新目录[v2 fake](../../../backend/benchmarks/computer_use/reports/20261015-s5-cross-image-v2-fake/README.md)
+及[v2执行预览](../../../backend/benchmarks/computer_use/reports/20261015-s5-cross-image-v2-live/README.md)
+签名`e8de037d329dc7631ce2d76130d4b5e8e9073456d969809574b7147cd94c8dae`。
+第2轮复核通过，无新增/未解决问题；实际复跑15项/docs51/diff、新旧freeze及来源核对，
+R1为修复作者自检，root另行核对diff和完整验证证据，本轮立即结束、不自动第3轮。
+预算$0.70待授权，0新模型/GUI；原候选/收敛规则与旧账不变。
 
 #### S5-App：应用交互后端与观察方案的受控比较（2026-10-09，已纳入，待执行）
 
