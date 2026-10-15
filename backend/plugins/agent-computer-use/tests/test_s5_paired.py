@@ -1135,3 +1135,173 @@ async def test_total_cap_slack_drift_rejected_before_client(monkeypatch, tmp_pat
         await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
     client.assert_not_called()
     assert not (output / "started.json").exists()
+
+
+def _cross_image(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import a_cross_image
+
+    return a_cross_image
+
+
+def _cross_inputs(tmp_path):
+    import hashlib
+
+    from PIL import Image
+
+    folders = []
+    for index, (color, center) in enumerate((("navy", [480, 324]), ("darkgreen", [1440, 756])), 1):
+        folder = tmp_path / f"input-{index}"
+        folder.mkdir()
+        Image.new("RGB", (1920, 1080), color).save(folder / "frame.png")
+        case = {"image_sha256": hashlib.sha256((folder / "frame.png").read_bytes()).hexdigest(),
+                "annotation": {"center": center, "radius": 20, "provenance": f"PRIVATE_TRUTH_{index}"}}
+        (folder / "case.json").write_text(json.dumps(case))
+        folders.append(folder)
+    return folders
+
+
+@pytest.mark.parametrize("scenario", ["valid", "format", "length", "miss", "unknown", "overrun"])
+async def test_cross_image_pairs_share_budget_and_preserve_failures(monkeypatch, tmp_path, scenario):
+    import base64
+    import hashlib
+
+    import httpx
+    from openai import AsyncOpenAI
+    from tank_backend.benchmarks.spend_ledger import SpendLedger
+
+    module = _cross_image(monkeypatch)
+    static = _preflight(monkeypatch)
+    inputs = _cross_inputs(tmp_path)
+    output = tmp_path / "cross"
+    frozen = module.prepare(inputs, output)
+    assert frozen["revision"] == "a-cross-image-1"
+    assert [(x["image_id"], x["arm"]) for x in frozen["schedule"]] == [
+        ("image-1", "default"), ("image-1", "no-think"),
+        ("image-2", "no-think"), ("image-2", "default"),
+    ]
+    assert module.load_freeze(output, frozen["sha256"]) == frozen
+    hashes = [json.loads((folder / "case.json").read_text())["image_sha256"] for folder in inputs]
+    sent = []
+    ledgers = []
+
+    def ledger_factory(*args, **kwargs):
+        ledger = SpendLedger(*args, **kwargs)
+        ledgers.append(ledger)
+        return ledger
+
+    monkeypatch.setattr(module, "SpendLedger", ledger_factory)
+
+    def respond(request):
+        body = json.loads(request.content)
+        sent.append(body)
+        assert "max_tokens" not in body and body["max_completion_tokens"] == 2048
+        assert "PRIVATE_TRUTH" not in json.dumps(body) and "annotation" not in json.dumps(body)
+        assert body["stream_options"] == {"include_usage": True} and body["temperature"] == 0.1
+        png = base64.b64decode(body["messages"][1]["content"][1]["image_url"]["url"].split(",", 1)[1])
+        index = hashes.index(hashlib.sha256(png).hexdigest())
+        x, y = ((250, 300), (750, 700))[index]
+        if scenario == "miss" and len(sent) == 2:
+            x = y = 0
+        content = json.dumps({"coordinate_space": "normalized_1000", "image_size": [1920, 1080], "x": x, "y": y})
+        if scenario == "format" and len(sent) == 1:
+            content = "not JSON"
+        finish = "length" if scenario == "length" and len(sent) == 1 else "stop"
+        count = 2050 if finish == "length" else 2059 if scenario == "overrun" else 11
+        chunks: list[dict[str, object]] = [{"choices": [{"index": 0, "delta": {"content": content}, "finish_reason": finish}]}]
+        if scenario != "unknown":
+            chunks.append({"choices": [], "usage": {"prompt_tokens": 7, "completion_tokens": count, "total_tokens": count + 7}})
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content="".join(
+            "data: " + json.dumps({"id": "fake", "object": "chat.completion.chunk", "created": 1,
+                                   "model": body["model"], **chunk}) + "\n\n" for chunk in chunks
+        ) + "data: [DONE]\n\n")
+
+    def factory(**kwargs):
+        assert kwargs["max_retries"] == 0
+        return AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond), trust_env=False))
+
+    monkeypatch.setattr(static, "AsyncOpenAI", factory)
+    report = await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    assert len(ledgers) == 1 and len(report["rows"]) == 4
+    if scenario in ("unknown", "overrun"):
+        assert len(sent) == 1 and not report["completed"] and report["pairs"] == []
+        assert report["verdict"] == "incomplete_no_candidate_conclusion"
+        assert [row["status"] for row in report["rows"]] == ["failed", "not_run", "not_run", "not_run"]
+        assert report["spend"]["stop_reason"] == ("unknown_usage" if scenario == "unknown" else "bound_exceeded")
+        assert report["spend"]["batch"]["reserved_nano_usd"] == (165006600 if scenario == "unknown" else 0)
+    else:
+        assert len(sent) == 4 and report["completed"] and len(report["pairs"]) == 2
+        assert report["spend"]["batch"]["admitted_requests"] == 4
+        assert len(report["spend"]["trials"]) == 4 and report["spend"]["stop_reason"] is None
+        assert [body.get("enable_thinking") for body in sent] == [None, False, False, None]
+        assert sent[0]["messages"] == sent[1]["messages"] and sent[2]["messages"] == sent[3]["messages"]
+        assert sent[0]["messages"] != sent[2]["messages"]
+        assert report["verdict"] == ("candidate_not_qualified" if scenario == "miss" else "advance_to_owned_gui_smoke_preparation")
+        if scenario in ("format", "length"):
+            assert report["rows"][0]["status"] == "failed"
+            assert [row["status"] for row in report["rows"]][1:] == ["finished"] * 3
+    with pytest.raises(FileExistsError):
+        await module.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    assert len(sent) == (1 if scenario in ("unknown", "overrun") else 4)
+
+
+@pytest.mark.parametrize("change", ["annotation", "image", "signature"])
+async def test_cross_image_freeze_drift_zero_client(monkeypatch, tmp_path, change):
+    from unittest.mock import Mock
+
+    module = _cross_image(monkeypatch)
+    static = _preflight(monkeypatch)
+    output = tmp_path / "cross"
+    frozen = module.prepare(_cross_inputs(tmp_path), output)
+    if change == "annotation":
+        path = output / "image-1/case.json"
+        case = json.loads(path.read_text())
+        case["annotation"]["radius"] = 21
+        path.write_text(json.dumps(case))
+    elif change == "image":
+        (output / "image-2/frame.png").write_bytes(b"changed")
+    client = Mock()
+    monkeypatch.setattr(static, "AsyncOpenAI", client)
+    with pytest.raises(ValueError):
+        await module.run_batch(output, "wrong" if change == "signature" else frozen["sha256"], mode="live", credential="offline")
+    client.assert_not_called()
+    assert not (output / "started.json").exists()
+
+
+async def test_cross_image_fake_never_gives_candidate_verdict(monkeypatch, tmp_path):
+    module = _cross_image(monkeypatch)
+    output = tmp_path / "cross"
+    frozen = module.prepare(_cross_inputs(tmp_path), output)
+    report = await module.run_batch(output, frozen["sha256"], mode="fake")
+    assert report["completed"] and report["fake_http_requests"] == 4
+    assert report["external_model_requests"] == 0 and report["new_gui_operations"] == 0
+    assert report["verdict"] == "fake_wiring_only_no_candidate_conclusion"
+
+
+async def test_original_static_recipe_still_stops_known_invalid_json(monkeypatch, tmp_path):
+    import httpx
+    from openai import AsyncOpenAI
+
+    static = _preflight(monkeypatch)
+    output, frozen = _preflight_recipe(static, tmp_path, monkeypatch)
+    sent = []
+
+    def respond(request):
+        sent.append(request)
+        chunk = {"id": "fake", "object": "chat.completion.chunk", "created": 1,
+            "model": "fake", "choices": [{"index": 0, "delta": {"content": "not JSON"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9}}
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content="data: " + json.dumps(chunk) + "\n\ndata: [DONE]\n\n")
+
+    monkeypatch.setattr(static, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(
+        **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond), trust_env=False)))
+    report = await static.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    assert len(sent) == 1 and report["spend"]["stop_reason"] == "invalid_reply"
+    assert [row["status"] for row in report["rows"]] == ["failed", "not_run", "not_run"]
+    assert report["spend"]["batch"]["known_tokens"] == 9
+
+
+@pytest.mark.parametrize("mode", ["fake", "live"])
+def test_cross_image_incomplete_gate_never_implies_wiring_success(monkeypatch, mode):
+    module = _cross_image(monkeypatch)
+    assert module.verdict([], False, mode) == "incomplete_no_candidate_conclusion"

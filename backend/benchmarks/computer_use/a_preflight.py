@@ -193,6 +193,81 @@ def _fake(request: httpx.Request) -> httpx.Response:
     ) + "data: [DONE]\n\n")
 
 
+async def run_trial(
+    output: Path, frozen: dict[str, Any], png: bytes, case: dict[str, Any],
+    ledger: SpendLedger, row: dict[str, Any], *, mode: str, credential: str,
+) -> None:
+    """Run one static SDK call; the batch owns semantic-failure continuation."""
+    if hashlib.sha256(png).hexdigest() != frozen["image_sha256"] or row["id"] != case["id"]:
+        raise ValueError("static trial image/identity differs from the frozen job")
+    model = frozen["model"]
+    data = "data:image/png;base64," + base64.b64encode(png).decode()
+    allowance = TokenAllowance(model["input_ceiling"],
+                               case["max_completion_tokens"] + OUTPUT_USAGE_SLACK,
+                               model["input_price"], model["output_price"])
+    ledger.start_trial(row["id"], SpendLimit(1100000, 200000000))
+    context = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
+        SubAgentBudget(), asyncio.Event(), deadline=time.monotonic() + SECONDS_PER_REQUEST,
+        model_policy=BenchmarkModelPolicy(ledger, (ContextWindowContract(
+            model["url"], model["model"], allowance, frozen["accounting"]),)))
+    runner = TaskModelCallRunner(row["id"], context)
+    parameters: dict[str, Any] = {"model": model["model"], "temperature": 0.1,
+        "max_completion_tokens": case["max_completion_tokens"], "stream": True,
+        "stream_options": {"include_usage": True}, "messages": [
+            {"role": "system", "content": SYSTEM},
+            {"role": "user", "content": [{"type": "text", "text": frozen["target"]},
+                {"type": "image_url", "image_url": {"url": data, "detail": "high"}}]},
+        ]}
+    kwargs = {**parameters, "extra_body": case["extra_body"]}
+    public = json.loads(json.dumps(parameters))
+    public["messages"][1]["content"][1]["image_url"]["url"] = "sha256:" + frozen["image_sha256"]
+    (output / (row["id"] + ".request.json")).write_text(json.dumps(
+        {**public, **case["extra_body"]}, ensure_ascii=False, indent=2))
+    row.update(status="failed", content="", reasoning_content="", finish_reason=None,
+               tool_requested=False, schema_valid=False, within_annotation=False)
+    started = time.monotonic()
+    client_options: dict[str, Any] = {}
+    if mode == "fake":
+        client_options["http_client"] = httpx.AsyncClient(
+            transport=httpx.MockTransport(_fake), trust_env=False)
+    try:
+        async with AsyncOpenAI(api_key=credential if mode == "live" else "offline-probe",
+            base_url=model["url"].removesuffix("/chat/completions"), max_retries=0,
+            timeout=SECONDS_PER_REQUEST, **client_options) as client:
+            async def invoke() -> AsyncStream[ChatCompletionChunk]:
+                return cast(AsyncStream[ChatCompletionChunk],
+                            await client.chat.completions.create(**kwargs))
+
+            with (output / (row["id"] + ".chunks.jsonl")).open("x") as chunks:
+                async for raw in runner.stream(ModelRequest(
+                    model["url"], model["model"], {**parameters, **case["extra_body"]}), invoke):
+                    chunk = cast(ChatCompletionChunk, raw)
+                    chunks.write(chunk.model_dump_json(exclude_none=True) + "\n")
+                    chunks.flush()
+                    for choice in chunk.choices:
+                        row["finish_reason"] = choice.finish_reason or row["finish_reason"]
+                        row["content"] += choice.delta.content or ""
+                        reasoning = getattr(choice.delta, "reasoning_content", None)
+                        if isinstance(reasoning, str):
+                            row["reasoning_content"] += reasoning
+                        row["tool_requested"] |= bool(choice.delta.tool_calls)
+        row.update(score(row["content"], row["finish_reason"], row["tool_requested"],
+                         frozen["annotation"]))
+        row["status"] = "finished" if row["schema_valid"] else "failed"
+    except (Exception, asyncio.CancelledError) as exc:
+        row["error"] = type(exc).__name__
+        ledger.stop("request_failed")
+        if isinstance(exc, asyncio.CancelledError):
+            raise
+    finally:
+        await runner.aclose()
+        await context.runtime.aclose()
+        row["seconds"] = time.monotonic() - started
+        call = get_model_call(row["id"])
+        row["usage"] = asdict(call) if call is not None else None
+        ledger.finish_trial()
+
+
 async def run_batch(
     output: Path, approved: str, *, mode: str, credential: str = "",
 ) -> dict[str, Any]:
@@ -209,77 +284,13 @@ async def run_batch(
     rows: list[dict[str, Any]] = [{"id": case["id"], "status": "not_run"} for case in CASES]
     report = {"rows": rows, "mode": mode, "sha256": approved, "completed": False,
               "new_gui_operations": 0, "conclusion": frozen["conclusion"]}
-    model = frozen["model"]
-    data = "data:image/png;base64," + base64.b64encode(png).decode()
     try:
         for row, case in zip(rows, CASES):
             load_freeze(output, approved)
-            allowance = TokenAllowance(model["input_ceiling"],
-                                       case["max_completion_tokens"] + OUTPUT_USAGE_SLACK,
-                                       model["input_price"], model["output_price"])
-            ledger.start_trial(row["id"], SpendLimit(1100000, 200000000))
-            context = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
-                SubAgentBudget(), asyncio.Event(), deadline=time.monotonic() + SECONDS_PER_REQUEST,
-                model_policy=BenchmarkModelPolicy(ledger, (ContextWindowContract(
-                    model["url"], model["model"], allowance, frozen["accounting"]),)))
-            runner = TaskModelCallRunner(row["id"], context)
-            parameters: dict[str, Any] = {"model": model["model"], "temperature": 0.1,
-                "max_completion_tokens": case["max_completion_tokens"], "stream": True,
-                "stream_options": {"include_usage": True}, "messages": [
-                    {"role": "system", "content": SYSTEM},
-                    {"role": "user", "content": [{"type": "text", "text": frozen["target"]},
-                        {"type": "image_url", "image_url": {"url": data, "detail": "high"}}]},
-                ]}
-            kwargs = {**parameters, "extra_body": case["extra_body"]}
-            public = json.loads(json.dumps(parameters))
-            public["messages"][1]["content"][1]["image_url"]["url"] = "sha256:" + frozen["image_sha256"]
-            (output / (row["id"] + ".request.json")).write_text(json.dumps(
-                {**public, **case["extra_body"]}, ensure_ascii=False, indent=2))
-            row.update(status="failed", content="", reasoning_content="", finish_reason=None,
-                       tool_requested=False, schema_valid=False, within_annotation=False)
-            started = time.monotonic()
-            client_options: dict[str, Any] = {}
-            if mode == "fake":
-                client_options["http_client"] = httpx.AsyncClient(
-                    transport=httpx.MockTransport(_fake), trust_env=False)
-            try:
-                async with AsyncOpenAI(api_key=credential if mode == "live" else "offline-probe",
-                    base_url=model["url"].removesuffix("/chat/completions"), max_retries=0,
-                    timeout=SECONDS_PER_REQUEST, **client_options) as client:
-                    async def invoke() -> AsyncStream[ChatCompletionChunk]:
-                        return cast(AsyncStream[ChatCompletionChunk],
-                                    await client.chat.completions.create(**kwargs))
-
-                    with (output / (row["id"] + ".chunks.jsonl")).open("x") as chunks:
-                        async for raw in runner.stream(ModelRequest(
-                            model["url"], model["model"], {**parameters, **case["extra_body"]}), invoke):
-                            chunk = cast(ChatCompletionChunk, raw)
-                            chunks.write(chunk.model_dump_json(exclude_none=True) + "\n")
-                            chunks.flush()
-                            for choice in chunk.choices:
-                                row["finish_reason"] = choice.finish_reason or row["finish_reason"]
-                                row["content"] += choice.delta.content or ""
-                                reasoning = getattr(choice.delta, "reasoning_content", None)
-                                if isinstance(reasoning, str):
-                                    row["reasoning_content"] += reasoning
-                                row["tool_requested"] |= bool(choice.delta.tool_calls)
-                row.update(score(row["content"], row["finish_reason"], row["tool_requested"],
-                                 frozen["annotation"]))
-                row["status"] = "finished" if row["schema_valid"] else "failed"
-                if not row["schema_valid"]:
-                    ledger.stop("invalid_reply")
-            except (Exception, asyncio.CancelledError) as exc:
-                row["error"] = type(exc).__name__
-                ledger.stop("request_failed")
-                if isinstance(exc, asyncio.CancelledError):
-                    raise
-            finally:
-                await runner.aclose()
-                await context.runtime.aclose()
-                row["seconds"] = time.monotonic() - started
-                call = get_model_call(row["id"])
-                row["usage"] = asdict(call) if call is not None else None
-                ledger.finish_trial()
+            await run_trial(output, frozen, png, case, ledger, row,
+                            mode=mode, credential=credential)
+            if not row["schema_valid"] and ledger.snapshot()["stop_reason"] is None:
+                ledger.stop("invalid_reply")
             report["spend"] = ledger.snapshot()
             (output / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
             if ledger.snapshot()["stop_reason"] is not None:

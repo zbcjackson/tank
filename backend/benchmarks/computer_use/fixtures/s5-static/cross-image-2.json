@@ -1,0 +1,11 @@
+{
+  "image_sha256": "cb4dc27c36a3bc719775a4e30a554875576741de1c09cd211e3243acf063ae8a",
+  "annotation": {
+    "center": [
+      1434,
+      811
+    ],
+    "radius": 20,
+    "provenance": "synchronous owned Calculator AX button 7 frame [1410, 787, 48, 48]; visually verified against exact screenshot"
+  }
+}
