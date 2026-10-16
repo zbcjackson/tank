@@ -893,7 +893,13 @@ schema_version=2 契约（`goal_id` 新生成、`authorization_ref=current_task`
 `allowed_operations=[click,fill]`、条件键 `ax:<type>:c<n>`），输入非 null 值须规范化后
 出现在 request.task/context 原文中，否则 `needs_input`/`ungrounded_input`。父代理可附
 `target` 覆盖应用名。完整契约路径不变；简述写入结果 `details.intake`。无模型时
-`intake_model_unavailable`；非法回复 `invalid_intake`。调用计入任务用量。第二片
+`intake_model_unavailable`；非法回复 `invalid_intake`。调用计入任务用量。
+2026-10-16 入口提示明确区分按钮/按键动作与文字填充值：动作写入objective/constraints，
+纯按键任务提示inputs为空，文档中的字面符号与末尾换行仍须原样填写。该提示的模型
+效果尚待独立对照，不是宿主自动纠正动作或放宽来源校验。仅intake解析接受一个完整
+`json`/LF代码围栏；外围说明、多段/错误围栏、重复键及无效schema仍拒绝。消息构造和
+parse_brief供生产与无桌面探针共用，无新增调用或重试；其它模型协议保持原有规则。
+第二片
 （绑定后看初始快照再写完成条件）因 live 未暴露缺口已移交 backlog。桌面 fake 后：绑定若声明了
 `ax:value:result`，intake 的单一 `present` 会确定性对齐到该读数键；无 readout 的画像仍套用
 危险词（与完全无画像相同），有 readout 才省略。

@@ -55,7 +55,8 @@ S5确认尚未完成，单图no-think1.74s/2.8px仅为候选。
 owned窗口/前台护栏及单击v2 fake已验收；用户明确确认后真实单请求因窗口外坐标被
 护栏拦截，0模型点击派发、清理确认，候选未通过。结束当前视觉候选分支。独立H/J长任务40项配方已接线并通过fake实机，
 用户回复“开始”后真实40项已结束：H 1/20、J 4/20 strict，34项共同intake失败，L2未过。
-下一步先修共同intake的动作/填充值边界，再独立冻结验证；旧150项/原A/H4不拼接补判，
+共同intake提示/解析修正及12请求fake探针已完成，真实无桌面提示对照待新增$0.25确认；
+模型效果仍待验证，旧150项/原A/H4不拼接补判，
 Jev图片后置，G3/S6门槛不变。
 
 ### 已完成与未完成
@@ -4115,6 +4116,46 @@ H18项ungrounded_input、1成功、1focus_already_satisfied部分完成；J15项
 本次仅结果归档，无源码/配置修改；docs51/diff通过。本结果范围第1轮独立
 review-and-refactor核对原始结果、费用/清理字段及34份intake失败离线诊断，未发现
 可操作问题，无修复即结束；此评审结论补记由评审者自检。
+
+#### S5 共同 intake 边界修复与无桌面探针（2026-10-16，进行中）
+
+将原40项失败作为真实红灯基线，修正入口提示：inputs仅表达需填入的用户文字，
+按键/按钮/运算符动作由objective/constraints承载，纯按键任务inputs为空。保留grounded
+来源约束，不删除未绑定输入或猜测符号转换。仅intake接受单个完整json/LF围栏，外部
+说明、多段/错误围栏、重复JSON键、无效schema仍拒绝；不修改其它模型协议。
+提取纯消息构造/解析供生产入口与探针共用，不新增调用、重试或桌面动作。
+
+先将真实失败的三类未绑定inputs及一份围栏回复整理为受控fixture（不保存私人context）；
+旧回复仍须拒绝，不能把解析兼容或prompt变更当作模型效果已修复。
+随后固定无桌面Qwen入口探针：Calculator原长任务和TextEdit字面`*3 +5=`+末尾换行，
+每题旧/新提示各3次，平衡先手，共12请求。两臂使用相同当前schema/解析器、相同受控
+application-only context，只有system提示不同；旧提示取自原记录，不拼接旧40项统计。
+新提示6/6满足冻结判定才允许准备下一轮GUI验证；fake只验接线，不产生效果结论。
+Calculator要求正确目标应用、inputs为空且present=33；TextEdit必须保留精确文字及换行，
+同时通过原文绑定。仅比较小样本可行性，不宣称稳定性或替代H/J长任务确认。
+
+**Tests（TDD）**：既有test_intake.py覆盖完整围栏/拒绝变体、记录坏值不被放行、
+纯点击与字面运算符填入的契约、单次SDK计量；既有test_s5_paired.py覆盖探针冻结/
+先手/无GUI或图片、真值不外发、已知失败继续/unknown保留预留停批、12分母与fake门。
+修复效果需单独真实探针，不以fake推断。冻结新$0.25/12请求/1200万tokens预算与数据
+预览；新明确确认前不发付费请求、不复用旧目录或预算。
+**最终步骤**：§10完整Verification Checklist全部适用项，最多三轮独立
+review-and-refactor；现行设计、计划/索引和报告按实际实现/验证更新。
+
+已实现提示澄清、共用intake_messages/parse_brief及狭义围栏解析；记录的坏输入仍拒绝，
+字面运算符/换行精确保留测试通过。219项相关测试通过（含新增14项intake、10项探针）；
+pyright检查发现既有test_intake断言的JSON类型未收窄，已补isinstance断言，不抑制错误。
+[fake探针](../../../backend/benchmarks/computer_use/reports/20261016-s5-intake-probe-fake/README.md)
+12/12本地HTTP完成、0外部/GUI，脚本响应新臂6/6，仅接线结论；共享账本关闭/客户端
+清理异常仍保留调用与12分母。签名`7db134946fab4722c65203f8517e8cf3513f17faba254b4fa852172dd7424fe3`，
+[真实预览](../../../backend/benchmarks/computer_use/reports/20261016-s5-intake-probe-live/README.md)
+同签名已准备，新$0.25/12请求待确认。当前未验证真实模型改进，不放宽grounded或重判
+旧40项。完整后端6077 passed/1 skipped/21 warnings（426.46s）、E2E18场景/71步骤、
+web lint/tsc-b、backend/CLI ruff、四修改Python文件pyright0、runtime错误检查为空、
+docs51/diff通过，协议未改。本范围第1轮独立review-and-refactor未发现可操作问题，
+复跑62项intake相关测试通过；无代码修复即结束。此评审状态补记由评审者自检，
+真实模型效果与新预算授权仍待完成。
+
 
 #### S5-App：应用交互后端与观察方案的受控比较（2026-10-09，已纳入，待执行）
 
