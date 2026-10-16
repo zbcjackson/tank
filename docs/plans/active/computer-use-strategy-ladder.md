@@ -56,8 +56,9 @@ owned窗口/前台护栏及单击v2 fake已验收；用户明确确认后真实�
 护栏拦截，0模型点击派发、清理确认，候选未通过。结束当前视觉候选分支。独立H/J长任务40项配方已接线并通过fake实机，
 用户回复“开始”后真实40项已结束：H 1/20、J 4/20 strict，34项共同intake失败，L2未过。
 共同intake提示/解析修正后，获准的12请求文本对照已完成：新版6/6、旧版4/6；
-Calculator两臂同为3/3，尚不能证明原生产上下文中的问题已修复。下一步准备完整
-生产上下文的小规模GUI验证；旧150项/原A/H4不拼接补判，
+Calculator两臂同为3/3，尚不能证明原生产上下文中的问题已修复。
+完整生产上下文的4项GUI配方已接线并通过fake实机，真实预览新增$0.50待明确确认；
+旧150项/原A/H4不拼接补判，
 Jev图片后置，G3/S6门槛不变。
 
 ### 已完成与未完成
@@ -4171,6 +4172,44 @@ Calculator入口失败，不能归因新提示已修好原生产上下文问题�
 与G3/S6状态不变。本次仅结果归档，文档检查51项及diff检查通过；本结果范围第1轮
 独立review-and-refactor复核原始结果、12请求消息/评分和费用，未发现可操作问题，
 无修复即结束。本评审状态补记由评审者自检。
+
+#### S5 完整生产上下文 GUI 小批次（2026-10-16，准备中）
+
+在文本探针prepare_gui_validation门通过后，新增`--track hj-context`：原长算式
+AXPress/Quartz各1个任务，每个H/J配对，共4项，顺序AX H→J、Quartz J→H。
+复用原AgentRunner、intake/选择器/原生派发和独立读回，不手工替换为精简context。
+冻结每任务完整intake messages，使用同一生产上下文构造方法生成；包含澄清、安全
+规则和平台信息（含用户名/主目录字符串）。模型准入前逐字校验首个intake请求，
+不一致则0 SDK发送、停止并保留4分母；实际消息写入既有调用记录供核对。
+
+门槛为完整4项均strict/passed、真实模型动作执行、规则违规0且清理确认，才允许准备
+新的完整H/J长任务确认；任一已知失败则不通过，operational/unknown则incomplete。
+本片L1–L3/H4均不判定；不把N=4通过当作稳定性或修复归因证明，不补判旧40/150项。
+新估算预算$0.50/800万tokens/最多140请求；单任务沿用240s、400万tokens/$0.25，
+H最多25文本，J最多20Jev+25文本。数据为完整任务/context、AX状态及历史至既有
+Jev/Qwen，不发截图。先fake实机，再冻结真实预览；新确认前不执行收费。
+
+**Tests（TDD）**：既有test_s5_paired.py增加4项平衡冻结/跨track拒绝、完整生产
+context及首调用不一致零HTTP、正常SDK到AX/Quartz/读回/清理、全4通过/失败/
+incomplete/fake门，保留旧original/hj-long行为。source/上下文漂移均拒绝，账本关闭
+失败沿用独立track的incomplete保留证据逻辑。
+**最终步骤**：§10完整Verification Checklist全部适用项、最多三轮独立
+review-and-refactor，计划/索引/报告同步归档。
+
+接线已实现，177项相关回归（新增10项）通过。首条intake在Policy.reserve中匹配
+冻结完整messages，不符0HTTP/0准入；此新track按账本计数外部请求，避免把被拒绝
+的capture误计成已发送。推断统计为空，旧original/hj-long回归保留。
+初稿仅prepare未执行，lint整理后源码变化；保留旧目录，采用新签名
+`3e15225394068660f76ed7a0728bae82c44f5d6a5e0522cac9411259daf7ab58`。
+[v2 fake实机](../../../backend/benchmarks/computer_use/reports/20261016-s5-hj-context-v2-fake/README.md)
+4/4 strict/passed、清理全确认、42本地HTTP/0外部费用；实际完整intake messages均匹配
+冻结，context与原40项逐字一致，未简化。此为接线验证，不是新版模型修复证据。
+[同签名真实预览](../../../backend/benchmarks/computer_use/reports/20261016-s5-hj-context-v2-live/README.md)
+已准备，新$0.50/4项/最多140请求待明确确认，未启动。完整后端6087 passed/
+1 skipped/21 warnings（425.58s）、E2E18场景/71步骤、web lint/tsc-b、backend/CLI ruff、
+两修改Python文件pyright0、runtime错误检查为空、docs51/diff通过，协议未改；
+本范围第1轮独立评审无可操作问题、无源码修复即结束，10项定向离线回归复核通过（评审状态补记由评审者自检）。
+
 
 #### S5-App：应用交互后端与观察方案的受控比较（2026-10-09，已纳入，待执行）
 
