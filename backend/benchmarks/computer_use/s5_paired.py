@@ -38,6 +38,7 @@ from agent_computer_use import (
 from agent_computer_use.channels import native
 
 from tank_backend.benchmarks.spend_ledger import SpendSnapshot
+from tank_backend.agents.definition import AgentDefinition
 from tank_backend.tools import computer_ax, computer_native, computer_use_macos
 
 from benchmarks.computer_use import s4_ax, s4_nl
@@ -48,6 +49,7 @@ FAKE_TEXT_ENDPOINT = "https://s5-text.invalid/v1/chat/completions"
 
 BUNDLES = s4_ax.BUNDLES
 ARMS = ("A", "H", "J")
+HOST_SYSTEM = "Operate only the bound application named by intake or target."
 TEXTEDIT_BODY = s4_nl.TEXTEDIT_BODY
 A_REQUEST_LIMIT = 20
 ADVISOR_CALL_LIMIT = 4
@@ -252,8 +254,41 @@ def schedule() -> list[dict[str, str]]:
     return plan
 
 
+def host_definition(arm: str) -> AgentDefinition:
+    definition = AgentDefinition(
+        f"s5-{arm.lower()}", "S5 paired pilot", HOST_SYSTEM,
+        extension="agent-computer-use:agent", model="advisor",
+    )
+    return replace(definition, decision_model="jev") if arm == "J" else definition
+
+
+def full_intake_messages(frozen: dict[str, Any]) -> dict[str, Any]:
+    """Use the production builder, including platform/security context; no model or GUI."""
+    from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
+    from tank_backend.agents.runner import AgentRunner
+    from tank_backend.agents.subagent import SubAgentRequest
+    from tank_backend.llm.llm import LLM
+    from tank_backend.pipeline.bus import Bus
+    from tank_backend.tools.manager import ToolManager
+
+    runner = AgentRunner(MagicMock(spec=LLM), MagicMock(spec=ToolManager), Bus(),
+                         ToolApprovalPolicy(computer_mode="allow"), PendingToolCallStore(), {})
+    result = {}
+    for task in frozen["tasks"]:
+        task_id = task["id"]
+        prompt, task_input = frozen["prompts"][task_id], frozen["task_inputs"][task_id]
+        context = runner._build_sub_agent_prompt(host_definition("H"), [
+            {"role": "user", "content": prompt},
+            {"role": "user", "content": json.dumps(task_input, ensure_ascii=False)},
+        ], set())
+        result[task_id] = intake.intake_messages(
+            SubAgentRequest(prompt, context, task_id), task_input["target"]["application"],
+        )
+    return result
+
+
 def freeze_inputs(*, track: str = "original") -> dict[str, Any]:
-    if track not in {"original", "hj-long"}:
+    if track not in {"original", "hj-long", "hj-context"}:
         raise ValueError("Unknown S5 track")
     from tank_backend.agents import (
         subagent,
@@ -421,8 +456,10 @@ def freeze_inputs(*, track: str = "original") -> dict[str, Any]:
             for path in paths
         },
     }
-    if track == "hj-long":
+    if track in {"hj-long", "hj-context"}:
         tasks = [task for task in TASKS if task["id"].startswith("calculator-long-")]
+        if track == "hj-context":
+            tasks = [task for task in tasks if task["repeat"] == 0]
         plan = []
         for repeat in sorted({task["repeat"] for task in tasks}):
             for index, task in enumerate(t for t in tasks if t["repeat"] == repeat):
@@ -449,6 +486,20 @@ def freeze_inputs(*, track: str = "original") -> dict[str, Any]:
         )
         for name in ("prompts", "task_inputs", "briefs", "macos_policies"):
             data[name] = {task["id"]: data[name][task["id"]] for task in tasks}
+        if track == "hj-context":
+            from tank_backend.prompts.assembler import PromptAssembler
+
+            data.update(
+                revision="s5-hj-context-1", nano_usd_limit=500_000_000, token_limit=8_000_000,
+                decision_rule={"kind": "full-context-gui-smoke", "planned_per_arm": 2,
+                               "statement": "all four strict/passed and cleaned; no L1-L3/H4 inference"},
+                statistics={"comparisons": [], "interpretation": "functional smoke only; no inference"},
+                intake_messages=full_intake_messages(data),
+                packages={name: version(name) for name in ("openai", "httpx", "typesafe-sdk", "pydantic")},
+            )
+            assembler = Path(inspect.getfile(PromptAssembler))
+            for path in (assembler, assembler.parent / "defaults/base.md", root / "uv.lock"):
+                data["source_sha256"][str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
     data["sha256"] = digest(data)
     return data
 
@@ -846,6 +897,21 @@ def long_verdict(
             "decision": decision}
 
 
+def context_verdict(
+    summary: dict[str, Any], *, completed: bool, mode: str,
+) -> dict[str, Any]:
+    complete = completed and all(
+        summary[arm]["planned"] == summary[arm]["finished"] == 2 for arm in ("H", "J")
+    )
+    qualified = all(summary[arm]["strict"] == summary[arm]["passed"] == 2
+                    and not summary[arm]["rule_violations"] for arm in ("H", "J"))
+    decision = ("incomplete_no_context_smoke_conclusion" if not complete else
+                "fake_wiring_only_no_adoption_conclusion" if mode == "fake" else
+                "prepare_hj_long_confirmation" if qualified else "context_smoke_not_qualified")
+    return {"l1_time": None, "l2_quality": None, "l3_cost": None, "h4": None,
+            "decision": decision}
+
+
 class OwnedApplication(s4_ax.OwnedApplication):
     """s4_ax owner adapted to S5 task dicts; still owns launch, readback, cleanup."""
 
@@ -957,7 +1023,6 @@ async def run_batch(
     import httpx2 as httpx
     import httpx as text_http
     from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
-    from tank_backend.agents.definition import AgentDefinition
     from tank_backend.agents.resources import DesktopResource
     from tank_backend.agents.runner import AgentRunner
     from tank_backend.agents.subagent import SubAgentAuthorization
@@ -1008,16 +1073,7 @@ async def run_batch(
         registry.register(manifest.plugin_name, extension)
     definitions: dict[str, AgentDefinition] = {}
     for arm in ("H", "J"):
-        definition = AgentDefinition(
-            f"s5-{arm.lower()}",
-            "S5 paired pilot",
-            "Operate only the bound application named by intake or target.",
-            extension="agent-computer-use:agent",
-            model="advisor",
-        )
-        if arm == "J":
-            definition = replace(definition, decision_model="jev")
-        definitions[arm] = definition
+        definitions[arm] = host_definition(arm)
     resource = DesktopResource()
     tasks: dict[str, PilotTask] = {item["id"]: item for item in frozen["tasks"]}
     rows = [
@@ -1230,9 +1286,14 @@ async def run_batch(
                 "text": task["max_decisions"] + frozen["advisor_call_limit"] + 1,
             }
             self.counts: Counter[str] = Counter()
+            self.expected_intake = frozen.get("intake_messages", {}).get(task["id"])
 
         def reserve(self, call_id, request):
             name = "jev" if str(request.url) == jev_endpoint else "text"
+            if track == "hj-context" and not self.counts:
+                if name != "text" or request.parameters.get("messages") != self.expected_intake:
+                    self.ledger.stop("intake_context_mismatch")
+                    raise SpendLimitExceeded("intake_context_mismatch")
             if self.counts[name] >= self.limits[name]:
                 self.ledger.stop("trial_call_limit")
                 raise SpendLimitExceeded("trial_call_limit")
@@ -1514,7 +1575,7 @@ async def run_batch(
         finally:
             for row in rows[written:]:
                 journal.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
-            if track == "hj-long":
+            if track != "original":
                 try:
                     ledger.close()
                 except Exception as exc:
@@ -1526,15 +1587,21 @@ async def run_batch(
             report["paired"] = paired_results(
                 rows, report["spend"], report["completed"], arms=arms,
             )
-            report["statistics"] = paired_statistics(report["paired"], arms=arms)
-            report["confirmatory"] = long_verdict(
-                report["summary"], completed=report["completed"], mode=mode,
-                rules=frozen["decision_rule"],
-            ) if track == "hj-long" else confirmatory_verdict(
-                report["summary"],
-                completed=report["completed"],
-                mode=mode,
-            )
+            report["statistics"] = ({"by_task": {}, "long_family": {}} if track == "hj-context"
+                                    else paired_statistics(report["paired"], arms=arms))
+            if track == "hj-context":
+                report["confirmatory"] = context_verdict(
+                    report["summary"], completed=report["completed"], mode=mode,
+                )
+            elif track == "hj-long":
+                report["confirmatory"] = long_verdict(
+                    report["summary"], completed=report["completed"], mode=mode,
+                    rules=frozen["decision_rule"],
+                )
+            else:
+                report["confirmatory"] = confirmatory_verdict(
+                    report["summary"], completed=report["completed"], mode=mode,
+                )
             report["conclusion"] = report["confirmatory"]["decision"]
             report["fake_http_requests"] = fake_received
             report["external_model_requests"] = (
@@ -1543,6 +1610,10 @@ async def run_batch(
                 if mode == "live"
                 else 0
             )
+            if track == "hj-context" and mode == "live":
+                report["external_model_requests"] = sum(
+                    r["status"] != "not_sent" for r in report["spend"]["requests"].values()
+                )
             if track == "original":
                 ledger.close()
             with (output / "result.json").open("w") as file:
@@ -1555,7 +1626,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--track", choices=("original", "hj-long"), default="original")
+    parser.add_argument("--track", choices=("original", "hj-long", "hj-context"), default="original")
     parser.add_argument("--run", choices=("fake", "live"))
     parser.add_argument("--approved-sha256")
     args = parser.parse_args()

@@ -2043,3 +2043,99 @@ async def test_intake_probe_cancel_preserves_denominator_and_reservation(monkeyp
     assert len(result["rows"]) == 12 and len(result["rows"][0]["calls"]) == 1
     assert result["spend"]["batch"]["reserved_nano_usd"] > 0
     assert result["verdict"] == "incomplete_no_conclusion"
+
+
+def test_hj_context_freezes_four_tasks_and_full_intake(monkeypatch, tmp_path):
+    s5 = _bootstrap(monkeypatch)
+    output = tmp_path / "context"
+    frozen = s5.prepare(output, track="hj-context")
+    assert frozen["revision"] == "s5-hj-context-1"
+    assert len(frozen["tasks"]) == 2 and len(frozen["schedule"]) == 4
+    assert [r["arm"] for r in frozen["schedule"]] == ["H", "J", "J", "H"]
+    assert frozen["request_limit"] == 140 and frozen["nano_usd_limit"] == 500000000
+    assert frozen["decision_rule"]["planned_per_arm"] == 2
+    assert frozen["statistics"]["comparisons"] == []
+    for task in frozen["tasks"]:
+        payload = json.loads(frozen["intake_messages"][task["id"]][1]["content"])
+        assert payload["request"] == frozen["prompts"][task["id"]]
+        assert payload["application"] == "com.apple.calculator"
+        assert "--- Clarification ---" in payload["context"]
+        assert "--- Security Rules ---" in payload["context"]
+        assert "ENVIRONMENT:" in payload["context"]
+    assert s5.load_freeze(output, frozen["sha256"], track="hj-context") == frozen
+    for track in ("original", "hj-long"):
+        with pytest.raises(ValueError, match="freeze"):
+            s5.load_freeze(output, frozen["sha256"], track=track)
+
+
+@pytest.mark.parametrize("change", ["none", "known_failure", "no_model_action", "rule_violation", "incomplete", "fake"])
+def test_hj_context_gate_requires_all_four_without_adoption(monkeypatch, change):
+    s5 = _bootstrap(monkeypatch)
+    summary = {arm: {"planned": 2, "finished": 2, "strict": 2, "passed": 2,
+                     "rule_violations": 0} for arm in ("H", "J")}
+    if change == "known_failure":
+        summary["H"]["strict"] = 1
+    if change == "no_model_action":
+        summary["J"]["passed"] = 1
+    if change == "rule_violation":
+        summary["J"]["rule_violations"] = 1
+    result = s5.context_verdict(summary, completed=change != "incomplete",
+                                mode="fake" if change == "fake" else "live")
+    assert all(result[k] is None for k in ("l1_time", "l2_quality", "l3_cost", "h4"))
+    assert result["decision"] == {
+        "none": "prepare_hj_long_confirmation", "fake": "fake_wiring_only_no_adoption_conclusion",
+        "incomplete": "incomplete_no_context_smoke_conclusion",
+    }.get(change, "context_smoke_not_qualified")
+
+
+@pytest.mark.parametrize("mismatch", [False, True])
+async def test_hj_context_real_runner_binds_full_messages_before_http(request, monkeypatch, tmp_path, mismatch):
+    from agent_computer_use.channels import native
+    from tank_backend.agents.runner import AgentRunner
+    world = request.getfixturevalue("shared_world")
+    s5 = _bootstrap(monkeypatch)
+    _install_fake_calculator(monkeypatch, s5, world)
+    world.buttons = [replace(button, frame=(5 + index * 7, 10, 6, 10))
+                     for index, button in enumerate(world.buttons)]
+    def click(x, y, **kwargs):
+        button = next(b for b in world.buttons if b.frame is not None
+                      and b.frame[0] <= x < b.frame[0] + b.frame[2])
+        native.ax_press(button.element)
+    monkeypatch.setattr(native.macos, "_click_macos", click)
+    builder = AgentRunner._build_sub_agent_prompt
+    if mismatch:
+        def changed(self, *args):
+            text = builder(self, *args)
+            return text + "\nChanged runtime context" if self._app_config is not None else text
+        monkeypatch.setattr(AgentRunner, "_build_sub_agent_prompt", changed)
+    output = tmp_path / "context"
+    frozen = s5.prepare(output, track="hj-context")
+    result = await s5.run_batch(output, frozen["sha256"], mode="fake", track="hj-context")
+    assert len(result["rows"]) == 4 and result["external_model_requests"] == 0
+    if mismatch:
+        assert not result["completed"]
+        assert result["spend"]["stop_reason"] == "intake_context_mismatch"
+        assert result["fake_http_requests"] == result["spend"]["batch"]["admitted_requests"] == 0
+        assert sum(r["status"] == "not_run" for r in result["rows"]) == 3
+    else:
+        assert result["completed"] and all(r["passed"] for r in result["rows"])
+        assert result["conclusion"] == "fake_wiring_only_no_adoption_conclusion"
+        assert all(result["confirmatory"][key] is None for key in ("l1_time", "l2_quality", "l3_cost", "h4"))
+        assert len(result["paired"]) == 2
+        assert result["statistics"] == {"by_task": {}, "long_family": {}}
+        for row in result["rows"]:
+            call = next(iter(row["calls"].values()))
+            assert call["request"]["messages"] == frozen["intake_messages"][row["task_id"]]
+            assert row["independent_values"] == {"expression": "12×3-8+5", "result": "33"}
+            assert row["application_cleanup"]["confirmed"]
+
+
+def test_hj_context_rejects_context_drift_before_execution(monkeypatch, tmp_path):
+    from tank_backend.prompts.assembler import PromptAssembler
+    s5 = _bootstrap(monkeypatch)
+    output = tmp_path / "context"
+    frozen = s5.prepare(output, track="hj-context")
+    monkeypatch.setattr(PromptAssembler, "get_base_rules", lambda self: "changed base rules")
+    with pytest.raises(ValueError, match="freeze"):
+        s5.load_freeze(output, frozen["sha256"], track="hj-context")
+    assert not (output / "started.json").exists()
