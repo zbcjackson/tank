@@ -1519,3 +1519,239 @@ def test_owned_input_capture_failure_invalidates_previous_frame(owned_input_worl
     with pytest.raises(ValueError, match="frame"):
         world.guard.click(frame.frame_id, 20, 20)
     assert world.sent == []
+
+
+def test_gui_smoke_preparation_is_offline_and_pins_one_request(monkeypatch, tmp_path):
+    _bootstrap(monkeypatch)
+    from benchmarks.computer_use import a_gui_smoke as smoke
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("preparation touched the desktop")
+
+    monkeypatch.setattr(smoke.s5.OwnedApplication, "start", forbidden)
+    frozen = smoke.prepare(tmp_path / "smoke")
+    assert frozen["arm"] == "A-control-owned-seven"
+    assert frozen["request_limit"] == 1
+    assert frozen["nano_usd_limit"] == 200000000
+    assert frozen["case"]["max_completion_tokens"] == 2048
+    assert frozen["case"]["extra_body"] == {"enable_thinking": False}
+    assert smoke.load_freeze(tmp_path / "smoke", frozen["sha256"]) == frozen
+    assert not (tmp_path / "smoke" / "started.json").exists()
+    with pytest.raises(ValueError, match="freeze"):
+        smoke.load_freeze(tmp_path / "smoke", "wrong")
+
+
+@pytest.fixture
+def gui_smoke_world(owned_input_world, monkeypatch):
+    from PIL import Image
+    from agent_computer_use.channels import native
+    from tank_backend.benchmarks.desktop_cleanup import MacOSInputCleanup
+    from benchmarks.computer_use import a_gui_smoke as smoke
+    from tank_backend.tools.computer_ax import AXCandidate
+
+    world = owned_input_world
+    world.window = replace(world.window, bounds=(180, 160, 232, 350),
+                           display_geometry=(5, 0, 0, 1920, 1080, 3840, 2160))
+    world.image = Image.new("RGB", (1920, 1080))
+    world.events = []
+    world.value = "7"
+    world.cleanup_ok = True
+    world.target = AXCandidate(1, "AXButton", "7", "", "", "7", ("AXPress",), True,
+                               (190, 347, 48, 48), AXElementRef(object(), False, 1080),
+                               pid=42, window_id=7)
+    monkeypatch.setattr(smoke.s5.computer_ax, "ax_window_candidates",
+                        lambda *args: ([world.target], False))
+
+    class Owner:
+        setup_actions = ["clear_owned_calculator"]
+        def __init__(self, task):
+            pass
+        def start(self):
+            assert smoke.resources.DESKTOP_RESOURCE.lock.locked()
+            world.events.append("start")
+            return world.guard.config
+        def read_values_once(self):
+            return {"result": world.value if world.sent else "0", "expression": ""}
+        def close(self):
+            assert smoke.resources.DESKTOP_RESOURCE.lock.locked()
+            world.events.append("app_cleanup")
+            return {"confirmed": world.cleanup_ok}
+
+    def release(self):
+        assert smoke.resources.DESKTOP_RESOURCE.lock.locked()
+        world.events.append("input_cleanup")
+        return {"errors": [], "keys_before": [], "buttons_before": []}
+
+    monkeypatch.setattr(smoke.s5, "OwnedApplication", Owner)
+    monkeypatch.setattr(MacOSInputCleanup, "_state", staticmethod(lambda: ([], [])))
+    monkeypatch.setattr(MacOSInputCleanup, "_release", release)
+    # Native foreground/identity is exercised by the real guard with OS boundaries replaced.
+    monkeypatch.setattr(native, "read_window", lambda config: world.window)
+    monkeypatch.setattr(smoke.resources, "DESKTOP_RESOURCE", smoke.resources.DesktopResource())
+    return world
+
+
+async def test_gui_smoke_fake_http_click_readback_and_cleanup(gui_smoke_world, tmp_path):
+    from benchmarks.computer_use import a_gui_smoke as smoke
+
+    world = gui_smoke_world
+    output = tmp_path / "smoke"
+    frozen = smoke.prepare(output)
+    report = await smoke.run_batch(output, frozen["sha256"], mode="fake")
+    assert report["passed"] is True
+    assert report["verdict"] == "fake_wiring_only"
+    assert report["external_model_requests"] == 0
+    assert report["fake_http_requests"] == 1
+    assert len(world.sent) == 1
+    assert world.events == ["start", "input_cleanup", "app_cleanup"]
+    assert not smoke.resources.DESKTOP_RESOURCE.lock.locked()
+    request = json.loads((output / "A-control-owned-seven.request.json").read_text())
+    assert "annotation" not in json.dumps(request)
+    assert request["enable_thinking"] is False
+    assert request["max_completion_tokens"] == 2048
+    with pytest.raises(FileExistsError):
+        await smoke.run_batch(output, frozen["sha256"], mode="fake")
+    assert len(world.sent) == 1
+
+
+@pytest.mark.parametrize("case", ["wrong_readback", "occluded", "cleanup_failed", "native_error"])
+async def test_gui_smoke_failure_keeps_cleanup_and_no_retry(gui_smoke_world, monkeypatch, tmp_path, case):
+    from agent_computer_use.channels import native
+    from benchmarks.computer_use import a_gui_smoke as smoke
+
+    world = gui_smoke_world
+    if case == "wrong_readback":
+        world.value = "9"
+    elif case == "occluded":
+        world.exposed = False
+    elif case == "cleanup_failed":
+        world.cleanup_ok = False
+    else:
+        def uncertain(*args, **kwargs):
+            world.sent.append("possibly_sent")
+            raise OSError("lost native return")
+        monkeypatch.setattr(native.macos, "_click_macos", uncertain)
+    output = tmp_path / "smoke"
+    frozen = smoke.prepare(output)
+    report = await smoke.run_batch(output, frozen["sha256"], mode="fake")
+    assert not report["passed"]
+    assert report["fake_http_requests"] == 1
+    assert len(world.sent) == (0 if case == "occluded" else 1)
+    assert world.events[-2:] == ["input_cleanup", "app_cleanup"]
+    assert not smoke.resources.DESKTOP_RESOURCE.lock.locked()
+    if case == "cleanup_failed":
+        with pytest.raises(RuntimeError, match="quarantined"):
+            async with smoke.resources.DESKTOP_RESOURCE.acquire():
+                pytest.fail("unconfirmed cleanup released usable desktop")
+
+
+async def test_gui_smoke_annotation_is_not_a_dispatch_oracle(gui_smoke_world, monkeypatch, tmp_path):
+    from benchmarks.computer_use import a_gui_smoke as smoke
+
+    original = smoke.fake_reply
+    monkeypatch.setattr(smoke, "fake_reply", lambda target: original({"center": [350, 450]}))
+    gui_smoke_world.value = "9"
+    output = tmp_path / "smoke"
+    frozen = smoke.prepare(output)
+    report = await smoke.run_batch(output, frozen["sha256"], mode="fake")
+    assert report["row"]["schema_valid"] and not report["row"]["within_annotation"]
+    assert report["click_returned"] and len(gui_smoke_world.sent) == 1
+    assert not report["passed"]
+
+
+async def test_gui_smoke_unknown_usage_keeps_reservation_without_click(gui_smoke_world, monkeypatch, tmp_path):
+    import httpx
+    from benchmarks.computer_use import a_gui_smoke as smoke
+
+    monkeypatch.setattr(smoke, "fake_reply", lambda target: lambda request: httpx.Response(
+        200, headers={"content-type": "text/event-stream"}, content="data: [DONE]\n\n"))
+    output = tmp_path / "smoke"
+    frozen = smoke.prepare(output)
+    report = await smoke.run_batch(output, frozen["sha256"], mode="fake")
+    assert not report["passed"] and not gui_smoke_world.sent
+    assert report["fake_http_requests"] == 1
+    assert report["spend"]["batch"]["reserved_nano_usd"] > 0
+    assert report["application_cleanup"]["confirmed"]
+
+
+async def test_gui_smoke_cancel_joins_cleanup_and_retains_report(gui_smoke_world, monkeypatch, tmp_path):
+    import asyncio
+    from benchmarks.computer_use import a_gui_smoke as smoke
+
+    entered = asyncio.Event()
+    async def blocked(request):
+        entered.set()
+        await asyncio.Event().wait()
+    monkeypatch.setattr(smoke, "fake_reply", lambda target: blocked)
+    output = tmp_path / "smoke"
+    frozen = smoke.prepare(output)
+    pending = asyncio.create_task(smoke.run_batch(output, frozen["sha256"], mode="fake"))
+    await asyncio.wait_for(entered.wait(), 5)
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    report = json.loads((output / "result.json").read_text())
+    assert report["status"] == "cancelled" and not report["passed"]
+    assert report["application_cleanup"]["confirmed"]
+    assert report["input_cleanup"]["confirmed"]
+    assert gui_smoke_world.events[-2:] == ["input_cleanup", "app_cleanup"]
+    assert not gui_smoke_world.sent
+
+
+async def test_gui_smoke_ledger_close_error_retains_failed_report(gui_smoke_world, monkeypatch, tmp_path):
+    from benchmarks.computer_use import a_gui_smoke as smoke
+
+    close = smoke.SpendLedger.close
+    def broken(self):
+        close(self)
+        raise OSError("journal unavailable")
+    monkeypatch.setattr(smoke.SpendLedger, "close", broken)
+    output = tmp_path / "smoke"
+    frozen = smoke.prepare(output)
+    with pytest.raises(OSError):
+        await smoke.run_batch(output, frozen["sha256"], mode="fake")
+    report = json.loads((output / "result.json").read_text())
+    assert not report["passed"] and report["ledger_error"] == "OSError"
+    assert report["row"]["usage"]["status"] == "returned"
+    assert report["application_cleanup"]["confirmed"]
+
+
+async def test_gui_smoke_waits_for_asynchronous_click_effect(gui_smoke_world, monkeypatch, tmp_path):
+    from benchmarks.computer_use import a_gui_smoke as smoke
+
+    original = smoke.s5.OwnedApplication.read_values_once
+    reads = 0
+    def delayed(self):
+        nonlocal reads
+        if gui_smoke_world.sent:
+            reads += 1
+            if reads < 3:
+                return {"result": "0"}
+        return original(self)
+    monkeypatch.setattr(smoke.s5.OwnedApplication, "read_values_once", delayed)
+    output = tmp_path / "smoke"
+    frozen = smoke.prepare(output)
+    report = await smoke.run_batch(output, frozen["sha256"], mode="fake")
+    assert report["passed"] and reads == 3
+    assert len(gui_smoke_world.sent) == 1
+
+
+async def test_gui_smoke_task_deadline_cancels_pending_model(gui_smoke_world, monkeypatch, tmp_path):
+    import asyncio
+    from benchmarks.computer_use import a_gui_smoke as smoke
+
+    original = smoke.freeze_inputs
+    def short_recipe():
+        frozen = original()
+        frozen["seconds_per_task"] = 1
+        return frozen
+    async def stalled(request):
+        await asyncio.Event().wait()
+    monkeypatch.setattr(smoke, "freeze_inputs", short_recipe)
+    monkeypatch.setattr(smoke, "fake_reply", lambda target: stalled)
+    output = tmp_path / "smoke"
+    frozen = smoke.prepare(output)
+    report = await asyncio.wait_for(smoke.run_batch(output, frozen["sha256"], mode="fake"), 3)
+    assert report["status"] == "error" and report["error"] == "TimeoutError"
+    assert not report["passed"] and not gui_smoke_world.sent
+    assert report["application_cleanup"]["confirmed"]
