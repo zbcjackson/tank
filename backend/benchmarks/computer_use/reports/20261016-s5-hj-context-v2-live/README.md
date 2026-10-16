@@ -1,6 +1,6 @@
 # S5 完整生产上下文 GUI：冻结执行预览
 
-> 状态：2026-10-16 新配方已冻结，同签名4/4 fake实机通过；完整6087/E2E18及lint/type/docs通过，第1轮独立评审无可操作问题、无源码修复即结束，10项定向离线回归复核通过（评审状态补记由评审者自检）。真实未启动，新增$0.50估算预算待明确确认。
+> 状态：2026-10-16 用户明确批准后同签名真实4/4项完成，H 1/2、J 2/2 strict/passed，未通过全4门；46请求全部known、估算$0.031331709，清理全确认。本结果范围第1轮独立评审无可操作问题、无事实修复即结束，docs51/diff通过（评审状态补记由评审者自检）；以下执行预览保留为执行前记录，禁止重跑此目录。
 
 签名 **3e15225394068660f76ed7a0728bae82c44f5d6a5e0522cac9411259daf7ab58**，见[freeze.json](freeze.json)、
 [fake验收](../20261016-s5-hj-context-v2-fake/README.md)、[主计划](../../../../../docs/plans/active/computer-use-strategy-ladder.md)。
@@ -42,7 +42,7 @@ fake永不产生后续采用/完整实验准入结论。L1–L3/H4均null，统�
 整个存储失败时不能保证落盘。每目录exclusive started禁止重跑，源码改变须新目录。
 历史40/150项、原A及H4不拼接、不重新判分。
 
-## 预算与命令（尚未执行）
+## 预算与命令（执行前冻结记录，现已执行）
 
 新增冻结估算 **$0.50 / 8000000tokens / 最多140请求**，4项串行。
 单任务240s、400万tokens/$0.25，H最多25文本请求，J最多20Jev+25文本请求，SDK重试0。
@@ -52,7 +52,7 @@ fake永不产生后续采用/完整实验准入结论。L1–L3/H4均null，统�
 
 执行前真实known+held **$0.624645324**，其中旧unknown预留$0.380096640不变；
 新增$0.50获准后账本口径累计上限 **$1.124645324**。不转用旧剩余额度，不将fake费用
-计入真实费用。当前live只有freeze和说明，无started/result/spend。
+计入真实费用。执行前live只有freeze和说明，无started/result/spend。
 
 完整验证及独立评审通过，并明确确认本配方新增预算、完整context外发及GUI范围后，
 从backend执行一次：
@@ -66,3 +66,40 @@ uv run --no-sync python -m benchmarks.computer_use.s5_paired \
 ```
 
 凭据仅用现有core/.env的TYPESAFE_API_KEY、BAILIAN_API_KEY，不输出到日志。
+
+## 真实结果与结论
+
+用户对上述明确范围回复“批准”后，按原签名执行一次，4项均finished、无not_run。
+AXPress：H失败，J成功；Quartz：J、H均成功。H strict/passed=1/2，J=2/2；
+三个成功项独立AX均读回expression=`12×3-8+5`、result=`33`。四项均有模型动作
+实际执行，输入及应用/位置/前台清理全确认，0规则违规、0截图。
+
+四项首个实际intake messages均逐字等于冻结消息，intake均生成inputs=[]、
+completion present=33；本批没有重现旧40项共同入口失败。它说明这4次完整生产
+context入口可用，不能据此证明提示修复的因果效果或长期可靠性。
+
+H的AXPress失败发生在动作选择阶段：共14条派发回执、16次文本请求（intake 1、
+selector 11、Advisor 4）。第5步Subtract后显示`12×3-`，第6步selector直接选Add，
+显示变成`12×3+`，跳过8；Advisor选5后Equals得到41。随后All Clear，恢复中
+Advisor从2开始，selector输入减号、8，之后Clear/All Clear又归零，最终
+partial/advisor_limit；独立读回result=0。没有将这个已知失败抹除、重跑或改判。
+这些记录支持“动作规划/恢复失误”，尚未建立通用宿主缺陷或AXPress通道故障。
+
+总46请求（32文本+14Jev），265363 known tokens、估算 **$0.031331709**，
+reserved=0、stop_reason=null、0新unknown；H $0.022557810/42.154s，
+J $0.008773899/33.310s，只作描述。旧unknown预留$0.380096640保持，
+累计known估算 **$0.275880393**，known+held **$0.655977033**。
+未花预算不自动转用；金额沿用冻结单价估算，不是发票。
+
+冻结全4门未通过，结论为 **context_smoke_not_qualified**；本批不准入新的完整
+长任务确认。2个原始配对保留，推断统计为空，L1–L3/H4均null。J 2/2不能证明
+Jev稳定性、准确率或净收益，也不与旧40/150项拼接比较。
+
+[result.json](result.json) SHA256：
+`7608d1dd4dc2ff3078d9972028fdd98227117d81aef7788b718a775bf4f002ff`。
+原始消息、回执、账本及结果仅本地保留。本次没有源码修改，沿用未变源码已通过的
+完整6087/E2E18验证；本结果范围执行docs检查与独立评审。
+
+下一步先零收费离线回放H失败链，核对selector/Advisor当时的任务、候选和语义历史，
+确定是否有通用且可复现的信息缺口，再决定最小修复或按能力边界收口。
+不提高Advisor上限来掩盖失败，不直接扩大真实样本；Jev图片仍后置，G3/S6未完成。
