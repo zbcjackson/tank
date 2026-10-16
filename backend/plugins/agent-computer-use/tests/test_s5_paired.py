@@ -1890,3 +1890,156 @@ async def test_hj_long_close_failure_retains_failed_report(request, monkeypatch,
     assert [(row["trial"], row["status"]) for row in saved["rows"]] == [
         (row["trial"], row["status"]) for row in report["rows"]
     ]
+
+
+def test_intake_probe_freezes_balanced_text_only_comparison(monkeypatch, tmp_path):
+    _bootstrap(monkeypatch)
+    from benchmarks.computer_use import intake_probe as probe
+    frozen = probe.prepare(tmp_path / "probe")
+    assert len(frozen["schedule"]) == 12
+    assert frozen["nano_usd_limit"] == 250000000 and frozen["request_limit"] == 12
+    assert set(frozen["messages"]) == {"calculator", "literal-text"}
+    for case in frozen["cases"]:
+        messages = frozen["messages"][case["id"]]
+        assert messages["legacy"][1] == messages["revised"][1]
+        assert messages["legacy"][0] != messages["revised"][0]
+        payload = json.loads(messages["revised"][1]["content"])
+        assert set(payload) == {"request", "context", "application", "response_schema"}
+        assert "expected" not in payload
+    assert [r["arm"] for r in frozen["schedule"]].count("revised") == 6
+    assert probe.load_freeze(tmp_path / "probe", frozen["sha256"]) == frozen
+    with pytest.raises(ValueError):
+        probe.load_freeze(tmp_path / "probe", "wrong")
+
+
+async def test_intake_probe_sdk_continues_known_failures_without_gui(monkeypatch, tmp_path):
+    from unittest.mock import Mock
+    s5 = _bootstrap(monkeypatch)
+    from benchmarks.computer_use import intake_probe as probe
+    forbidden = Mock(side_effect=AssertionError("no desktop in intake probe"))
+    monkeypatch.setattr(s5.OwnedApplication, "start", forbidden)
+    monkeypatch.setattr(s5.computer_use_macos, "_capture_screenshot_macos", forbidden)
+    output = tmp_path / "probe"
+    frozen = probe.prepare(output)
+    result = await probe.run_batch(output, frozen["sha256"], mode="fake")
+    assert result["completed"] and len(result["rows"]) == 12
+    assert result["summary"] == {"legacy": {"calculator": 0, "literal-text": 3},
+                                  "revised": {"calculator": 3, "literal-text": 3}}
+    assert result["verdict"] == "fake_wiring_only"
+    assert result["fake_http_requests"] == 12 and result["external_model_requests"] == 0
+    assert result["gui_operations"] == 0
+    forbidden.assert_not_called()
+    assert len(result["spend"]["trials"]) == 12
+    for row in result["rows"]:
+        request = next(iter(row["calls"].values()))["request"]
+        assert request["messages"] == frozen["messages"][row["case_id"]][row["arm"]]
+        assert request["max_tokens"] == 2048 and request["enable_thinking"] is False
+    with pytest.raises(FileExistsError):
+        await probe.run_batch(output, frozen["sha256"], mode="fake")
+
+
+@pytest.mark.parametrize("failure", ["unknown", "bad_json", "wrong_literal", "changed_source"])
+async def test_intake_probe_failure_and_gate_boundaries(monkeypatch, tmp_path, failure):
+    import httpx
+    _bootstrap(monkeypatch)
+    from benchmarks.computer_use import intake_probe as probe
+    original = probe.fake_text
+    if failure == "bad_json":
+        monkeypatch.setattr(probe, "fake_text", lambda case, row: "not json")
+    elif failure == "wrong_literal":
+        def wrong(case, row):
+            answer = original(case, row)
+            return answer.replace('\\n', '') if case["id"] == "literal-text" else answer
+        monkeypatch.setattr(probe, "fake_text", wrong)
+    elif failure == "unknown":
+        monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda *a, **kw: httpx.MockTransport(
+            lambda request: httpx.Response(500, json={"error": "synthetic"})))
+    output = tmp_path / "probe"
+    frozen = probe.prepare(output)
+    if failure == "changed_source":
+        monkeypatch.setattr(probe.intake, "INTAKE_SYSTEM", "changed")
+        with pytest.raises(ValueError, match="freeze"):
+            await probe.run_batch(output, frozen["sha256"], mode="fake")
+        assert not (output / "started.json").exists()
+        return
+    result = await probe.run_batch(output, frozen["sha256"],
+                                  mode="live" if failure == "unknown" else "fake", credential="offline")
+    assert len(result["rows"]) == 12
+    if failure == "unknown":
+        assert not result["completed"] and result["external_model_requests"] == 1
+        assert sum(r["status"] == "not_run" for r in result["rows"]) == 11
+        assert result["spend"]["batch"]["reserved_nano_usd"] > 0
+        assert result["verdict"] == "incomplete_no_conclusion"
+    else:
+        assert result["completed"] and result["fake_http_requests"] == 12
+        assert result["summary"]["revised"]["literal-text"] == 0
+        assert result["verdict"] == "fake_wiring_only"
+
+
+async def test_intake_probe_cleanup_failure_retains_call_evidence(monkeypatch, tmp_path):
+    from tank_backend.agents.task_runtime import TaskRuntime
+    _bootstrap(monkeypatch)
+    from benchmarks.computer_use import intake_probe as probe
+    original = TaskRuntime.aclose
+    async def broken(self):
+        await original(self)
+        raise OSError("client close failure")
+    monkeypatch.setattr(TaskRuntime, "aclose", broken)
+    output = tmp_path / "probe"
+    frozen = probe.prepare(output)
+    with pytest.raises(OSError):
+        await probe.run_batch(output, frozen["sha256"], mode="fake")
+    result = json.loads((output / "result.json").read_text())
+    assert not result["completed"] and len(result["rows"]) == 12
+    assert len(result["rows"][0]["calls"]) == 1
+    assert result["rows"][0]["cleanup_error"] == "OSError"
+    assert result["fake_http_requests"] == 1
+
+
+@pytest.mark.parametrize("qualified", [True, False])
+async def test_intake_probe_live_gate_uses_revised_all_six(monkeypatch, tmp_path, qualified):
+    import httpx
+    _bootstrap(monkeypatch)
+    from benchmarks.computer_use import intake_probe as probe
+    cases = json.loads((probe.FIXTURES / "cases.json").read_text())
+    def reply(request):
+        payload = json.loads(request.content)
+        body = json.loads(payload["messages"][1]["content"])
+        case = next(c for c in cases if c["request"] == body["request"])
+        answer = probe.fake_text(case, {"arm": "revised", "repeat": 0})
+        if not qualified and case["id"] == "literal-text":
+            answer = answer.replace('\\n', '')
+        return httpx.Response(200, json={"id": "offline", "object": "chat.completion",
+            "created": 1, "model": payload["model"], "choices": [{"index": 0,
+                "finish_reason": "stop", "message": {"role": "assistant", "content": answer}}],
+            "usage": {"prompt_tokens": 12, "completion_tokens": 5, "total_tokens": 17}})
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda *a, **kw: httpx.MockTransport(reply))
+    output = tmp_path / "probe"
+    frozen = probe.prepare(output)
+    result = await probe.run_batch(output, frozen["sha256"], mode="live", credential="offline")
+    assert result["completed"]
+    assert result["verdict"] == ("prepare_gui_validation" if qualified else "revised_prompt_not_qualified")
+
+
+async def test_intake_probe_cancel_preserves_denominator_and_reservation(monkeypatch, tmp_path):
+    import asyncio
+    import httpx
+    _bootstrap(monkeypatch)
+    from benchmarks.computer_use import intake_probe as probe
+    entered = asyncio.Event()
+    async def stalled(request: httpx.Request) -> httpx.Response:
+        entered.set()
+        await asyncio.Event().wait()
+        raise AssertionError("stalled transport must be cancelled")
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda *a, **kw: httpx.MockTransport(stalled))
+    output = tmp_path / "probe"
+    frozen = probe.prepare(output)
+    task = asyncio.create_task(probe.run_batch(output, frozen["sha256"], mode="live", credential="offline"))
+    await asyncio.wait_for(entered.wait(), 5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    result = json.loads((output / "result.json").read_text())
+    assert len(result["rows"]) == 12 and len(result["rows"][0]["calls"]) == 1
+    assert result["spend"]["batch"]["reserved_nano_usd"] > 0
+    assert result["verdict"] == "incomplete_no_conclusion"

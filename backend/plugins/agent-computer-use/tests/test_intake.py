@@ -265,7 +265,11 @@ async def test_aligns_intake_present_to_profile_result_during_bind() -> None:
         SubAgentRequest("在备忘录写 56", "", "task", {"target": {"application": "Calculator"}}),
         context())
     assert (result.status, result.reason) == ("completed", "goal_verified")
-    assert result.details["intake"]["completion"][0] == {"type": "present", "value": "56"}
+    brief = result.details["intake"]
+    assert isinstance(brief, dict)
+    completion = brief["completion"]
+    assert isinstance(completion, list)
+    assert completion[0] == {"type": "present", "value": "56"}
 
 
 def test_recover_inputs_copies_long_present_values_from_the_request() -> None:
@@ -311,3 +315,67 @@ def test_recover_inputs_ignores_join_newline_on_short_results() -> None:
     })
 
     assert recover_inputs(brief, request) == brief
+
+
+async def test_intake_accepts_only_a_whole_json_fence(intake) -> None:
+    read, sent = intake
+    reply = "```json\n" + json.dumps({"kind": "brief", "brief": BRIEF}) + "\n```"
+    brief, ctx = await read(reply, application="Notes")
+    assert brief == TaskBrief.from_input(BRIEF)
+    assert len(sent) == 1 and ctx.budget.total_tokens == 15
+
+
+@pytest.mark.parametrize("wrapper", [
+    lambda text: "Explanation\n```json\n" + text + "\n```",
+    lambda text: "```json\n" + text + "\n```\nDone",
+    lambda text: "```\n" + text + "\n```",
+    lambda text: "```python\n" + text + "\n```",
+    lambda text: "```json\n" + text + "\n```\n```json\n{}\n```",
+])
+async def test_intake_fence_does_not_repair_other_formats(intake, wrapper) -> None:
+    read, _ = intake
+    with pytest.raises(SubAgentStopped, match="invalid_intake"):
+        await read(wrapper(json.dumps({"kind": "brief", "brief": BRIEF})))
+
+
+async def test_intake_fenced_duplicate_keys_still_fail(intake) -> None:
+    read, _ = intake
+    with pytest.raises(SubAgentStopped, match="invalid_intake"):
+        await read('```json\n{"kind":"unable","kind":"brief","brief":' + json.dumps(BRIEF) + '}\n```')
+
+
+@pytest.mark.parametrize("index", range(4))
+async def test_recorded_control_keys_are_not_admitted_as_fill_values(intake, index) -> None:
+    from pathlib import Path
+
+    fixture = json.loads((Path(__file__).parents[3] / "benchmarks/computer_use/fixtures/s5-intake/recorded-failures.json").read_text())
+    read, sent = intake
+    brief, _ = await read(fixture["replies"][index]["text"], task=fixture["request"],
+                         application=fixture["application"])
+    assert brief == "ungrounded_input"
+    assert len(sent) == 1
+
+
+@pytest.mark.parametrize("fenced", [False, True])
+async def test_literal_operator_text_remains_verbatim_input(intake, fenced) -> None:
+    body = "*3 +5=\n"
+    value = {"application": "TextEdit", "objective": "Replace the document body",
+             "inputs": [{"purpose": "document body", "value": body}],
+             "completion": [{"type": "present", "value": body}]}
+    reply = json.dumps({"kind": "brief", "brief": value})
+    if fenced:
+        reply = "```json\n" + reply + "\n```"
+    brief, _ = await intake[0](reply, task="Write exactly:\n" + body, application="TextEdit")
+    assert isinstance(brief, TaskBrief)
+    assert brief.inputs[0].value == body and brief.completion[0].value == body
+    assert goal_from_brief(brief, "Write exactly:\n" + body).inputs[0].value == body
+
+
+async def test_button_only_brief_needs_no_fill_values(intake) -> None:
+    task = "用计算器通过按键算出 12×3-8+5，让结果显示为 33。不要直接输入 33。"
+    value = {"application": "Calculator", "objective": task, "inputs": [],
+             "completion": [{"type": "present", "value": "33"}]}
+    brief, _ = await intake[0]({"kind": "brief", "brief": value}, task=task, application="Calculator")
+    assert isinstance(brief, TaskBrief) and not brief.inputs
+    goal = goal_from_brief(brief, task)
+    assert goal.intent == task and not goal.inputs

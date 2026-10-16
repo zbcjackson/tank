@@ -1,0 +1,24 @@
+{
+  "source_result_sha256": "98e46670f9bc2b989b681c9e3dd5837a3588a38181633aea252f18b6f9dbbd0f",
+  "request": "用计算器通过按键算出 12×3-8+5，让结果显示为 33。不要直接输入 33，也不要改模式或使用记忆键。",
+  "context": "Operate only the bound application named by intake or target.",
+  "application": "com.apple.calculator",
+  "replies": [
+    {
+      "name": "star-equals",
+      "text": "{\n  \"kind\": \"brief\",\n  \"brief\": {\n    \"application\": \"com.apple.calculator\",\n    \"objective\": \"Calculate the expression 12×3-8+5 using keyboard inputs to get the result 33.\",\n    \"constraints\": [\n      \"Do not directly input the final answer 33.\",\n      \"Do not change calculation modes (e.g., scientific, programmer).\",\n      \"Do not use memory keys (M+, M-, MR, MC).\"\n    ],\n    \"inputs\": [\n      {\n        \"purpose\": \"Input the number 12\",\n        \"value\": \"12\"\n      },\n      {\n        \"purpose\": \"Select multiplication operator\",\n        \"value\": \"*\"\n      },\n      {\n        \"purpose\": \"Input the number 3\",\n        \"value\": \"3\"\n      },\n      {\n        \"purpose\": \"Select subtraction operator\",\n        \"value\": \"-\"\n      },\n      {\n        \"purpose\": \"Input the number 8\",\n        \"value\": \"8\"\n      },\n      {\n        \"purpose\": \"Select addition operator\",\n        \"value\": \"+\"\n      },\n      {\n        \"purpose\": \"Input the number 5\",\n        \"value\": \"5\"\n      },\n      {\n        \"purpose\": \"Execute calculation to show result\",\n        \"value\": \"=\"\n      }\n    ],\n    \"completion\": [\n      {\n        \"type\": \"present\",\n        \"value\": \"33\"\n      }\n    ]\n  }\n}"
+    },
+    {
+      "name": "star-three-equals",
+      "text": "{\n  \"kind\": \"brief\",\n  \"brief\": {\n    \"application\": \"com.apple.calculator\",\n    \"objective\": \"Calculate the expression 12×3-8+5 using keyboard inputs to get the result 33.\",\n    \"constraints\": [\n      \"Do not directly input the final result '33'.\",\n      \"Do not change calculation modes (e.g., keep it in standard mode).\",\n      \"Do not use memory keys.\"\n    ],\n    \"inputs\": [\n      {\n        \"purpose\": \"Input the number 12\",\n        \"value\": \"12\"\n      },\n      {\n        \"purpose\": \"Multiply by 3\",\n        \"value\": \"*3\"\n      },\n      {\n        \"purpose\": \"Subtract 8\",\n        \"value\": \"-8\"\n      },\n      {\n        \"purpose\": \"Add 5\",\n        \"value\": \"+5\"\n      },\n      {\n        \"purpose\": \"Execute the calculation\",\n        \"value\": \"=\"\n      }\n    ],\n    \"completion\": [\n      {\n        \"type\": \"present\",\n        \"value\": \"33\"\n      }\n    ]\n  }\n}"
+    },
+    {
+      "name": "star-three-plus-equals",
+      "text": "{\n  \"kind\": \"brief\",\n  \"brief\": {\n    \"application\": \"com.apple.calculator\",\n    \"objective\": \"Calculate the expression 12×3-8+5 using keyboard inputs to display the result 33.\",\n    \"constraints\": [\n      \"Do not directly input the final result '33'.\",\n      \"Do not change calculation modes (e.g., scientific, programmer).\",\n      \"Do not use memory keys (M+, M-, MR, MC).\"\n    ],\n    \"inputs\": [\n      {\n        \"purpose\": \"Input the number 12\",\n        \"value\": \"12\"\n      },\n      {\n        \"purpose\": \"Multiply by 3\",\n        \"value\": \"*3\"\n      },\n      {\n        \"purpose\": \"Subtract 8\",\n        \"value\": \"-8\"\n      },\n      {\n        \"purpose\": \"Add 5 and calculate\",\n        \"value\": \"+5=\"\n      }\n    ],\n    \"completion\": [\n      {\n        \"type\": \"present\",\n        \"value\": \"33\"\n      }\n    ]\n  }\n}"
+    },
+    {
+      "name": "fenced-operator-values",
+      "text": "```json\n{\n  \"kind\": \"brief\",\n  \"brief\": {\n    \"application\": \"com.apple.calculator\",\n    \"objective\": \"Calculate the expression 12×3-8+5 using keyboard inputs to get the result 33.\",\n    \"constraints\": [\n      \"Do not directly input the final answer 33.\",\n      \"Do not change calculation modes (e.g., scientific, programmer).\",\n      \"Do not use memory keys (M+, M-, MR, MC).\"\n    ],\n    \"inputs\": [\n      {\n        \"purpose\": \"Input the number 12\",\n        \"value\": \"12\"\n      },\n      {\n        \"purpose\": \"Multiply by 3\",\n        \"value\": \"*3\"\n      },\n      {\n        \"purpose\": \"Subtract 8\",\n        \"value\": \"-8\"\n      },\n      {\n        \"purpose\": \"Add 5 and calculate result\",\n        \"value\": \"+5=\"\n      }\n    ],\n    \"completion\": [\n      {\n        \"type\": \"present\",\n        \"value\": \"33\"\n      }\n    ]\n  }\n}\n```"
+    }
+  ]
+}

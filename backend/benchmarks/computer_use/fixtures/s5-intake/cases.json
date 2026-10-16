@@ -1,0 +1,16 @@
+[
+  {
+    "id": "calculator",
+    "request": "用计算器通过按键算出 12×3-8+5，让结果显示为 33。不要直接输入 33，也不要改模式或使用记忆键。",
+    "context": "Operate only the bound application named by intake or target.",
+    "application": "com.apple.calculator",
+    "expected": "33"
+  },
+  {
+    "id": "literal-text",
+    "request": "把 TextEdit 当前文档正文替换为下面的文字，保留所有字符和末尾换行，不保存或关闭窗口：\n*3 +5=\n",
+    "context": "Operate only the bound application named by intake or target.",
+    "application": "com.apple.TextEdit",
+    "expected": "*3 +5=\n"
+  }
+]

@@ -6,6 +6,7 @@ import json
 from typing import Literal
 from uuid import uuid4
 
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import Field, ValidationError, model_validator
 
 from tank_backend.agents.subagent import SubAgentContext, SubAgentRequest, SubAgentStopped
@@ -122,6 +123,55 @@ def goal_from_brief(brief: TaskBrief, intent: str) -> GoalContract:
     })
 
 
+INTAKE_SYSTEM = (
+    "Return one raw JSON object matching response_schema, without Markdown fences or commentary, "
+    "that restates a desktop task for one macOS application. application is the app to operate; "
+    "use the given application when it is not null. inputs are literal user data to fill into "
+    "a text field or document. Button clicks, keypad sequences, operators and control-key presses "
+    "are actions, not fill values; describe them in objective/constraints, never in inputs. "
+    "For a task performed through buttons or control keys, use inputs=[] unless the user also "
+    "supplies literal text to fill into a field. Conversely, symbols such as operators are literal "
+    "data when the user asks to write them into a document; preserve them exactly. "
+    "Copy fill values verbatim including whitespace and trailing newlines, or use null when the "
+    "user must still provide one. Never invent user values. Do not put fill text only in "
+    "completion—text the app must enter belongs in inputs, and completion.present may "
+    "repeat that same text. completion lists text the app window shows once the task is "
+    "done: present for a new field value, absent for a value that disappears, title for "
+    "the window title. Expected results may be derived, such as a computed number, and "
+    "those short results are not inputs. Return unable with application_unknown when the "
+    "app is unclear, no_observable_completion when no visible text can confirm completion, "
+    "or missing_user_input when required information is missing."
+)
+
+
+def intake_messages(
+    request: SubAgentRequest, application: str | None,
+) -> list[ChatCompletionMessageParam]:
+    payload = {
+        "request": request.task, "context": request.context, "application": application,
+        "response_schema": IntakeReply.model_json_schema(),
+    }
+    return [
+        {"role": "system", "content": INTAKE_SYSTEM},
+        {"role": "user", "content": json.dumps(payload, ensure_ascii=False, allow_nan=False)},
+    ]
+
+
+def parse_brief(text: str, source: str) -> TaskBrief | str:
+    """Decode one complete JSON reply, then apply the unchanged input-source contract."""
+    if len(text) > 16384:
+        raise ValueError("Intake exceeds the response bound")
+    text = text.strip()
+    if text.startswith("```json\n") and text.endswith("\n```"):
+        text = text[len("```json\n"):-len("\n```")]
+    reply = IntakeReply.model_validate_json(json.dumps(json_object(text), allow_nan=False))
+    if reply.brief is None:
+        assert reply.reason is not None
+        return reply.reason
+    brief = recover_inputs(reply.brief, source)
+    return brief if grounded(brief, source) else "ungrounded_input"
+
+
 class LLMIntake:
     async def read(
         self, request: SubAgentRequest, application: str | None, context: SubAgentContext,
@@ -131,37 +181,9 @@ class LLMIntake:
         model = context.runtime.model
         if model is None:
             raise SubAgentStopped("intake_model_unavailable")
-        payload = {
-            "request": request.task, "context": request.context, "application": application,
-            "response_schema": IntakeReply.model_json_schema(),
-        }
-        text = await model.complete([
-            {"role": "system", "content": (
-                "Return one JSON object matching response_schema that restates a desktop task for "
-                "one macOS application. application is the app to operate; use the given application "
-                "when it is not null. inputs are values the user stated for the app to type or fill; "
-                "copy them verbatim including whitespace and trailing newlines, or use null when the "
-                "user must still provide one. Never invent user values. Do not put fill text only in "
-                "completion—text the app must enter belongs in inputs, and completion.present may "
-                "repeat that same text. completion lists text the app window shows once the task is "
-                "done: present for a new field value, absent for a value that disappears, title for "
-                "the window title. Expected results may be derived, such as a computed number, and "
-                "those short results are not inputs. Return unable with application_unknown when the "
-                "app is unclear, no_observable_completion when no visible text can confirm completion, "
-                "or missing_user_input when required information is missing."
-            )},
-            {"role": "user", "content": json.dumps(payload, ensure_ascii=False, allow_nan=False)},
-        ])
+        text = await model.complete(intake_messages(request, application))
         context.check("network")
         try:
-            if len(text) > 16384:
-                raise ValueError("Intake exceeds the response bound")
-            reply = IntakeReply.model_validate_json(json.dumps(json_object(text), allow_nan=False))
+            return parse_brief(text, f"{request.task}\n{request.context}")
         except (ValueError, ValidationError):
             raise SubAgentStopped("invalid_intake") from None
-        if reply.brief is None:
-            assert reply.reason is not None
-            return reply.reason
-        source = f"{request.task}\n{request.context}"
-        brief = recover_inputs(reply.brief, source)
-        return brief if grounded(brief, source) else "ungrounded_input"
