@@ -1345,3 +1345,177 @@ async def test_cross_image_persistence_failure_retains_four_rows(monkeypatch, tm
     assert report["spend"]["stop_reason"] == "persistence_error"
     assert not report["completed"] and report["pairs"] == []
     assert report["verdict"] == "incomplete_no_candidate_conclusion"
+
+
+@pytest.fixture
+def owned_input_world(monkeypatch):
+    """Only the native OS boundaries are replaced; guard and mapping are real."""
+    import io
+    from PIL import Image
+    from agent_computer_use.channels import native
+    from .test_native import native_config
+
+    _bootstrap(monkeypatch)
+    from benchmarks.computer_use.a_owned_input import OwnedInputGuard
+
+    window = native.NativeWindow(42, "1:0", "test.counter", 7, (10, 10, 60, 50),
+                                 (5, 0, 0, 100, 80, 200, 160))
+    world = SimpleNamespace(window=window, image=Image.new("RGB", (100, 80)), sent=[],
+                            exposed=True, idle=True, blocked=False)
+
+    def capture(**kwargs):
+        stream = io.BytesIO()
+        world.image.save(stream, format="PNG")
+        return stream.getvalue()
+
+    def check():
+        if world.blocked:
+            raise RuntimeError("task cancelled")
+
+    monkeypatch.setattr(native, "read_window", lambda config: world.window)
+    monkeypatch.setattr(native.macos, "_capture_screenshot_macos", capture)
+    monkeypatch.setattr(native, "pointer_target_is_exposed", lambda *args: world.exposed)
+    monkeypatch.setattr(native, "inputs_idle", lambda: world.idle)
+    monkeypatch.setattr(native.macos, "_click_macos",
+                        lambda x, y, **kwargs: world.sent.append(("click", x, y)))
+    monkeypatch.setattr(native.macos, "_key_macos",
+                        lambda keys: world.sent.append(("key", keys)))
+    world.guard = OwnedInputGuard(native.NativeConfig.model_validate_json(json.dumps(native_config())), check=check)
+    return world
+
+
+def test_owned_input_click_consumes_frame(owned_input_world):
+    world = owned_input_world
+    frame, png = world.guard.observe()
+    assert png.startswith(b"\x89PNG")
+    world.guard.click(frame.frame_id, 20, 20)
+    assert world.sent == [("click", 20, 20)]
+    with pytest.raises(ValueError, match="frame"):
+        world.guard.click(frame.frame_id, 20, 20)
+    assert len(world.sent) == 1
+
+
+@pytest.mark.parametrize("change", ["outside", "moved", "process", "pixels", "occluded", "busy"])
+def test_owned_input_rejects_changed_or_unowned_target(owned_input_world, change):
+    world = owned_input_world
+    frame, _ = world.guard.observe()
+    point = (20, 20)
+    if change == "outside":
+        point = (80, 20)
+    elif change == "moved":
+        world.window = replace(world.window, bounds=(11, 10, 60, 50))
+    elif change == "process":
+        world.window = replace(world.window, process_start="2:0")
+    elif change == "pixels":
+        world.image.putpixel((20, 20), (255, 0, 0))
+    elif change == "occluded":
+        world.exposed = False
+    elif change == "busy":
+        world.idle = False
+    with pytest.raises(ValueError):
+        world.guard.click(frame.frame_id, *point)
+    assert world.sent == []
+
+
+def test_owned_input_enter_is_single_use_and_rejects_shortcuts(owned_input_world):
+    world = owned_input_world
+    frame, _ = world.guard.observe()
+    with pytest.raises(ValueError):
+        world.guard.key_press(frame.frame_id, "cmd+q")
+    assert not world.sent
+    frame, _ = world.guard.observe()
+    world.guard.key_press(frame.frame_id, "enter")
+    assert world.sent == [("key", ["return"])]
+    with pytest.raises(ValueError):
+        world.guard.key_press(frame.frame_id, "enter")
+    assert len(world.sent) == 1
+
+
+@pytest.mark.parametrize("action", ["click", "key_press"])
+@pytest.mark.parametrize("failure", ["foreground", "cancelled", "dispatch"])
+def test_owned_input_failure_never_replays(owned_input_world, monkeypatch, action, failure):
+    from agent_computer_use.channels import native
+    from tank_backend.agents.subagent import SubAgentStopped
+
+    world = owned_input_world
+    frame, _ = world.guard.observe()
+    if failure == "foreground":
+        def changed(config):
+            raise SubAgentStopped("foreground_changed")
+        monkeypatch.setattr(native, "read_window", changed)
+    elif failure == "cancelled":
+        world.blocked = True
+    else:
+        def uncertain(*args, **kwargs):
+            world.sent.append("possibly_sent")
+            raise OSError("lost native return")
+        monkeypatch.setattr(native.macos,
+                            "_click_macos" if action == "click" else "_key_macos", uncertain)
+    args = (20, 20) if action == "click" else ("enter",)
+    with pytest.raises((SubAgentStopped, RuntimeError, OSError)):
+        getattr(world.guard, action)(frame.frame_id, *args)
+    assert len(world.sent) == (1 if failure == "dispatch" else 0)
+    with pytest.raises(ValueError, match="frame"):
+        getattr(world.guard, action)(frame.frame_id, *args)
+    assert len(world.sent) == (1 if failure == "dispatch" else 0)
+
+
+def test_owned_input_rejects_old_and_foreign_frames(owned_input_world):
+    from benchmarks.computer_use.a_owned_input import OwnedInputGuard
+
+    world = owned_input_world
+    previous, _ = world.guard.observe()
+    world.guard.observe()
+    with pytest.raises(ValueError, match="frame"):
+        world.guard.click(previous.frame_id, 20, 20)
+    other = OwnedInputGuard(world.guard.config, check=lambda: None)
+    foreign, _ = other.observe()
+    world.guard.observe()
+    with pytest.raises(ValueError, match="frame"):
+        world.guard.click(foreign.frame_id, 20, 20)
+    assert world.sent == []
+
+
+def test_owned_input_ignores_pixels_outside_owned_window(owned_input_world):
+    world = owned_input_world
+    frame, _ = world.guard.observe()
+    world.image.putpixel((90, 70), (255, 0, 0))
+    world.guard.click(frame.frame_id, 20, 20)
+    assert world.sent == [("click", 20, 20)]
+
+
+def test_owned_input_checks_after_capture_and_before_dispatch(owned_input_world, monkeypatch):
+    from agent_computer_use.channels import native
+
+    world = owned_input_world
+    frame, _ = world.guard.observe()
+    original = native.pointer_target_is_exposed
+
+    def lose_focus(*args):
+        world.window = replace(world.window, window_id=8)
+        return original(*args)
+
+    monkeypatch.setattr(native, "pointer_target_is_exposed", lose_focus)
+    with pytest.raises(ValueError, match="Window changed"):
+        world.guard.click(frame.frame_id, 20, 20)
+    assert world.sent == []
+
+
+def test_owned_input_capture_failure_invalidates_previous_frame(owned_input_world, monkeypatch):
+    from agent_computer_use.channels import native
+
+    world = owned_input_world
+    frame, _ = world.guard.observe()
+    original = native.macos._capture_screenshot_macos
+
+    def moving(**kwargs):
+        png = original(**kwargs)
+        world.window = replace(world.window, bounds=(11, 10, 60, 50))
+        return png
+
+    monkeypatch.setattr(native.macos, "_capture_screenshot_macos", moving)
+    with pytest.raises(ValueError, match="capture"):
+        world.guard.observe()
+    with pytest.raises(ValueError, match="frame"):
+        world.guard.click(frame.frame_id, 20, 20)
+    assert world.sent == []
