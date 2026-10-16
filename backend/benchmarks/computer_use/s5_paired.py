@@ -1,7 +1,7 @@
-"""S5 paired native pilot: frozen production baseline (A) vs plugin host arms (H, J).
+"""S5 native pairs: original A/H/J or independent fixed-long-task H/J track.
 
 Preparation never accesses the desktop or a model. One schedule, one ledger,
-three arms; scoring reads only independent AX evidence, never model claims.
+selected arms; scoring reads only independent AX evidence, never model claims.
 """
 
 from __future__ import annotations
@@ -252,7 +252,9 @@ def schedule() -> list[dict[str, str]]:
     return plan
 
 
-def freeze_inputs() -> dict[str, Any]:
+def freeze_inputs(*, track: str = "original") -> dict[str, Any]:
+    if track not in {"original", "hj-long"}:
+        raise ValueError("Unknown S5 track")
     from tank_backend.agents import (
         subagent,
         task_runtime,
@@ -419,12 +421,40 @@ def freeze_inputs() -> dict[str, Any]:
             for path in paths
         },
     }
+    if track == "hj-long":
+        tasks = [task for task in TASKS if task["id"].startswith("calculator-long-")]
+        plan = []
+        for repeat in sorted({task["repeat"] for task in tasks}):
+            for index, task in enumerate(t for t in tasks if t["repeat"] == repeat):
+                order = ("H", "J") if (repeat + index) % 2 == 0 else ("J", "H")
+                plan.extend({"task_id": task["id"], "repeat": str(repeat), "arm": arm}
+                            for arm in order)
+        data.update(
+            revision="s5-hj-long-1", track=track, arms=["H", "J"], tasks=tasks, schedule=plan,
+            nano_usd_limit=1_000_000_000, token_limit=30_000_000,
+            request_limit=sum(3 * task["max_decisions"] + 2 * (ADVISOR_CALL_LIMIT + 1)
+                              for task in tasks),
+            statistics={**data["statistics"], "comparisons": ["J-H"]},
+            scope="owned fresh Calculator only; structured AX to Jev/Qwen; no A or screenshots",
+            decision_rule={
+                "kind": "independent-hj-long", "minimum_strict_per_arm": 18,
+                "planned_per_arm": 20, "maximum_j_deficit": 1, "maximum_time_ratio": 1.10,
+                "hypotheses": {"l1_time": "J/H total elapsed <= 1.10",
+                               "l2_quality": "both strict >= 18/20, J >= H-1, no violations",
+                               "l3_cost": "J known model cost < H"},
+                "statement": "fixed long-task point gates only; no original H1-H4 rejudgment",
+            },
+            stop_policy=("known settled failures continue; unknown usage/receipt, environment "
+                         "error, cancellation or unconfirmed cleanup stops; retain all planned rows"),
+        )
+        for name in ("prompts", "task_inputs", "briefs", "macos_policies"):
+            data[name] = {task["id"]: data[name][task["id"]] for task in tasks}
     data["sha256"] = digest(data)
     return data
 
 
-def prepare(output: Path) -> dict[str, Any]:
-    frozen = freeze_inputs()
+def prepare(output: Path, *, track: str = "original") -> dict[str, Any]:
+    frozen = freeze_inputs(track=track)
     output.mkdir(parents=True, exist_ok=False)
     (output / "freeze.json").write_text(
         json.dumps(frozen, ensure_ascii=False, indent=2) + "\n"
@@ -432,8 +462,8 @@ def prepare(output: Path) -> dict[str, Any]:
     return frozen
 
 
-def load_freeze(output: Path, approved: str) -> dict[str, Any]:
-    frozen = freeze_inputs()
+def load_freeze(output: Path, approved: str, *, track: str = "original") -> dict[str, Any]:
+    frozen = freeze_inputs(track=track)
     if (
         frozen["sha256"] != approved
         or json.loads((output / "freeze.json").read_text()) != frozen
@@ -532,9 +562,11 @@ class PilotObserver:
         )
 
 
-def summarize(rows: list[dict[str, Any]], spend: SpendSnapshot) -> dict[str, Any]:
+def summarize(
+    rows: list[dict[str, Any]], spend: SpendSnapshot, *, arms: tuple[str, ...] = ARMS,
+) -> dict[str, Any]:
     result: dict[str, Any] = {}
-    for arm in ARMS:
+    for arm in arms:
         group = [row for row in rows if row["arm"] == arm]
         trials = {row["spend_trial"] for row in group if row.get("spend_trial")}
         calls = [call for row in group for call in row.get("calls", {}).values()]
@@ -596,7 +628,7 @@ def summarize(rows: list[dict[str, Any]], spend: SpendSnapshot) -> dict[str, Any
                 )
             ),
         }
-        for arm in ARMS
+        for arm in arms
     }
     result["direction"] = {
         "j_cost_below_a": result["J"]["nano_usd"] < result["A"]["nano_usd"],
@@ -604,31 +636,36 @@ def summarize(rows: list[dict[str, Any]], spend: SpendSnapshot) -> dict[str, Any
         "h_cost_below_a": result["H"]["nano_usd"] < result["A"]["nano_usd"],
         "h_time_below_a": result["H"]["elapsed_ms"] < result["A"]["elapsed_ms"],
         "interpretation": "descriptive only; adoption requires a frozen confirmatory experiment",
+    } if "A" in arms else {
+        "j_cost_below_h": result["J"]["nano_usd"] < result["H"]["nano_usd"],
+        "j_time_below_h": result["J"]["elapsed_ms"] < result["H"]["elapsed_ms"],
+        "interpretation": "descriptive only; no A comparison or original H1-H4 conclusion",
     }
     return result
 
 
 def paired_results(
-    rows: list[dict[str, Any]], spend: SpendSnapshot, completed: bool
+    rows: list[dict[str, Any]], spend: SpendSnapshot, completed: bool,
+    *, arms: tuple[str, ...] = ARMS,
 ) -> list[dict[str, Any]]:
     if not completed:
         return []
     by_key = {(row["task_id"], row["repeat"], row["arm"]): row for row in rows}
     pairs = []
-    for a_row in (row for row in rows if row["arm"] == "A"):
-        key = (a_row["task_id"], a_row["repeat"])
-        group = {arm: by_key[(*key, arm)] for arm in ARMS}
+    for anchor in (row for row in rows if row["arm"] == arms[0]):
+        key = (anchor["task_id"], anchor["repeat"])
+        group = {arm: by_key[(*key, arm)] for arm in arms}
         pairs.append(
             {
-                "task_id": a_row["task_id"],
-                "repeat": a_row["repeat"],
-                **{f"{arm.lower()}_strict": group[arm]["strict"] for arm in ARMS},
-                **{f"{arm.lower()}_ms": group[arm]["elapsed_ms"] for arm in ARMS},
+                "task_id": anchor["task_id"],
+                "repeat": anchor["repeat"],
+                **{f"{arm.lower()}_strict": group[arm]["strict"] for arm in arms},
+                **{f"{arm.lower()}_ms": group[arm]["elapsed_ms"] for arm in arms},
                 **{
                     f"{arm.lower()}_nano_usd": spend["trials"][
                         group[arm]["spend_trial"]
                     ]["known_nano_usd"]
-                    for arm in ARMS
+                    for arm in arms
                 },
             }
         )
@@ -665,7 +702,9 @@ def difference_statistics(differences: list[float]) -> dict[str, Any]:
     }
 
 
-def paired_statistics(pairs: list[dict[str, Any]]) -> dict[str, Any]:
+def paired_statistics(
+    pairs: list[dict[str, Any]], *, arms: tuple[str, ...] = ARMS,
+) -> dict[str, Any]:
     """Fixed-task comparisons; long-family timing/cost use repeat blocks."""
     from scipy.stats import binomtest
 
@@ -679,6 +718,8 @@ def paired_statistics(pairs: list[dict[str, Any]]) -> dict[str, Any]:
     by_task: dict[str, Any] = {}
     long_family: dict[str, Any] = {}
     for left, right in (("j", "h"), ("h", "a"), ("j", "a")):
+        if left.upper() not in arms or right.upper() not in arms:
+            continue
         name = f"{left.upper()}-{right.upper()}"
         for shape, group in groups.items():
             wins = sum(p[f"{left}_strict"] and not p[f"{right}_strict"] for p in group)
@@ -778,6 +819,31 @@ def confirmatory_verdict(
     else:
         decision = "mixed_review_before_any_adoption"
     return {"h1": h1, "h2": h2, "h3": h3, "h4": h4, "decision": decision}
+
+
+def long_verdict(
+    summary: dict[str, Any], *, completed: bool, mode: str, rules: dict[str, Any],
+) -> dict[str, Any]:
+    """Independent fixed-long-task gates; never evaluate the original H1-H4."""
+    complete = completed and all(
+        summary[arm]["planned"] == summary[arm]["finished"] == rules["planned_per_arm"]
+        for arm in ("H", "J")
+    )
+    if not complete or mode == "fake":
+        return {"l1_time": None, "l2_quality": None, "l3_cost": None, "h4": None,
+                "decision": "fake_wiring_only_no_adoption_conclusion" if completed and mode == "fake"
+                else "incomplete_no_long_task_conclusion"}
+    h, j = summary["H"], summary["J"]
+    quality = (min(h["strict"], j["strict"]) >= rules["minimum_strict_per_arm"]
+               and j["strict"] >= h["strict"] - rules["maximum_j_deficit"]
+               and not h["rule_violations"] and not j["rule_violations"])
+    speed = (h["elapsed_ms"] > 0 and j["elapsed_ms"] > 0
+             and j["elapsed_ms"] <= h["elapsed_ms"] * rules["maximum_time_ratio"])
+    cost = j["nano_usd"] < h["nano_usd"]
+    decision = ("long_task_point_gates_passed" if quality and speed and cost else
+                "long_task_cost_only" if quality and cost else "long_task_no_joint_gain")
+    return {"l1_time": speed, "l2_quality": quality, "l3_cost": cost, "h4": None,
+            "decision": decision}
 
 
 class OwnedApplication(s4_ax.OwnedApplication):
@@ -885,6 +951,7 @@ async def run_batch(
     mode: str,
     credential: str = "",
     advisor_credential: str = "",
+    track: str = "original",
 ) -> dict[str, Any]:
     """Run one frozen schedule; fake replaces model HTTP, never the native application."""
     import httpx2 as httpx
@@ -912,7 +979,8 @@ async def run_batch(
     from tank_backend.tools.manager import ToolManager
     from benchmarks.computer_use.jev_smoke import Capture
 
-    frozen = load_freeze(output, approved)
+    frozen = load_freeze(output, approved, track=track)
+    arms = tuple(frozen["arms"])
     if (
         mode not in {"fake", "live"}
         or mode == "live"
@@ -928,7 +996,7 @@ async def run_batch(
         if (output / name).exists():
             raise FileExistsError(output / name)
     ledger = SpendLedger(
-        SpendLimit(30_000_000, frozen["nano_usd_limit"]),
+        SpendLimit(frozen.get("token_limit", 30_000_000), frozen["nano_usd_limit"]),
         request_limit=frozen["request_limit"],
         journal=output / "spend.jsonl",
     )
@@ -1229,7 +1297,7 @@ async def run_batch(
         a_timeouts = 0
         try:
             for row in rows:
-                load_freeze(output, approved)
+                load_freeze(output, approved, track=track)
                 task = tasks[row["task_id"]]
                 active_task, fake_index, fake_escalated = task, 0, False
                 owner = OwnedApplication(task)
@@ -1446,13 +1514,23 @@ async def run_batch(
         finally:
             for row in rows[written:]:
                 journal.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+            if track == "hj-long":
+                try:
+                    ledger.close()
+                except Exception as exc:
+                    report.update(completed=False, ledger_close_error=type(exc).__name__)
+                if ledger.snapshot()["stop_reason"] is not None:
+                    report["completed"] = False
             report["spend"] = ledger.snapshot()
-            report["summary"] = summarize(rows, report["spend"])
+            report["summary"] = summarize(rows, report["spend"], arms=arms)
             report["paired"] = paired_results(
-                rows, report["spend"], report["completed"]
+                rows, report["spend"], report["completed"], arms=arms,
             )
-            report["statistics"] = paired_statistics(report["paired"])
-            report["confirmatory"] = confirmatory_verdict(
+            report["statistics"] = paired_statistics(report["paired"], arms=arms)
+            report["confirmatory"] = long_verdict(
+                report["summary"], completed=report["completed"], mode=mode,
+                rules=frozen["decision_rule"],
+            ) if track == "hj-long" else confirmatory_verdict(
                 report["summary"],
                 completed=report["completed"],
                 mode=mode,
@@ -1465,7 +1543,8 @@ async def run_batch(
                 if mode == "live"
                 else 0
             )
-            ledger.close()
+            if track == "original":
+                ledger.close()
             with (output / "result.json").open("w") as file:
                 json.dump(report, file, ensure_ascii=False, default=str, indent=2)
     return report
@@ -1476,11 +1555,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--track", choices=("original", "hj-long"), default="original")
     parser.add_argument("--run", choices=("fake", "live"))
     parser.add_argument("--approved-sha256")
     args = parser.parse_args()
     if args.run is None:
-        frozen = prepare(args.output)
+        frozen = prepare(args.output, track=args.track)
         print(
             json.dumps(
                 {
@@ -1492,7 +1572,7 @@ if __name__ == "__main__":
     else:
         if not args.approved_sha256:
             parser.error("Execution requires the frozen recipe digest")
-        load_freeze(args.output, args.approved_sha256)
+        load_freeze(args.output, args.approved_sha256, track=args.track)
         credential, advisor_credential = "", ""
         if args.run == "live":
             from dotenv import dotenv_values
@@ -1515,6 +1595,7 @@ if __name__ == "__main__":
                 mode=args.run,
                 credential=credential,
                 advisor_credential=advisor_credential,
+                track=args.track,
             )
         )
         print(

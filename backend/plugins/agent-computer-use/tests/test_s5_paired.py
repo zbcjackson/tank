@@ -1755,3 +1755,138 @@ async def test_gui_smoke_task_deadline_cancels_pending_model(gui_smoke_world, mo
     assert report["status"] == "error" and report["error"] == "TimeoutError"
     assert not report["passed"] and not gui_smoke_world.sent
     assert report["application_cleanup"]["confirmed"]
+
+
+def test_hj_long_freeze_pins_independent_balanced_pairs(monkeypatch, tmp_path):
+    s5 = _bootstrap(monkeypatch)
+    output = tmp_path / "long"
+    frozen = s5.prepare(output, track="hj-long")
+    assert frozen["revision"] == "s5-hj-long-1"
+    assert frozen["arms"] == ["H", "J"]
+    assert len(frozen["tasks"]) == 20 and len(frozen["schedule"]) == 40
+    assert frozen["nano_usd_limit"] == 1000000000
+    assert frozen["request_limit"] == 1400
+    assert frozen["decision_rule"]["minimum_strict_per_arm"] == 18
+    assert frozen["statistics"]["comparisons"] == ["J-H"]
+    for dispatch in ("ax_press", "quartz"):
+        blocks = [frozen["schedule"][i:i+2] for i in range(0, 40, 2)
+                  if frozen["schedule"][i]["task_id"].startswith(f"calculator-long-{dispatch}-")]
+        assert len(blocks) == 10
+        assert sum(block[0]["arm"] == "H" for block in blocks) == 5
+        assert all({row["arm"] for row in block} == {"H", "J"} for block in blocks)
+    assert s5.load_freeze(output, frozen["sha256"], track="hj-long") == frozen
+    with pytest.raises(ValueError, match="freeze"):
+        s5.load_freeze(output, frozen["sha256"])
+    original = s5.freeze_inputs()
+    assert original["revision"] == "s5-confirmatory-2"
+    assert original["arms"] == ["A", "H", "J"] and len(original["schedule"]) == 150
+
+
+@pytest.mark.parametrize("h_success,j_success,j_time,j_cost,decision", [
+    (20, 19, 1100, 99, "long_task_point_gates_passed"),
+    (19, 18, 1100, 99, "long_task_point_gates_passed"),
+    (18, 17, 900, 99, "long_task_no_joint_gain"),
+    (20, 18, 900, 99, "long_task_no_joint_gain"),
+    (20, 20, 1101, 99, "long_task_cost_only"),
+    (20, 20, 1000, 100, "long_task_no_joint_gain"),
+])
+def test_hj_long_verdict_has_independent_gates(monkeypatch, h_success, j_success, j_time, j_cost, decision):
+    s5 = _bootstrap(monkeypatch)
+    rules = s5.freeze_inputs(track="hj-long")["decision_rule"]
+    summary = {"H": {"planned": 20, "finished": 20, "strict": h_success,
+                      "elapsed_ms": 1000, "nano_usd": 100, "rule_violations": 0},
+               "J": {"planned": 20, "finished": 20, "strict": j_success,
+                      "elapsed_ms": j_time, "nano_usd": j_cost, "rule_violations": 0}}
+    result = s5.long_verdict(summary, completed=True, mode="live", rules=rules)
+    assert result["decision"] == decision
+    assert result["h4"] is None and "h1" not in result
+    for completed, mode in ((False, "live"), (True, "fake")):
+        result = s5.long_verdict(summary, completed=completed, mode=mode, rules=rules)
+        assert result["l1_time"] is None
+        assert result["l2_quality"] is None
+        assert result["l3_cost"] is None
+    summary["J"]["rule_violations"] = 1
+    assert not s5.long_verdict(summary, completed=True, mode="live", rules=rules)["l2_quality"]
+
+
+async def test_hj_long_runs_shared_sdk_without_a(request, monkeypatch, tmp_path):
+    from unittest.mock import Mock
+    world = request.getfixturevalue("shared_world")
+    s5 = _bootstrap(monkeypatch)
+    monkeypatch.setattr(s5, "TASKS", tuple(s5.TASKS[30:32]))
+    _install_fake_calculator(monkeypatch, s5, world)
+    forbidden = Mock(side_effect=AssertionError("A must not be instantiated"))
+    monkeypatch.setattr(s5, "create_a_driver", forbidden)
+    output = tmp_path / "long"
+    frozen = s5.prepare(output, track="hj-long")
+    report = await s5.run_batch(output, frozen["sha256"], mode="fake", track="hj-long")
+    assert report["completed"] and len(report["rows"]) == 4
+    assert [r["arm"] for r in report["rows"]] == ["H", "J", "J", "H"]
+    assert all(r["passed"] for r in report["rows"])
+    assert all(r["independent_values"] == {"expression": "12×3-8+5", "result": "33"}
+               for r in report["rows"])
+    forbidden.assert_not_called()
+    assert "A" not in report["summary"]
+    assert set(report["summary"]["long_family"]) == {"H", "J"}
+    assert all(not any(key.startswith("a_") for key in pair) for pair in report["paired"])
+    assert len(report["paired"]) == 2
+    assert set(report["statistics"]["long_family"]) == {"J-H"}
+    assert report["confirmatory"]["h4"] is None
+    assert report["conclusion"] == "fake_wiring_only_no_adoption_conclusion"
+    assert report["external_model_requests"] == 0
+    assert len(report["spend"]["trials"]) == 4
+    for row in report["rows"]:
+        assert row["application_cleanup"]["confirmed"]
+        if row["arm"] == "H":
+            assert all(c["provider"] != "jev" for c in row["calls"].values())
+    with pytest.raises(FileExistsError):
+        await s5.run_batch(output, frozen["sha256"], mode="fake", track="hj-long")
+
+
+async def test_hj_long_environment_stop_retains_all_40_rows(request, monkeypatch, tmp_path):
+    world = request.getfixturevalue("shared_world")
+    s5 = _bootstrap(monkeypatch)
+    _install_fake_calculator(monkeypatch, s5, world)
+    def fail(owner):
+        raise RuntimeError("owned application unavailable")
+    monkeypatch.setattr(s5.OwnedApplication, "start", fail)
+    output = tmp_path / "long"
+    frozen = s5.prepare(output, track="hj-long")
+    with pytest.raises(ValueError, match="freeze"):
+        await s5.run_batch(output, frozen["sha256"], mode="fake")
+    assert not (output / "started.json").exists()
+    report = await s5.run_batch(output, frozen["sha256"], mode="fake", track="hj-long")
+    assert not report["completed"] and len(report["rows"]) == 40
+    assert report["rows"][0]["status"] == "environment_error"
+    assert sum(r["status"] == "not_run" for r in report["rows"]) == 39
+    assert report["summary"]["H"]["planned"] == report["summary"]["J"]["planned"] == 20
+    assert not report["paired"] and not report["statistics"]["by_task"]
+    assert report["conclusion"] == "incomplete_no_long_task_conclusion"
+    assert report["fake_http_requests"] == report["external_model_requests"] == 0
+    assert len((output / "rows.jsonl").read_text().splitlines()) == 40
+
+
+async def test_hj_long_close_failure_retains_failed_report(request, monkeypatch, tmp_path):
+    from tank_backend.benchmarks.spend_ledger import SpendLedger
+    world = request.getfixturevalue("shared_world")
+    s5 = _bootstrap(monkeypatch)
+    monkeypatch.setattr(s5, "TASKS", (s5.TASKS[30],))
+    _install_fake_calculator(monkeypatch, s5, world)
+    close = SpendLedger.close
+    def broken(self):
+        close(self)
+        raise OSError("journal close failed")
+    monkeypatch.setattr(SpendLedger, "close", broken)
+    output = tmp_path / "long"
+    frozen = s5.prepare(output, track="hj-long")
+    report = await s5.run_batch(output, frozen["sha256"], mode="fake", track="hj-long")
+    assert report["ledger_close_error"] == "OSError"
+    assert not report["completed"] and not report["paired"]
+    assert report["conclusion"] == "incomplete_no_long_task_conclusion"
+    assert len(report["rows"]) == 2
+    saved = json.loads((output / "result.json").read_text())
+    assert saved["ledger_close_error"] == "OSError" and not saved["completed"]
+    assert not saved["paired"] and saved["spend"] == report["spend"]
+    assert [(row["trial"], row["status"]) for row in saved["rows"]] == [
+        (row["trial"], row["status"]) for row in report["rows"]
+    ]
