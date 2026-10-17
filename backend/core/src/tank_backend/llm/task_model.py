@@ -11,6 +11,7 @@ from openai.types.chat import ChatCompletionMessageParam
 
 from ..agents.subagent import SubAgentContext, SubAgentStopped
 from .llm import LLM
+from .model_data import chat_data_types
 from .profile import LLMProfile
 
 
@@ -54,6 +55,12 @@ class TaskModel:
         self._context.check("network")
         if self._closed:
             raise SubAgentStopped("model_closed")
+        messages = list(messages)
+        try:
+            if chat_data_types(messages) != {"text"}:
+                raise ValueError("text service does not accept images")
+        except ValueError:
+            raise SubAgentStopped("model_data_denied") from None
         if self._llm is None:
             profile = self._profile
             http = httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(),
@@ -79,6 +86,8 @@ class TaskModel:
                     or choice.message.refusal or not isinstance(choice.message.content, str)):
                 raise ValueError("expected a completed text response")
             return choice.message.content
+        except SubAgentStopped:
+            raise
         except Exception:
             # SDK exceptions may embed response bodies, request headers or provider secrets.
             self._context.check("network")

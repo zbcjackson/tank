@@ -48,6 +48,118 @@ async def test_call_usage_and_events_are_once_per_invocation():
     await calls.aclose()
 
 
+async def test_oversized_request_is_rejected_before_reservation_capture_or_sdk():
+    from tank_backend.llm.model_data import ModelDataScope
+
+    activity = []
+
+    class Policy:
+        def check(self):
+            pass
+
+        def reserve(self, call_id, request):
+            activity.append("reserved")
+
+        def settle(self, call_id, inputs, outputs):
+            activity.append("settled")
+
+        def release_unsent(self, call_id):
+            activity.append("released")
+
+    class Capture:
+        async def request(self, call_id, request):
+            activity.append("captured")
+
+        async def response(self, call_id, response):
+            pass
+
+    ctx, calls, _ = setup(model_policy=Policy(), model_capture=Capture(),
+                          model_data_scope=ModelDataScope(max_request_bytes=10))
+
+    async def invoke():
+        activity.append("sdk")
+        return Result()
+
+    try:
+        with pytest.raises(SubAgentStopped, match="model_request_too_large"):
+            await calls.run(ModelRequest("https://test.invalid", "test", {"text": "中文"}), invoke)
+        assert activity == [] and ctx.budget.call_count == 0
+        record = get_model_call("task")
+        assert record is not None and record.status == "not_started"
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("slack", [-1, 0])
+async def test_request_byte_limit_counts_utf8_and_accepts_the_exact_boundary(streaming, slack):
+    from tank_backend.llm.model_data import ModelDataScope
+
+    size = len(b'{"text":"\xe4\xb8\xad"}')
+    ctx, calls, _ = setup(model_data_scope=ModelDataScope(max_request_bytes=size + slack))
+    request = ModelRequest("https://test.invalid", "test", {"text": "中"})
+    entered = []
+
+    class Stream:
+        def __aiter__(self):
+            async def chunks():
+                yield Result()
+            return chunks()
+
+        async def close(self):
+            pass
+
+    async def invoke():
+        entered.append(True)
+        return Result()
+
+    async def open_stream():
+        entered.append(True)
+        return Stream()
+
+    async def run():
+        if streaming:
+            return [item async for item in calls.stream(request, open_stream)]
+        return await calls.run(request, invoke)
+
+    try:
+        if slack < 0:
+            with pytest.raises(SubAgentStopped, match="model_request_too_large"):
+                await run()
+            assert entered == [] and ctx.budget.call_count == 0
+        else:
+            await run()
+            assert entered == [True] and ctx.budget.total_tokens == 9
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("part", [
+    {"type": [], "text": "private"},
+    {"type": "text", "text": "hello", "image_url": {"url": "data:image/png;base64,AA=="}},
+    {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA==", "audio": "AA=="}},
+])
+async def test_unknown_or_mixed_content_blocks_are_not_admitted(part):
+    from tank_backend.llm.model_data import ModelDataScope
+
+    ctx, calls, _ = setup(model_data_scope=ModelDataScope(frozenset({"text", "image"})))
+    entered = []
+
+    async def invoke():
+        entered.append(True)
+        return Result()
+
+    request = ModelRequest("https://test.invalid", "test", {
+        "messages": [{"role": "user", "content": [part]}],
+    })
+    try:
+        with pytest.raises(SubAgentStopped, match="model_data_denied"):
+            await calls.run(request, invoke)
+        assert entered == [] and ctx.budget.call_count == 0
+    finally:
+        await ctx.runtime.aclose()
+
+
 @pytest.mark.parametrize("stop", ["cancel", "deadline", "revoked", "closed", "limit"])
 async def test_stopped_call_never_invokes_sdk(stop):
     ctx, calls, request = setup()
@@ -346,7 +458,8 @@ async def test_cancel_between_admission_and_sdk_entry_does_not_invoke():
     assert ctx.budget.call_count == 0
 
 
-async def test_chat_sdk_uses_private_snapshot_across_capture_await():
+@pytest.mark.parametrize("revoke", [False, True])
+async def test_chat_sdk_uses_private_snapshot_across_capture_await(revoke):
     import copy
     import json
 
@@ -357,19 +470,24 @@ async def test_chat_sdk_uses_private_snapshot_across_capture_await():
     from tank_backend.llm.llm import LLM
 
     message: ChatCompletionMessageParam = {"role": "user", "content": "original"}
-    captured = []
+    captured, sent = [], []
 
     class Capture:
         async def request(self, call_id, request):
             captured.append(copy.deepcopy(request.parameters))
-            message["content"] = "changed by caller"
-            request.parameters["messages"] = []
+            message["content"] = [{"type": "image_url", "image_url": {
+                "url": "data:image/png;base64,AA==",
+            }}]
+            request.parameters["messages"] = [message]
             await asyncio.sleep(0)
+            if revoke:
+                ctx.authorization.revoke()
 
         async def response(self, call_id, response):
             pass
 
     async def respond(request):
+        sent.append(True)
         assert json.loads(request.content) == captured[0]
         return httpx.Response(200, json={
             "id": "r", "object": "chat.completion", "created": 1, "model": "m",
@@ -386,8 +504,13 @@ async def test_chat_sdk_uses_private_snapshot_across_capture_await():
         llm = LLM(api_key="secret", model="m", base_url="https://offline.invalid/v1",
                   client=client).bind_task(ctx, "task")
         try:
-            result = await llm.complete_response([message], retry=False)
-            assert result.choices[0].message.content == "ok"
-            assert ctx.budget.total_tokens == 9
+            if revoke:
+                with pytest.raises(SubAgentStopped):
+                    await llm.complete_response([message], retry=False)
+                assert sent == [] and ctx.budget.call_count == 0
+            else:
+                result = await llm.complete_response([message], retry=False)
+                assert result.choices[0].message.content == "ok"
+                assert sent == [True] and ctx.budget.total_tokens == 9
         finally:
             await ctx.runtime.aclose()

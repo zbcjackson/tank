@@ -16,6 +16,7 @@ import uuid
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from typing import TYPE_CHECKING, Any, cast
 
+from ..llm.model_data import ModelDataScope
 from ..tools.computer_native import join_on_cancel
 from .base import AgentOutput, AgentOutputType, AgentState
 from .definition import AgentDefinition
@@ -151,6 +152,7 @@ class AgentRunner:
         audit: Callable[[ExecutionRecord], Awaitable[None]] | None = None,
         model_policy: ModelCallPolicy | None = None,
         model_capture: ModelCapture | None = None,
+        model_data_scope: ModelDataScope | None = None,
         desktop_cleanup: DesktopCleanup | None = None,
         task_input: dict[str, JsonValue] | None = None,
         user_input: Callable[[str], Awaitable[str]] | None = None,
@@ -158,6 +160,14 @@ class AgentRunner:
         task_input = validate_task_input(task_input)
         if task_input is not None and not agent_def.extension:
             raise ValueError("task_input requires an extension agent")
+        default_scope = (ModelDataScope() if agent_def.extension else
+                         ModelDataScope(frozenset({"text", "image"}), 32 * 1024 * 1024))
+        if model_data_scope is not None and (
+            not model_data_scope.allowed_types <= default_scope.allowed_types
+            or model_data_scope.max_request_bytes > default_scope.max_request_bytes
+        ):
+            raise ValueError("model data scope exceeds the host allowance")
+        model_data_scope = model_data_scope or default_scope
         context = None
         if agent_def.grounding is not None:
             deadline = deadline if deadline is not None else time.monotonic() + 600
@@ -168,6 +178,7 @@ class AgentRunner:
                 )),
                 asyncio.Event(), deadline, observer, max_steps,
                 audit=audit, model_policy=model_policy, model_capture=model_capture,
+                model_data_scope=model_data_scope,
             )
             context.check("desktop")
         if agent_def.extension:
@@ -184,6 +195,7 @@ class AgentRunner:
                 execution_policy=self._approval_policy, approval_resolver=self._resolver,
                 max_actions=max_actions, max_observations=max_observations,
                 user_input=user_input,
+                model_data_scope=model_data_scope,
             )
             context.check()
         if context is None:
@@ -194,6 +206,7 @@ class AgentRunner:
                 ),
                 asyncio.Event(), deadline, observer, max_steps,
                 audit=audit, model_policy=model_policy, model_capture=model_capture,
+                model_data_scope=model_data_scope,
             )
         outputs = self._run_agent(
             agent_def, messages, parent_agent_id, background, token_budget,

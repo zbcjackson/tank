@@ -72,6 +72,10 @@ class _Call:
     async def begin(self) -> None:
         ctx = self.owner.context
         self.owner.check()
+        try:
+            ctx.model_data_scope.check(self.request)
+        except ValueError as exc:
+            raise SubAgentStopped(str(exc)) from None
         ctx.observe("model_call", task_id=self.owner.task_id, call_id=self.id, phase="started")
         self.owner.check()
         if ctx.model_policy is not None:

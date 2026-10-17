@@ -1448,7 +1448,8 @@ async def test_success_cannot_hide_an_unknown_native_effect(stack, monkeypatch):
 
 
 @pytest.mark.parametrize("caller", ["text", "computer_use", "llm"])
-@pytest.mark.parametrize("outcome", ["ok", "revoked", "observer_failure", "sequential"])
+@pytest.mark.parametrize("outcome", ["ok", "revoked", "observer_failure", "sequential",
+                                     "data_denied", "request_too_large"])
 async def test_retained_callers_share_governance(stack, monkeypatch, caller, outcome):
     """One acceptance contract over real Runner/SDK paths; only HTTP and OS are fake."""
     from pathlib import Path
@@ -1463,6 +1464,7 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
     from tank_backend.agents import runner as runner_module
     from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentContext
     from tank_backend.llm.llm import LLM
+    from tank_backend.llm.model_data import ModelDataScope
     from tank_backend.llm.profile import LLMProfile
     from tank_backend.plugin.manifest import read_manifest_from_yaml
 
@@ -1595,13 +1597,27 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
                 "completion": [{"key": "status:name", "value": "ready"}],
             }
     try:
+        data_scope = (ModelDataScope(frozenset()) if outcome == "data_denied" else
+                      ModelDataScope(max_request_bytes=0) if outcome == "request_too_large"
+                      else None)
         outputs = [item async for item in runner.run_agent(
             definition, [{"role": "user", "content": "Fill name"}], task_id="shared-task",
             authorization=grant, audit=audit, observer=Observer(), task_input=task_input,
+            model_data_scope=data_scope,
         )]
         assert len(contexts) == 1
         ctx = contexts[0]
         assert ctx.authorization is grant and ctx.runtime.task_id == "shared-task"
+        if data_scope is not None:
+            assert ctx.model_data_scope is data_scope
+            assert sent == actions == [] and ctx.budget.call_count == 0
+            assert not any(out.metadata.get("task_result", {}).get("status") == "completed"
+                           for out in outputs)
+            assert not any(out.metadata.get("stop_reason") == "completed" for out in outputs)
+            assert not client.is_closed()
+            with pytest.raises(SubAgentStopped, match="runtime_closed"):
+                ctx.check()
+            return
         assert len(sent) == 1
         model_records = [r for r in audit_records if r.category == "model"]
         assert model_records == []

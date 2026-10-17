@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from pydantic import JsonValue
 
 from ..core.token_usage import TokenUsageLedger
+from ..llm.model_data import ModelDataScope
 from .base import AgentOutput
 
 if TYPE_CHECKING:
@@ -149,11 +150,14 @@ class SubAgentContext:
     max_output_bytes: int = 4 * 1024 * 1024
     max_output_events: int = 4096
     user_input: Callable[[str], Awaitable[str]] | None = None
+    model_data_scope: ModelDataScope = field(default_factory=ModelDataScope)
     runtime: TaskRuntime = field(init=False, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         from .task_runtime import TaskRuntime
 
+        if not isinstance(self.model_data_scope, ModelDataScope):
+            raise ValueError("invalid model data scope")
         for value in (self.max_actions, self.max_observations,
                       self.max_output_bytes, self.max_output_events):
             if value is not None and (type(value) is not int or value < 0):

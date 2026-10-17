@@ -296,6 +296,96 @@ async def test_existing_task_view_cannot_be_rebound_after_its_task_stops(model_s
         await client.close()
 
 
+@pytest.mark.parametrize("allow_images", [False, True])
+async def test_text_service_rejects_images_before_capture_or_http(model_stack, allow_images):
+    from tank_backend.llm.model_data import ModelDataScope
+
+    context, _, _, requests, _ = model_stack
+    if allow_images:
+        scope = ModelDataScope(frozenset({"text", "image"}))
+        object.__setattr__(context, "model_data_scope", scope)
+    captured = []
+
+    class Capture:
+        async def request(self, call_id, request):
+            captured.append(request)
+
+        async def response(self, call_id, response):
+            pass
+
+    object.__setattr__(context, "model_capture", Capture())
+    assert context.runtime.model is not None
+    try:
+        with pytest.raises(SubAgentStopped, match="model_data_denied"):
+            await context.runtime.model.complete([{"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}},
+            ]}])
+        assert requests == captured == []
+        assert context.budget.call_count == 0
+    finally:
+        await context.runtime.aclose()
+
+
+async def test_text_service_obeys_the_host_request_byte_limit(model_stack):
+    from tank_backend.llm.model_data import ModelDataScope
+
+    context, _, _, requests, _ = model_stack
+    object.__setattr__(context, "model_data_scope", ModelDataScope(max_request_bytes=32))
+    assert context.runtime.model is not None
+    try:
+        with pytest.raises(SubAgentStopped, match="model_request_too_large"):
+            await context.runtime.model.complete([{"role": "user", "content": "hello"}])
+        assert requests == [] and context.budget.call_count == 0
+    finally:
+        await context.runtime.aclose()
+
+
+@pytest.mark.parametrize("kind", ["text", "image_url", "input_audio", "future_type"])
+@pytest.mark.parametrize("allow_images", [False, True])
+async def test_bound_llm_checks_actual_content_against_host_data_scope(
+    model_stack, kind, allow_images,
+):
+    from typing import cast
+
+    from openai import AsyncOpenAI
+    from openai.types.chat import ChatCompletionMessageParam
+
+    from tank_backend.llm.llm import LLM
+    from tank_backend.llm.model_data import ModelDataScope
+
+    _, profile, payload, _, _ = model_stack
+    sent = []
+    allowed = frozenset({"text", "image"} if allow_images else {"text"})
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        model_data_scope=ModelDataScope(allowed),
+    )
+
+    def respond(request):
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, json=payload)
+
+    client = AsyncOpenAI(api_key="test", base_url=profile.base_url,
+                         http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+    llm = LLM(api_key="test", model="test", base_url=profile.base_url,
+              client=client).bind_task(context, "data-task")
+    part = ({"type": "text", "text": "hello"} if kind == "text" else
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}}
+            if kind == "image_url" else {"type": kind, kind: {"data": "AA=="}})
+    message = cast(ChatCompletionMessageParam, {"role": "user", "content": [part]})
+    try:
+        if kind == "text" or kind == "image_url" and allow_images:
+            assert (await llm.complete_response([message])).choices[0].message.content == "ready"
+            assert sent[0]["messages"] == [message] and context.budget.call_count == 1
+        else:
+            with pytest.raises(SubAgentStopped, match="model_data_denied"):
+                await llm.complete_response([message])
+            assert sent == [] and context.budget.call_count == 0
+    finally:
+        await context.runtime.aclose()
+        await client.close()
+
+
 async def test_closing_one_task_keeps_another_inflight_call_and_host_pool_alive(model_stack):
     from openai import AsyncOpenAI
 

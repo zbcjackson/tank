@@ -8,6 +8,38 @@ from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any
 
 
+def chat_data_types(messages: object) -> frozenset[str]:
+    """Classify implemented chat content blocks, never infer permission from text."""
+    if not isinstance(messages, list):
+        raise ValueError("invalid chat messages")
+    kinds = {"text"}
+    for message in messages:
+        if not isinstance(message, dict) or "audio" in message:
+            raise ValueError("unsupported message data")
+        content = message.get("content")
+        if content is None or isinstance(content, str):
+            continue
+        if not isinstance(content, list):
+            raise ValueError("unsupported message content")
+        for part in content:
+            if not isinstance(part, dict):
+                raise ValueError("unsupported content block")
+            kind = part.get("type")
+            if kind == "text" or kind == "refusal":
+                if set(part) != {"type", kind} or not isinstance(part.get(kind), str):
+                    raise ValueError("invalid text block")
+            elif kind == "image_url":
+                value = part.get("image_url")
+                if (set(part) != {"type", "image_url"} or not isinstance(value, dict)
+                        or not set(value) <= {"url", "detail"}
+                        or not isinstance(value.get("url"), str)):
+                    raise ValueError("invalid image block")
+                kinds.add("image")
+            else:
+                raise ValueError("unsupported content type")
+    return frozenset(kinds)
+
+
 @dataclass(frozen=True)
 class ModelRequest:
     url: str
@@ -16,6 +48,35 @@ class ModelRequest:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "parameters", copy.deepcopy(self.parameters))
+
+
+@dataclass(frozen=True)
+class ModelDataScope:
+    """Host allowance for SDK parameter JSON, independent of tokens and HTTP bytes."""
+
+    allowed_types: frozenset[str] = frozenset({"text"})
+    max_request_bytes: int = 4 * 1024 * 1024
+
+    def __post_init__(self) -> None:
+        if (not isinstance(self.allowed_types, frozenset)
+                or not self.allowed_types <= {"text", "image"}
+                or type(self.max_request_bytes) is not int or self.max_request_bytes < 0):
+            raise ValueError("invalid model data scope")
+
+    def check(self, request: ModelRequest) -> None:
+        try:
+            parameters = request.parameters
+            kinds = (chat_data_types(parameters["messages"]) if "messages" in parameters
+                     else frozenset({"text"}))
+            if (not kinds <= self.allowed_types or "audio" in parameters
+                    or any(kind != "text" for kind in parameters.get("modalities", []))):
+                raise ValueError("unsupported request data")
+            encoded = json.dumps(parameters, ensure_ascii=False, allow_nan=False,
+                                 separators=(",", ":")).encode("utf-8")
+        except (TypeError, ValueError, UnicodeError, RecursionError):
+            raise ValueError("model_data_denied") from None
+        if len(encoded) > self.max_request_bytes:
+            raise ValueError("model_request_too_large")
 
 
 def model_usage(value: object) -> tuple[int | None, int | None]:

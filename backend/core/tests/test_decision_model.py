@@ -48,6 +48,61 @@ async def test_standalone_decision_model_has_no_task_or_custom_transport(monkeyp
         await model.aclose()
 
 
+@pytest.mark.parametrize("allow_text,max_bytes,reason", [
+    (True, 1024, None), (True, 32, "model_request_too_large"),
+    (False, 1024, "model_data_denied"),
+])
+async def test_task_decision_respects_host_data_scope_before_sdk_creation(
+    monkeypatch, allow_text, max_bytes, reason,
+):
+    import asyncio
+
+    from typesafe_sdk import AsyncTypeSafeClient
+
+    from tank_backend.agents.subagent import (
+        SubAgentAuthorization,
+        SubAgentBudget,
+        SubAgentContext,
+        SubAgentStopped,
+    )
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.model_data import ModelDataScope
+
+    created, requests = [], []
+    original = AsyncTypeSafeClient.__init__
+
+    def initialize(self, *args, **kwargs):
+        created.append(True)
+        original(self, *args, **kwargs)
+
+    def respond(request):
+        requests.append(request)
+        return httpx2.Response(200, json=response())
+
+    monkeypatch.setattr(AsyncTypeSafeClient, "__init__", initialize)
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kw: httpx2.MockTransport(respond))
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        model_data_scope=ModelDataScope(frozenset({"text"} if allow_text else set()), max_bytes),
+    )
+    ctx.runtime.configure_decision_model("data-task", DecisionModelProfile(
+        "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_KEY"), credential="fake")
+    model = ctx.runtime.decision_model
+    assert model is not None
+    try:
+        if reason:
+            with pytest.raises(SubAgentStopped, match=reason):
+                await model.choose(state={"name": "中"}, instructions="Choose",
+                                   options={"a": "A", "b": "B"})
+            assert created == requests == [] and ctx.budget.call_count == 0
+        else:
+            assert (await model.choose(state={"name": "中"}, instructions="Choose",
+                                       options={"a": "A", "b": "B"})).choice == "a"
+            assert len(created) == len(requests) == 1 and ctx.budget.total_tokens == 9
+    finally:
+        await ctx.runtime.aclose()
+
+
 async def test_bad_choice_retains_known_usage(monkeypatch):
     from tank_backend.llm.decision_model import DecisionModel, DecisionModelError
     from tank_backend.llm.decision_profile import DecisionModelProfile
