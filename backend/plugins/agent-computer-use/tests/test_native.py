@@ -383,6 +383,26 @@ def test_native_pilot_prepares_bounded_cases_without_desktop_or_credentials(tmp_
         assert all(f.key.startswith("ax:value:") for f in contract.completion)
 
 
+def test_native_recipe_rejects_task_binding_source_drift(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_ax
+    from tank_backend.llm import task_binding
+
+    output = tmp_path / "binding-freeze"
+    frozen = s4_ax.prepare(output)
+    original = Path.read_bytes
+
+    def changed(path):
+        data = original(path)
+        return data + b"\n# changed binding" if path == Path(task_binding.__file__) else data
+
+    monkeypatch.setattr(Path, "read_bytes", changed)
+    with pytest.raises(ValueError, match="freeze"):
+        s4_ax.load_freeze(output, frozen["sha256"])
+
+
 @pytest.mark.parametrize("owner,layer", [("Third-party overlay", 3), ("Notification Center", 21)])
 def test_fullscreen_overlays_block_pointer_targets(monkeypatch, owner, layer):
     from agent_computer_use.channels import native

@@ -51,6 +51,7 @@ Feature: Chat mode
       | input    |
       | outcomes |
       | resume   |
+      | lifecycle |
 
   Scenario Outline: Computer Use host loop preserves offline task contracts
     When the isolated computer use host contract "<contract>" is exercised

@@ -801,6 +801,28 @@ Save name.
     if not wait_for_user:
         assert any(record.operation == "computer_use.dispatch" for record in audits)
     assert "never-in-plugin-config" not in repr(results) + repr(audits)
+    first_count = len(sent)
+    first_refs = {element["ref"] for element in sent[0]["state"]["snapshot"]["elements"]}
+    next_goal = {
+        **task_goal, "goal_id": "next-name", "authorization_ref": "next-dom",
+        "intent": "Save Grace; preserve email", "objective": "Save display name Grace",
+        "inputs": [{"key": "name", "purpose": "profile display name", "value": "Grace"}],
+        "completion": [{"key": "status:Saved name", "value": "Grace"},
+                       {"key": "status:Saved email", "value": "unchanged@example.test"}],
+    }
+    next_outputs = [output async for output in runner.run_agent(
+        definition, [], task_id="next-dom", task_input=next_goal,
+        authorization=SubAgentAuthorization(frozenset({"desktop", "network"})),
+    )]
+    next_results = [out.metadata["task_result"] for out in next_outputs if "task_result" in out.metadata]
+    assert len(next_results) == 1 and next_results[0]["status"] == "completed"
+    assert next_results[0]["cleanup"] == "confirmed"
+    assert next_results[0]["details"]["goal_version"] == 1
+    next_refs = {element["ref"] for element in sent[first_count]["state"]["snapshot"]["elements"]}
+    assert first_refs.isdisjoint(next_refs)
+    assert len(sent) == first_count * 2 and closed == [True, True]
+    assert profile_store == {"name": "Grace", "email": "unchanged@example.test", "saves": "2"}
+    assert not runner._desktop_resource.lock.locked()
 
 
 @pytest.mark.parametrize("bad_reply", [False, True])

@@ -30,14 +30,19 @@ Then('the split desktop contract passes without live model or desktop input',
 // Model/desktop boundaries are fake; this does not claim live ladder acceptance.
 When('the isolated plugin task contract {string} is exercised',
   async function (this: TankWorld, contract: string) {
-    assert.ok(['input', 'outcomes', 'resume'].includes(contract));
+    assert.ok(['input', 'outcomes', 'resume', 'lifecycle'].includes(contract));
     const selection = contract === 'input'
       ? 'structured_task_input or approval_binds_a_detached or invalid_task_input or assembled_task_constraints'
       : contract === 'resume'
         ? 'plugin_wait or cannot_resume_through'
         : 'structured_task_result or background_task_outcome or cleanup_failure_retains or cannot_resume_through or interruption_during_cleanup or cleanup_exception_cannot or cleanup_error_preserves_each or legacy_tool_path';
+    const files = contract === 'lifecycle'
+      ? ['core/tests/test_subagent.py', 'core/tests/test_task_model.py', 'core/tests/test_task_runtime.py',
+        'core/tests/test_plugin_manifest.py', 'core/tests/test_model_calls.py']
+      : ['core/tests/test_subagent.py'];
+    const filter = contract === 'lifecycle' ? [] : ['-k', selection];
     const {stdout} = await promisify(execFile)('uv', [
-      'run', '--no-sync', 'pytest', 'core/tests/test_subagent.py', '-q', '-k', selection,
+      'run', '--no-sync', 'pytest', ...files, '-q', ...filter,
     ], {cwd: resolve(process.cwd(), '../backend'), timeout: 30000});
     results.set(this, stdout);
   });
@@ -68,7 +73,7 @@ When('the isolated managed Chromium contract is exercised',
     const {stdout} = await promisify(execFile)('uv', [
       'run', '--no-sync', 'pytest', 'plugins/agent-computer-use/tests/test_dom.py', '-q',
       '-k', 'browser_config_through_real_runner or controller_native_dispatch or stop_during or runner_candidate_strategy or goal_runner or runner_advisor_returns',
-    ], {cwd: resolve(process.cwd(), '../backend'), timeout: 30000,
+    ], {cwd: resolve(process.cwd(), '../backend'), timeout: 45000,
       env: {...process.env, TANK_REQUIRE_CHROMIUM: '1'}});
     results.set(this, stdout);
   });

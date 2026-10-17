@@ -1448,7 +1448,7 @@ async def test_success_cannot_hide_an_unknown_native_effect(stack, monkeypatch):
 
 
 @pytest.mark.parametrize("caller", ["text", "computer_use", "llm"])
-@pytest.mark.parametrize("outcome", ["ok", "revoked", "observer_failure"])
+@pytest.mark.parametrize("outcome", ["ok", "revoked", "observer_failure", "sequential"])
 async def test_retained_callers_share_governance(stack, monkeypatch, caller, outcome):
     """One acceptance contract over real Runner/SDK paths; only HTTP and OS are fake."""
     from pathlib import Path
@@ -1536,21 +1536,28 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
             yield TaskResult(status="completed", summary=text).to_output()
 
     class World:
-        observations = 0
+        def __init__(self):
+            self.observations = 0
+            self.actions = []
+            self.closed = False
 
         async def observe(self, scope, ctx):
             self.observations += 1
-            return Snapshot(str(self.observations), scope, len(actions),
+            return Snapshot(str(self.observations), scope, len(self.actions),
                             (Element("field", "textbox", "Name", ("fill",),
-                                     value="ready" if actions else ""),),
-                            facts=(Fact(key="status:name", value="ready"),) if actions else ())
+                                     value="ready" if self.actions else ""),),
+                            facts=(Fact(key="status:name", value="ready"),) if self.actions else ())
 
         async def is_current(self, binding, action, ctx):
-            return binding.generation == len(actions)
+            return binding.generation == len(self.actions)
 
         async def dispatch(self, binding, action, ctx):
             actions.append(action)
+            self.actions.append(action)
             return DispatchReceipt(action.id, "sent")
+
+        async def aclose(self):
+            self.closed = True
 
     class Advisor:
         async def assist(self, request, goal, snapshot, action_set, ctx):
@@ -1560,9 +1567,15 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
                 action_set.binding, "inputs", inputs=(Fact(key="name", value=value),),
             )
 
-    world = World()
-    monkeypatch.setattr(agent_computer_use, "create_subagent", lambda config:
-                        ComputerUseSubAgent(ComputerUseController(world, world, advisor=Advisor())))
+    worlds = []
+
+    def computer_factory(config):
+        world = World()
+        worlds.append(world)
+        return ComputerUseSubAgent(
+            ComputerUseController(world, world, advisor=Advisor()), resources=(world,))
+
+    monkeypatch.setattr(agent_computer_use, "create_subagent", computer_factory)
     monkeypatch.setitem(
         sys.modules, "_subagent_test", SimpleNamespace(create=lambda cfg: TextAgent()),
     )
@@ -1620,6 +1633,27 @@ async def test_retained_callers_share_governance(stack, monkeypatch, caller, out
         assert not client.is_closed()
         if caller != "llm":
             assert len(closed) == 1
+        if outcome == "sequential":
+            next_outputs = [item async for item in runner.run_agent(
+                definition, [{"role": "user", "content": "Fill name"}], task_id="next-task",
+                authorization=SubAgentAuthorization(grant.permissions), audit=audit,
+                observer=Observer(), task_input=task_input,
+            )]
+            assert len(contexts) == 2 and contexts[1].runtime is not ctx.runtime
+            assert contexts[1].budget is not ctx.budget
+            assert contexts[1].runtime.task_id == "next-task"
+            assert contexts[1].budget.total_tokens == ctx.budget.total_tokens == 10
+            assert contexts[1].budget.call_ids.isdisjoint(ctx.budget.call_ids)
+            assert len(sent) == 2 and not client.is_closed()
+            assert sum(item.type == AgentOutputType.DONE for item in next_outputs) == 1
+            for context in contexts:
+                with pytest.raises(SubAgentStopped, match="runtime_closed"):
+                    context.check()
+            if caller == "computer_use":
+                assert len(worlds) == 2 and all(world.closed for world in worlds)
+                assert all(len(world.actions) == 1 for world in worlds)
+            if caller != "llm":
+                assert len(closed) == 2
     finally:
         await client.close()
 
