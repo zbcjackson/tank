@@ -139,7 +139,7 @@ def channel_policy(case: PilotCase) -> dict[str, Any]:
 def freeze_inputs() -> dict[str, Any]:
     from tank_backend.agents import subagent, task_runtime, runner, subagent_adapter, task_resources
     from tank_backend.llm import decision_model, task_decision_model, model_call, decision_profile, task_model
-    from tank_backend.llm import task_binding
+    from tank_backend.llm import task_binding, model_data
     from tank_backend.benchmarks import model_policy, spend_ledger
     from benchmarks.computer_use import jev_smoke
     from agent_computer_use.channels import apps as apps_channel
@@ -150,7 +150,7 @@ def freeze_inputs() -> dict[str, Any]:
         action_builder, contracts, controller, factory, observation, native, apps_channel,
         computer_ax, computer_native, computer_use_macos, subagent, task_runtime, decision_model,
         task_decision_model, model_call, agent, jev, runner, subagent_adapter, task_resources,
-        decision_profile, jev_smoke, advisor, task_model, task_binding, model_policy, spend_ledger, model_view,
+        decision_profile, jev_smoke, advisor, task_model, task_binding, model_data, model_policy, spend_ledger, model_view,
     ))]
     data = {"revision": "s4-ax-bind-1", "cases": list(CASES), "model": MODELS["jev"],
             "advisor_model": {**MODELS["qwen"], "output_ceiling": 2048},

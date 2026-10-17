@@ -28,7 +28,7 @@ from tank_backend.benchmarks.grounding_probe import unwrap_json_fence
 from tank_backend.benchmarks.spend_http import ContextWindowContract
 from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, TokenAllowance
 from tank_backend.llm.model_call import TaskModelCallRunner, get_model_call
-from tank_backend.llm.model_data import ModelRequest
+from tank_backend.llm.model_data import ModelDataScope, ModelRequest
 from tank_backend.llm import model_data
 
 from . import s5_paired
@@ -208,6 +208,7 @@ async def run_trial(
     ledger.start_trial(row["id"], SpendLimit(1100000, 200000000))
     context = SubAgentContext(SubAgentAuthorization(frozenset({"network"})),
         SubAgentBudget(), asyncio.Event(), deadline=time.monotonic() + SECONDS_PER_REQUEST,
+        model_data_scope=ModelDataScope(frozenset({"text", "image"}), 32 * 1024 * 1024),
         model_policy=BenchmarkModelPolicy(ledger, (ContextWindowContract(
             model["url"], model["model"], allowance, frozen["accounting"]),)))
     runner = TaskModelCallRunner(row["id"], context)

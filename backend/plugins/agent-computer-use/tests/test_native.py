@@ -383,12 +383,16 @@ def test_native_pilot_prepares_bounded_cases_without_desktop_or_credentials(tmp_
         assert all(f.key.startswith("ax:value:") for f in contract.completion)
 
 
-def test_native_recipe_rejects_task_binding_source_drift(tmp_path, monkeypatch):
+@pytest.mark.parametrize("module_name", ["task_binding", "model_data"])
+def test_native_recipe_rejects_model_governance_source_drift(tmp_path, monkeypatch, module_name):
+    from importlib import import_module
     from pathlib import Path
 
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import s4_ax
-    from tank_backend.llm import task_binding
+    module = import_module("tank_backend.llm." + module_name)
+    assert module.__file__ is not None
+    source_path = Path(module.__file__)
 
     output = tmp_path / "binding-freeze"
     frozen = s4_ax.prepare(output)
@@ -396,7 +400,7 @@ def test_native_recipe_rejects_task_binding_source_drift(tmp_path, monkeypatch):
 
     def changed(path):
         data = original(path)
-        return data + b"\n# changed binding" if path == Path(task_binding.__file__) else data
+        return data + b"\n# changed governance" if path == source_path else data
 
     monkeypatch.setattr(Path, "read_bytes", changed)
     with pytest.raises(ValueError, match="freeze"):
