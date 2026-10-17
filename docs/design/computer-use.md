@@ -884,6 +884,34 @@ focus 条件满足后完成并清除；三个准入动作仍未满足、重复�
 Advisor 纠偏后完成任务的证据。OCR/视觉后备与自动通道发现未实现（见 backlog）；
 同进程完整恢复属 S4-G3（S6 前）。S4 能力主线已按证据收口，见策略阶梯计划。
 
+## S4-G3 同进程等待用户输入（2026-10-17）
+
+Supervisor给插件Runner注入可选`user_input`回调，`SubAgentContext.ask_user(question)`
+在原协程等待答案，沿用同一个授权、runtime、用量账本、取消信号和期限。等待期间
+每0.1秒检查原治理状态，答案到达后再次检查；取消、撤权、额度/期限耗尽会结束等待，
+撤销尚未交付的答案并进入原有清理路径。它不是重启或从聊天记录重建任务。
+
+Supervisor将同一行置waiting并保存问题，前台派发立即返回waiting及question；
+任务保留在监督任务表，持有桌面锁和窗口绑定，仍占并发名额，可由stop取消。
+前台转出的行持久化background=true，恢复及最终事件按后台投递，避免完成通知丢失。
+wait可等待当前仍挂起的插件任务收束。桌面锁仅协调本进程中的Runner任务，不能
+阻止用户或其它进程操作桌面。等待计入原期限，默认桌面插件600秒，不另给期限。
+
+resume_with_answer仅向本进程中该task_id尚未交付的答案future交付一次，状态恢复
+running；错误/重复/终态答案不重启执行器。持久waiting行没有活的等待future时
+仍拒绝插件恢复，包括进程重启后；已有普通聊天恢复路径保持。
+
+控制器只询问唯一缺失的source=user输入，问题取自purpose/field_label。可见字段
+缺值且无已知待填值时优先澄清，不先选择其它导航按钮；尚不可见的字段仍可通过
+导航显现。答案只作为该字段的字面value，原GoalContract验证后版本+1，重新观察、
+重建候选；授权、约束、完成条件、累计动作/观察/回执和用量不重置。空答案、多字段
+缺失或未注入回调时以needs_input结束；超出字段schema以invalid_user_input结束。
+Advisor无键的needs_user_input仍为终态。未知效果在原路径停止，不因等待而重放。
+
+隔离Chromium三布局使用真实Supervisor/Runner/SDK、fake模型HTTP验证导航后等待、
+用户补值、原页面保存及独立服务端读回；这不是私人桌面或真实模型效果验收。
+本片不涵盖G3跨任务资源生命周期、统一接入套件/能力清单或跨进程恢复。
+
 ## S4-N 插件内自然语言 intake（2026-10-10）
 
 工厂显式 `intake: llm`（仅 `macos`）在 `task_input` 无完整 GoalContract 时，用任务文本
