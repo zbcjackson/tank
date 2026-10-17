@@ -103,3 +103,38 @@ Jev稳定性、准确率或净收益，也不与旧40/150项拼接比较。
 下一步先零收费离线回放H失败链，核对selector/Advisor当时的任务、候选和语义历史，
 确定是否有通用且可复现的信息缺口，再决定最小修复或按能力边界收口。
 不提高Advisor上限来掩盖失败，不直接扩大真实样本；Jev图片仍后置，G3/S6未完成。
+
+## 2026-10-17 零收费离线诊断
+
+仅读取原结果并检查现行序列化/解析及控制流，没有新模型请求、GUI动作或费用，
+原result SHA与费用不变。4条intake实际消息再次匹配冻结；其余28条文本请求
+（18 selector、10 Advisor）的回复按生产JSON解析路径校验，均属于当时提供的
+选项或合法AdviceReply，且每条goal.intent均保持完整任务。14条Jev请求未在本次
+文本回复校验中重放；本次也没有重新执行控制器或重新抽样模型。
+
+**选择失误的输入证据**：H第6步选Add时，payload含完整原算式及第1–5步
+`1 → 2 → Multiply → Advisor:3 → Subtract`和对应已核验读数变化；当前读数
+`12×3-`。同一问题明确提供c6=8、c16=Add，模型实际返回c16。未发现该步缺少
+目标、近期历史、8候选或别名映射错误，不能用“再补上这些信息”作为已证实修法。
+
+**恢复边界**：第四次Advisor给出focus，要求读数0、表达式为空。selector先选Clear、
+再选All Clear，两步后focus_history确实记为completed/focus_verified。focus完成
+不等于原算式完成；返回初始0状态后触发repeated_state，下一次规划复核在发送前
+命中advisor_limit。不是focus丢失、未被读取或错误宣告任务成功。
+这与现行[设计](../../../../../docs/design/computer-use.md)的“重访状态请求有界修复、
+最多4次Advisor、focus不重置原任务计数”一致。它揭示清零恢复仍受原额度约束的
+能力边界，但不证明应放行重复状态、清零预算或增加额度；也不证明放行后会成功。
+
+现有test_ladder.py的focus/有界规划回归 **12 passed、82 deselected**（2.24s），
+覆盖focus完成、三动作过期、重复状态失效及Advisor额度不重置；它们不是本条真实
+动作链的控制器逐步重放。日志`/private/tmp/tank-hj-offline-recovery-tests.log`；
+原始请求/回复核对摘要`/private/tmp/tank-hj-offline-diagnosis.json`，均仅本地保留。
+临时校验最初误用严格Python对象校验导致list/tuple错误，已改为与生产相同的
+model_validate_json并通过；该探针错误不属于生产缺陷。
+
+本片不改源码/提示/上限或成功标准，不发新的收费批次；S5全4门失败保持，现有证据
+不足以采用Jev。下一步准备原计划G3第一片：同一挂起任务等待用户输入后继续，
+保持授权、累计费用/动作/观察/回执和期限。已核对当前SubAgentContext无等待原语，
+Supervisor仍拒绝插件resume，控制器缺值仍返回needs_input终态；focus恢复不替代G3。
+等待期间桌面锁、原期限和单字段回填三项设计取舍仍需在实施准备中处理；本片没有
+实施它们，也未将S5或G3/S6标为完成。诊断文档docs51/diff通过；本报告新增诊断第2轮独立评审未发现可操作问题，无事实修复即结束（评审状态补记由评审者自检）。
