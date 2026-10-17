@@ -912,6 +912,60 @@ Advisor无键的needs_user_input仍为终态。未知效果在原路径停止，
 用户补值、原页面保存及独立服务端读回；这不是私人桌面或真实模型效果验收。
 本片不涵盖G3跨任务资源生命周期、统一接入套件/能力清单或跨进程恢复。
 
+## G3 能力与资源接线清单（2026-10-17）
+
+以下为当前可信适配器清单，不增加权限或默认启用。工厂仍只接受显式browser或macos
+配置；空配置使用unavailable通道。所有命令从backend执行，SDK网络/原生输入边界
+由相应测试fake；隔离Chromium是实际浏览器，原生实机证据另列。
+
+- **公共任务/资源治理**：`agents/task_runtime.py`、`task_resources.py`及
+  `subagent_adapter.py`管理原授权、账本、执行审计、动作/观察、在飞操作和关闭顺序。
+  每任务独立runtime，不接受另一task_id重绑；释放只针对已登记资源。借用资源登记
+  detach回调，不关闭所有者。DesktopResource协调本进程Runner并在清理未知时隔离
+  后续桌面任务；不承诺抢占线程或跨进程恢复。公共入口为
+  `uv run --no-sync pytest core/tests/test_subagent.py core/tests/test_task_model.py core/tests/test_task_runtime.py core/tests/test_plugin_manifest.py core/tests/test_model_calls.py -q`。
+- **宿主LLM/LLMAgent**：`llm/task_binding.py`创建借用SDK客户端视图，宿主持有原
+  HTTP池，任务只拥有自己的调用包装和关闭回调。绑定前检查上下文存活、权限和
+  task_id，关闭任务不会关闭宿主池或另一任务的在飞调用。LLMAgent仍通过既有
+  Allowlist/ApprovalGate工具链，模型调用共享原任务账本；不把旧工具改成新策略。
+  证据为公共入口的三个retained_callers、连续任务和跨任务在飞关闭测试。
+- **任务文本模型**：`llm/task_model.py`由TaskRuntime配置并持有，首次调用才创建
+  本任务AsyncOpenAI/HTTP客户端，任务关闭时释放。ModelSelector的文本选择/回退、
+  LLMAdvisor及LLMIntake只借用complete，不拥有客户端，也不能改模型profile。
+  SDK调用级准入/记账在`model_call.py`，不重复写为原生执行审计；相关契约为
+  `core/tests/test_task_model.py`、`test_model_calls.py`及插件`test_jev.py`/`test_native.py`。
+- **Jev Choice**：`llm/decision_model.py`持有官方SDK客户端，TaskRuntime登记该模型
+  及`task_decision_model.py`调用包装的分别关闭；插件JevSelector只提交问题和候选。
+  凭据与profile由核心解析，SDK拥有其HTTP默认行为，不声称宿主逐包拦截重定向/
+  代理或证书。相关契约为`core/tests/test_decision_model.py`、`test_model_calls.py`及
+  插件`test_jev.py`；新版图片/Box没有本插件接线。
+- **DOM**：`channels/dom.py`的ManagedChromiumChannel任务独占driver/browser/context/page，
+  由SubAgent资源集合关闭；不附着私人浏览器。旧引用受文档身份、scope和代次校验。
+  `TANK_REQUIRE_CHROMIUM=1 uv run --no-sync pytest plugins/agent-computer-use/tests/test_dom.py -q`
+  覆盖创建/取消/断连/清理，以及同一Runner连续两任务的新页面引用和服务端保存读回。
+- **AXPress/Quartz**：`channels/native.py`经`channels/apps.py`绑定进程/窗口，使用
+  `observation.py`观察和`computer_ax.py`/`computer_use_macos.py`原生输入；操作必须走
+  Controller注册的TaskOperation。通道只持有任务引用/指针状态并在关闭时释放，用户
+  App不被终止；按产品规则启动的App结束后保留。测试harness对自建App进程另行拥有
+  并负责关闭，不能把该行为推广到用户实例。`test_native.py`及
+  [本版本原生fake实机](../../backend/benchmarks/computer_use/reports/20261017-g3-resource-native-fake/README.md)
+  提供AXPress/Quartz/输入清理与独立读回证据；实机各case新建Runner，跨任务同Runner
+  的生命周期由公共套件和DOM连续任务验证，不混称为同一证据。
+- **AX/OCR与融合**：AXObservationSource是工厂原生通道的只读观察；`vision.py`的本地
+  Vision观察和`fusion.py`的AX/OCR融合仅能受控注入，工厂无自动OCR/融合开关。
+  OCR元素没有可执行动作，融合不会引入OCR动作/事实，不代表视觉完成核验已启用。
+  `uv run --no-sync pytest plugins/agent-computer-use/tests/test_observation.py plugins/agent-computer-use/tests/test_vision.py plugins/agent-computer-use/tests/test_fusion.py -q`
+  核对受控读入口；`uv run --no-sync python -m benchmarks.computer_use.s1_acceptance`
+  只对固定合成PNG调用实际Vision，不截取私人桌面，也不证明生产自动回退。
+- **拒绝与未接线能力**：manifest runtime_api与私有配置在创建任务资源前校验；未知
+  配置拒绝，工厂不启动浏览器/模型/原生动作。`test_factory_rejects_unimplemented_configuration`
+  与`core/tests/test_plugin_manifest.py`版本拒绝测试保留。Jev图片/Box、视觉Advisor、OCR生产回退和跨进程恢复
+  不属于已启用能力；S5采用证据与生产默认不因本清单改变。
+
+统一E2E入口为既有chat.feature的`lifecycle`案例：运行公共五文件完整套件；managed
+Chromium场景另外验证两个连续任务。G3专项fake与常规E2E聊天连接开发服务的计量
+边界保持，不将实验账本误作整个开发服务账单。验收结果见主计划G3第二片。
+
 ## S4-N 插件内自然语言 intake（2026-10-10）
 
 工厂显式 `intake: llm`（仅 `macos`）在 `task_input` 无完整 GoalContract 时，用任务文本

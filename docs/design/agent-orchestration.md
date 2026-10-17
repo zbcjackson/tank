@@ -99,11 +99,11 @@ When background workers complete, `NotificationHub` queues notifications per con
 - **Cohort tracking**: tracks in-flight workers per conversation. Waits for all workers in a cohort to finish before delivering (avoids partial results).
 - **Proactive delivery**: injects a synthetic `__notification__` event into the pipeline when the brain is idle, triggering a notification turn.
 - **Passive fallback**: Brain calls `hub.drain(conversation_id)` at the start of each user turn, injecting queued notifications as system messages.
-- **Question delivery**: `waiting` events bypass cohort wait and deliver immediately (high priority).
+- **Question delivery**: background `waiting` events bypass cohort wait and deliver immediately (high priority); foreground questions return inline.
 
 ## Worker Pause-and-Ask
 
-Sub-agents can pause mid-execution to ask the user a question. This uses a terminate-and-resume pattern — the worker's full message history is persisted to the database, and execution restarts with the accumulated context plus the user's answer.
+LLM sub-agents can pause mid-execution to ask the user a question. This path uses a terminate-and-resume pattern — the worker's full message history is persisted to the database, and execution restarts with the accumulated context plus the user's answer. Supervised plugin tasks instead retain their live coroutine and original runtime while awaiting an answer, as described under Plugin task agents.
 
 ### Flow
 
@@ -321,7 +321,7 @@ notifications:
 
 7. **`ask_user` is sub-agent only.** The main ChatAgent does NOT have `ask_user` — it talks to the user directly. Only workers dispatched via `agent(...)` get this tool injected.
 
-8. **Worker pause persists full message history.** When a worker calls `ask_user`, all messages up to that point (including the ask_user tool call and result) are serialized to `messages_json` in the database. On resume, the LLM sees the complete conversation history.
+8. **LLM worker pause persists full message history.** When an LLM worker uses the `ask_user` tool, all messages up to that point (including the tool call and result) are serialized to `messages_json` in the database. On resume, the LLM sees the complete conversation history; supervised plugins instead retain their live coroutine.
 
 ## Plugin task agents
 
@@ -449,11 +449,18 @@ other processes. An operator must verify cleanup before explicitly clearing a
 quarantine using DESKTOP_RESOURCE.clear_quarantine().
 
 SubAgents support cooperative cancellation through the task context. There is no
-unused pause/resume capability declaration; plugin pause/resume remain unsupported. `needs_input` returns to
+unused pause/resume capability declaration. Supervised plugin tasks can use the injected
+`SubAgentContext.ask_user` to wait in the original coroutine. Foreground dispatch
+returns the question inline; subsequent terminal events are delivered as background
+events. The original grant, deadline, desktop lease and accumulated counters remain.
+Only a live pending answer future can resume an extension task; duplicate or stale
+answers cannot rebuild a task. `needs_input` still returns to
 the parent as a terminal outcome; it does not start a fresh run on agent_reply.
 The legacy chat-history resume path rejects extension agents because it cannot
 restore plugin progress, the original grant or cumulative budgets. Built-in
-LLM agents retain the existing ask_user/waiting behavior.
+LLM agents retain the existing ask_user/waiting behavior. See the
+[G3 wiring and resource inventory](computer-use.md#g3-能力与资源接线清单2026-10-17)
+for the enabled adapters, resource owners, checks and explicit exclusions.
 
 
 ### Core decision model assembly (SDK-call contract, 2026-10-05)

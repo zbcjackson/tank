@@ -646,3 +646,29 @@ isolated Chromium/Runner on two layouts and an intermediate page. It verifies Ad
 handoff and independently checks the persisted name and unchanged email. Scripted HTTP
 answers establish control flow, not actual LLM planning quality. No new paid/native desktop
 pilot has been run for this implementation; prior Calculator failures remain unchanged.
+
+## G3 resource lifecycle and common acceptance (2026-10-17)
+
+Supervised tasks may wait for one missing user value and continue the same coroutine,
+runtime, grant, deadline and cumulative ledger. A new task receives a new runtime;
+its completion cannot reopen the previous task or reuse its UI references. Task-bound
+LLM views reject another task ID and inactive contexts before creating a client view.
+The host owns its shared LLM pool; task-owned text/decision clients and browser resources
+are closed with that task. Native app/window handles are borrowed; user apps are not
+terminated by channel cleanup. The owned-app test harness has separate ownership.
+
+From backend, run the common core entry:
+
+```bash
+uv run --no-sync pytest core/tests/test_subagent.py core/tests/test_task_model.py core/tests/test_task_runtime.py core/tests/test_plugin_manifest.py core/tests/test_model_calls.py -q
+TANK_REQUIRE_CHROMIUM=1 uv run --no-sync pytest plugins/agent-computer-use/tests/test_dom.py -q
+```
+
+The existing chat.feature lifecycle case runs the core entry. The DOM cases include
+two consecutive tasks on one Runner with disjoint document references and independent
+server readback. See the [capability/resource inventory](../../../docs/design/computer-use.md#g3-能力与资源接线清单2026-10-17)
+and [current native fake-GUI/Vision evidence](../../benchmarks/computer_use/reports/20261017-g3-resource-native-fake/README.md).
+These validate host wiring and ownership, not real-model accuracy or adoption.
+OCR/fusion remain read-only injectable adapters with no default factory switch;
+visual Advisor, automatic OCR fallback, Jev images/Box and persistent cross-process
+resume are not enabled by this work. Production defaults remain unchanged.

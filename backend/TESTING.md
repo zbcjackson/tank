@@ -916,14 +916,27 @@ cancel/budget/cleanup evidence cited by the
 `core/tests/test_subagent.py::test_retained_callers_share_governance` runs the
 same assertions through real Runner paths for a non-GUI SubAgent, Computer Use
 with an injected Advisor, and LLMAgent. Only HTTP/native OS
-boundaries are replaced. It verifies one context/call identity, usage counted once,
-required audit before HTTP, zero sends on audit failure, revoked response handling,
-closed task refusal and borrowed client ownership.
+boundaries are replaced. It verifies one context/call identity per task, usage counted
+once, revoked response handling and optional-observer failure isolation. Sequential
+tasks have independent runtimes, ledgers and call IDs; task closure leaves the host
+LLM pool open. Native execution audit is checked separately before dispatch in
+`test_task_runtime.py`; SDK model calls use call-level accounting and telemetry,
+not the native execution-audit path.
 
 Run from backend: `uv run pytest core/tests/test_subagent.py -k retained_callers -q`.
 Domain loop fixtures remain in `plugins/agent-computer-use/tests`; task/model
 regressions cover cancellation, closed-task refusal and request admission.
-This is offline S0 acceptance, not live-channel or resume acceptance for S1–S4.
+The G3 common entry is:
+`uv run --no-sync pytest core/tests/test_subagent.py core/tests/test_task_model.py core/tests/test_task_runtime.py core/tests/test_plugin_manifest.py core/tests/test_model_calls.py -q`.
+It also covers wrong-task/closed/revoked model-view binding, closing one task while
+another model call remains in flight, cleanup failure/quarantine, borrowed leases
+and cancellation. The existing chat.feature lifecycle case runs this entry. Real
+isolated Chromium tests additionally exercise two tasks on one Runner with disjoint
+document references and independent server readback. Current native fake-GUI and
+synthetic Vision evidence and the explicit unsupported capabilities are listed in
+the [G3 resource inventory](../docs/design/computer-use.md#g3-能力与资源接线清单2026-10-17).
+These are host/lifecycle contracts and fake-model wiring evidence, not model quality
+or OS-sandbox claims; persistent cross-process resume remains unsupported.
 
 
 ## S1 observation adapters
