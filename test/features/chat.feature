@@ -50,6 +50,7 @@ Feature: Chat mode
       | contract |
       | input    |
       | outcomes |
+      | resume   |
 
   Scenario Outline: Computer Use host loop preserves offline task contracts
     When the isolated computer use host contract "<contract>" is exercised
@@ -61,7 +62,7 @@ Feature: Chat mode
       | plugin   |
 
   @managed-chromium
-  Scenario: Managed Chromium preserves configuration, stop, fallback, Advisor and goal-driven actions
+  Scenario: Managed Chromium preserves configuration, stop, fallback, Advisor, same-task resume and goal-driven actions
     When the isolated managed Chromium contract is exercised
     Then the managed Chromium contract passes without paid model calls or personal browser access
 

@@ -30,10 +30,12 @@ Then('the split desktop contract passes without live model or desktop input',
 // Model/desktop boundaries are fake; this does not claim live ladder acceptance.
 When('the isolated plugin task contract {string} is exercised',
   async function (this: TankWorld, contract: string) {
-    assert.ok(['input', 'outcomes'].includes(contract));
+    assert.ok(['input', 'outcomes', 'resume'].includes(contract));
     const selection = contract === 'input'
       ? 'structured_task_input or approval_binds_a_detached or invalid_task_input or assembled_task_constraints'
-      : 'structured_task_result or background_task_outcome or cleanup_failure_retains or cannot_resume_through or interruption_during_cleanup or cleanup_exception_cannot or cleanup_error_preserves_each or legacy_tool_path';
+      : contract === 'resume'
+        ? 'plugin_wait or cannot_resume_through'
+        : 'structured_task_result or background_task_outcome or cleanup_failure_retains or cannot_resume_through or interruption_during_cleanup or cleanup_exception_cannot or cleanup_error_preserves_each or legacy_tool_path';
     const {stdout} = await promisify(execFile)('uv', [
       'run', '--no-sync', 'pytest', 'core/tests/test_subagent.py', '-q', '-k', selection,
     ], {cwd: resolve(process.cwd(), '../backend'), timeout: 30000});
@@ -73,7 +75,7 @@ When('the isolated managed Chromium contract is exercised',
 
 Then('the managed Chromium contract passes without paid model calls or personal browser access',
   function (this: TankWorld) {
-    assert.match(results.get(this) ?? '', /22 passed/);
+    assert.match(results.get(this) ?? '', /25 passed/);
     assert.doesNotMatch(results.get(this) ?? '', /\d+ skipped/);
   });
 

@@ -559,6 +559,147 @@ async def test_extension_cannot_resume_through_legacy_chat_history(stack):
     assert fake.request is None
 
 
+async def test_plugin_wait_resumes_the_original_task_and_notifies_after_foreground_returns(
+    stack, monkeypatch,
+):
+    fake, runner, _, definition, store = stack
+    bus = Bus()
+    events = []
+    bus.subscribe("worker", events.append)
+    supervisor = WorkerSupervisor(runner, store, bus=bus, max_concurrent=1)
+    contexts = []
+
+    async def run(request, context):
+        contexts.append(context)
+        context.budget.record("before", 7, 3)
+        yield AgentOutput(AgentOutputType.TOKEN, "partial")
+        answer = await context.ask_user("Which filename?")
+        context.budget.record("after", 5, 6)
+        yield TaskResult(status="completed", summary=answer).to_output()
+
+    monkeypatch.setattr(fake, "run", run)
+    waiting = await asyncio.wait_for(supervisor.run_foreground(
+        agent_def=definition, prompt="export", timeout=2,
+    ), 0.5)
+    assert waiting.status == "waiting"
+    assert waiting.question == "Which filename?"
+    paused = store.get(waiting.task_id)
+    assert paused.status == "waiting" and paused.question == "Which filename?"
+    assert paused.background
+    from tank_backend.agents.supervisor import ConcurrencyLimitExceeded
+    with pytest.raises(ConcurrencyLimitExceeded):
+        await supervisor.run_foreground(agent_def=definition, prompt="another")
+    assert not fake.closed and contexts[0].budget.total_tokens == 10
+    assert not await supervisor.resume_with_answer("wrong-task", "bad")
+    assert await supervisor.resume_with_answer(waiting.task_id, "report.pdf")
+    assert not await supervisor.resume_with_answer(waiting.task_id, "again.pdf")
+    finished = await supervisor.wait(waiting.task_id, timeout=1)
+    assert finished is not None
+    assert finished.status == "completed" and finished.output == "report.pdf"
+    assert len(contexts) == 1 and contexts[0].budget.total_tokens == 21
+    assert fake.closed and store.count_active() == 0
+    bus.poll()
+    waiting_events = [event.payload for event in events if event.payload["event"] == "waiting"]
+    assert len(waiting_events) == 1 and waiting_events[0]["background"] is False
+    terminal = [event.payload for event in events if event.payload["event"] == "completed"]
+    assert len(terminal) == 1 and terminal[0]["background"] is True
+
+
+@pytest.mark.parametrize("interruption", ["stop", "timeout", "revoke", "context_cancel"])
+async def test_plugin_wait_keeps_original_cancellation_deadline_and_grant(
+    stack, monkeypatch, interruption,
+):
+    from tank_backend.agents.subagent import SubAgentAuthorization
+
+    fake, _, supervisor, definition, store = stack
+    grant = SubAgentAuthorization()
+    contexts = []
+    answers = []
+
+    async def run(request, context):
+        contexts.append(context)
+        answers.append(await context.ask_user("Value?"))
+        yield TaskResult(status="completed", summary="unexpected").to_output()
+
+    monkeypatch.setattr(fake, "run", run)
+    waiting = await supervisor.run_foreground(
+        agent_def=definition, prompt="wait", authorization=grant,
+        timeout=0.15 if interruption == "timeout" else 2,
+    )
+    assert waiting.status == "waiting"
+    if interruption == "stop":
+        assert supervisor.stop(waiting.task_id)
+    elif interruption == "revoke":
+        grant.revoke()
+    elif interruption == "context_cancel":
+        contexts[0].cancel.set()
+    async with asyncio.timeout(1):
+        while store.get(waiting.task_id).status in {"waiting", "running"}:
+            await asyncio.sleep(0.01)
+    assert fake.closed and answers == []
+    assert not await supervisor.resume_with_answer(waiting.task_id, "late")
+    assert store.get(waiting.task_id).status == {
+        "stop": "cancelled", "timeout": "timeout", "revoke": "failed",
+        "context_cancel": "cancelled",
+    }[interruption]
+
+
+async def test_plugin_wait_question_is_returned_through_agent_tool(stack, monkeypatch):
+    fake, runner, supervisor, _, _ = stack
+
+    async def run(request, context):
+        answer = await context.ask_user("Which destination?")
+        yield TaskResult(status="completed", summary=answer).to_output()
+
+    monkeypatch.setattr(fake, "run", run)
+    result = await AgentTool(runner, supervisor=supervisor).execute(
+        prompt="choose", subagent_type="fake")
+    assert isinstance(result.content, str)
+    data = json.loads(result.content)
+    try:
+        assert data["status"] == "waiting" and data["question"] == "Which destination?"
+        assert "Which destination?" in data["message"]
+        assert await supervisor.resume_with_answer(data["task_id"], "Paris")
+        assert (await supervisor.wait(data["task_id"], timeout=1)).output == "Paris"
+    finally:
+        supervisor.stop(data["task_id"])
+
+
+async def test_plugin_wait_cannot_reset_token_budget(stack, monkeypatch):
+    from dataclasses import replace
+
+    fake, _, supervisor, definition, store = stack
+
+    async def run(request, context):
+        context.budget.record("before", 7, 0)
+        await context.ask_user("Value?")
+        context.budget.record("after", 3, 0)
+        context.check()
+        yield TaskResult(status="completed", summary="unexpected").to_output()
+
+    monkeypatch.setattr(fake, "run", run)
+    waiting = await supervisor.run_foreground(
+        agent_def=replace(definition, token_budget=10), prompt="wait")
+    assert await supervisor.resume_with_answer(waiting.task_id, "answer")
+    result = await supervisor.wait(waiting.task_id, timeout=1)
+    assert result.status == "failed" and "budget" in result.error
+    assert store.get(waiting.task_id).task_id == waiting.task_id and fake.closed
+
+
+async def test_plugin_wait_joins_cleanup_after_stop(stack, monkeypatch):
+    fake, _, supervisor, definition, _ = stack
+
+    async def run(request, context):
+        await context.ask_user("Value?")
+        yield TaskResult(status="completed", summary="unexpected").to_output()
+
+    monkeypatch.setattr(fake, "run", run)
+    waiting = await supervisor.run_foreground(agent_def=definition, prompt="wait")
+    assert supervisor.stop(waiting.task_id)
+    finished = await supervisor.wait(waiting.task_id, timeout=1)
+    assert finished.status == "cancelled" and fake.closed
+
+
 @pytest.mark.parametrize("change", [
     {"schema_version": 2}, {"schema_version": True}, {"status": "invented"},
     {"summary": 3}, {"details": []}, {"details": {"x": float("nan")}},

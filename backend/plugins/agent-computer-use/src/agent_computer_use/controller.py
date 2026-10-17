@@ -545,8 +545,13 @@ class ComputerUseController:
                         self.finish_focus("invalidated", decision.choice, snapshot)
                     actions = replace(actions, reason=decision.choice, progress=self.progress)
             if action is None:
-                if any(item.value is None and item.source == "user" for item in goal.inputs):
-                    return self.result("needs_input", "missing_user_input")
+                if any(entry.value is None and entry.source == "user" for entry in goal.inputs):
+                    updated = await self.request_user_value(goal, snapshot, context)
+                    if isinstance(updated, TaskResult):
+                        return updated
+                    goal = updated
+                    snapshot = await self.observe(goal, context)
+                    continue
                 if actions.reason == "none":
                     return self.result("stopped", "none")
                 if actions.reason in {"need_more_context", "ambiguous"}:
@@ -634,6 +639,32 @@ class ComputerUseController:
                     break
             if self.pending_effect:
                 return self.result("unknown", "effect_unknown")
+
+    async def request_user_value(
+        self, goal: GoalContract, snapshot: Snapshot, context: SubAgentContext,
+    ) -> GoalContract | TaskResult:
+        missing = [entry for entry in goal.inputs if entry.value is None and entry.source == "user"]
+        if len(missing) != 1 or context.user_input is None:
+            return self.result("needs_input", "missing_user_input")
+        field = missing[0]
+        answer = await context.ask_user(
+            f"Please provide {field.purpose} ({field.field_label or field.key}).")
+        context.check("desktop")
+        if not answer.strip():
+            return self.result("needs_input", "missing_user_input")
+        try:
+            updated = GoalContract.from_input({
+                **goal.model_dump(mode="json"),
+                "inputs": [{**entry.model_dump(mode="json"),
+                            "value": answer if entry.key == field.key else entry.value}
+                           for entry in goal.inputs],
+            })
+        except ValueError:
+            return self.result("needs_input", "invalid_user_input")
+        self.finish_focus("invalidated", "goal_changed", snapshot)
+        self.version += 1
+        self.progress = replace(self.progress, goal_version=self.version)
+        return updated
 
     async def advise(
         self,

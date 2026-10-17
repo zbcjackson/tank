@@ -274,6 +274,7 @@ class WorkerStore:
         output: str = "",
         question: str = "",
         messages: list[dict[str, Any]] | None = None,
+        background: bool | None = None,
     ) -> bool:
         """Transition running → waiting. Persists accumulated output, question,
         and messages for later resumption. Returns False if not found or not running."""
@@ -284,6 +285,8 @@ class WorkerStore:
             row.status = "waiting"
             row.output = output
             row.question = question
+            if background is not None:
+                row.background = int(background)
             if messages is not None:
                 row.messages_json = json.dumps(messages)
         return True

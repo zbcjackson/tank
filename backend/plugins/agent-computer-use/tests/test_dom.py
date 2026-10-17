@@ -658,8 +658,9 @@ Save name.
 
 
 @pytest.mark.parametrize("layout", ["plain", "offset", "middle"])
+@pytest.mark.parametrize("wait_for_user", [False, True])
 async def test_goal_runner_sdk_dom_saves_without_a_script(
-    site, chromium_required, monkeypatch, tmp_path, profile_store, layout,
+    site, chromium_required, monkeypatch, tmp_path, profile_store, layout, wait_for_user,
 ):
     import json
     from unittest.mock import MagicMock
@@ -752,19 +753,54 @@ Save name.
         "completion": [{"key": "status:Saved name", "value": "Ada"},
                        {"key": "status:Saved email", "value": "unchanged@example.test"}],
     }
-    outputs = [output async for output in runner.run_agent(
-        definition, [], task_id="jev-dom", task_input=task_goal,
-        authorization=SubAgentAuthorization(frozenset({"desktop", "network"})), audit=audit,
-    )]
-    results = [out.metadata["task_result"] for out in outputs if "task_result" in out.metadata]
-    assert len(results) == 1 and results[0]["status"] == "completed", outputs
+    if wait_for_user:
+        from tank_backend.agents.store import WorkerStore
+        from tank_backend.agents.supervisor import WorkerSupervisor
+        from tank_backend.agents.task_result import TaskResult
+        from tank_backend.persistence import Base, Database
+
+        task_goal["authorization_ref"] = "current_task"
+        task_goal["inputs"][0]["value"] = None
+        db = Database(f"sqlite+pysqlite:///{tmp_path}/waiting.db")
+        Base.metadata.create_all(db.engine)
+        supervisor = WorkerSupervisor(runner, WorkerStore(db))
+        waiting = await asyncio.wait_for(supervisor.run_foreground(
+            agent_def=definition, prompt="Save the supplied name; preserve email",
+            task_input=task_goal, timeout=10,
+            authorization=SubAgentAuthorization(frozenset({"desktop", "network"})),
+        ), 5)
+        try:
+            assert waiting.status == "waiting"
+            assert runner._desktop_resource.lock.locked()
+            assert len(sent) == (2 if layout == "middle" else 1)
+            assert await supervisor.resume_with_answer(waiting.task_id, "Ada")
+            finished = await supervisor.wait(waiting.task_id, timeout=5)
+            assert finished is not None
+            assert finished.status == "completed"
+            results = [TaskResult.model_validate(finished.task_result).model_dump(mode="json")]
+            assert results[0]["details"]["goal_version"] == 2
+            receipts = results[0]["details"]["receipts"]
+            assert receipts[0]["goal_version"] == 1 and receipts[-1]["goal_version"] == 2
+        finally:
+            supervisor.stop(waiting.task_id)
+            await supervisor.wait(waiting.task_id, timeout=5)
+            db.dispose()
+        assert not runner._desktop_resource.lock.locked()
+    else:
+        outputs = [output async for output in runner.run_agent(
+            definition, [], task_id="jev-dom", task_input=task_goal,
+            authorization=SubAgentAuthorization(frozenset({"desktop", "network"})), audit=audit,
+        )]
+        results = [out.metadata["task_result"] for out in outputs if "task_result" in out.metadata]
+        assert len(results) == 1 and results[0]["status"] == "completed", outputs
     assert results[0]["cleanup"] == "confirmed"
     assert len(sent) == (4 if layout == "middle" else 3) and closed == [True]
     assert profile_store == {"name": "Ada", "email": "unchanged@example.test", "saves": "1"}
     assert len(results[0]["details"]["progress"]["verified_actions"]) == len(sent)
     assert not any(record.category == "model" for record in audits)
-    assert any(record.operation == "computer_use.dispatch" for record in audits)
-    assert "never-in-plugin-config" not in repr(outputs) + repr(audits)
+    if not wait_for_user:
+        assert any(record.operation == "computer_use.dispatch" for record in audits)
+    assert "never-in-plugin-config" not in repr(results) + repr(audits)
 
 
 @pytest.mark.parametrize("bad_reply", [False, True])

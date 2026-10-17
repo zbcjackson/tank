@@ -30,7 +30,7 @@ import contextlib
 import logging
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from ..pipeline.bus import BusMessage
@@ -77,6 +77,7 @@ class DispatchResult:
     output: str
     error: str | None
     task_result: dict[str, JsonValue] | None = None
+    question: str | None = None
 
 
 class WorkerSupervisorError(Exception):
@@ -114,6 +115,8 @@ class WorkerSupervisor:
         self._max_concurrent = max_concurrent
         # Tracks in-flight background tasks so ``stop`` can cancel.
         self._tasks: dict[str, asyncio.Task[DispatchResult]] = {}
+        self._answers: dict[str, asyncio.Future[str]] = {}
+        self._foreground: dict[str, asyncio.Future[DispatchResult]] = {}
 
     @property
     def store(self) -> WorkerStore:
@@ -159,11 +162,30 @@ class WorkerSupervisor:
             background=False,
             task_input=task_input,
         )
-        return await self._drive_to_completion(
+        if not agent_def.extension:
+            return await self._drive_to_completion(
+                run=run, agent_def=agent_def, timeout=timeout,
+                allowed_categories=allowed_categories, authorization=authorization,
+            )
+        ready: asyncio.Future[DispatchResult] = asyncio.get_running_loop().create_future()
+        self._foreground[run.task_id] = ready
+        task = asyncio.create_task(self._drive_to_completion(
             run=run, agent_def=agent_def, timeout=timeout,
-            allowed_categories=allowed_categories,
-            authorization=authorization,
-        )
+            allowed_categories=allowed_categories, authorization=authorization,
+        ), name=f"worker:{run.task_id}")
+        self._tasks[run.task_id] = task
+        task.add_done_callback(lambda _t: self._tasks.pop(run.task_id, None))
+        try:
+            done, _ = await asyncio.wait((ready, task), return_when=asyncio.FIRST_COMPLETED)
+            return ready.result() if ready in done else await task
+        except asyncio.CancelledError:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+            raise
+        finally:
+            self._foreground.pop(run.task_id, None)
+            ready.cancel()
 
     def run_background(
         self,
@@ -235,9 +257,11 @@ class WorkerSupervisor:
         existing = self._store.get(task_id)
         if existing is None:
             return None
-        if existing.status != "running":
-            return existing
         task = self._tasks.get(task_id)
+        if existing.status != "running" and not (
+            existing.status == "waiting" and task is not None and not task.done()
+        ):
+            return existing
         if task is None:
             # No in-process task — supervisor was restarted; fall back
             # to a poll loop bounded by ``timeout``.
@@ -378,6 +402,7 @@ class WorkerSupervisor:
             return DispatchResult(
                 task_id=run.task_id, status="waiting",
                 output="".join(output_chunks), error=None,
+                question=ask_user.question,
             )
 
         return self._finalize(
@@ -412,6 +437,30 @@ class WorkerSupervisor:
         stop_reason: str | None = None
         task_result: TaskResult | None = None
         if task_runtime:
+            async def user_input(question: str) -> str:
+                answer: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+                self._answers[run.task_id] = answer
+                try:
+                    if not self._store.pause(
+                        run.task_id, output="".join(output_chunks), question=question,
+                        messages=messages, background=True,
+                    ):
+                        raise SubAgentStopped("worker_not_running")
+                    waiting = DispatchResult(
+                        run.task_id, "waiting", "".join(output_chunks), None, question=question,
+                    )
+                    ready = self._foreground.get(run.task_id)
+                    foreground = ready is not None and not ready.done()
+                    if foreground and ready is not None:
+                        ready.set_result(waiting)
+                    self._post_bus_event(
+                        "waiting", run if foreground else replace(run, background=True),
+                        question=question,
+                    )
+                    return await answer
+                finally:
+                    self._answers.pop(run.task_id, None)
+
             async def audit(record: ExecutionRecord) -> None:
                 if record.task_id != run.task_id:
                     raise ValueError("audit belongs to another task")
@@ -421,6 +470,7 @@ class WorkerSupervisor:
                 task_id=run.task_id, authorization=authorization, deadline=deadline, audit=audit,
             )
             run_kwargs["task_input"] = run.task_input
+            run_kwargs["user_input"] = user_input
         async for event in self._runner.run_agent(
             agent_def=agent_def,
             messages=messages,
@@ -497,7 +547,9 @@ class WorkerSupervisor:
             error=error,
             task_result=task_result,
         )
-        self._post_bus_event(_terminal_event_name(status), run, result=result)
+        self._post_bus_event(
+            _terminal_event_name(status), self._store.get(run.task_id) or run, result=result,
+        )
         return result
 
     # ------------------------------------------------------------------
@@ -511,6 +563,11 @@ class WorkerSupervisor:
                 f"max depth {self._max_depth} reached at depth {depth}",
             )
         active = self._store.count_active()
+        active += sum(
+            1 for task_id, task in self._tasks.items()
+            if not task.done() and (row := self._store.get(task_id)) is not None
+            and row.status == "waiting"
+        )
         if active >= self._max_concurrent:
             raise ConcurrencyLimitExceeded(
                 f"max concurrent workers ({self._max_concurrent}) reached "
@@ -613,6 +670,15 @@ class WorkerSupervisor:
         run = self._store.get(task_id)
         if run is None or run.status != "waiting":
             return False
+
+        answer_future = self._answers.get(task_id)
+        if answer_future is not None:
+            if answer_future.done() or not self._store.resume(task_id):
+                return False
+            self._answers.pop(task_id, None)
+            answer_future.set_result(answer)
+            self._post_bus_event("started", run)
+            return True
 
         agent_def = self._runner.get_definition(run.agent_def)
         if agent_def is not None and agent_def.extension:

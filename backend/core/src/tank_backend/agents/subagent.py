@@ -148,6 +148,7 @@ class SubAgentContext:
     max_observations: int | None = None
     max_output_bytes: int = 4 * 1024 * 1024
     max_output_events: int = 4096
+    user_input: Callable[[str], Awaitable[str]] | None = None
     runtime: TaskRuntime = field(init=False, compare=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -159,6 +160,24 @@ class SubAgentContext:
                 raise ValueError("task limits must be nonnegative integers")
 
         object.__setattr__(self, "runtime", TaskRuntime(self, audit=self.audit))
+
+    async def ask_user(self, question: str) -> str:
+        """Wait in the original task, retaining its runtime and cumulative limits."""
+        from ..tools.computer_native import join_on_cancel
+
+        self.check()
+        if self.user_input is None:
+            raise SubAgentStopped("user_input_unavailable")
+        pending = asyncio.ensure_future(self.user_input(question))
+        try:
+            while not pending.done():
+                await asyncio.wait((pending,), timeout=0.1)
+                self.check()
+            self.check()
+            return await pending
+        finally:
+            pending.cancel()
+            await join_on_cancel(asyncio.gather(pending, return_exceptions=True))
 
     def check(self, permission: str | None = None) -> None:
         self.runtime.check_open()

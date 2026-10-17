@@ -90,8 +90,9 @@ class ActionBuilder:
                       for d in details]
         if len(set(identities)) != len(identities):
             return ActionSet(binding, (), "ambiguous_target", len(actions))
-        reason = "jev_eligible" if actions else (
-            "missing_parameters" if missing else "no_viable_actions")
+        # Ask for visible missing values before navigating away; known fills may proceed.
+        reason = "missing_parameters" if missing and not pending_fill else (
+            "jev_eligible" if actions else "no_viable_actions")
         if len(actions) == 1:
             detail = details[0]
             explicitly_bound = any(

@@ -1282,6 +1282,133 @@ async def test_advisor_cannot_generate_an_undeclared_user_value():
     assert advisor.calls == 0 and world.dispatched == []
 
 
+@pytest.mark.parametrize("observation_limit", [1, 3])
+async def test_missing_user_input_resumes_original_goal_with_fresh_observation(observation_limit):
+    task = export_goal().model_dump(mode="json")
+    task["inputs"][0]["value"] = None
+    world = ExportWorld()
+    questions = []
+
+    async def answer(question):
+        questions.append(question)
+        assert world.observations == 1 and world.dispatched == []
+        return "报告.pdf"
+
+    ctx = replace(context(), user_input=answer, max_observations=observation_limit)
+    ctx.budget.record("before-wait", 7, 3)
+    runtime = ctx.runtime
+    controller = ComputerUseController(world, world)
+    result = await controller.run(SubAgentRequest("Export", "", "task", task), ctx)
+    assert len(questions) == 1 and "filename" in questions[0]
+    assert controller.version == 2 and ctx.runtime is runtime
+    assert ctx.budget.total_tokens == 10
+    if observation_limit == 1:
+        assert result.reason == "observation_limit" and result.status == "stopped"
+        assert world.observations == 1 and world.dispatched == []
+        return
+    assert result.status == "completed"
+    assert world.observations == 3 and len(world.dispatched) == 1
+    assert world.dispatched[0].value == "报告.pdf"
+    receipts = result.details["receipts"]
+    assert isinstance(receipts, list) and len(receipts) == 1
+    receipt = receipts[0]
+    assert isinstance(receipt, dict) and receipt["goal_version"] == 2
+
+
+@pytest.mark.parametrize("action_limit", [1, 2])
+async def test_user_answer_preserves_prior_actions_receipts_and_remaining_quota(action_limit):
+    class World(ExportWorld):
+        def __init__(self):
+            super().__init__()
+            self.values = {"title": "", "field": ""}
+
+        async def observe(self, scope, ctx):
+            self.observations += 1
+            return Snapshot(str(self.observations), scope, len(self.dispatched), (
+                Element("title", "textbox", "Title", ("fill",), value=self.values["title"]),
+                Element("field", "textbox", "File name", ("fill",), value=self.values["field"]),
+            ), facts=(Fact(key="status:new_pdf", value="verified"),)
+                if self.values["field"] == "报告.pdf" else ())
+
+        async def dispatch(self, binding, action, ctx):
+            ctx.check("desktop")
+            self.dispatched.append(action)
+            self.values[action.target_ref] = action.value
+            return DispatchReceipt(action.id, "sent")
+
+    task = export_goal().model_dump(mode="json")
+    task["inputs"][0]["value"] = None
+    task["inputs"].append({"key": "title", "purpose": "title", "field_label": "Title", "value": "Report"})
+    world = World()
+
+    async def answer(question):
+        assert len(world.dispatched) == 1 and world.values["title"] == "Report"
+        assert len(ctx.runtime.records) == 3
+        return "报告.pdf"
+
+    ctx = replace(context(), user_input=answer, max_actions=action_limit)
+    result = await ComputerUseController(world, world).run(
+        SubAgentRequest("Export", "", "task", task), ctx)
+    assert result.status == ("completed" if action_limit == 2 else "partial")
+    assert len(world.dispatched) == action_limit
+    receipts = result.details["receipts"]
+    assert isinstance(receipts, list)
+    versions = []
+    for receipt in receipts:
+        assert isinstance(receipt, dict)
+        versions.append(receipt["goal_version"])
+    assert versions == list(range(1, action_limit + 1))
+    if action_limit == 1:
+        assert result.reason == "action_limit" and world.values["field"] == ""
+
+
+@pytest.mark.parametrize("case", ["empty", "multiple", "unavailable", "oversized"])
+async def test_user_wait_does_not_guess_or_patch_multiple_fields(case):
+    task = export_goal().model_dump(mode="json")
+    task["inputs"][0]["value"] = None
+    if case == "multiple":
+        task["inputs"].append({"key": "other", "purpose": "another value", "value": None})
+    questions = []
+
+    async def answer(question):
+        questions.append(question)
+        return "x" * 4097 if case == "oversized" else "  \n"
+
+    ctx = replace(context(), user_input=None if case == "unavailable" else answer)
+    world = ExportWorld()
+    controller = ComputerUseController(world, world)
+    result = await controller.run(SubAgentRequest("Export", "", "task", task), ctx)
+    assert result.status == "needs_input"
+    assert result.reason == ("invalid_user_input" if case == "oversized" else "missing_user_input")
+    assert controller.version == 1 and world.dispatched == []
+    assert len(questions) == (1 if case in {"empty", "oversized"} else 0)
+
+
+async def test_unknown_effect_stops_before_waiting_for_another_user_value():
+    class World(ExportWorld):
+        async def observe(self, scope, ctx):
+            snapshot = await super().observe(scope, ctx)
+            return replace(snapshot, facts=(), elements=tuple(
+                replace(element, value="") for element in snapshot.elements))
+
+        async def dispatch(self, binding, action, ctx):
+            return replace(await super().dispatch(binding, action, ctx), status="unknown")
+
+    task = export_goal().model_dump(mode="json")
+    task["inputs"].append({"key": "other", "purpose": "another value", "value": None})
+    questions = []
+
+    async def answer(question):
+        questions.append(question)
+        return "unused"
+
+    world = World()
+    result = await ComputerUseController(world, world).run(
+        SubAgentRequest("Export", "", "task", task), replace(context(), user_input=answer))
+    assert result.status == "unknown" and result.reason == "effect_unknown"
+    assert len(world.dispatched) == 1 and questions == []
+
+
 class Binder:
     def __init__(self, error: Exception | None = None, keys=frozenset({"status:new_pdf"})):
         from agent_computer_use.contracts import TargetBinding

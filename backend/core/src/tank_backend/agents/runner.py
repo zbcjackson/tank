@@ -153,6 +153,7 @@ class AgentRunner:
         model_capture: ModelCapture | None = None,
         desktop_cleanup: DesktopCleanup | None = None,
         task_input: dict[str, JsonValue] | None = None,
+        user_input: Callable[[str], Awaitable[str]] | None = None,
     ) -> AsyncIterator[AgentOutput]:
         task_input = validate_task_input(task_input)
         if task_input is not None and not agent_def.extension:
@@ -182,6 +183,7 @@ class AgentRunner:
                 audit=audit, model_policy=model_policy, model_capture=model_capture,
                 execution_policy=self._approval_policy, approval_resolver=self._resolver,
                 max_actions=max_actions, max_observations=max_observations,
+                user_input=user_input,
             )
             context.check()
         if context is None:

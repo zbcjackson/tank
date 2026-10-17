@@ -386,6 +386,8 @@ class AgentTool(BaseTool):
                 result.output
                 or f"Agent '{agent_type}' completed (no text output)."
             )
+        elif result.status == "waiting":
+            message = result.question or result.output
         else:
             # failed / cancelled / timeout — surface as a tool result
             # rather than raising. The LLM decides what to do next.
@@ -404,6 +406,7 @@ class AgentTool(BaseTool):
                 "task_id": result.task_id,
                 "status": result.status,
                 "message": message,
+                **({"question": result.question} if result.question is not None else {}),
                 **({"task_result": result.task_result} if result.task_result is not None else {}),
             }, ensure_ascii=False),
             display=f"Agent '{agent_type}' {result.status}",
