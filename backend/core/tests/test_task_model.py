@@ -236,6 +236,114 @@ async def test_shared_completion_preserves_task_request_and_single_accounting(
     assert len(requests) == 2 and released == [True]
 
 
+@pytest.mark.parametrize("source", ["host", "bound"])
+async def test_bound_llm_rejects_another_task_id_before_reusing_its_client(
+    model_stack, monkeypatch, source,
+):
+    from openai import AsyncOpenAI
+
+    from tank_backend.llm.llm import LLM
+
+    context, profile, _, requests, _ = model_stack
+    client = AsyncOpenAI(api_key="test", base_url=profile.base_url, max_retries=0)
+    host = LLM(api_key="test", model="test", base_url=profile.base_url, client=client)
+    views = []
+    original = client.with_options
+
+    def with_options(**kwargs):
+        views.append(True)
+        return original(**kwargs)
+
+    monkeypatch.setattr(client, "with_options", with_options)
+    try:
+        bound = host.bind_task(context, "task")
+        assert bound.bind_task(context, "task") is bound
+        with pytest.raises(ValueError, match="different task"):
+            (host if source == "host" else bound).bind_task(context, "another-task")
+        assert views == [True] and not client.is_closed() and requests == []
+    finally:
+        await context.runtime.aclose()
+        await client.close()
+
+
+@pytest.mark.parametrize("stop", ["revoked", "closed", "cancelled", "deadline", "budget"])
+async def test_existing_task_view_cannot_be_rebound_after_its_task_stops(model_stack, stop):
+    from openai import AsyncOpenAI
+
+    from tank_backend.llm.llm import LLM
+
+    context, profile, _, requests, _ = model_stack
+    client = AsyncOpenAI(api_key="test", base_url=profile.base_url, max_retries=0)
+    host = LLM(api_key="test", model="test", base_url=profile.base_url, client=client)
+    try:
+        bound = host.bind_task(context, "task")
+        if stop == "revoked":
+            context.authorization.revoke()
+        elif stop == "closed":
+            await context.runtime.aclose()
+        elif stop == "cancelled":
+            context.cancel.set()
+        elif stop == "deadline":
+            context.runtime.restrict_deadline(0)
+        else:
+            context.budget.limit = 10
+            context.budget.record("used", 7, 3)
+        with pytest.raises((SubAgentStopped, asyncio.CancelledError, TimeoutError)):
+            bound.bind_task(context, "task")
+        assert not client.is_closed() and requests == []
+    finally:
+        await context.runtime.aclose()
+        await client.close()
+
+
+async def test_closing_one_task_keeps_another_inflight_call_and_host_pool_alive(model_stack):
+    from openai import AsyncOpenAI
+
+    from tank_backend.llm.llm import LLM
+
+    first, profile, payload, _, _ = model_stack
+    second = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event())
+    started: asyncio.Queue[str] = asyncio.Queue()
+    gates = {name: asyncio.Event() for name in ("first", "second")}
+    requests = []
+
+    async def respond(request):
+        name = json.loads(request.content)["messages"][0]["content"]
+        requests.append(name)
+        started.put_nowait(name)
+        await gates[name].wait()
+        return httpx.Response(200, json=payload)
+
+    client = AsyncOpenAI(api_key="test", base_url=profile.base_url, max_retries=0,
+                         http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+    host = LLM(api_key="test", model="test", base_url=profile.base_url, client=client)
+    a, b = host.bind_task(first, "task"), host.bind_task(second, "next-task")
+    pending = [asyncio.create_task(view.complete_response(
+        [{"role": "user", "content": name}], retry=False))
+        for view, name in ((a, "first"), (b, "second"))]
+    try:
+        async with asyncio.timeout(1):
+            assert {await started.get(), await started.get()} == {"first", "second"}
+            await first.runtime.aclose()
+        assert not client.is_closed() and not pending[1].done()
+        gates["second"].set()
+        assert (await asyncio.wait_for(pending[1], 1)).choices[0].message.content == "ready"
+        assert first.budget.call_count == second.budget.call_count == 1
+        assert second.budget.total_tokens == 10 and not second.budget.unknown_calls
+        assert first.budget.call_ids.isdisjoint(second.budget.call_ids)
+        with pytest.raises(SubAgentStopped, match="runtime_closed"):
+            a.bind_task(first, "task")
+        assert sorted(requests) == ["first", "second"]
+    finally:
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        await first.runtime.aclose()
+        await second.runtime.aclose()
+        await client.close()
+
+
 async def test_task_client_preserves_standard_sdk_observability(
     model_stack, monkeypatch,
 ):

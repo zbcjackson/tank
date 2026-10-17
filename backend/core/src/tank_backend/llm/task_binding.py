@@ -9,11 +9,12 @@ from .model_call import TaskModelCallRunner
 
 
 def bind_llm(llm: LLM, context: SubAgentContext, task_id: str) -> LLM:
-    if llm.manages_task_usage:
-        if llm._task_context is not context:
-            raise ValueError("LLM belongs to another task runtime")
-        return llm
+    if llm.manages_task_usage and llm._task_context is not context:
+        raise ValueError("LLM belongs to another task runtime")
     context.check("network")
+    context.runtime.bind(task_id)
+    if llm.manages_task_usage:
+        return llm
     bound = LLM(api_key=llm.api_key, model=llm.model, base_url=llm.base_url,
                 temperature=llm.temperature, max_tokens=llm.max_tokens,
                 stream_options=llm.stream_options, extra_body=llm.extra_body,
