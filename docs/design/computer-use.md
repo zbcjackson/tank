@@ -1,7 +1,7 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-10-02（N2 退役；保留既有 Computer Use 验证边界）。本文汇总自研
-`computer_use` 的现行行为；旧 N2、官方 SDK 和独立 DesktopExecutor 已移除。
+更新：2026-10-17（G3验收与G1/G2出口审计；S6仍有数据准入缺口）。本文汇总自研
+`computer_use` 的现行行为；旧N2及其官方SDK、独立DesktopExecutor已移除。
 历史报告中的 N2 数据仅作为当时的实验记录。
 逐轮原始证据、历史测试数量和异常记录见
 [macOS 调研](../research/macos-coordinate-chain.md)，复现入口见
@@ -651,11 +651,12 @@ SDK 负责协议，核心保留所需结果/选项校验和已知/未知用量�
 
 ### S0 模型调用记录与普通遥测（2026-09-29）
 
-受控模型 transport 为通过初始任务检查的请求发出开始/终结事件，终结区分
-`not_sent`、`unknown`、`returned`，保留最近 128 条不可变记录及耗时、原始校验后的
-输入/输出用量。`returned` 仅表示拿到有效 HTTP 响应和可信用量，不表示文本/目标
-语义成功；之后文本回复被拒绝仍保留该记录。记录与原任务账本、显式实验策略复用
-同一个 call_id，历史记录滚动丢弃不改变累计账本。
+2026-10-06验收的[调用层简化](../plans/done/model-call-simplification.md)取代原模型
+transport。当前`TaskModelCallRunner`在SDK调用前后发出开始/终结事件，终结区分
+`not_started`、`unknown`、`returned`；记录task_id/call_id、耗时和可用用量。
+`returned`表示调用返回且取得用量，不表示文本/目标语义成功；无效决策的已知用量
+仍记账。记录与原任务账本、显式实验策略复用同一call_id。最近128条执行记录属于
+TaskRuntime的UI/工具执行记录，不再将其描述为模型HTTP记录缓存。
 
 Runner 自动将 extension 的 model_call 事件经核心 TaskObserver 转发到 Bus 的
 `task_model_call`；已发送请求的终结同时转换为现有 `llm_usage` 格式，未知用量不
@@ -666,30 +667,33 @@ Runner 自动将 extension 的 model_call 事件经核心 TaskObserver 转发到
 可恢复投递；控制/生命周期消息保留原 post 语义。它限制的是新增模型遥测的排队，
 不是整个 Bus 的全局容量。自定义 observer 仍遵循现有同步回调契约；异常由 context
 隔离，不声称能抢占阻塞回调。事件和日志不含凭据、目的地、请求或响应正文。
-普通遥测允许丢失，不能代替下述必需持久审计。Adapter 对插件输出设置字节/事件上限；
+普通遥测允许丢失，不能代替下述UI/工具必需持久审计。Adapter 对插件输出设置字节/事件上限；
 不把模型遥测的有界队列宣称为整个应用 Bus 的全局硬配额。
 
 
 ### S0 Supervisor 的必需持久审计（2026-09-29）
 
 WorkerSupervisor 为 extension 任务装配数据库审计回调，复用 TaskRuntime 的审计
-失败锁定机制；原生操作和受控模型都写入统一数据库的 worker_audit_events 表。
+失败锁定机制；当前原生操作写入统一数据库的 worker_audit_events 表，模型调用
+按2026-10-06已验收设计使用普通遥测，不写必需执行审计。
 每行保存任务/调用身份、类别、阶段、状态与可用的用量/耗时，按追加顺序保留；
 不保存端点、凭据或请求/响应正文。WorkerStore.audit_records 提供按任务分页读取。
 直接 Runner 使用者仍须显式注入 audit，不能把未注入的路径当成已持久化。
 
-模型调用在 HTTP 前先提交 prepared/not_sent，再提交 dispatch/unknown 意图，
-异步写入后再次检查授权、取消和期限；拿到或丢失回复后追加 finished 记录。
+UI/工具注册操作在invoke前先提交prepared/not_sent，再提交dispatch/unknown意图，
+异步写入后再次检查授权、取消和期限；操作返回后追加finished记录，丢失回复则
+保留dispatch/unknown意图，不把未知效果改成未派发。
 unknown 意图不是已确认发送：进程可能在提交意图后、实际发送前退出，因此不可
-盲目重放。用量仍只记入原任务账本，终结记录引用同一 call_id；终结审计失败不
-抹去已知用量，也不向调用者交付成功回复。插件即使捕获审计异常并返回 DONE，
+盲目重放。终结记录引用同一call_id；终结审计失败锁定任务，不向调用者交付成功
+结果。模型用量独立保留在原任务账本。插件即使捕获审计异常并返回 DONE，
 Adapter 也拒绝将其当作成功任务。
 
 审计写入串行等待并设 2 秒上限，失败/取消/超时锁定原运行时，后续业务拒绝；
 已失败后不再追加新审计尝试，保留此前已提交的保守意图。数据库操作放入线程，
 等待超时不代表能撤销底层数据库提交；迟到提交只追加证据，不能重新开放业务。
-普通 Bus 遥测仍可丢失，不承担这一发送前门控。客户端关闭等待其在飞请求的终结
-审计，包括准入拒绝后的未发送记录。Supervisor 保留 audit_failed 终止原因。
+普通Bus遥测仍可丢失，不承担这一派发前门控。运行时关闭有界等待在飞操作和资源
+清理；模型调用另等待SDK取消/关闭并结算用量，不承诺模型终结审计。
+Supervisor保留audit_failed终止原因。
 内存 SQLite 在同一 Database 实例内共享跨线程连接并串行化事务；它仅用于临时数据，
 不具备文件数据库的重开持久性。文件库保持原连接池行为。
 跨进程恢复、审计数据库保留/容量策略不在 S0 骨架验收内；同进程恢复及真实通道
@@ -700,19 +704,25 @@ Adapter 也拒绝将其当作成功任务。
 
 - Computer Use：观察、派发经 TaskOperation；测试 Advisor 借用 TaskModel。
   规则零模型、多步 fake Jev、一次 Advisor 后恢复、旧回复/未知效果等均离线验收。
-  默认工厂仍拒绝真实通道配置，不创建 AX/OCR/DOM/Jev 资源。
+  当前工厂可显式装配DOM或macos；空配置仍unavailable，实际接线见下方G3清单。
 - 非 GUI fixture：同一 SubAgent/Runner/TaskModel 服务，无 Computer Use 领域依赖。
 - Runner 的 LLMAgent：planner、locator、fallback 和审批 classifier 绑定原 context；
   流式/非流式共享 SDK 调用级记账，旧 usage 投影按 call_id 去重；保留现有工具政策与提示。
   主会话直接使用的 ChatAgent 不因此变成受管 SubAgent，其原审批/账本契约保持不变。
-- 实验入口：BenchmarkTaskPolicy 注入请求准入、费用策略和 HTTP 捕获，覆盖上述模型
+- 实验入口：显式ModelCallPolicy/ModelCapture注入SDK调用准入、费用策略和调用级捕获，覆盖上述模型
   客户端；没有已声明模型能力的 extension 仍拒绝启用请求限额。凭据不进入审计/遥测。
 
 公共验收为 `core/tests/test_subagent.py::test_retained_callers_share_governance`：
-三条真实 Runner/SDK 路径共用授权、唯一用量、发送前审计、审计失败零发送、响应时撤权、
-任务关闭后拒绝调用及借用连接所有权断言。HTTP 与 OS 被替换，无付费或真实桌面调用。
+三条真实Runner/SDK路径共用授权、唯一用量、响应时撤权、普通observer失败不阻断、
+任务关闭后拒绝调用、连续任务与借用连接所有权断言。UI执行审计失败零派发另由
+TaskRuntime/Supervisor测试核验，不将模型调用描述为发送前必需审计。
+HTTP与OS被替换，无付费或真实桌面调用。
 领域证据在 `agent-computer-use/tests`；核心限额、撤权/取消/迟到完成及资源回收
-在 task_runtime/model_transport 测试。2026-10-02 移除两条 N2 验收路径。
+在task_runtime/model_calls/task_model测试。2026-10-02移除两条N2验收路径。
+
+2026-10-17出口审计：G2保留调用方迁移和G3已具备范围内证据；G1请求数据类别与
+请求体字节上限尚无统一SDK调用前准入，不以输出限额、配置URL校验或实验预算替代。
+因此不宣告G1/S6整体验收。后续实现和负例门槛见[主计划S6审计](../plans/active/computer-use-strategy-ladder.md#s6-出口审计与当前采用建议2026-10-17)。
 
 
 ### S1 AX / Vision 观察适配器（2026-09-30）
