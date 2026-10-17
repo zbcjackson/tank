@@ -1121,6 +1121,22 @@ is running. No S4 behavior or paid requests are part of this regression.
 
 ## SDK model-call simplification (2026-10-05)
 
+Task data admission (`ModelDataScope`, 2026-10-17) is checked before experimental
+reservation/capture and SDK entry. `test_model_calls.py` covers exact UTF-8 JSON
+parameter byte limits, streaming, unsupported/mixed content, and capture mutation
+or revocation. `test_task_model.py` exercises real AsyncOpenAI with fake HTTP:
+text-only services reject image blocks even in image-enabled tasks; bound LLMs
+respect the host allowance. `test_decision_model.py` checks the same scope before
+the lazy official Jev SDK client is created. The shared three-caller conformance
+test includes denied data/zero byte allowance with zero requests and usage.
+
+Extension contexts default to text/4 MiB; Runner explicitly preserves text/image
+for built-in multimodal tasks with a 32 MiB ceiling. These are compact UTF-8 JSON
+parameter limits, separate from output bytes and tokens; SDK serialization and
+HTTP overhead are not claimed to be measured here. Static image diagnostics
+declare image scope explicitly. All new tests replace external network boundaries;
+this does not validate real model quality or enable Jev image/Box support.
+
 `test_model_transport.py` is retired with the removed HTTP-level contract; it is
 replaced by `test_model_calls.py` for invocation identity, known/unknown/error usage,
 parallel calls, cancellation/deadline, late results, paused/closed streams, SDK

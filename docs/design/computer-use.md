@@ -1,6 +1,6 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-10-17（G3验收与G1/G2出口审计；S6仍有数据准入缺口）。本文汇总自研
+更新：2026-10-17（G3与G1-DS1验收；S5确认与S6正式处置仍待完成）。本文汇总自研
 `computer_use` 的现行行为；旧N2及其官方SDK、独立DesktopExecutor已移除。
 历史报告中的 N2 数据仅作为当时的实验记录。
 逐轮原始证据、历史测试数量和异常记录见
@@ -720,9 +720,25 @@ HTTP与OS被替换，无付费或真实桌面调用。
 领域证据在 `agent-computer-use/tests`；核心限额、撤权/取消/迟到完成及资源回收
 在task_runtime/model_calls/task_model测试。2026-10-02移除两条N2验收路径。
 
-2026-10-17出口审计：G2保留调用方迁移和G3已具备范围内证据；G1请求数据类别与
-请求体字节上限尚无统一SDK调用前准入，不以输出限额、配置URL校验或实验预算替代。
-因此不宣告G1/S6整体验收。后续实现和负例门槛见[主计划S6审计](../plans/active/computer-use-strategy-ladder.md#s6-出口审计与当前采用建议2026-10-17)。
+2026-10-17出口审计发现G1请求数据准入缺口，随后在原SDK调用入口补齐实现：
+`SubAgentContext.model_data_scope`持有不可变ModelDataScope，默认仅文本/4MiB。
+Runner为既有内置LLMAgent/grounding显式允许文本与image_url图像/32MiB，调用方
+只能收紧该范围；extension默认仍文本/4MiB。TaskModel保持文本专用，即使原任务
+允许图像也拒绝图像块。未知/混合内容块、音频等未接线数据拒绝，不启用Jev图片。
+
+TaskModelCallRunner在实验预留、捕获和SDK进入之前统一检查；Jev当前Choice的
+state/questions为JSON文本，同样受原任务类别/字节上限约束。字节按参数快照规范
+JSON（UTF-8、非ASCII不转义、紧凑分隔、拒绝NaN等非JSON值）计算，包含内联图像
+内容；这是调用级载荷上限，SDK序列化/HTTP头及遥测开销不在该字节口径内，不冒称
+逐包HTTP长度拦截或远端URL图片下载体积上限。内容类型不等于语义脱敏，不能识别
+文本内所有秘密。拒绝保留model_data_denied/model_request_too_large原因，零SDK
+请求/零已发送用量；原授权、deadline及关闭检查仍在异步捕获之后再次执行。
+
+适配器保留私有输入快照，捕获回调只能改自己的副本，不能把已准入文本改成实际
+发送的图像。独立静态图片诊断harness显式声明已有图像范围；旧冻结和真实评分
+不改，未来配方固定model_data源码指纹。本切片完整验证与第1轮独立评审通过，
+无可操作或遗留问题、无源码修复即结束，G1-DS1阻断已解除；状态补记由评审者自检，
+不自动宣告S5/S6整体验收。见[主计划S6审计及实施](../plans/active/computer-use-strategy-ladder.md#s6-出口审计与当前采用建议2026-10-17)。
 
 
 ### S1 AX / Vision 观察适配器（2026-09-30）
