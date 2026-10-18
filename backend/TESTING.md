@@ -941,6 +941,15 @@ or OS-sandbox claims; persistent cross-process resume remains unsupported.
 
 ## S1 observation adapters
 
+The image development recipe's separate `jev_image_eval` executor is covered in
+the existing `test_vision.py` and chat.feature visual contract. Tests exercise the
+real Jev/OpenAI SDKs with external HTTP replaced: all five arms and 260 requests,
+40 excluded rows, independent candidate/cardinality/interior-point scoring,
+frozen-preview equality, file tampering, known malformed answers, unknown usage,
+no retries on HTTP failure, budget/audit refusal, cancellation and cleanup failure.
+Every stopped batch retains all 300 planned records. No paid API or GUI dispatch
+is performed; the results prove executor behavior, not real model accuracy.
+
 Jev offline image capability tests extend the existing decision/model-data/vision
 tests. Real SDK 0.7.5 fake HTTP checks default-compression multipart, actual PNG
 parts/references/header, same-call cardinality+Box, immutable capture snapshots,

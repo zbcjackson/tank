@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-18：切片2离线已验收，真实对照待执行；切片1已验收，生产默认不变。）
+> 状态：进行中（2026-10-18：切片2只读评测执行器已过回归、待独立评审，真实对照待执行；切片1及图片离线准备已验收，生产默认不变。）
 
 # Computer Use：Jev结构化/图片能力与视觉兜底
 
@@ -160,6 +160,29 @@ backend/CLI ruff、离线lock检查、tmux重载错误检查（空输出）、do
 `git diff --check`通过。最终日志为`/private/tmp/tank-jev-image-review-final-pytest.log`
 及`/private/tmp/tank-jev-image-review-final-e2e.log`。修订前与中止运行不替代
 最终通过证据。协议contract/生成物未变，第10项不适用。
+
+### 切片2只读评测执行器（2026-10-18实施）
+
+1. 以全新目录复用合成开发配方，冻结源码、依赖、输入与五组实际请求预览；
+   默认只准备，不读凭据、不建客户端。旧目录和旧freeze不改。
+2. 复用TaskRuntime、图片准入、官方SDK和SpendLedger，执行1.13文本、1.14文本、
+   1.14图片Choice、cardinality+Box及同图Qwen定位。300条计划记录中40条排除，
+   最多260次请求；逐行独立task/client、零重试、无GUI权限或执行器。
+3. 输入与标签分离，独立评分候选、目标数量和可点击内部区域中心命中，保留
+   置信信息、耗时、用量、失败与未运行分母。执行需审阅精确digest及接收方/预算；
+   本次只实现和fake HTTP验证，不执行收费API或改变生产配置。
+4. Tests：按TDD在既有test_vision.py增加离线准备、完整五组真实SDK/fake HTTP、
+   标签不入请求、篡改拒绝、已知用量非法答案、未知用量、预算/审计/HTTP失败、
+   取消与清理失败测试；既有chat.feature visual场景覆盖新增测试。
+5. 最后执行本文完整Verification Checklist全部适用项，再完成最多三轮
+   review-and-refactor并记录真实命令/结果；真实模型质量与采用判断仍待后续执行。
+
+作者验证：新增14项评测用例；test_vision.py共73 passed。完整后端使用
+`TANK_REQUIRE_CHROMIUM=1 UV_CACHE_DIR=/private/tmp/tank-uv-cache uv run --no-sync pytest`
+exit0：6251 passed、1 skipped、21 warnings（446.90s）；E2E exit0：21 scenarios、
+83 steps通过（125.211s）。backend ruff（含新benchmark）、两份修改/新增Python的
+pyright、web lint与`tsc -b --noEmit`、CLI ruff、tmux重载日志（空输出）、docs53与
+`git diff --check`通过。协议及生成物未变，第10项不适用。独立评审尚待完成。
 
 ## Jev适用性与最新视觉能力（2026-10-18核对）
 

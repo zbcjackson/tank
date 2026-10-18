@@ -201,6 +201,11 @@ Existing profiles default to `images: false`; `TaskModel` and ordinary
 share original accounting/deadlines. Plugin `JevImageProbe` is read-only, with no
 executor or production factory mode. No production config is changed. See the
 [development recipe](benchmarks/computer_use/fixtures/jev-image-dev/README.md).
+The separate `benchmarks.computer_use.jev_image_eval` CLI prepares five-arm frozen
+request previews offline and supports explicit digest-gated, read-only model runs.
+It retains independent scores, known/unknown usage and all planned rows on stops;
+preparation and regression tests never make paid requests. See the recipe's
+read-only executable comparison for limits and execution instructions.
 
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots
