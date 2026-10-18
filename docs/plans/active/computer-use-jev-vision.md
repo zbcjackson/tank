@@ -47,6 +47,8 @@ Jev不能可靠处理时使用视觉方案，并保留统一的授权、预算�
   全部分母、阶段时间、路由覆盖、错误动作与恢复；冷暖条件分别测量。
 - [ ] **切片3：冻结与独立确认。** 开发pilot估计方差后，冻结样本量、质量/安全
   门槛、速度改善幅度、聚类分析和期限惩罚，再准备可审阅的新数据/预算预览。
+  候选绝对质量、参考臂健康/可比性和配对差异分别预注册/报告；参考运行异常时
+  限制相对归因，不能仅因参考任务失败就推成候选无价值，也不删除该任务后重算优势。
   不复用旧目录、旧holdout或旧未花额度；不默认用固定150行替代样本设计。
 - [ ] **切片4：采用判断。** 先证明质量/稳定性与安全可接受，再检查宣称的速度
   或质量增益及资源代价；只省费单独描述。未证明前保持显式实验。
@@ -75,7 +77,7 @@ Jev不能可靠处理时使用视觉方案，并保留统一的授权、预算�
 
 1. `cd web && pnpm lint`
 2. `cd web && npx tsc -b --noEmit`
-3. `cd backend && uv run ruff check src/ tests/`
+3. `cd backend && uv run ruff check core/src/ core/tests/ plugins/`，另检查本切片改动的benchmark文件。
 4. `cd backend && uv run pytest`
 5. `cd backend && uv run pyright <本切片修改的Python文件>`，不以type: ignore规避错误。
 6. `cd cli && uv run ruff check src/ tests/`
@@ -92,4 +94,19 @@ Jev不能可靠处理时使用视觉方案，并保留统一的授权、预算�
 2026-10-18交付自检：`check_docs.py`通过（53文件），`git diff --check`通过；
 审查面板使用实际cursor/canvas SDK声明的TypeScript检查0诊断（未声称宿主UI渲染
 验收）。六个受审目录140个非Markdown工件文件集与SHA256不变；没有新增模型/
-GUI测量。独立评审记录待补。
+GUI测量。
+
+2026-10-18独立review-and-refactor（基线`44457b5c`，首版`fb35d55c`及本轮修订）：
+第1轮确认R1：后续backend lint命令仍指向已迁移的src/tests，已改为core/src、
+core/tests、plugins并要求覆盖改动benchmark。R2：旧两臂共同质量门的解释遗漏了
+参考失败与候选价值的区别；已在报告、计划和面板分开候选绝对质量、参考运行健康/
+可比性与配对差异，保留旧18/20、全4门及全部判分，未把J4/20或J2/2改判采用。
+第2轮为评审者对上述修订的自检，无新增或遗留问题，立即结束；不递归委派。
+
+评审者独立核对当前selector/Advisor/调用及评分源码；DOM按原始kind和唯一call_id
+重算四组，确认总耗时差13.947582s、模型调用跨度差14.002973s，未混淆推理时间；
+六目录140个非Markdown工件文件集及SHA256不变，before manifest未改。docs53与
+git diff --check通过；面板依实际cursor/canvas SDK做strict/noEmit/ReactJSX检查
+0诊断，未完成宿主UI渲染验收。本轮源码、冻结、原结果、费用/unknown均只读，
+未运行后端/E2E、GUI或模型调用。评审记录补记由评审者自检；混合方案仍待实现，
+本次文档/面板修订不属于模型效果验证或默认切换。
