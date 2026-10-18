@@ -28,6 +28,8 @@ live 新实验预算按该计划 §8 逐批授权执行。
 2026-09-28：该计划扩展为目标级宿主循环与 Jev 下一动作选择，LLM 按需介入；
 原 D2 复验保留为阶段验证，未实现能力仍不视为已交付。
 
+2026-10-18：[策略阶梯计划](plans/active/computer-use-strategy-ladder.md)的S5当前配置按不采用/证据不足收口；原确认试验仍未完成。以下接收其条件性后续，S6最终关档尚未完成。Jev图片需求保留，主线结论前置已满足，但尚无可归因于缺图的当前失败样本。
+
 | 项目 | 触发条件 | 背景/前置 | 来源 |
 |---|---|---|---|
 | 多浏览器可见启动与现有会话接管 | **需求已确认**（2026-09-30 用户要求，允许后续实现）；待后续排期，确定逐浏览器接入及会话身份方案后立项 | 分别支持启动可见浏览器和接管用户正在使用的浏览器，授权范围内复用页签/登录态；不局限于 Headless Chromium。评估 Chrome、Edge、Firefox、Safari 等的实际支持范围与接入方式；验收身份绑定、用户操作冲突、撤权/取消、断连及清理所有权，原有浏览器仅解除附着。尚未实现，不改变已完成的 S2 与当前 S3–S6 范围 | [策略阶梯计划 §9](plans/active/computer-use-strategy-ladder.md#9-还需依据实际执行调整的点)；2026-09-30 用户后续需求 |
@@ -49,5 +51,13 @@ live 新实验预算按该计划 §8 逐批授权执行。
 | Computer-use 原生协议与专用定位模型探索 | 明确需要该路线，取得可用端点/部署、协议与授权，并批准独立实验预算 | M3 已完成自定义 point/pixels/bbox 适配；原生点框、Responses computer、UI-TARS 未测试，不能由自定义工具结果推断支持性或收益 | [M3 收尾](plans/done/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
 | Computer-use 静态候选采用复验 | 决定重新考虑候选/提示配置，且准备新预算与未使用的独立 holdout | 首轮 544 次额度已用完；旧 holdout 歧义拒绝失败，唯一匹配修正仅三次开发 smoke。新冻结需覆盖正例和负例，不能复用旧数据宣称独立验收；M4–M8 集成/真实任务验收已在原计划完成（保留基线结论） | [M3 收尾](plans/done/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
 | Computer Use OCR 可点候选（强版融合） | 真实任务或新验收暴露 AX/DOM 完全缺失但屏幕有可点文字的界面（canvas 自绘 UI、地图标注、PDF 内链等），且批准独立实验切片 | 用户原始想法＝OCR 识别截屏文字位置找可交互元素（typesafe-computer-use/OmniParser 路线：OCR 框→编号候选→Jev 选→点框内中心）。保守版 context-only 融合契约已实现（fusion.py，2026-10-13）；强版需坐标基归一（AX 屏幕全局点 vs OCR 截图像素）、"文字≠控件"误操作入分母、框中心点空三个失败模式分别统计；样本可用合成 canvas 页起步。2026-10-13 用户确认挂起 | [策略阶梯计划 S5-App 线 3](plans/active/computer-use-strategy-ladder.md)；[调研 L3 档](research/computer-use-strategy-ladder.md#33-l3-ocr-文本区域)；[typesafe-computer-use 感知](research/jev-computer-use-comparison.md) |
+| Computer Use AX/OCR只读融合接线 | 冻结AX缺标签/正文不可读的真实样本与AX完整负对照，证明OCR提供足以抵消误候选/延迟的补充信息 | fusion.py保守context-only契约已实现，工厂未接线；先统一AX屏幕全局点与OCR图像像素坐标基，保留来源/完整性与只读门控，再比较AX/OCR/融合。OCR不因此变成可执行控件，强版可点候选仍按既有用户挂起条目处理 | [策略阶梯计划S5-App线3](plans/active/computer-use-strategy-ladder.md) |
+| Computer Use Jev图片增量与Box受控试验 | **需求已确认，主线结论前置已满足**；冻结具体视觉消歧/状态缺口样本及AX已完整负对照，完成同版有图/无图配方、图片准入/尺寸映射与新增截图至Jev数据范围后独立立项 | 当前配置研究不采用，H失败链已有目标/历史/候选，不能假定图片会修复跳步。同一显式版本先比较文本/文本+图片；版本升级先比较文本臂，Box另做存在性/唯一性与帧几何验证。保留后期需求，未启用图片/Box、未升级SDK；启动前重核官方协议/SDK、冻结新预算和数据预览 | 2026-10-16用户后置要求；[策略阶梯计划S5后期与10-18处置](plans/active/computer-use-strategy-ladder.md) |
+| Computer Use 长任务策略采用复验 | 取得可解释当前失败的新通用修复、模型/策略配置或独立任务族依据，并先通过离线/小规模完整context准入门；再立新计划/新冻结 | 当前DOM无净收益、独立长任务L2未过、完整context四项未过全4门；原150项确认均未完成、H1–H4未判定。停止同配置追加，不补跑旧目录、不复用已见holdout宣称独立确认，不以费用或时间单项达标替代成功质量 | [策略阶梯计划S5正式处置](plans/active/computer-use-strategy-ladder.md) |
+| Computer Use DOM视图与观察稳定性受控优化 | 真实任务暴露文本/同名区分/滚动或延迟状态覆盖缺口，或既有计时事件证明观察开销是主要瓶颈 | DOM原子读取已具备；S5-App线1无活跃新臂，线4尚无unknown/误判证据触发。先做同一driver contract，再单变量比较视图/有界等待/事件或操作覆盖，不凭微基准启用，不重放未知副作用 | [策略阶梯计划S5-App](plans/active/computer-use-strategy-ladder.md) |
+| Computer Use Cua Driver可选后端 | 现有直接AX/Quartz后端出现可复现契约/能力缺口，且选定可验证的替代驱动、安装与权限方案 | 依赖已移除、S5-App线2暂缓；先验证窗口/元素身份、新鲜度、派发回执、取消和清理，再同任务独立读回对照。executed不等于业务完成，不因登记而安装驱动 | [策略阶梯计划S5-App与正式处置](plans/active/computer-use-strategy-ladder.md) |
+| Computer Use RapidOCR第二观察后端 | 本地Vision在独立冻结样本上失败，且第二后端有可验证改善 | Vision合成样本验收不证明通用识别率；先保留几何/来源与只读边界，再比较召回/误匹配/开销，不自动生成可点控件 | [策略阶梯计划§9](plans/active/computer-use-strategy-ladder.md) |
+| Computer Use 确定性规则的模型替代 | D1/D3/D4/D5规则出现可归因瓶颈，且潜在任务收益能覆盖额外模型开销 | 默认确定性可判不强加模型；做单变量、有独立验收的比较，不把已实现Jev下一动作选择再算新实验 | [策略阶梯计划§9](plans/active/computer-use-strategy-ladder.md) |
+| Computer Use 旧unknown用量对账 | 取得原请求可关联的提供方usage或实际账单证据 | 最近确认/诊断链旧预留$0.380096640继续保留；研究结束和未运行trial终止不等于已发送未知请求免费。不重发原请求来猜旧用量，不将该链known+held当作全部S5/开发服务账单 | [策略阶梯计划S5正式处置](plans/active/computer-use-strategy-ladder.md) |
 | 受控遮罩误点后盖住目标窗口 | pair-1/2/3 配对 core trial 开跑前，或再次观察到“窗口消失/全黑”导致的 `launch_app` 重试 | A-control 单轮首次批量点击落到始终置顶的受控黑背景（归一化 x≈850 → 屏幕 x≈1632，窗口右缘约 1270），随后目标窗口被遮罩盖住，模型需 3 次 `launch_app` 才恢复；材料层已加派发前窗口门禁（窗外点击零派发并记 `gate_blocked`），后续 M5 core/M6/M7 各批遮罩陷阱未再发生；但门禁属 launcher 材料而非生产代码，移除材料或生产环境复现时仍需对策 | [A-control 单轮证据](../backend/benchmarks/computer_use/reports/20260924-m5-a-control-pumped-pilot/README.md)、[门禁材料](../backend/benchmarks/computer_use/reports/20260924-m5-pixels-unified-ready/README.md) |
 | 子代理链路历史压缩机制 | 长任务 routinely 触顶 token 预算（M6 长历史两轮均 300k 处受控停止，27/17 步远未到步数/时限上限），且需要子代理完成更长流程 | M6 第 4 项发现：ContextManager/Compactor 只存在于主助手语音路径，自研子代理链路（SubAgentDriver → AgentRunner → LLMAgent → chat_stream）无压缩；长历史行为验收（当前图引用/失败恢复）已通过，机制引入未做 | [M6 长历史报告](../backend/benchmarks/computer_use/reports/20260924-m6-longhistory/README.md) |
