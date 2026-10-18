@@ -190,7 +190,17 @@ Replace them with `decision_models` / `decision-model`, removing the old profile
 `extension` or `provider` field. There is one decision implementation (Jev), so no
 provider selector or provider plugin is required. Core owns SDK resources; task
 wrappers account usage. Runtime-API declarations must be 3 for the SDK-call contract.
-Callers only submit choice questions; they never configure HTTP transports.
+Callers submit bounded decisions; they never configure HTTP transports.
+
+SDK 0.7.5 adds offline image/Box capability preparation. An experimental host
+config can declare a separate Jev profile with `images: true`, an explicit
+supported version (`jev-1.14.0` for Box), URL and credential reference. This
+recipient opt-in allows task image scope; callers may still narrow it to text.
+Existing profiles default to `images: false`; `TaskModel` and ordinary
+`DecisionModel.choose` remain text/JSON-only. Task `choose_image`/`locate_image`
+share original accounting/deadlines. Plugin `JevImageProbe` is read-only, with no
+executor or production factory mode. No production config is changed. See the
+[development recipe](benchmarks/computer_use/fixtures/jev-image-dev/README.md).
 
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots
@@ -678,7 +688,9 @@ sudo systemctl start tank-backend
 ### Jev HTTP defaults
 
 Jev uses the official SDK's own HTTP client. Tank passes a 30-second SDK timeout and
-zero retries, but does not inject an HTTP client or transport. Environment proxy and
+zero retries and explicit `compression=False`, without injecting HTTP clients.
+SDK 0.7.5 may otherwise use zstd when available; services freeze uncompressed
+serialization and tests inspect the SDK default separately. Environment proxy and
 certificate settings now follow SDK defaults (`trust_env=True` in the pinned HTTP
 library), replacing the earlier explicit opt-out. The current library default does
 not follow redirects. Other model/replay client settings are unchanged.

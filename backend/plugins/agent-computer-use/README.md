@@ -191,7 +191,7 @@ No paid model call or personal browser input is part of S2 acceptance.
 
 ## S3: explicitly configured Jev Choice
 
-Jev is a core-managed decision model. Core uses the official `typesafe-sdk==0.7.2`
+Jev is a core-managed decision model. Core uses the official `typesafe-sdk==0.7.5`
 async client; the plugin only constructs the UI choice question and consumes
 `context.runtime.decision_model.choose(state=..., instructions=..., options=...)`.
 The returned `ChoiceResult` contains choice, confidence, probabilities and optional input/output token counts, not an
@@ -363,6 +363,27 @@ alone does not establish identity-evidence consistency before dispatch. See the
 follow-up record for the preserved 2-pass/1-fail/8-not-run outcome and limitations.
 
 ### Bounded generative selection and Jev fallback (S3)
+
+Offline Jev image capability preparation is separate from this production loop.
+Core decision profiles may opt in with `images: true`; supported fixed versions
+are 1.13.0/1.14.0 for image Choice and 1.14.0 for Box. Both task image scope and
+the specific Jev recipient opt-in are required. The SDK adds the experimental
+header; capture/admission includes normalized JSON plus immutable raw file parts,
+not base64 hidden in text. SDK 0.7.5 uploads multipart; services disable compression
+and retries explicitly. Byte ceilings count compact parameters plus file bytes,
+not HTTP framing/compression or provider re-encoding.
+
+`JevImageProbe` captures a frame through the original runtime, normalizes EXIF
+orientation/PNG/size/padding and retains its inverse mapping through M2 to screen
+coordinates. It makes one image Choice or combined cardinality+Box call, then
+rechecks a second capture from the same task/window/source observation. A stale
+frame, revoked authority or unknown usage yields no evidence usable for progress.
+The probe returns read-only evidence, has no executor and is not a factory
+selector. No image/Box point is automatically dispatched, including `one` results:
+confidence gates and live capability quality have not been calibrated/measured.
+No-candidate Choice still cannot create an executable control. The new synthetic
+[development recipe](../../benchmarks/computer_use/fixtures/jev-image-dev/README.md)
+prepares input/label-separated task/stage specifications without SDK calls.
 
 Explicit experimental `selector: jev-vision` replaces that text fallback with one
 image-assisted choice among admitted actions. Declare `visual-model: <llm-profile>`

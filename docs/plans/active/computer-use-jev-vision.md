@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-18：切片1有限候选图片接管与离线验收完成，生产默认不变；Jev图片Choice/Box、真实模型开发对照与独立确认待执行。）
+> 状态：进行中（2026-10-18：切片2离线已验收，真实对照待执行；切片1已验收，生产默认不变。）
 
 # Computer Use：Jev结构化/图片能力与视觉兜底
 
@@ -16,7 +16,7 @@ Jev不能可靠处理时使用视觉方案，并保留统一的授权、预算�
 前序审查已有A/H/J评估及当前实现，识别已证实问题、可检验假设和有效证据边界，
 形成研究报告、交互审查面板及新的验证设计。既有冻结、原始请求、结果、阈值、费用
 和unknown预留不改；旧研究结案不作为目标混合方案的否定证据。具体代码/新试验
-属于后续切片；本次开始切片1，不自动部署或追加真实调用。
+属于后续切片；切片1与切片2离线准备已验收，不自动部署或追加真实调用。
 
 ## 步骤
 
@@ -114,6 +114,53 @@ Chromium在允许的权限下运行。中间验证因后续计数修订主动中
 Box、无候选定位、开发集与V/JT/JM/JF真实模型对照、收费试验、独立确认及采用
 判断仍待后续切片；没有真实收费API或个人GUI操作，没有切换生产默认。
 
+### 切片2离线子切片（2026-10-18验收）
+
+1. 固定SDK 0.7.5并验证旧文本接口；显式关闭服务压缩以保持请求确定性，另以
+   fake HTTP核对官方SDK默认压缩行为与multipart图片字节、引用和Box响应。
+2. 新增显式Jev图片接收准入，图片字节独立进入ModelRequest准入/捕获；保留文本
+   TaskModel职责，规范化图片方向/格式/尺寸并记录到原帧的可逆映射。
+3. 提供受任务治理的图片Choice及Box证据接口，同请求判断目标存在/唯一性；
+   未校准前不增加自动Box/图片动作派发，不接线生产JM/JF策略。
+4. 准备全新、确定性的合成开发集及固定协议，覆盖结构完整/缺失、混合往返、
+   动态恢复、多步与负例；提示/观察和独立标签分离，明确开发/确认族隔离。
+
+Tests：按TDD扩展既有decision-model、model-data、插件视觉/benchmark测试与
+chat.feature；fake HTTP核对真实SDK序列化、capture/用量关联、缺准入/非法图片/
+引用/过期帧拒绝、Box缺失/多义零派发、几何映射、无重试及开发集无标签泄露。
+本次不执行收费API或个人GUI操作；真实对照及数据/预算预览另行准备。
+最终执行本文完整Verification Checklist全部适用项及独立review-and-refactor。
+
+本次离线验收：显式图片接收方与task image scope双准入、真实SDK0.7.5的图片
+Choice/同请求cardinality+Box、图片规范化和逆映射、原任务治理及只读帧复核
+均已有实现和fake HTTP回归。插件probe没有executor或生产factory模式；缺目标、
+多义、高confidence均不会派发动作。图片/Box仍未接入JM/JF实时策略。
+
+新开发集为36任务规格、60阶段，只有两个布局cluster、双语指令而UI标签为英文；
+不能视为36个独立应用样本。输入与独立标签分离，缺用户输入和过期帧零请求预览；
+往返/恢复/工作流是组件与后续宿主规格，不是真实GUI完成证据。稳定源码重新
+prepare并load_freeze通过，目录`/private/tmp/tank-jev-image-dev-20261018-reviewed`，
+digest为`5f13e432461d67dc65fb5a0079a358135eed9e2587f8da3b8bf835f726a3a3f8`；
+早期draft不交付，不修补旧冻结。价格/校准/预算、V/JT/JM/JF真实对照和独立确认
+集均待准备；未调用收费API、发送个人图片或操作个人GUI，生产默认不变。
+
+独立review-and-refactor以`8d4ce639`为基线：第1轮R1（中）确认Task图片Choice
+本地题目校验晚于capture/reserve，可泄漏ValueError并把零发送误记unknown；
+以3个红测复现后共享SDK题目规范化，在捕获/计量前拒绝。R2（低）确认公共SDK
+路径丢失旧成功choice观测；红测后恢复，并覆盖文本/图片Choice的置信分布、
+候选数和Box独立置信信息。R3（低）明确列出全部新增Python后发现4条类型
+推断诊断，补两处dict注解和TaskOperation泛型；没有以ignore规避。第2轮为
+评审者对上述修复的自检，无新增或未解决问题，即结束；不递归委派。本条补记
+亦由评审者自检。
+
+最终稳定源码完整后端exit0：`6237 passed, 1 skipped, 21 warnings`（434.42s，
+`TANK_REQUIRE_CHROMIUM=1`）；E2E exit0：21 scenarios/83 steps通过（114.13s）。
+全部13个改动/新增Python的pyright为0错误/0警告；web lint与`tsc -b --noEmit`、
+backend/CLI ruff、离线lock检查、tmux重载错误检查（空输出）、docs53与
+`git diff --check`通过。最终日志为`/private/tmp/tank-jev-image-review-final-pytest.log`
+及`/private/tmp/tank-jev-image-review-final-e2e.log`。修订前与中止运行不替代
+最终通过证据。协议contract/生成物未变，第10项不适用。
+
 ## Jev适用性与最新视觉能力（2026-10-18核对）
 
 默认未纳入Jev与实验缺少视觉接管是两件事：前者受采用证据限制；后者是现有
@@ -132,7 +179,8 @@ Jev只能理解AX/DOM；它也能判断普通文本、JSON及获准图片。
 图片，1.14另支持[Box](https://docs.typesafe.ai/primitives/box)。图片与Box仍为
 实验能力，需`TypeSafe-Danger-Zone-Images: true`；PNG/JPEG经`assets`引用。
 [Python SDK变更](https://docs.typesafe.ai/sdk/python/changelog)0.7.5加入图片/Box；
-仓库当前仍固定0.7.2、模型1.13，接口只接线文本Choice。本轮不升级依赖/配置。
+前序审查时仓库固定0.7.2、模型1.13，只接线文本Choice；本次离线子切片升级SDK
+至0.7.5并添加显式图片/Box证据接口，生产配置的1.13文本profile不变。
 实验准备时固定显式版本并再次核验，不依赖`latest`/`preview`浮动别名。
 
 图片能力分为两个独立问题：
@@ -161,8 +209,8 @@ Jev只能理解AX/DOM；它也能判断普通文本、JSON及获准图片。
    与Qwen定位对照优先用同一合规图；不同分辨率的最佳产品配置另作系统对照。
 3. 文本专用TaskModel保持职责；Jev图片/Box走显式受控决策能力，不将字节塞进
    字符串绕过数据准入。无截图至Jev准入、尺寸/引用/映射不符时须在SDK前拒绝。
-4. 记录Choice概率分布、confidence、候选数与Box单独的confidence。当前core已
-   返回Choice置信信息，但插件DecisionResult未传递/用于路由；须先补观测再在
+4. 记录Choice概率分布、confidence、候选数与Box单独的confidence。切片1已由core/插件
+   传递Choice置信信息并补观测，尚未用于图片/Box路由；须在
    开发集校准。confidence不是已证明的正确率，文本/图片/Box阈值不能互相套用；
    官方[置信度说明](https://docs.typesafe.ai/confidence)亦要求按具体场景确定阈值。
 

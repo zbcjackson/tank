@@ -146,6 +146,13 @@ completion service using the same SDK lifecycle and ledger. `TaskModel` remains
 text-only. The host declaration allows text/image to the named visual profile;
 caller-provided data scope can narrow it. SDK records and captures carry source
 purpose and the same unique call ID, including failures.
+An explicit `decision_models.<name>.images: true` additionally enables Jev image
+Choice and cardinality+Box evidence APIs with SDK 0.7.5. Task image scope can
+narrow that recipient opt-in. Parameter JSON, experimental header and immutable
+image file parts are admitted/captured together before lazy SDK client creation.
+The read-only plugin probe normalizes bound frames and rechecks them after the
+response. It has no executor; uncalibrated results do not add a production
+selector or dispatch path. Existing `choose()` remains JSON/text-only.
 Runtime API 3 rejects explicit API 1/2 declarations before factory creation because
 the former HTTP-hook contract is gone. Langfuse and task observer telemetry are
 optional; model telemetry failure does not gate UI/SDK execution. See the

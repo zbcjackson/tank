@@ -4,6 +4,14 @@
 `computer_use` 的现行行为；旧N2及其官方SDK、独立DesktopExecutor已移除。
 历史报告中的 N2 数据仅作为当时的实验记录。
 
+本次后续离线切片将SDK固定为0.7.5，增加显式Jev profile `images: true`准入及
+原任务的图片Choice/Box证据接口。普通文本接口仍拒绝图片。准入/capture包含
+参数JSON、图片引用/实验头与独立文件字节；限额不冒称HTTP线级大小。插件
+`JevImageProbe`只读，规范化方向/尺寸/补边、保留原帧逆映射并在响应后复核帧；
+Box同请求另问none/one/several，无任何自动动作派发。新合成开发任务规格36项/
+60阶段，输入与标签分离；未运行真实模型、没有校准派发门，也不构成完成质量
+或GUI恢复收益证据。详见[准备协议](../../backend/benchmarks/computer_use/fixtures/jev-image-dev/README.md)。
+
 显式`selector: jev-vision`与extension的`visual-model`声明接线一条有限候选图片路径。
 完整结构先Jev文本，合法弃权后用绑定窗口/主frame PNG做单步选择；缺标签或语义
 身份重复时直接读图。原TaskRuntime保留授权、期限、观察额度、账本、动作回执与

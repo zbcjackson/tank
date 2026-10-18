@@ -941,6 +941,21 @@ or OS-sandbox claims; persistent cross-process resume remains unsupported.
 
 ## S1 observation adapters
 
+Jev offline image capability tests extend the existing decision/model-data/vision
+tests. Real SDK 0.7.5 fake HTTP checks default-compression multipart, actual PNG
+parts/references/header, same-call cardinality+Box, immutable capture snapshots,
+shared usage and rejection before SDK allocation. Runner config tests cover the
+explicit recipient image allowance. Invalid Choice questions stop before capture
+or usage recording; successful text/image/Box traces retain decision evidence.
+Parameter-byte boundaries include raw file
+parts separately from compact JSON. Vision tests cover all eight inverse EXIF
+orientations, crop/resize/padding, read-only Box probes with absent/multiple
+targets, missing scope/recipient, revocation, stale readback and unknown usage.
+The existing chat.feature lifecycle entry also runs decision-model tests; its
+visual entry covers the new probe and development preparation. The new recipe
+test forbids SDK client creation, poisons labels without changing requests and
+rejects file/source freeze drift. No tests imply live model or GUI effectiveness.
+
 The opt-in hybrid path in `test_vision.py` exercises real Controller, TaskRuntime,
 Jev SDK and visual SDK with fake OS/HTTP: Jev → image → Jev, semantic bypass,
 bounded repeated-state recovery (including with an Advisor), crop/bounds admission,
