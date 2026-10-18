@@ -186,6 +186,11 @@ async def test_image_evaluation_preserves_denominators_on_stop(monkeypatch, tmp_
     if failure == "invalid":
         assert report["rows"][0]["status"] == "invalid"
         assert report["rows"][0]["input_tokens"] == 10
+    if failure == "cleanup":
+        row = report["rows"][0]
+        assert row["status"] == "error" and row["score"]["correct"]
+        assert report["summary"][row["arm"]]["returned"] == 0
+        assert report["summary"][row["arm"]]["correct"] == 0
 
 
 def test_image_evaluation_scores_absent_multiple_and_box_interior(monkeypatch):
@@ -200,6 +205,11 @@ def test_image_evaluation_scores_absent_multiple_and_box_interior(monkeypatch):
         label = {"expected_cardinality": count, "clickable_regions": []}
         assert evaluation.score_answer("box14", {"cardinality": count, "box": [0, 0, 1, 1]}, label, (640, 360))["correct"]
         assert evaluation.score_answer("qwen_box", {"cardinality": "one", "box": [0, 0, 1, 1]}, label, (640, 360))["false_unique"]
+    rows = [{"arm": "box14", "admission": "ready", "status": status,
+             "score": {"correct": True, "false_unique": True}}
+            for status in ("returned", "error")]
+    summary = evaluation.summarize(rows)["box14"]
+    assert summary["returned"] == summary["correct"] == summary["false_unique"] == 1
 
 
 @pytest.mark.parametrize("asset", ["data/labels.json", "data/public.json", "data/images/dev-001-1.png", "previews.json"])

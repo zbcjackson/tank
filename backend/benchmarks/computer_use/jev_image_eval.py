@@ -173,16 +173,17 @@ def summarize(rows: list[dict]) -> dict:
     result = {}
     for arm in ARMS:
         selected = [row for row in rows if row["arm"] == arm]
+        returned = [row for row in selected if row["status"] == "returned"]
         result[arm] = {
             "planned": len(selected),
             "eligible": sum(row["admission"] == "ready" for row in selected),
-            "returned": sum(row["status"] == "returned" for row in selected),
+            "returned": len(returned),
             "excluded": sum(row["status"] == "excluded" for row in selected),
             "invalid": sum(row["status"] == "invalid" for row in selected),
             "not_run": sum(row["status"] == "not_run" for row in selected),
             "errors": sum(row["status"] in {"error", "cancelled", "started"} for row in selected),
-            "correct": sum(row.get("score", {}).get("correct", False) for row in selected),
-            "false_unique": sum(row.get("score", {}).get("false_unique", False) for row in selected),
+            "correct": sum(row["score"].get("correct", False) for row in returned),
+            "false_unique": sum(row["score"].get("false_unique", False) for row in returned),
         }
     return result
 
