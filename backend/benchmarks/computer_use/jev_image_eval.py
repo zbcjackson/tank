@@ -163,8 +163,8 @@ def parse_location(text: str) -> dict:
         return {"cardinality": count, "box": None}
     if (
         not isinstance(box, list) or len(box) != 4
-        or any(type(edge) not in (int, float) or not math.isfinite(edge)
-               or not 0 <= edge <= 1000 for edge in box)
+        or any(type(edge) not in (int, float) or not 0 <= edge <= 1000
+               or not math.isfinite(edge) for edge in box)
         or not box[0] < box[2] or not box[1] < box[3]
     ):
         raise ValueError("invalid 0-1000 box")

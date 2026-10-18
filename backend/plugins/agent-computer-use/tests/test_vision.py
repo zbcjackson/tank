@@ -31,6 +31,7 @@ def test_qwen_location_contract_uses_declared_thousand_scale(monkeypatch):
     '{"cardinality":"one","box":[0.1,0.2,0.3,0.4]}',
     '{"cardinality":"one","bbox_2d":[-1,200,300,400]}',
     '{"cardinality":"one","bbox_2d":[100,200,1001,400]}',
+    '{"cardinality":"one","bbox_2d":[' + '9' * 400 + ',200,300,400]}',
     '{"cardinality":"one","bbox_2d":[true,200,300,400]}',
     '{"cardinality":"one","bbox_2d":[100,200,100,400]}',
     '{"cardinality":"one","bbox_2d":null}',
@@ -98,7 +99,10 @@ def test_image_evaluation_refuses_a_differently_labeled_protocol(monkeypatch, tm
         evaluation.load_freeze(output, frozen["sha256"])
 
 
-async def test_image_evaluation_runs_real_sdks_and_scores_without_gui(monkeypatch, tmp_path):
+@pytest.mark.parametrize("qwen_overflow", [False, True])
+async def test_image_evaluation_runs_real_sdks_and_scores_without_gui(
+    monkeypatch, tmp_path, qwen_overflow,
+):
     import json
     from email.parser import BytesParser
     from email.policy import default
@@ -132,7 +136,8 @@ async def test_image_evaluation_runs_real_sdks_and_scores_without_gui(monkeypatc
                 "id": "evaluation", "object": "chat.completion", "created": 1,
                 "model": data["model"], "choices": [{"index": 0, "finish_reason": "stop",
                     "message": {"role": "assistant", "content": json.dumps({
-                        "cardinality": "one", "bbox_2d": [100, 340, 360, 520]})}}],
+                        "cardinality": "one", "bbox_2d": [
+                            10**400 if qwen_overflow else 100, 340, 360, 520]})}}],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
         criteria = data["questions"].get("next_action", {}).get("criteria")
         if criteria:
@@ -171,7 +176,14 @@ async def test_image_evaluation_runs_real_sdks_and_scores_without_gui(monkeypatc
     first = {row["arm"]: row for row in report["rows"][:5]}
     assert first["image14"]["score"]["correct"] is True
     assert first["box14"]["score"]["center_hit"] is True
-    assert first["qwen_box"]["score"]["center_hit"] is True
+    if qwen_overflow:
+        assert first["qwen_box"]["status"] == "invalid"
+        assert first["qwen_box"]["reason"] == "invalid_location"
+        assert first["qwen_box"]["input_tokens"] == 10
+        assert first["qwen_box"]["output_tokens"] == 5
+        assert report["summary"]["qwen_box"]["invalid"] == 52
+    else:
+        assert first["qwen_box"]["score"]["center_hit"] is True
     assert first["box14"]["answer"]["confidence"] == 0.8
     assert all(row["cleanup_confirmed"] for row in report["rows"] if row["status"] == "returned")
     assert report["summary"]["image14"]["planned"] == 60
