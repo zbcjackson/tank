@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-18：切片2首轮真实开发试验完成，Qwen输出契约需修正；路由对照及独立确认待执行，生产默认不变。）
+> 状态：进行中（2026-10-18：Qwen输出契约v2已过回归、待评审；新真实对照、路由及独立确认待执行，生产默认不变。）
 
 # Computer Use：Jev结构化/图片能力与视觉兜底
 
@@ -220,6 +220,35 @@ JM/JF路由开发、置信校准、受控GUI效果与采用门继续待执行。
 可操作或遗留问题；原始归档、逐行评分/费用、面板数据及72种筛选组合已复核。
 freeze重新加载、docs54、canvas TypeScript及diff检查通过；评审结果补记由
 评审者自检，未声称实际UI渲染验收。执行器和协议未改，适用docs-only验证例外。
+
+### 切片2 Qwen输出契约v2（2026-10-18实施）
+
+本次“下一步”推进首轮后的协议修正与离线准备，不追加收费调用，不修改首轮
+freeze、归档或评分。旧Qwen答复中48/52带代码围栏；首轮请求未开启JSON模式。
+
+1. 新增显式视觉`complete_json`，复用原SDK调用、准入、捕获、用量和清理；普通
+   completion行为不变，不开放任意额外参数。JSON对象模式不等于schema保证。
+2. 新协议固定cardinality/bbox_2d及0–1000相对坐标，唯一目标时转为0–1评分，
+   不唯一时必须null；严格拒绝别名、围栏、猜测尺度、越界/退化框及字段冲突。
+3. 在全新目录准备v2五臂冻结预览，记录输出契约和实际response_format；首轮
+   历史记录仍依赖原版本源码，不用新解析器追改。真实有效率须新调用验证。
+4. Tests：TDD扩展既有task-model与test_vision，验证真实SDK请求/捕获一致、
+   普通调用不带JSON模式、原任务计量/清理、权限/关闭/捕获失败零发送、坐标
+   转换与严格拒绝，以及五臂完整fake HTTP运行。既有chat.feature复用这些入口。
+5. 最后执行本文完整Verification Checklist全部适用项及最多三轮收尾评审。
+
+作者验证：新增18项用例，task-model与visual定向共145 passed；完整后端
+`TANK_REQUIRE_CHROMIUM=1 UV_CACHE_DIR=/private/tmp/tank-uv-cache uv run --no-sync pytest`
+exit0：6269 passed、1 skipped、21 warnings（447.92s）。E2E exit0：21 scenarios、
+83 steps通过（125.466s）。backend ruff（含benchmark）、六个改动Python文件的
+pyright、web lint与`tsc -b --noEmit`、CLI ruff、tmux重载日志空、docs54与diff检查
+均通过。协议/生成物未改，第10项不适用；没有追加收费API或GUI操作。
+
+v2离线预览已生成并load_freeze通过，目录
+`/private/tmp/tank-jev-image-eval-v2-20261018`，digest为
+`553c378e8484807f2ada9485645893b5d4afbdd9d7cbfeaf39afa1a0bca78577`；
+52条Qwen预览均含JSON模式，执行尚未启动。首轮归档hash保持不变。独立评审待完成；
+本条记录不是新模型格式成功率或定位效果的证据。
 
 ## Jev适用性与最新视觉能力（2026-10-18核对）
 

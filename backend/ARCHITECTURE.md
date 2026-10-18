@@ -146,6 +146,9 @@ completion service using the same SDK lifecycle and ledger. `TaskModel` remains
 text-only. The host declaration allows text/image to the named visual profile;
 caller-provided data scope can narrow it. SDK records and captures carry source
 purpose and the same unique call ID, including failures.
+The visual service's explicit `complete_json()` requests JSON-object output through
+the same SDK-call boundary. JSON mode is captured/admitted like other parameters;
+it does not validate returned fields or grant additional data/action permissions.
 An explicit `decision_models.<name>.images: true` additionally enables Jev image
 Choice and cardinality+Box evidence APIs with SDK 0.7.5. Task image scope can
 narrow that recipient opt-in. Parameter JSON, experimental header and immutable

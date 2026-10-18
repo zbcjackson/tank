@@ -949,6 +949,11 @@ frozen-preview equality, file tampering, known malformed answers, unknown usage,
 no retries on HTTP failure, budget/audit refusal, cancellation and cleanup failure.
 Every stopped batch retains all 300 planned records. No paid API or GUI dispatch
 is performed; the results prove executor behavior, not real model accuracy.
+Revision-2 regressions assert Qwen JSON-mode preview/SDK equality, fixed 0–1000
+conversion and rejection of aliases, markdown, invalid geometry and non-unique
+boxes. `core/tests/test_task_model.py` exercises explicit visual JSON output over
+the real SDK, unchanged plain completion and shared usage, plus denied image scope,
+closed-task and capture failure with zero outbound requests or unknown usage.
 
 Jev offline image capability tests extend the existing decision/model-data/vision
 tests. Real SDK 0.7.5 fake HTTP checks default-compression multipart, actual PNG

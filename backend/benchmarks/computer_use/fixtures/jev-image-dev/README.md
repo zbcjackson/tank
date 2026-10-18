@@ -49,6 +49,21 @@ framing/compression or provider re-encoding. There are no paid API calls here.
 
 ## Read-only executable comparison
 
+The current executable protocol is `jev-image-evaluation-2`. The first real run
+used revision 1; its archive and scores remain unchanged. Revision 2 requests
+Qwen JSON-object mode through `TaskVisualModel.complete_json`, with exactly
+`cardinality` and `bbox_2d` keys. Coordinates use a declared 0–1000 relative grid
+and are divided by 1000 into the same 0–1 scoring space as Jev Box. Non-unique
+targets require a null box. There is no coordinate-scale inference, field alias,
+markdown removal or malformed-output repair. JSON mode does not guarantee fields;
+the local parser still validates keys, cardinality and finite ordered geometry.
+The output contract and actual `response_format` are frozen/captured before SDK
+entry. Official JSON-mode documentation checked on 2026-10-18:
+[structured output](https://www.alibabacloud.com/help/en/model-studio/qwen-structured-output).
+This preparation is not evidence that the real provider will obey revision 2.
+Any new run needs its own reviewed digest; revision-1 freezes require their
+original pinned implementation to load and must never be edited or re-scored.
+
 From backend, prepare a **new** executable directory; this creates its own fresh
 development data and never modifies an earlier freeze:
 

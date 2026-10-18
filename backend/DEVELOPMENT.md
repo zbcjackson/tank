@@ -206,6 +206,12 @@ request previews offline and supports explicit digest-gated, read-only model run
 It retains independent scores, known/unknown usage and all planned rows on stops;
 preparation and regression tests never make paid requests. See the recipe's
 read-only executable comparison for limits and execution instructions.
+The visual service additionally exposes `complete_json(messages)` to request
+JSON-object output using the same task admission, capture, accounting and cleanup
+as `complete`. It returns the raw text; callers validate its fields and semantics.
+The revision-2 image evaluator uses this mode and explicitly converts declared
+0–1000 `bbox_2d` edges into normalized coordinates, without guessing or repairing
+provider output. Existing plain completions do not enable JSON mode.
 
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots
