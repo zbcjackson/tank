@@ -9,6 +9,8 @@
 | [plans/done/macos-coordinate-chain-tests.md](plans/done/macos-coordinate-chain-tests.md) | 计划 | 已完成 | macOS 坐标修复、HTTP 链路测试、合成模型隔离与真机校准 |
 | [research/macos-coordinate-chain.md](research/macos-coordinate-chain.md) | 调研 | 主屏校准通过、模型偏差复现 | 尺寸坐标链路、真实证据与验收边界 |
 | [research/jev-computer-use-comparison.md](research/jev-computer-use-comparison.md) | 调研 | 源码对比完成，改进待验证 | 三个 Jev 开源项目的职责、观察、历史与规划交接；对照 Tank S4 原生失败和后续验证优先级 |
+| [research/computer-use-hybrid-review.md](research/computer-use-hybrid-review.md) | 调研 | 复审完成，收益待验证 | 当前J/F无视觉兜底；复核场景、原始数据、指标与统计，提出同任务Jev/视觉协作和新对照 |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 审查完成，实现待开始 | 适用时Jev、视觉接管与返回；先离线接线和计数，再开发集/新冻结，默认不变 |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
@@ -43,7 +45,7 @@
 - [plans/done/gpt55-computer-use-loop.md](plans/done/gpt55-computer-use-loop.md)：验证结论汇总、GPT-5.5 实机 calc-open 2/3 严格通过与 temperature 接入修复（已完成）。
 - [research/computer-use-implementation-comparison.md](research/computer-use-implementation-comparison.md)：模型与宿主责任边界、其它实现的坐标/AX/定位器/反馈设计及实验优先级。
 - [plans/done/computer-use-implementation-research.md](plans/done/computer-use-implementation-research.md)：公开实现对照与改进方案调研（已完成）。
-- [research/computer-use-strategy-ladder.md](research/computer-use-strategy-ladder.md)：策略阶梯机制调研；后续S0–S6实现与研究已按范围收口，Jev未形成稳定净收益采用证据，历史机制与当时未实现状态保留。
+- [research/computer-use-strategy-ladder.md](research/computer-use-strategy-ladder.md)：策略阶梯机制调研；后续S0–S6实现与研究已按范围收口，已测Jev＋文本回退未形成稳定净收益采用证据，历史机制与当时未实现状态保留；Jev＋视觉协作另见复审。
 - [plans/done/model-call-naming.md](plans/done/model-call-naming.md)：通用模型调用/流式命名收敛，Jev 客户端创建与关闭交还官方 SDK，采用默认环境代理/证书行为；不涉及 S4。
 - [plans/done/model-call-simplification.md](plans/done/model-call-simplification.md)：已完成独立 DecisionModel 与任务薄包装，清理 Jev/普通聊天的 Route/Transport，采用 SDK 调用级记账及可选 Langfuse；API 3，后端 5579 通过、E2E 17 场景通过，S4 未启动。
 - [plans/done/computer-use-goal-contract-unification.md](plans/done/computer-use-goal-contract-unification.md)：已统一目标驱动 GoalContract，移除 v1/里程碑兼容路径并迁移调用、测试及可执行 benchmark；评审修复 submit 自动执行与观察恢复判断，后端 5608 通过、E2E 17 场景通过。
