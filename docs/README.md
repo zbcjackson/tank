@@ -11,7 +11,8 @@
 | [research/jev-computer-use-comparison.md](research/jev-computer-use-comparison.md) | 调研 | 源码对比完成，改进待验证 | 三个 Jev 开源项目的职责、观察、历史与规划交接；对照 Tank S4 原生失败和后续验证优先级 |
 | [research/computer-use-hybrid-review.md](research/computer-use-hybrid-review.md) | 调研 | 复审完成，收益待验证 | 当前J/F无视觉兜底；评估对象/数据/标准复审，追加最新图片与Box能力边界及三级对照 |
 | [research/jev-image-capability-pilot.md](research/jev-image-capability-pilot.md) | 调研 | 首轮完成，结论开放 | 260次真实请求；Jev图片Choice/Box各52/52，Qwen契约失败需修正；仅两种合成布局，未判采用 |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | Qwen输出契约v2离线修正与评审完成 | 显式JSON模式与固定坐标协议；后端6271/E2E21通过，新真实对照、路由及独立确认待执行 |
+| [research/jev-image-capability-v2-pilot.md](research/jev-image-capability-v2-pilot.md) | 调研 | v2重测完成，结论开放 | 260次请求；Qwen26/52严格合格、22/52通过，含重复键/额外字段及单位混用线索；Jev图片路径各52/52 |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | v2真实开发重测完成 | 输出结构与坐标单位仍需新对照；Jev图片取得组件证据，路由及独立确认待执行，生产默认不变 |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
