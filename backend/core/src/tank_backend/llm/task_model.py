@@ -54,6 +54,11 @@ class TaskModel:
 
     async def complete(self, messages: Iterable[ChatCompletionMessageParam]) -> str:
         """One text completion, accounted at the SDK call before returning any result."""
+        return await self._complete(messages)
+
+    async def _complete(
+        self, messages: Iterable[ChatCompletionMessageParam], *, json_object: bool = False,
+    ) -> str:
         self._context.check("network")
         if self._closed:
             raise SubAgentStopped("model_closed")
@@ -79,7 +84,9 @@ class TaskModel:
                 await http.aclose()
                 raise
         try:
-            response = await self._llm.complete_response(list(messages), retry=False)
+            response = await self._llm.complete_response(
+                list(messages), retry=False, json_object=json_object,
+            )
             if len(response.choices) != 1:
                 raise ValueError("expected one completion")
             choice = response.choices[0]

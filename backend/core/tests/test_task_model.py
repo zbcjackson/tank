@@ -101,6 +101,78 @@ async def test_explicit_visual_service_preserves_text_service_and_shared_ledger(
     assert released == [True]
 
 
+async def test_visual_json_completion_is_explicit_and_captured_before_sdk(model_stack):
+    from tank_backend.llm.model_data import ModelDataScope
+
+    context, profile, payload, requests, released = model_stack
+    object.__setattr__(context, "model_data_scope", ModelDataScope(frozenset({"text", "image"})))
+    context.runtime.configure_visual_model("task", profile)
+    visual = context.runtime.visual_model
+    assert visual is not None
+    captures = []
+
+    class Capture:
+        async def request(self, call_id, request):
+            captures.append(request.parameters)
+
+        async def response(self, call_id, response):
+            pass
+
+    object.__setattr__(context, "model_capture", Capture())
+    payload["choices"][0]["message"]["content"] = '{"cardinality":"none","bbox_2d":null}'
+    messages = [{"role": "user", "content": [
+        {"type": "text", "text": "Locate a target. Return JSON."},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,cG5n"}},
+    ]}]
+    try:
+        assert await visual.complete_json(messages) == payload["choices"][0]["message"]["content"]
+        assert captures[0] == json.loads(requests[0].content)
+        assert captures[0]["response_format"] == {"type": "json_object"}
+        assert await visual.complete(messages)
+        assert "response_format" not in json.loads(requests[-1].content)
+        assert context.budget.total_tokens == 20
+    finally:
+        await context.runtime.aclose()
+    assert released == [True]
+
+
+@pytest.mark.parametrize("stop", ["scope", "closed", "capture"])
+async def test_visual_json_completion_keeps_admission_and_capture_gates(model_stack, stop):
+    from tank_backend.llm.model_data import ModelDataScope
+
+    context, profile, _, requests, _ = model_stack
+    if stop != "scope":
+        object.__setattr__(
+            context, "model_data_scope", ModelDataScope(frozenset({"text", "image"})),
+        )
+    context.runtime.configure_visual_model("task", profile)
+    visual = context.runtime.visual_model
+    assert visual is not None
+
+    class FailedCapture:
+        async def request(self, call_id, request):
+            assert request.parameters["response_format"] == {"type": "json_object"}
+            raise OSError("capture unavailable")
+
+        async def response(self, call_id, response):
+            raise AssertionError("no response without an admitted request")
+
+    if stop == "closed":
+        await context.runtime.aclose()
+    if stop == "capture":
+        object.__setattr__(context, "model_capture", FailedCapture())
+    try:
+        with pytest.raises(SubAgentStopped):
+            await visual.complete_json([{"role": "user", "content": [
+                {"type": "text", "text": "Return JSON."},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,cG5n"}},
+            ]}])
+        assert requests == [] and context.budget.total_tokens == 0
+        assert not context.budget.unknown_calls
+    finally:
+        await context.runtime.aclose()
+
+
 def test_visual_profile_is_explicit_and_extension_only(tmp_path):
     from tank_backend.agents.definition import parse_agent_file
 

@@ -1183,6 +1183,7 @@ class LLM:
         *,
         tools: list[dict[str, Any]] | None = None,
         retry: bool = True,
+        json_object: bool = False,
     ) -> ChatCompletion:
         """One-shot response including tools, finish reason and usage; never execute tools.
 
@@ -1202,6 +1203,8 @@ class LLM:
             api_kwargs["extra_body"] = self.extra_body
         if tools is not None:
             api_kwargs["tools"] = tools
+        if json_object:
+            api_kwargs["response_format"] = {"type": "json_object"}
         if trace_metadata and is_tracing_registered():
             if "trace_name" in trace_metadata:
                 api_kwargs["name"] = trace_metadata["trace_name"]
