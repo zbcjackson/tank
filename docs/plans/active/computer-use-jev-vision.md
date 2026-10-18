@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-18：Qwen输出契约v2已过回归、待评审；新真实对照、路由及独立确认待执行，生产默认不变。）
+> 状态：进行中（2026-10-18：Qwen输出契约v2离线修正与两轮评审完成；新真实对照、路由及独立确认待执行，生产默认不变。）
 
 # Computer Use：Jev结构化/图片能力与视觉兜底
 
@@ -244,10 +244,30 @@ exit0：6269 passed、1 skipped、21 warnings（447.92s）。E2E exit0：21 scen
 pyright、web lint与`tsc -b --noEmit`、CLI ruff、tmux重载日志空、docs54与diff检查
 均通过。协议/生成物未改，第10项不适用；没有追加收费API或GUI操作。
 
-v2离线预览已生成并load_freeze通过，目录
+修复前v2离线草稿曾生成并load_freeze通过，目录
 `/private/tmp/tank-jev-image-eval-v2-20261018`，digest为
 `553c378e8484807f2ada9485645893b5d4afbdd9d7cbfeaf39afa1a0bca78577`；
-52条Qwen预览均含JSON模式，执行尚未启动。首轮归档hash保持不变。独立评审待完成；
+该草稿因评审修复而失效，未执行且保持原样。
+
+独立评审第1轮发现R1：极大JSON整数坐标在范围检查前转换为浮点，抛出
+OverflowError，把已知用量的畸形答复记为操作错误并停止批次。先增补两个红测试，
+再最小调整检查顺序（`ef3729c8`）；直接解析现按ValueError拒绝，真实SDK配合
+fake HTTP的完整260请求变体确认52条Qwen畸形答复记为invalid_location，
+已知用量保留且批次继续。第2轮由评审者自检修复，无新增或遗留可操作问题，
+立即结束；该自检不称为另一次独立评审。
+
+修复后定向147 passed；完整后端使用上述命令exit0：6271 passed、1 skipped、
+21 warnings（449.76s）。E2E exit0：21 scenarios、83 steps（130.164s）。
+backend ruff、全部六个修改Python文件的pyright、web lint/`tsc -b --noEmit`、
+CLI ruff、tmux重载日志空与diff检查通过；最终文档更新后docs54通过。
+日志分别为`/private/tmp/tank-jev-image-v2-review-pytest.log`和
+`/private/tmp/tank-jev-image-v2-review-e2e.log`。
+
+源码稳定后重新生成并load_freeze通过的最终离线预览：
+`/private/tmp/tank-jev-image-eval-v2-20261018-reviewed`，digest为
+`4fe7725d4fff11d7f9c3689a84324a404eda09f2c28d96a7d8324809a8843a65`。
+仍为300计划行、40排除、最多260请求、10美元上限，52条Qwen预览均含JSON模式；
+started.json不存在，没有追加收费API或GUI操作。首轮归档hash保持不变。
 本条记录不是新模型格式成功率或定位效果的证据。
 
 ## Jev适用性与最新视觉能力（2026-10-18核对）
