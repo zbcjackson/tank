@@ -8,8 +8,222 @@ import pytest
 from PIL import Image
 
 from tank_backend.tools.computer_observation import Observation
-
 from .test_native import world as shared_world  # noqa: F401
+
+
+def test_image_evaluation_prepares_five_arms_without_clients(monkeypatch, tmp_path):
+    import json
+    from pathlib import Path
+    import httpx
+    import httpx2
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_eval as evaluation
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("preparation must not allocate network clients")
+
+    monkeypatch.setattr(httpx, "AsyncClient", forbidden)
+    monkeypatch.setattr(httpx2, "AsyncClient", forbidden)
+    output = tmp_path / "evaluation"
+    frozen = evaluation.prepare(output)
+    assert frozen["request_limit"] == 260
+    assert len(frozen["schedule"]) == 300
+    assert {row["arm"] for row in frozen["schedule"]} == {
+        "text13", "text14", "image14", "box14", "qwen_box"}
+    assert evaluation.load_freeze(output, frozen["sha256"]) == frozen
+    previews = json.loads((output / "previews.json").read_text())
+    assert len(previews) == 260
+    assert "expected_choice" not in json.dumps(previews)
+    assert "clickable_regions" not in json.dumps(previews)
+    assert not (output / "started.json").exists()
+    with pytest.raises(FileExistsError):
+        evaluation.prepare(output)
+
+
+async def test_image_evaluation_runs_real_sdks_and_scores_without_gui(monkeypatch, tmp_path):
+    import json
+    from email.parser import BytesParser
+    from email.policy import default
+    from pathlib import Path
+    import httpx
+    import httpx2
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_eval as evaluation
+
+    sent = []
+
+    def payload(request):
+        if "multipart" in request.headers.get("content-type", ""):
+            message = BytesParser(policy=default).parsebytes(
+                ("Content-Type: " + request.headers["content-type"] + "\r\n\r\n").encode()
+                + request.content)
+            parts = list(message.iter_parts())
+            assert len(parts) == 2 and parts[1].get_content_type() == "image/png"
+            raw = parts[0].get_payload(decode=True)
+            assert isinstance(raw, bytes)
+            return json.loads(raw)
+        return json.loads(request.content)
+
+    def respond(request):
+        data = payload(request)
+        sent.append(data)
+        if "messages" in data:
+            return httpx.Response(200, json={
+                "id": "evaluation", "object": "chat.completion", "created": 1,
+                "model": data["model"], "choices": [{"index": 0, "finish_reason": "stop",
+                    "message": {"role": "assistant", "content": json.dumps({
+                        "cardinality": "one", "box": [0.1, 0.34, 0.36, 0.52]})}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
+        criteria = data["questions"].get("next_action", {}).get("criteria")
+        if criteria:
+            selected = "c1" if "c1" in criteria else "none"
+            answers = {"next_action": {"type": "choice", "choice": selected,
+                "confidence": 1.0, "probabilities": {key: float(key == selected) for key in criteria}}}
+        else:
+            answers = {
+                "cardinality": {"type": "choice", "choice": "one", "confidence": 1.0,
+                    "probabilities": {"none": 0.0, "one": 1.0, "several": 0.0}},
+                "target": {"type": "box", "box": {
+                    "left": 0.1, "top": 0.34, "right": 0.36, "bottom": 0.52}, "confidence": 0.8}}
+        return httpx2.Response(200, json={"model": data["model"], "answers": answers,
+                                         "usage": {"input_tokens": 10, "output_tokens": 5}})
+
+    def text_http(request: httpx.Request) -> httpx.Response:
+        response = respond(request)
+        return httpx.Response(response.status_code, content=response.content)
+
+    def image_http(request: httpx2.Request) -> httpx2.Response:
+        response = respond(request)
+        return httpx2.Response(response.status_code, content=response.content)
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda **kwargs: httpx.MockTransport(text_http))
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kwargs: httpx2.MockTransport(image_http))
+    output = tmp_path / "evaluation"
+    frozen = evaluation.prepare(output)
+    report = await evaluation.run_batch(output, frozen["sha256"],
+                                         jev_credential="test", qwen_credential="test")
+    assert report["completed"] and len(sent) == 260
+    assert len(report["rows"]) == 300
+    assert sum(row["status"] == "excluded" for row in report["rows"]) == 40
+    assert all(row.get("desktop_operations", 0) == 0 for row in report["rows"])
+    assert report["spend"]["batch"]["known_tokens"] == 260 * 15
+    assert report["spend"]["stop_reason"] is None
+    first = {row["arm"]: row for row in report["rows"][:5]}
+    assert first["image14"]["score"]["correct"] is True
+    assert first["box14"]["score"]["center_hit"] is True
+    assert first["qwen_box"]["score"]["center_hit"] is True
+    assert first["box14"]["answer"]["confidence"] == 0.8
+    assert all(row["cleanup_confirmed"] for row in report["rows"] if row["status"] == "returned")
+    assert report["summary"]["image14"]["planned"] == 60
+    assert report["summary"]["image14"]["eligible"] == 52
+    assert json.loads((output / "result.json").read_text()) == report
+    with pytest.raises(FileExistsError):
+        await evaluation.run_batch(output, frozen["sha256"],
+                                   jev_credential="test", qwen_credential="test")
+
+
+@pytest.mark.parametrize("failure", ["unknown", "http", "invalid", "budget", "audit", "cancel", "cleanup"])
+async def test_image_evaluation_preserves_denominators_on_stop(monkeypatch, tmp_path, failure):
+    import asyncio
+    import json
+    from pathlib import Path
+    import httpx2
+    from tank_backend.agents.task_runtime import TaskRuntime
+    from tank_backend.llm.decision_model import DecisionModel
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_eval as evaluation
+
+    sent = []
+
+    async def respond(request):
+        sent.append(request)
+        if failure == "cancel":
+            raise asyncio.CancelledError
+        if failure == "http" or len(sent) > 1:
+            return httpx2.Response(503, json={"error": "unavailable"})
+        data = json.loads(request.content)
+        criteria = data["questions"]["next_action"]["criteria"]
+        response = {"model": data["model"], "answers": {"next_action": {
+            "type": "choice", "choice": "outside" if failure == "invalid" else "c1",
+            "confidence": 1.0, "probabilities": {key: float(key == "c1") for key in criteria}}},
+            "usage": {"input_tokens": 10, "output_tokens": 5}}
+        if failure == "unknown":
+            response.pop("usage")
+        return httpx2.Response(200, json=response)
+
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kwargs: httpx2.MockTransport(respond))
+
+    async def broken(*args, **kwargs):
+        raise OSError("test persistence/cleanup failure")
+
+    if failure == "audit":
+        monkeypatch.setattr(TaskRuntime, "write_audit", broken)
+    if failure == "cleanup":
+        monkeypatch.setattr(DecisionModel, "aclose", broken)
+    output = tmp_path / "evaluation"
+    frozen = evaluation.prepare(output)
+    if failure == "budget":
+        frozen["nano_usd_limit"] = 0
+        frozen["sha256"] = evaluation.dev.digest({key: value for key, value in frozen.items() if key != "sha256"})
+        (output / "freeze.json").write_text(json.dumps(frozen))
+    if failure == "cancel":
+        with pytest.raises(asyncio.CancelledError):
+            await evaluation.run_batch(output, frozen["sha256"], jev_credential="test", qwen_credential="test")
+        report = json.loads((output / "result.json").read_text())
+    else:
+        report = await evaluation.run_batch(output, frozen["sha256"], jev_credential="test", qwen_credential="test")
+    assert not report["completed"] and report["spend"]["stop_reason"]
+    assert len(report["rows"]) == 300
+    assert sum(row["status"] == "excluded" for row in report["rows"]) == 40
+    assert len(sent) == (0 if failure in {"audit", "budget"} else 2 if failure == "invalid" else 1)
+    assert sum(row["status"] == "not_run" for row in report["rows"]) == (258 if failure == "invalid" else 259)
+    if failure == "unknown":
+        assert report["spend"]["batch"]["reserved_tokens"] > 0
+        assert report["rows"][0]["input_tokens"] is None
+    if failure == "invalid":
+        assert report["rows"][0]["status"] == "invalid"
+        assert report["rows"][0]["input_tokens"] == 10
+
+
+def test_image_evaluation_scores_absent_multiple_and_box_interior(monkeypatch):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_eval as evaluation
+
+    label = {"expected_cardinality": "one", "clickable_regions": [[70, 130, 230, 180]]}
+    wrong = evaluation.score_answer("box14", {"cardinality": "one", "box": [0, 0, 0.1, 0.1]}, label, (640, 360))
+    assert wrong["cardinality_correct"] and not wrong["correct"]
+    for count in ("none", "several"):
+        label = {"expected_cardinality": count, "clickable_regions": []}
+        assert evaluation.score_answer("box14", {"cardinality": count, "box": [0, 0, 1, 1]}, label, (640, 360))["correct"]
+        assert evaluation.score_answer("qwen_box", {"cardinality": "one", "box": [0, 0, 1, 1]}, label, (640, 360))["false_unique"]
+
+
+@pytest.mark.parametrize("asset", ["data/labels.json", "data/public.json", "data/images/dev-001-1.png", "previews.json"])
+async def test_image_evaluation_refuses_tampering_before_network(monkeypatch, tmp_path, asset):
+    from pathlib import Path
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_eval as evaluation
+
+    frozen = evaluation.prepare(tmp_path / "evaluation")
+    path = tmp_path / "evaluation" / asset
+    path.write_bytes(path.read_bytes() + b" ")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("tampered recipes cannot create a client")
+
+    monkeypatch.setattr(httpx, "AsyncClient", forbidden)
+    monkeypatch.setattr(httpx2, "AsyncClient", forbidden)
+    with pytest.raises(ValueError, match="freeze changed"):
+        await evaluation.run_batch(tmp_path / "evaluation", frozen["sha256"],
+                                   jev_credential="test", qwen_credential="test")
+    assert not (tmp_path / "evaluation/started.json").exists()
+
 
 
 @pytest.mark.parametrize("size", [(1920, 1080), (100, 40), (2000, 100)])
