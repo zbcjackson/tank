@@ -93,5 +93,7 @@ Only synthetic content is recorded, never credentials. Labels are loaded separat
 for scoring and never enter a model request. Choice correctness, cardinality,
 center-point hit inside independent clickable interiors and false uniqueness are
 distinct metrics; no score is a dispatched action or an independently verified
-GUI effect. Raw confidence is retained without automatic thresholds. These are
+GUI effect. Summary score counts include only `returned` rows; a later cleanup
+or accounting failure retains the raw answer/score in its error row for diagnosis.
+Raw confidence is retained without automatic thresholds. These are
 development observations, not independent confirmation or production-adoption evidence.

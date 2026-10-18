@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-18：切片2只读评测执行器已过回归、待独立评审，真实对照待执行；切片1及图片离线准备已验收，生产默认不变。）
+> 状态：进行中（2026-10-18：切片2只读评测执行器已过回归与评审，真实对照待执行；切片1及图片离线准备已验收，生产默认不变。）
 
 # Computer Use：Jev结构化/图片能力与视觉兜底
 
@@ -182,7 +182,22 @@ backend/CLI ruff、离线lock检查、tmux重载错误检查（空输出）、do
 exit0：6251 passed、1 skipped、21 warnings（446.90s）；E2E exit0：21 scenarios、
 83 steps通过（125.211s）。backend ruff（含新benchmark）、两份修改/新增Python的
 pyright、web lint与`tsc -b --noEmit`、CLI ruff、tmux重载日志（空输出）、docs53与
-`git diff --check`通过。协议及生成物未变，第10项不适用。独立评审尚待完成。
+`git diff --check`通过。协议及生成物未变，第10项不适用。
+
+收尾评审以`cedebe71218c62db6b43e8683c1ca6ceeff529ae`为基线，覆盖两项实现/文档
+提交及后续修复，按review-and-refactor共2轮完成。第1轮确认R1（中等）：清理失败
+把行改为error后，summary仍计入其正确数，导致correct可能大于returned。先在既有
+清理失败测试复现，再将汇总评分限定为returned行；原始answer/score继续保留为诊断。
+第2轮对评审者自身修复的自检没有新问题或遗留问题，协调者另行只读复核修复差异。
+修复提交为`fe3b9de2`；这不是对真实模型质量的独立确认。
+
+修复后完整验证：同一后端命令exit0，6251 passed、1 skipped、21 warnings（446.00s）；
+E2E exit0，21 scenarios/83 steps通过（123.935s）。test_vision.py单独73 passed；
+backend/CLI ruff、两份Python的pyright、web lint与`tsc -b --noEmit`通过，tmux日志空，
+docs53及`git diff --check`通过。最终日志为
+`/private/tmp/tank-jev-image-eval-review-pytest.log`与
+`/private/tmp/tank-jev-image-eval-review-e2e.log`。协议未变，第10项不适用；未执行收费
+API、真实GUI操作或生产配置变更，旧freeze不修改，源码修复后须重新准备全新预览。
 
 ## Jev适用性与最新视觉能力（2026-10-18核对）
 
