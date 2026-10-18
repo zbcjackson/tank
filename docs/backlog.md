@@ -32,7 +32,9 @@ live 新实验预算按该计划 §8 逐批授权执行。
 
 2026-10-18用户目标复审：已就「适用时Jev、视觉兜底」开启[混合计划](plans/active/computer-use-jev-vision.md)，
 当前J的F/Advisor均为文本，旧结果未评估该目标。该计划负责混合路由与新评估；下表
-长任务采用复验仍须先满足离线/开发准入，不因此启动收费确认。Jev直接图片/Box、
+长任务采用复验仍须先满足离线/开发准入，不因此启动收费确认。随后用户明确将
+最新Jev视觉能力纳入该计划，图片Choice/状态判断、Box定位、同版有图/无图及
+广泛Jev优先策略均已迁入，下表原图片/Box条目移除，尚未实现或授权新收费批次。
 视觉完成核验和强OCR等独立条件项继续保留，不与视觉操作接管混同。
 
 | 项目 | 触发条件 | 背景/前置 | 来源 |
@@ -57,7 +59,6 @@ live 新实验预算按该计划 §8 逐批授权执行。
 | Computer-use 静态候选采用复验 | 决定重新考虑候选/提示配置，且准备新预算与未使用的独立 holdout | 首轮 544 次额度已用完；旧 holdout 歧义拒绝失败，唯一匹配修正仅三次开发 smoke。新冻结需覆盖正例和负例，不能复用旧数据宣称独立验收；M4–M8 集成/真实任务验收已在原计划完成（保留基线结论） | [M3 收尾](plans/done/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
 | Computer Use OCR 可点候选（强版融合） | 真实任务或新验收暴露 AX/DOM 完全缺失但屏幕有可点文字的界面（canvas 自绘 UI、地图标注、PDF 内链等），且批准独立实验切片 | 用户原始想法＝OCR 识别截屏文字位置找可交互元素（typesafe-computer-use/OmniParser 路线：OCR 框→编号候选→Jev 选→点框内中心）。保守版 context-only 融合契约已实现（fusion.py，2026-10-13）；强版需坐标基归一（AX 屏幕全局点 vs OCR 截图像素）、"文字≠控件"误操作入分母、框中心点空三个失败模式分别统计；样本可用合成 canvas 页起步。2026-10-13 用户确认挂起 | [策略阶梯计划 S5-App 线 3](plans/done/computer-use-strategy-ladder.md)；[调研 L3 档](research/computer-use-strategy-ladder.md#33-l3-ocr-文本区域)；[typesafe-computer-use 感知](research/jev-computer-use-comparison.md) |
 | Computer Use AX/OCR只读融合接线 | 冻结AX缺标签/正文不可读的真实样本与AX完整负对照，证明OCR提供足以抵消误候选/延迟的补充信息 | fusion.py保守context-only契约已实现，工厂未接线；先统一AX屏幕全局点与OCR图像像素坐标基，保留来源/完整性与只读门控，再比较AX/OCR/融合。OCR不因此变成可执行控件，强版可点候选仍按既有用户挂起条目处理 | [策略阶梯计划S5-App线3](plans/done/computer-use-strategy-ladder.md) |
-| Computer Use Jev图片增量与Box受控试验 | **需求已确认，主线结论前置已满足**；确定具体视觉消歧/状态缺口样本及AX已完整负对照，形成同版有图/无图比较问题后独立立项；离线准备不等于授权外发图片 | 当前配置研究不采用，H失败链已有目标/历史/候选，不能假定图片会修复跳步。同一显式版本先比较文本/文本+图片；版本升级先比较文本臂，Box另做存在性/唯一性与帧几何验证。保留后期需求，未启用图片/Box、未升级SDK；先离线/fake接线与图片准入/尺寸映射验证，真实调用前重核官方协议/SDK、冻结新预算/数据预览并明确新增截图至Jev范围 | 2026-10-16用户后置要求；[策略阶梯计划S5后期与10-18处置](plans/done/computer-use-strategy-ladder.md) |
 | Computer Use 长任务策略采用复验 | 取得可解释当前失败的新通用修复、模型/策略配置或独立任务族依据，并先通过离线/小规模完整context准入门；再立新计划/新冻结 | 当前DOM无净收益、独立长任务L2未过、完整context四项未过全4门；原150项确认均未完成、H1–H4未判定。停止同配置追加，不补跑旧目录、不复用已见holdout宣称独立确认，不以费用或时间单项达标替代成功质量 | [策略阶梯计划S5正式处置](plans/done/computer-use-strategy-ladder.md) |
 | Computer Use DOM视图与观察稳定性受控优化 | 真实任务暴露文本/同名区分/滚动或延迟状态覆盖缺口，或既有计时事件证明观察开销是主要瓶颈 | DOM原子读取已具备；S5-App线1无活跃新臂，线4尚无unknown/误判证据触发。先做同一driver contract，再单变量比较视图/有界等待/事件或操作覆盖，不凭微基准启用，不重放未知副作用 | [策略阶梯计划S5-App](plans/done/computer-use-strategy-ladder.md) |
 | Computer Use Cua Driver可选后端 | 现有直接AX/Quartz后端出现可复现契约/能力缺口，且选定可验证的替代驱动、安装与权限方案 | 依赖已移除、S5-App线2暂缓；先验证窗口/元素身份、新鲜度、派发回执、取消和清理，再同任务独立读回对照。executed不等于业务完成，不因登记而安装驱动 | [策略阶梯计划S5-App与正式处置](plans/done/computer-use-strategy-ladder.md) |

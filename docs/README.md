@@ -9,8 +9,8 @@
 | [plans/done/macos-coordinate-chain-tests.md](plans/done/macos-coordinate-chain-tests.md) | 计划 | 已完成 | macOS 坐标修复、HTTP 链路测试、合成模型隔离与真机校准 |
 | [research/macos-coordinate-chain.md](research/macos-coordinate-chain.md) | 调研 | 主屏校准通过、模型偏差复现 | 尺寸坐标链路、真实证据与验收边界 |
 | [research/jev-computer-use-comparison.md](research/jev-computer-use-comparison.md) | 调研 | 源码对比完成，改进待验证 | 三个 Jev 开源项目的职责、观察、历史与规划交接；对照 Tank S4 原生失败和后续验证优先级 |
-| [research/computer-use-hybrid-review.md](research/computer-use-hybrid-review.md) | 调研 | 复审完成，收益待验证 | 当前J/F无视觉兜底；复核场景、原始数据、指标与统计，提出同任务Jev/视觉协作和新对照 |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 审查完成，实现待开始 | 适用时Jev、视觉接管与返回；先离线接线和计数，再开发集/新冻结，默认不变 |
+| [research/computer-use-hybrid-review.md](research/computer-use-hybrid-review.md) | 调研 | 复审完成，收益待验证 | 当前J/F无视觉兜底；评估对象/数据/标准复审，追加最新图片与Box能力边界及三级对照 |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 图片/Box已纳入，实现待开始 | Jev文字/图片/Box与Qwen协作；能力、路由、系统三级评估，含广泛Jev优先对照与数值验收建议 |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
