@@ -43,11 +43,11 @@
 - [plans/done/gpt55-computer-use-loop.md](plans/done/gpt55-computer-use-loop.md)：验证结论汇总、GPT-5.5 实机 calc-open 2/3 严格通过与 temperature 接入修复（已完成）。
 - [research/computer-use-implementation-comparison.md](research/computer-use-implementation-comparison.md)：模型与宿主责任边界、其它实现的坐标/AX/定位器/反馈设计及实验优先级。
 - [plans/done/computer-use-implementation-research.md](plans/done/computer-use-implementation-research.md)：公开实现对照与改进方案调研（已完成）。
-- [research/computer-use-strategy-ladder.md](research/computer-use-strategy-ladder.md)：策略阶梯调研与复核：DOM/AX/OCR/视觉、M8 证据边界、Jev 官方协议与动作选择、按需 LLM 协作；收益均待验证。
+- [research/computer-use-strategy-ladder.md](research/computer-use-strategy-ladder.md)：策略阶梯机制调研；后续S0–S6实现与研究已按范围收口，Jev未形成稳定净收益采用证据，历史机制与当时未实现状态保留。
 - [plans/done/model-call-naming.md](plans/done/model-call-naming.md)：通用模型调用/流式命名收敛，Jev 客户端创建与关闭交还官方 SDK，采用默认环境代理/证书行为；不涉及 S4。
 - [plans/done/model-call-simplification.md](plans/done/model-call-simplification.md)：已完成独立 DecisionModel 与任务薄包装，清理 Jev/普通聊天的 Route/Transport，采用 SDK 调用级记账及可选 Langfuse；API 3，后端 5579 通过、E2E 17 场景通过，S4 未启动。
 - [plans/done/computer-use-goal-contract-unification.md](plans/done/computer-use-goal-contract-unification.md)：已统一目标驱动 GoalContract，移除 v1/里程碑兼容路径并迁移调用、测试及可执行 benchmark；评审修复 submit 自动执行与观察恢复判断，后端 5608 通过、E2E 17 场景通过。
-- [plans/active/computer-use-strategy-ladder.md](plans/active/computer-use-strategy-ladder.md)：Computer Use策略阶梯。2026-10-18 S5当前配置按不采用/证据不足正式处置：DOM省费但更慢，长任务质量门未过，两个150项仍各6完成/144未运行、H1–H4未判定，不追加同配置试验。G1–G3按现行范围具备验收证据（最近后端6149/E2E20）；默认不切换。Jev图片/Box、替代后端与条件优化保留至backlog，旧unknown预留不释放。S6最终交付/关档待收尾。本片第1轮独立评审无可操作或遗留问题、无事实修复即结束；七份原始结果及费用边界复核一致，docs51/diff通过，评审状态补记由评审者自检。
+- [plans/done/computer-use-strategy-ladder.md](plans/done/computer-use-strategy-ladder.md)：Computer Use策略阶梯S0–S6交付归档完成（2026-10-18）。S0–S4及G1–G3按各自范围验收，S5当前配置按不采用/证据不足结案；两个150项仍各6完成/144未运行，H1–H4未判定。默认保持不变，后续图片/Box等条件项交接backlog，旧unknown预留保留。S6最终后端6149/E2E20回归、导航及138个原始工件核验通过；第1轮独立评审修正pilot调用数包含关系，第2轮评审者自检无遗留即结束，归档状态补记由评审者自检。
 - [plans/done/computer-use-s0-review.md](plans/done/computer-use-s0-review.md)：S0 通用任务契约三轮评审与两轮重构已完成：修复清理取消/证据丢失/错误完成文案，合并重复序列化；后端 5220 passed、E2E 18 场景通过，最终复审无新增问题。
 - [plans/done/portable-code-reviewer.md](plans/done/portable-code-reviewer.md)：通用评审角色已完成：工具无关 Markdown、24 项固定 Code Smell、权限与独立性分离、无问题即停止/最多三轮及项目测试/提交约定。
 - [plans/done/shared-agent-sync.md](plans/done/shared-agent-sync.md)：多 Agent 同步工具已完成：递归发现、格式校验、配置保护、--check；29 项工具回归和完整项目验证通过。

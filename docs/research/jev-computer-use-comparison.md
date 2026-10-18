@@ -186,7 +186,7 @@ Advisor 输入归一化 ID/坐标后相同，实际请求仍不同。因此不�
 
 本轮只研究，无新增收费实验。后续每个行为改动需在现有测试文件做 TDD；Tests 应覆盖
 轨迹与观察一致、旧引用不可派发、focus 不弱化目标、全候选保留、共享预算以及未知结果
-零重放。最后执行[现行计划的完整验证清单](../plans/active/computer-use-strategy-ladder.md)
+零重放。最后执行[现行计划的完整验证清单](../plans/done/computer-use-strategy-ladder.md)
 全部适用项及最多三轮独立评审。
 
 ## 6. 应保留的 Tank 能力与不能照搬的行为

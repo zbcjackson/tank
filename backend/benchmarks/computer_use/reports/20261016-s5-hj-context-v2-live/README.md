@@ -3,7 +3,7 @@
 > 状态：2026-10-16 用户明确批准后同签名真实4/4项完成，H 1/2、J 2/2 strict/passed，未通过全4门；46请求全部known、估算$0.031331709，清理全确认。本结果范围第1轮独立评审无可操作问题、无事实修复即结束，docs51/diff通过（评审状态补记由评审者自检）；以下执行预览保留为执行前记录，禁止重跑此目录。
 
 签名 **3e15225394068660f76ed7a0728bae82c44f5d6a5e0522cac9411259daf7ab58**，见[freeze.json](freeze.json)、
-[fake验收](../20261016-s5-hj-context-v2-fake/README.md)、[主计划](../../../../../docs/plans/active/computer-use-strategy-ladder.md)。
+[fake验收](../20261016-s5-hj-context-v2-fake/README.md)、[主计划](../../../../../docs/plans/done/computer-use-strategy-ladder.md)。
 track=hj-context，revision=s5-hj-context-1。它验证新版入口在原生产上下文中的端到端可行性，
 不把此前简化上下文的6/6直接推广到原40项。
 

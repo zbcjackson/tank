@@ -4,7 +4,7 @@
 
 总目标为回到S5 A/H/J完整任务取舍、Jev长任务摊薄确认，本批只回答no-think候选在
 受限资源下能否跨两个位置定位。不是生产采用实验，也不修改原H1–H4。
-[计划与收敛路径](../../../../../docs/plans/active/computer-use-strategy-ladder.md)。
+[计划与收敛路径](../../../../../docs/plans/done/computer-use-strategy-ladder.md)。
 
 ## 固定数据与四请求
 

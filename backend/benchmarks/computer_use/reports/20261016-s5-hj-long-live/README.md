@@ -3,7 +3,7 @@
 > 状态：2026-10-16 新配方已冻结；157项相关回归通过，40项fake实机全部通过（H/J各20/20、420本地HTTP、0外部调用），完整6053/E2E18及lint/type/docs通过，第1轮独立评审无可操作问题、无源码修复即结束，10项针对性回归复核通过（评审状态补记由评审者自检）。用户回复“开始”后原签名真实40项已结束，H 1/20、J 4/20 strict，L2未通过；97请求全known，估算$0.050185908，清理全确认。禁止重跑本目录。
 
 签名 **c8a4ae42d113035c6b42c5c7b9256e12cffdb0ca5c9684c5bbd922a68ca05e5b**，见[freeze.json](freeze.json)、
-[fake验收](../20261016-s5-hj-long-fake/README.md)、[主计划](../../../../../docs/plans/active/computer-use-strategy-ladder.md)。
+[fake验收](../20261016-s5-hj-long-fake/README.md)、[主计划](../../../../../docs/plans/done/computer-use-strategy-ladder.md)。
 使用 `s5_paired --track hj-long`，revision=s5-hj-long-1。
 
 ## 样本与公平对照

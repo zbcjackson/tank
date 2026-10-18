@@ -1,6 +1,6 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-10-18（S5当前配置不采用/证据不足结案；S6交付关档仍待完成）。本文汇总自研
+更新：2026-10-18（S5当前配置不采用/证据不足结案；S6已按现行范围交付归档）。本文汇总自研
 `computer_use` 的现行行为；旧N2及其官方SDK、独立DesktopExecutor已移除。
 历史报告中的 N2 数据仅作为当时的实验记录。
 逐轮原始证据、历史测试数量和异常记录见
@@ -48,8 +48,9 @@ AX 独立分支：适配一体+宿主还原（B-combined）在 calc-open 上是�
 G1–G3按现行可信适配器范围具备治理验收证据，不代替模型质量。Jev图片/Box、替代
 驱动和条件性观察优化仍未启用；需求与触发条件保留在[backlog](../backlog.md)。
 当前具体失败链目标/历史/候选齐全，未建立缺图原因，图片方向保留待独立样本与配方。
-完整证据和未完成试验处置见[主计划S5正式处置](../plans/active/computer-use-strategy-ladder.md)。
-本次仅更新现行结论，S6最终交付和计划归档另行完成，生产配置没有变更。
+完整证据和未完成试验处置见[主计划S5正式处置](../plans/done/computer-use-strategy-ladder.md)。
+S6已交付现行可信API 3的已验收治理与显式能力范围，计划完成评审并归档至done/；
+原确认仍incomplete，后续扩展保持backlog触发条件，生产配置没有变更。
 
 ## 截图到点击：默认 legacy 转换
 
@@ -752,7 +753,7 @@ JSON（UTF-8、非ASCII不转义、紧凑分隔、拒绝NaN等非JSON值）计�
 发送的图像。独立静态图片诊断harness显式声明已有图像范围；旧冻结和真实评分
 不改，未来配方固定model_data源码指纹。本切片完整验证与第1轮独立评审通过，
 无可操作或遗留问题、无源码修复即结束，G1-DS1阻断已解除；状态补记由评审者自检，
-不自动宣告S5/S6整体验收。见[主计划S6审计及实施](../plans/active/computer-use-strategy-ladder.md#s6-出口审计与当前采用建议2026-10-17)。
+不自动宣告S5/S6整体验收。见[主计划S6审计及实施](../plans/done/computer-use-strategy-ladder.md#s6-出口审计与当前采用建议2026-10-17)。
 
 
 ### S1 AX / Vision 观察适配器（2026-09-30）
@@ -857,7 +858,7 @@ PID、内核启动标识、窗口、文档和元素身份；每次输入前重�
 
 真实应用 fake HTTP 与经授权真实模型矩阵均已 9/9 通过（含移窗/Quartz/TextEdit）；
 NL 端到端 live 3/3 通过。更早真实批次曾出现首项失败停批，保留为历史证据。
-冻结配方与收口状态以[策略阶梯计划](../plans/active/computer-use-strategy-ladder.md)
+冻结配方与收口状态以[策略阶梯计划](../plans/done/computer-use-strategy-ladder.md)
 “S4 收口”为准。运行器及接口说明见
 [插件说明](../../backend/plugins/agent-computer-use/README.md#s4-ax-explicitly-bound-native-macos-channel)。
 
@@ -1030,6 +1031,7 @@ parse_brief供生产与无桌面探针共用，无新增调用或重试；其它
 
 S4 能力主线（DOM/原生通道、Advisor、动态绑定、通用完成核验、NL intake、端到端）
 已按证据收口：原生矩阵 9/9 与 NL live 3/3 结案规划稳定性；OCR/视觉完成核验后备与
-N 第二片移交 backlog；G3 仍于 S6 交付前。生产默认与基线 A 不变。细节见
-[策略阶梯计划](../plans/active/computer-use-strategy-ladder.md) “S4 收口”。
+N第二片移交backlog；G3与G1-DS1已于2026-10-17验收。S5当前配置不采用，
+S6按现行范围交付，生产默认与基线A不变。细节见
+[策略阶梯计划](../plans/done/computer-use-strategy-ladder.md) “S4 收口”。
 

@@ -3,7 +3,7 @@
 > 状态：2026-10-16 已冻结，同签名12/12 fake接线通过；完整6077/E2E18及lint/type/docs通过，第1轮独立评审未发现可操作问题，复跑62项相关测试通过。用户明确确认后原签名12请求完成：新提示6/6、旧提示4/6，达到准备GUI验证门槛；无GUI/新unknown，估算$0.002957790。禁止重跑本目录。
 
 签名 **7db134946fab4722c65203f8517e8cf3513f17faba254b4fa852172dd7424fe3**，见[freeze.json](freeze.json)、
-[fake验收](../20261016-s5-intake-probe-fake/README.md)、[主计划](../../../../../docs/plans/active/computer-use-strategy-ladder.md)。
+[fake验收](../20261016-s5-intake-probe-fake/README.md)、[主计划](../../../../../docs/plans/done/computer-use-strategy-ladder.md)。
 
 ## 目的与控制变量
 

@@ -3,7 +3,7 @@
 > 状态：2026-10-16 已冻结，同签名fake实机通过；完整验证6043/E2E18及lint/type/docs通过，第1轮独立评审通过，无可操作问题或源码修复；12项针对性离线回归复核通过，结论补记由评审者自检。用户明确确认后原签名已执行：1请求、窗口外点被护栏拦截、0模型点击派发，passed=false；清理全部确认，估算$0.000400620，无未知用量。禁止重跑本目录。
 
 签名 **47d5e4f540a1858375b555f186bbd73e239d43b9efefdcd2024cc9bdd32efc4b**，见[freeze.json](freeze.json)；
-[fake验收](../20261016-s5-owned-seven-v2-fake/README.md)与[主计划](../../../../../docs/plans/active/computer-use-strategy-ladder.md)。
+[fake验收](../20261016-s5-owned-seven-v2-fake/README.md)与[主计划](../../../../../docs/plans/done/computer-use-strategy-ladder.md)。
 独立实验名 **A-control-owned-seven**，不替换原生产A或旧150项批次。
 
 ## 具体执行与数据范围

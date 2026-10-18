@@ -21,4 +21,4 @@ input_cleanup.confirmed、application_cleanup.confirmed、position_restored、fr
 新目录重新freeze并完成本次实机验收，原始历史目录不覆盖。
 
 12项新增离线回归通过，包含真实SDK fake HTTP到护栏/读回/清理，以及拒绝/未知/
-取消/截止时间/隔离/结果落盘。完整验证与评审结论同步记录到[主计划](../../../../../docs/plans/active/computer-use-strategy-ladder.md)。
+取消/截止时间/隔离/结果落盘。完整验证与评审结论同步记录到[主计划](../../../../../docs/plans/done/computer-use-strategy-ladder.md)。

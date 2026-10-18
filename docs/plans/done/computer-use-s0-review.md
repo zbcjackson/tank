@@ -76,7 +76,7 @@ web/CLI 未再修改，沿用第一轮已通过的检查。进入第三轮最终
 
 提交：`e484391c`（评审角色及计划）、`81a646be`（第一轮修复/重构）、
 `d79116ad`（第二轮证据边界修复）。Computer Use 插件与宿主循环仍由
-[原 S0–S6 计划](../active/computer-use-strategy-ladder.md) 继续推进，不包含在本次关档范围。
+[原 S0–S6 计划](../done/computer-use-strategy-ladder.md) 继续推进，不包含在本次关档范围。
 
 ## Tests
 

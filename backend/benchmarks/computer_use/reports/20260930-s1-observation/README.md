@@ -2,7 +2,7 @@
 
 Date: 2026-09-30. Local, synthetic acceptance; no desktop capture, native input,
 paid model calls or production default changes. Full verification/review status
-is tracked in the [active plan](../../../../../docs/plans/active/computer-use-strategy-ladder.md).
+is tracked in the [active plan](../../../../../docs/plans/done/computer-use-strategy-ladder.md).
 
 ## Frozen evidence
 

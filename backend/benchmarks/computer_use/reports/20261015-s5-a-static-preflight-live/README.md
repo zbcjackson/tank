@@ -41,7 +41,7 @@ SDK请求与chunks本地保留，不提交。仅更新精选报告/计划/索引
 ## 冻结配方与数据
 
 - 执行器：[a_preflight.py](../../a_preflight.py)，预注册见
-  [主计划](../../../../../docs/plans/active/computer-use-strategy-ladder.md)。
+  [主计划](../../../../../docs/plans/done/computer-use-strategy-ladder.md)。
 - 签名：`59f44c3b28bd327a0d11c372b6c7a402178bd91a0b0c42a5aacee7f7fc8cad4c`。
   [freeze.json](freeze.json)包含图片、人工标注、共同提示、顺序、源码/SDK版本和预算。
 - 图片：[原始既存截图](../20261014-s5-confirmatory-v2-repaired-live/trials/0-calculator-ax_press-0-A/screenshots/shot_001.png)，

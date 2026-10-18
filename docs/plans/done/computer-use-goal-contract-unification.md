@@ -49,7 +49,7 @@ benchmark 的确定性、评分真值隔离、冻结哈希、停批和完整分�
   协调者已核对最终 diff、测试日志及评审结论。
 
 本次迁移范围全部完成，无新增延期项。S4-AX、完整恢复和生产 Advisor 继续由原
-[策略阶梯计划](../active/computer-use-strategy-ladder.md) 跟踪，不因本次关档宣告完成。
+[策略阶梯计划](../done/computer-use-strategy-ladder.md) 跟踪，不因本次关档宣告完成。
 
 ## 最终步骤：Verification Checklist 与评审
 
