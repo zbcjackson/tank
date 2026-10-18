@@ -68,6 +68,8 @@ async def test_choice_is_bound_to_whole_action_and_accounted_once(monkeypatch):
         decision = await selector.choose(goal, snapshot, actions, ctx)
         assert decision.binding == actions.binding
         assert decision.choice == "candidate"
+        assert decision.confidence == 1.0
+        assert dict(decision.probabilities)["c1"] == 1.0
         assert decision.candidate_id == actions.actions[0].id
         assert ctx.budget.total_tokens == 12
         assert len(sent) == 1

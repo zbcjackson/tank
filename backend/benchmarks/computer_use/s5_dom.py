@@ -7,6 +7,9 @@ on both arms. Descriptive policy evidence only, never production adoption.
 
 from __future__ import annotations
 
+from . import call_metrics
+from .call_metrics import count_attempts
+
 from tank_backend.llm.decision_profile import DecisionModelProfile
 
 import asyncio
@@ -91,6 +94,7 @@ def freeze_inputs() -> dict[str, Any]:
         task_runtime,
         task_model,
         s3_strategy,
+        call_metrics,
     ):
         path = Path(inspect.getfile(module))
         sources[str(path.relative_to(Path(__file__).resolve().parents[2]))] = (
@@ -367,13 +371,7 @@ def summarize(rows: list[dict[str, Any]], spend: SpendSnapshot) -> dict[str, Any
                 for r in group
                 for e in r.get("events", [])
             ),
-            "fallbacks": sum(
-                e["kind"] == "computer_use_selection"
-                and e.get("stage") == "fallback"
-                and e.get("phase") == "start"
-                for r in group
-                for e in r.get("events", [])
-            ),
+            "fallbacks": count_attempts(group, "fallback"),
         }
     return result
 

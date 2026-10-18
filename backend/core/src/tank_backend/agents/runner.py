@@ -125,7 +125,8 @@ class AgentRunner:
         manifest.check_runtime_api()
         return frozenset(manifest.permissions) | (
             {"network"}
-            if agent_def.model is not None or agent_def.decision_model is not None else set()
+            if (agent_def.model is not None or agent_def.decision_model is not None
+                or agent_def.visual_model is not None) else set()
         )
 
     def _uses_desktop(self, agent_def: AgentDefinition) -> bool:
@@ -160,8 +161,9 @@ class AgentRunner:
         task_input = validate_task_input(task_input)
         if task_input is not None and not agent_def.extension:
             raise ValueError("task_input requires an extension agent")
-        default_scope = (ModelDataScope() if agent_def.extension else
-                         ModelDataScope(frozenset({"text", "image"}), 32 * 1024 * 1024))
+        default_scope = (
+            ModelDataScope() if agent_def.extension and agent_def.visual_model is None
+            else ModelDataScope(frozenset({"text", "image"}), 32 * 1024 * 1024))
         if model_data_scope is not None and (
             not model_data_scope.allowed_types <= default_scope.allowed_types
             or model_data_scope.max_request_bytes > default_scope.max_request_bytes
@@ -381,6 +383,12 @@ class AgentRunner:
                     if agent_def.model not in profiles:
                         raise ValueError("subagent model profile is not configured")
                     context.runtime.configure_model(task_id or agent_id, profiles[agent_def.model])
+                if agent_def.visual_model is not None:
+                    profiles = self._app_config.llm_profiles if self._app_config is not None else {}
+                    if agent_def.visual_model not in profiles:
+                        raise ValueError("subagent visual model profile is not configured")
+                    context.runtime.configure_visual_model(
+                        task_id or agent_id, profiles[agent_def.visual_model])
                 if agent_def.decision_model is not None:
                     from ..llm.decision_profile import configure_decision_profile
 

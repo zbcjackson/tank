@@ -1220,7 +1220,7 @@ async def test_dom_followup_freeze_rejects_changed_protocol_before_resources(mon
     assert not (tmp_path / "run/spend.jsonl").exists()
 
 
-@pytest.mark.parametrize("mode", ["llm", "jev-fallback"])
+@pytest.mark.parametrize("mode", ["llm", "jev-fallback", "jev-vision"])
 async def test_runner_candidate_strategy_selects_fill_and_submit(site, chromium_required, monkeypatch, tmp_path, mode):
     import json
     import httpx
@@ -1248,7 +1248,12 @@ async def test_runner_candidate_strategy_selects_fill_and_submit(site, chromium_
                     "type": "choice", "choice": "none", "confidence": 1,
                     "probabilities": {k: int(k == "none") for k in criteria}}},
                     "usage": {"input_tokens": 12, "output_tokens": 0}})
-            question = json.loads(data["messages"][1]["content"])
+            content = data["messages"][1]["content"]
+            if mode == "jev-vision":
+                assert content[1]["type"] == "image_url"
+                assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+                content = content[0]["text"]
+            question = json.loads(content)
             choice = next(k for k, v in question["questions"]["next_action"]["criteria"].items() if isinstance(v, dict))
             assert data["enable_thinking"] is False
             return httpx.Response(200, json={"id": "f", "object": "chat.completion", "created": 1,
@@ -1272,6 +1277,9 @@ async def test_runner_candidate_strategy_selects_fill_and_submit(site, chromium_
                                                               "selector": mode}}}})
     definition_file = tmp_path / "strategy.md"
     definition_file.write_text("---\nname: strategy\nextension: agent-computer-use:agent\nmodel: default\ndecision-model: jev\n---\nUse the declared task.\n")
+    if mode == "jev-vision":
+        definition_file.write_text(definition_file.read_text().replace(
+            "model: default\n", "model: default\nvisual-model: default\n"))
     definition = parse_agent_file(definition_file)
     runner = AgentRunner(MagicMock(), MagicMock(), Bus(), ToolApprovalPolicy(computer_mode="allow"),
                         PendingToolCallStore(), {definition.name: definition}, registry=registry,
@@ -1282,9 +1290,9 @@ async def test_runner_candidate_strategy_selects_fill_and_submit(site, chromium_
     outputs = [o async for o in runner.run_agent(definition, [], task_id="strategy-task", task_input=task,
         authorization=SubAgentAuthorization(frozenset({"desktop", "network"})), observer=Observer(), audit=audit)]
     result = next(o.metadata["task_result"] for o in outputs if "task_result" in o.metadata)
-    assert result["status"] == "completed" and result["cleanup"] == "confirmed"
+    assert result["status"] == "completed" and result["cleanup"] == "confirmed", result
     assert len(result["details"]["receipts"]) == 2
-    assert len(calls) == (4 if mode == "jev-fallback" else 2)
+    assert len(calls) == (4 if mode in {"jev-fallback", "jev-vision"} else 2)
     routes = [m["reason"] for k, m in events if k == "computer_use_route"]
     assert routes == ["jev_eligible", "jev_eligible"]
     assert not any(a.category == "model" for a in audits)

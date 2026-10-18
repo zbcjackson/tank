@@ -9,6 +9,7 @@ from uuid import uuid4
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import Field, ValidationError, model_validator
 
+from tank_backend.llm.model_call import model_purpose
 from tank_backend.agents.subagent import SubAgentContext, SubAgentRequest, SubAgentStopped
 from tank_backend.llm.model_data import json_object
 
@@ -181,7 +182,8 @@ class LLMIntake:
         model = context.runtime.model
         if model is None:
             raise SubAgentStopped("intake_model_unavailable")
-        text = await model.complete(intake_messages(request, application))
+        with model_purpose('computer_use.intake'):
+            text = await model.complete(intake_messages(request, application))
         context.check("network")
         try:
             return parse_brief(text, f"{request.task}\n{request.context}")

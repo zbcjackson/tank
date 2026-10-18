@@ -9,10 +9,11 @@ from .contracts import (
 
 
 class ActionBuilder:
-    def __init__(self, max_candidates: int = 32) -> None:
+    def __init__(self, max_candidates: int = 32, *, visual: bool = False) -> None:
         if not 1 <= max_candidates <= 251:
             raise ValueError("Candidate limit must leave room for control options")
         self.max_candidates = max_candidates
+        self.visual = visual
 
     def build(
         self, goal_id: str, version: int, goal: GoalContract, snapshot: Snapshot,
@@ -88,12 +89,16 @@ class ActionBuilder:
             return ActionSet(binding, (), "candidate_limit", len(actions), truncated=True)
         identities = [(d.role, d.label, d.ancestors, d.current_value, d.input_key, d.effect, d.changes)
                       for d in details]
-        if len(set(identities)) != len(identities):
+        ambiguous = len(set(identities)) != len(identities)
+        if ambiguous and not self.visual:
             return ActionSet(binding, (), "ambiguous_target", len(actions))
         # Ask for visible missing values before navigating away; known fills may proceed.
         reason = "missing_parameters" if missing and not pending_fill else (
             "jev_eligible" if actions else "no_viable_actions")
-        if len(actions) == 1:
+        if (self.visual and reason == "jev_eligible"
+                and (ambiguous or any(not d.label.strip() or d.label == d.role for d in details))):
+            reason = "visual_required"
+        if len(actions) == 1 and reason == "jev_eligible":
             detail = details[0]
             explicitly_bound = any(
                 item.key == detail.input_key and item.field_label == detail.label

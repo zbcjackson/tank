@@ -69,8 +69,14 @@ class AgentDefinition:
     extension: str | None = None
     grounding: GroundingConfig | None = None
     decision_model: str | None = None
+    visual_model: str | None = None
 
     def __post_init__(self) -> None:
+        if self.visual_model is not None and (
+            not self.extension or not isinstance(self.visual_model, str)
+            or not self.visual_model.strip()
+        ):
+            raise ValueError("visual-model requires an extension and a nonempty profile name")
         if self.decision_model is not None and (
             not self.extension or not isinstance(self.decision_model, str)
             or not self.decision_model.strip()
@@ -152,6 +158,7 @@ def parse_agent_file(path: Path) -> AgentDefinition:
         extension=fm.get("extension"),
         grounding=grounding,
         decision_model=fm.get("decision-model"),
+        visual_model=fm.get("visual-model"),
     )
 
 

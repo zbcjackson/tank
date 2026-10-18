@@ -27,6 +27,7 @@ from ..contracts import (
 
 if TYPE_CHECKING:
     from .apps import AppPlatform, MacOSPolicy
+    from ..visual_selector import VisualFrame
 
 
 class Readout(BaseModel):
@@ -247,6 +248,7 @@ class NativeAXChannel:
         self.readout_refs: dict[str, str] = {}
         self.pointer_uncertain = False
         self.launched = False
+        self.visual_frame: VisualFrame | None = None
         if config is not None:
             self.apply_config(config)
 
@@ -324,6 +326,7 @@ class NativeAXChannel:
 
     async def observe(self, scope: str, context: SubAgentContext) -> Snapshot:
         async with self.lock:
+            self.visual_frame = None
             self.check(context)
             if self.config is None:
                 raise SubAgentStopped("unbound_channel")
@@ -397,6 +400,38 @@ class NativeAXChannel:
             self.window = window
             return self.previous
 
+    async def capture(self, snapshot: Snapshot, context: SubAgentContext) -> VisualFrame:
+        from tank_backend.tools.computer_observation import Observation
+        from ..visual_selector import VisualFrame
+
+        def read() -> VisualFrame:
+            window = self.bound_window(context)
+            if snapshot != self.previous or window != self.window or snapshot.window != str(window.window_id):
+                raise SubAgentStopped("stale_reference")
+            png = macos._capture_screenshot_macos(include_cursor=False, display=window.display_geometry[0])
+            if not png:
+                raise SubAgentStopped("invalid_visual_frame")
+            self.check(context)
+            if self.bound_window(context) != window:
+                raise SubAgentStopped("window_changed")
+            x, y, width, height = window.bounds
+            frame, png = Observation.capture(
+                png, session_id=context.runtime.task_id, display_id=window.display_geometry[0],
+                window_id=window.window_id, window_bounds=(x, y, x + width, y + height),
+                display_geometry=window.display_geometry)
+            if frame.screen_size != window.display_geometry[3:5]:
+                raise SubAgentStopped("invalid_visual_frame")
+            sx, sy = frame.image_size[0] / width, frame.image_size[1] / height
+            bounds = tuple((e.ref, ((e.bounds[0] - x) * sx, (e.bounds[1] - y) * sy,
+                                     e.bounds[2] * sx, e.bounds[3] * sy))
+                           for e in snapshot.elements if e.bounds is not None)
+            captured = VisualFrame(snapshot.observation_id, frame, png, bounds)
+            self.visual_frame = captured
+            return captured
+
+        async with self.lock:
+            return await run_native(read)
+
     def current(self, binding: Binding, action: Action, context: SubAgentContext) -> AXCandidate | None:
         self.check(context)
         snapshot, source, window, config = self.previous, self.source, self.window, self.config
@@ -406,6 +441,20 @@ class NativeAXChannel:
                 (snapshot.observation_id, snapshot.generation, snapshot.scope)
                 or read_window(config) != window):
             return None
+        if self.visual_frame is not None:
+            from tank_backend.tools.computer_observation import Observation
+
+            captured = self.visual_frame
+            png = macos._capture_screenshot_macos(include_cursor=False, display=window.display_geometry[0])
+            if not png or captured.observation_id != snapshot.observation_id:
+                return None
+            fresh_frame, _ = Observation.capture(
+                png, session_id=context.runtime.task_id, display_id=captured.frame.display_id,
+                window_id=window.window_id, window_bounds=captured.frame.window_bounds,
+                display_geometry=window.display_geometry)
+            if (fresh_frame.scene_sha256 != captured.frame.scene_sha256
+                    or self.bound_window(context) != window):
+                return None
         selected = next((e for e in snapshot.elements if e.ref == action.target_ref), None)
         if (selected is None or not selected.enabled or action.operation not in selected.actions
                 or (action.operation == "fill") != (action.value is not None)):
@@ -478,6 +527,7 @@ class NativeAXChannel:
     async def aclose(self) -> None:
         self.closed = True
         async with self.lock:
+            self.visual_frame = None
             if self.source is not None:
                 await self.source.aclose()
             if self.pointer_uncertain:

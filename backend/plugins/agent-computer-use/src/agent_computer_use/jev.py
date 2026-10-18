@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import cast
 
+from tank_backend.llm.model_call import model_purpose
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 
 from .contracts import (
@@ -32,14 +33,20 @@ class JevSelector:
         payload = decision_question(goal, snapshot, actions)
         questions = cast(dict[str, dict[str, object]], payload["questions"])
         question = questions["next_action"]
-        result = await model.choose(state=cast(dict[str, object], payload["state"]),
-                                    instructions=cast(str, question["instructions"]),
-                                    options=cast(dict[str, object], question["criteria"]))
+        with model_purpose('computer_use.jev'):
+            result = await model.choose(state=cast(dict[str, object], payload["state"]),
+                                        instructions=cast(str, question["instructions"]),
+                                        options=cast(dict[str, object], question["criteria"]))
+        context.observe("computer_use_decision", confidence=result.confidence,
+                        probabilities=result.probabilities, candidates=len(actions.actions),
+                        candidate_set_id=actions.binding.candidate_set_id)
         if result.choice in ("none", "ambiguous", "need_more_context", "escalate"):
-            return DecisionResult(actions.binding, result.choice)
+            return DecisionResult(actions.binding, result.choice, confidence=result.confidence,
+                                  probabilities=tuple(result.probabilities.items()))
         action = candidate_aliases(actions).get(result.choice)
         if action is not None:
             context.observe("computer_use_proposal", source="jev", model_choice=result.choice,
                             action_id=action.id, candidate_set_id=actions.binding.candidate_set_id)
-            return DecisionResult(actions.binding, "candidate", action.id)
+            return DecisionResult(actions.binding, "candidate", action.id, result.confidence,
+                                  tuple(result.probabilities.items()))
         raise SubAgentStopped("invalid_decision")

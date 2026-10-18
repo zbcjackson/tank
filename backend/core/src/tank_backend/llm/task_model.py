@@ -18,6 +18,8 @@ from .profile import LLMProfile
 class TaskModel:
     """Plugins borrow complete(); only the host configures and closes the client."""
 
+    _data_types = frozenset({"text"})
+
     def __init__(
         self, task_id: str, context: SubAgentContext, profile: LLMProfile,
     ) -> None:
@@ -57,8 +59,8 @@ class TaskModel:
             raise SubAgentStopped("model_closed")
         messages = list(messages)
         try:
-            if chat_data_types(messages) != {"text"}:
-                raise ValueError("text service does not accept images")
+            if not chat_data_types(messages) <= self._data_types:
+                raise ValueError("unsupported service data")
         except ValueError:
             raise SubAgentStopped("model_data_denied") from None
         if self._llm is None:

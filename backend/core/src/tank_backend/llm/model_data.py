@@ -45,6 +45,7 @@ class ModelRequest:
     url: str
     model: str
     parameters: dict[str, Any]
+    purpose: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "parameters", copy.deepcopy(self.parameters))

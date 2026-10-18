@@ -55,8 +55,9 @@ Then('the plugin task contract passes without live model or desktop input',
 // S0 domain loop and real extension dispatch; fake UI, no paid model calls.
 When('the isolated computer use host contract {string} is exercised',
   async function (this: TankWorld, contract: string) {
-    assert.ok(['loop', 'plugin'].includes(contract));
-    const file = contract === 'loop' ? 'test_ladder.py' : 'test_plugin.py';
+    assert.ok(['loop', 'plugin', 'visual'].includes(contract));
+    const file = contract === 'loop' ? 'test_ladder.py'
+      : contract === 'visual' ? 'test_vision.py' : 'test_plugin.py';
     const {stdout} = await promisify(execFile)('uv', [
       'run', '--no-sync', 'pytest', `plugins/agent-computer-use/tests/${file}`, '-q',
     ], {cwd: resolve(process.cwd(), '../backend'), timeout: 30000});
@@ -80,7 +81,7 @@ When('the isolated managed Chromium contract is exercised',
 
 Then('the managed Chromium contract passes without paid model calls or personal browser access',
   function (this: TankWorld) {
-    assert.match(results.get(this) ?? '', /25 passed/);
+    assert.match(results.get(this) ?? '', /26 passed/);
     assert.doesNotMatch(results.get(this) ?? '', /\d+ skipped/);
   });
 

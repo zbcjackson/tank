@@ -17,6 +17,7 @@ from ..contracts import Action, Binding, DispatchReceipt, Element, Fact, Snapsho
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, Frame, Locator, Page, Playwright, Route
+    from ..visual_selector import VisualFrame
 
 
 class BrowserConfig(BaseModel):
@@ -165,6 +166,7 @@ class ManagedChromiumChannel:
         self.engine = "tank" + uuid4().hex
         self.closing: asyncio.Task[None] | None = None
         self.resource_lock = asyncio.Lock()
+        self.visual_frame: VisualFrame | None = None
 
     def check(self, context: SubAgentContext) -> None:
         context.check("desktop")
@@ -259,6 +261,7 @@ class ManagedChromiumChannel:
 
     async def observe(self, scope: str, context: SubAgentContext) -> Snapshot:
         self.check(context)
+        self.visual_frame = None
         if scope != self.config.scope:
             raise SubAgentStopped("scope_mismatch")
         await self.start(context)
@@ -294,8 +297,41 @@ class ManagedChromiumChannel:
         self.observed_navigation = navigation
         return snapshot
 
+    async def capture(self, snapshot: Snapshot, context: SubAgentContext) -> VisualFrame:
+        import io
+        from PIL import Image
+        from tank_backend.tools.computer_observation import Observation
+        from ..visual_selector import VisualFrame
+
+        self.check(context)
+        frame = self.bound_frame()
+        if (self.page is None or frame is not self.page.main_frame
+                or snapshot != self.previous or await self.read(frame, context) != self.view):
+            raise SubAgentStopped("visual_frame_unavailable")
+        bounds = []
+        for element in snapshot.elements:
+            if not element.actions:
+                continue
+            rect = await frame.locator(f"{self.engine}={element.ref}").bounding_box()
+            if rect is not None:
+                bounds.append((element.ref, (rect["x"], rect["y"], rect["width"], rect["height"])))
+        png = await self.page.screenshot(type="png", scale="css", caret="initial")
+        self.check(context)
+        if (await self.read(frame, context) != self.view
+                or self.observed_navigation != self.navigation):
+            raise SubAgentStopped("stale_reference")
+        with Image.open(io.BytesIO(png)) as image:
+            width, height = image.size
+        observation, png = Observation.capture(
+            png, session_id=context.runtime.task_id, display_id=1,
+            display_geometry=(1, 0, 0, width, height, width, height))
+        captured = VisualFrame(snapshot.observation_id, observation, png, tuple(bounds))
+        self.visual_frame = captured
+        return captured
+
     async def is_current(
         self, binding: Binding, action: Action, context: SubAgentContext,
+        *, check_image: bool = True,
     ) -> bool:
         self.check(context)
         snapshot = self.previous
@@ -310,6 +346,16 @@ class ManagedChromiumChannel:
             return False
         frame = self.bound_frame()
         current = await self.read(frame, context)
+        if check_image and self.visual_frame is not None:
+            import hashlib
+
+            if self.page is None or self.visual_frame.observation_id != snapshot.observation_id:
+                return False
+            png = await self.page.screenshot(type="png", scale="css", caret="initial")
+            self.check(context)
+            if hashlib.sha256(png).hexdigest() != self.visual_frame.frame.image_sha256:
+                return False
+            current = await self.read(frame, context)
         return current == self.view and self.navigation == self.observed_navigation
 
     def locator(self, action: Action) -> Locator:
@@ -329,7 +375,9 @@ class ManagedChromiumChannel:
             await locator.click(trial=True, timeout=250)
         except Error:
             return DispatchReceipt(action.id, "not_sent", "not_actionable")
-        if not await self.is_current(binding, action, context):
+        # The trial may change :hover pixels. Its existing DOM/navigation check
+        # remains mandatory; compare the model's image before the trial above.
+        if not await self.is_current(binding, action, context, check_image=False):
             return DispatchReceipt(action.id, "not_sent", "stale_reference")
         self.check(context)
         try:
@@ -364,6 +412,7 @@ class ManagedChromiumChannel:
 
     async def close_resources(self) -> None:
         self.closed = True
+        self.visual_frame = None
         self.previous, self.view = None, None
         async with self.resource_lock:
             if self.starting is not None and self.playwright is None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from tank_backend.llm.model_call import model_purpose
 from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 from tank_backend.llm.model_data import json_object
 
@@ -42,12 +43,13 @@ class ModelSelector:
                 return decision
         stage = "fallback" if self.primary is not None else "llm"
         context.observe("computer_use_selection", stage=stage, phase="start")
-        text = await model.complete([
-            {"role": "system", "content": 'Return only JSON {"choice":"one offered key"}. '
-             'Answer the supplied choice question. Do not execute actions or use tools.'},
-            {"role": "user", "content": json.dumps(decision_question(goal, snapshot, actions),
-                                                    ensure_ascii=False, allow_nan=False)},
-        ])
+        with model_purpose("computer_use.fallback" if self.primary is not None else "computer_use.llm"):
+            text = await model.complete([
+                {"role": "system", "content": 'Return only JSON {"choice":"one offered key"}. '
+                 'Answer the supplied choice question. Do not execute actions or use tools.'},
+                {"role": "user", "content": json.dumps(decision_question(goal, snapshot, actions),
+                                                        ensure_ascii=False, allow_nan=False)},
+            ])
         self.check(context)
         try:
             data = json_object(text.encode())

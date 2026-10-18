@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Protocol, TypeVar
 from uuid import uuid4
 
@@ -46,6 +47,20 @@ class ModelCallRecord:
     prompt_tokens: int | None
     completion_tokens: int | None
     elapsed_ms: float
+    purpose: str | None = None
+
+
+_purpose: ContextVar[str | None] = ContextVar("model_call_purpose", default=None)
+
+
+@contextmanager
+def model_purpose(purpose: str) -> Iterator[None]:
+    """Label the actual SDK attempt, including failed calls, without changing its payload."""
+    token = _purpose.set(purpose)
+    try:
+        yield
+    finally:
+        _purpose.reset(token)
 
 
 _completed_call: ContextVar[ModelCallRecord | None] = ContextVar("task_model_call", default=None)
@@ -58,7 +73,7 @@ def get_model_call(task_id: str) -> ModelCallRecord | None:
 
 class _Call:
     def __init__(self, owner: TaskModelCallRunner, request: ModelRequest):
-        self.owner, self.request = owner, request
+        self.owner, self.request = owner, replace(request, purpose=_purpose.get())
         self.id = uuid4().hex
         self.started = time.monotonic()
         self.attempted = False
@@ -76,7 +91,8 @@ class _Call:
             ctx.model_data_scope.check(self.request)
         except ValueError as exc:
             raise SubAgentStopped(str(exc)) from None
-        ctx.observe("model_call", task_id=self.owner.task_id, call_id=self.id, phase="started")
+        ctx.observe("model_call", task_id=self.owner.task_id, call_id=self.id, phase="started",
+                    purpose=self.request.purpose)
         self.owner.check()
         if ctx.model_policy is not None:
             ctx.model_policy.reserve(self.id, self.request)
@@ -125,6 +141,7 @@ class _Call:
                 inputs,
                 outputs,
                 (time.monotonic() - self.started) * 1000,
+                self.request.purpose,
             )
             self.record = record
             _completed_call.set(record)

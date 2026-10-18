@@ -295,6 +295,8 @@ class DecisionResult:
     binding: Binding
     choice: Literal["candidate", "none", "ambiguous", "need_more_context", "escalate"]
     candidate_id: str | None = None
+    confidence: float | None = None
+    probabilities: tuple[tuple[str, float], ...] = ()
 
 
 @dataclass(frozen=True)

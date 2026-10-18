@@ -45,6 +45,7 @@ from .contracts import (
     progress_json,
 )
 from .intake import TaskBrief, align_completion, goal_from_brief
+from .visual_selector import VisualSelector
 
 
 class ObservationSource(Protocol):
@@ -189,7 +190,7 @@ class ComputerUseController:
         self.target: TargetBinding | None = None
         self.completion_keys = completion_keys
         self.baselines: dict[str | None, Snapshot] = {}
-        self.builder = ActionBuilder(max_candidates)
+        self.builder = ActionBuilder(max_candidates, visual=isinstance(selector, VisualSelector))
         self.version = 1
         self.goal_id = uuid4().hex
         self.task_id = ""
@@ -219,6 +220,7 @@ class ComputerUseController:
             reason=reason,
             details={
                 "task_id": self.task_id,
+                "model_call_metrics_version": 2,
                 "evidence": list(self.evidence),
                 "goal_id": self.goal_id,
                 "goal_version": self.version,
@@ -274,6 +276,9 @@ class ComputerUseController:
         return achieved(snapshot, predicates, self.baselines.get(snapshot.window))
 
     def register_operations(self, context: SubAgentContext) -> None:
+        if isinstance(self.selector, VisualSelector):
+            self.selector.register(context)
+
         async def preflight(value: ActionAttempt) -> None:
             if not await self.executor.is_current(value.binding, value.action, context):
                 raise SubAgentStopped("stale_reference")
@@ -460,6 +465,7 @@ class ComputerUseController:
             return self.result("needs_input", "unsupported_completion_evidence")
         snapshot = await self.observe(goal, context)
         visited: dict[tuple[object, ...], int] = {}
+        visual_recoveries: set[tuple[object, ...]] = set()
         seen_evidence: set[tuple[str, str, str]] = set()
         incomplete_retries = 0
         while True:
@@ -497,6 +503,7 @@ class ComputerUseController:
                       for e in snapshot.elements), snapshot.facts,
             )
             repeated = state in visited
+            visual_recovery = False
             if repeated and not snapshot.complete and incomplete_retries < 20:
                 incomplete_retries += 1
                 await asyncio.sleep(0.05)
@@ -509,7 +516,11 @@ class ComputerUseController:
                     # A channel that never produced a usable observation is
                     # unavailable, not merely unchanged; keep the honest reason.
                     return self.result("stopped", "observation_unavailable")
-                if (self.advisor is None
+                if (isinstance(self.selector, VisualSelector) and snapshot.complete
+                        and state not in visual_recoveries):
+                    visual_recoveries.add(state)
+                    visual_recovery = True
+                elif (self.advisor is None
                         or visited[state] == len(self.progress.verified_actions)):
                     return self.result("stopped", "no_progress")
             if snapshot.complete:
@@ -529,7 +540,10 @@ class ComputerUseController:
                             observation_id=snapshot.observation_id, reason=actions.reason)
             action = actions.actions[0] if actions.reason == "rules_unique" else None
             selected_by: SelectionSource = "rules"
-            if actions.reason == "jev_eligible" and self.selector is not None:
+            if (self.selector is not None and (
+                    actions.reason == "jev_eligible"
+                    or isinstance(self.selector, VisualSelector) and actions.actions
+                    and (actions.reason == "visual_required" or visual_recovery))):
                 context.check("desktop")
                 decision = await self.selector.choose(goal, snapshot, actions, context)
                 context.check("desktop")

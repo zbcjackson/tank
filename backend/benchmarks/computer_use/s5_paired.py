@@ -37,6 +37,9 @@ from agent_computer_use import (
 )
 from agent_computer_use.channels import native
 
+from . import call_metrics
+from .call_metrics import count_attempts
+
 from tank_backend.benchmarks.spend_ledger import SpendSnapshot
 from tank_backend.agents.definition import AgentDefinition
 from tank_backend.tools import computer_ax, computer_native, computer_use_macos
@@ -358,6 +361,7 @@ def freeze_inputs(*, track: str = "original") -> dict[str, Any]:
                 spend_ledger,
                 trace,
                 model_policy,
+                call_metrics,
             )
         ),
     ]
@@ -637,16 +641,8 @@ def summarize(
                 for name, trial in spend.get("trials", {}).items()
                 if name in trials
             ),
-            "intake_calls": sum(
-                bool(row.get("result", {}).get("details", {}).get("intake"))
-                for row in group
-            ),
-            "fallbacks": sum(
-                event.get("kind") == "computer_use_selection"
-                and event.get("stage") == "fallback"
-                for row in group
-                for event in row.get("events", [])
-            ),
+            "intake_calls": count_attempts(group, "intake"),
+            "fallbacks": count_attempts(group, "fallback"),
             "screenshots": sum(
                 row.get("driver", {}).get("screenshots", 0) for row in group
             ),

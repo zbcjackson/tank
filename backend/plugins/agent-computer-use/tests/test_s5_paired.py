@@ -20,6 +20,102 @@ def _bootstrap(monkeypatch):
     return s5_paired
 
 
+def test_attempt_metrics_count_failed_intake_and_one_fallback(monkeypatch):
+    _bootstrap(monkeypatch)
+    from benchmarks.computer_use.call_metrics import count_attempts
+
+    events = [
+        {"kind": "model_call", "phase": "started", "call_id": "intake1",
+         "purpose": "computer_use.intake"},
+        {"kind": "model_call", "phase": "finished", "call_id": "intake1",
+         "purpose": "computer_use.intake", "status": "unknown"},
+        {"kind": "model_call", "phase": "started", "call_id": "fallback1",
+         "purpose": "computer_use.fallback"},
+        {"kind": "model_call", "phase": "finished", "call_id": "fallback1",
+         "purpose": "computer_use.fallback", "status": "returned"},
+        {"kind": "computer_use_selection", "stage": "fallback", "phase": "start"},
+        {"kind": "computer_use_selection", "stage": "fallback", "phase": "result"},
+    ]
+    row = {"events": events}
+    assert count_attempts([row], "intake") == 1
+    assert count_attempts([row], "fallback") == 1
+    assert count_attempts([row, row], "intake") == 1
+    assert count_attempts([{}], "intake") is None
+    assert count_attempts([row, {}], "intake") is None
+    legacy = {"events": events[-2:], "result": {"details": {"intake": {"application": "app"}}}}
+    assert count_attempts([legacy], "fallback") == 1
+    assert count_attempts([legacy], "intake") is None
+    zero = {"events": [], "result": {"details": {"model_call_metrics_version": 2}}}
+    assert count_attempts([zero], "intake") == 0
+
+
+@pytest.mark.parametrize("stage", ["intake", "fallback"])
+def test_attempt_metrics_exclude_unsent_and_preserve_incomplete_missingness(monkeypatch, stage):
+    _bootstrap(monkeypatch)
+    from benchmarks.computer_use.call_metrics import count_attempts
+
+    start = {"kind": "model_call", "phase": "started", "call_id": "attempt",
+             "purpose": f"computer_use.{stage}"}
+    finish = {**start, "phase": "finished", "status": "not_started"}
+    assert count_attempts([{"events": [start, finish]}], stage) == 0
+    assert count_attempts([{"events": [start]}], stage) is None
+    assert count_attempts([{"events": [finish]}], stage) == 0
+    assert count_attempts([{"events": [{**finish, "status": "returned"}]}], stage) is None
+    for status in ("returned", "unknown"):
+        assert count_attempts([{"events": [start, {**finish, "status": status}]}], stage) == 1
+
+
+@pytest.mark.parametrize("failure", ["scope", "reserve", "capture"])
+async def test_failed_intake_before_sdk_invoke_has_zero_sdk_calls(monkeypatch, failure):
+    import asyncio
+    from tank_backend.agents.subagent import (
+        SubAgentAuthorization, SubAgentBudget, SubAgentContext, SubAgentStopped,
+    )
+    from tank_backend.llm.model_call import model_purpose
+    from tank_backend.llm.model_data import ModelDataScope
+    from tank_backend.llm.profile import LLMProfile
+    _bootstrap(monkeypatch)
+    from benchmarks.computer_use.call_metrics import count_attempts
+
+    events = []
+    class Observer:
+        def on_event(self, kind, metadata):
+            events.append({"kind": kind, **metadata})
+    class Policy:
+        def check(self):
+            pass
+        def reserve(self, call_id, request):
+            if failure == "reserve":
+                raise SubAgentStopped("policy_denied")
+        def settle(self, call_id, inputs, outputs):
+            pass
+        def release_unsent(self, call_id):
+            pass
+    class Capture:
+        async def request(self, call_id, request):
+            raise RuntimeError("capture unavailable")
+        async def response(self, call_id, response):
+            pass
+
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        observer=Observer(), model_policy=Policy(),
+        model_capture=Capture() if failure == "capture" else None,
+        model_data_scope=ModelDataScope(max_request_bytes=1) if failure == "scope" else ModelDataScope())
+    ctx.runtime.configure_model("task", LLMProfile(
+        "text", "key", "planner", "https://offline.invalid/v1", max_tokens=128))
+    try:
+        assert ctx.runtime.model is not None
+        with pytest.raises((SubAgentStopped, RuntimeError)):
+            with model_purpose("computer_use.intake"):
+                await ctx.runtime.model.complete([{"role": "user", "content": "make task brief"}])
+        assert count_attempts([{"events": events}], "intake") == 0
+        assert ctx.budget.call_count == 0
+        assert any(e.get("status") == "not_started" for e in events)
+    finally:
+        await ctx.runtime.aclose()
+
+
 def test_freeze_pins_three_arm_schedule_and_budget(monkeypatch, tmp_path):
     s5 = _bootstrap(monkeypatch)
     frozen = s5.prepare(tmp_path / "pilot")
@@ -75,6 +171,26 @@ def test_freeze_pins_three_arm_schedule_and_budget(monkeypatch, tmp_path):
     assert s5.load_freeze(tmp_path / "pilot", frozen["sha256"]) == frozen
     with pytest.raises(ValueError, match="freeze"):
         s5.load_freeze(tmp_path / "pilot", "wrong")
+
+
+@pytest.mark.parametrize("harness", ["paired", "dom"])
+def test_freeze_rejects_changed_call_metric_source(monkeypatch, tmp_path, harness):
+    s5 = _bootstrap(monkeypatch)
+    from benchmarks.computer_use import call_metrics, s5_dom
+
+    module = s5 if harness == "paired" else s5_dom
+    output = tmp_path / "pilot"
+    frozen = module.prepare(output)
+    source = Path(call_metrics.__file__)
+    original = Path.read_bytes
+
+    def changed(path):
+        data = original(path)
+        return data + b"\n# changed metrics\n" if path == source else data
+
+    monkeypatch.setattr(Path, "read_bytes", changed)
+    with pytest.raises(ValueError, match="changed"):
+        module.load_freeze(output, frozen["sha256"])
 
 
 def test_score_case_is_independent_of_model_claims(monkeypatch):

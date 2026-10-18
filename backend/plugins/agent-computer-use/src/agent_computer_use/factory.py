@@ -30,7 +30,8 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
     if config:
         if (set(config) - {"browser", "macos", "selector", "advisor", "intake"}
                 or len(set(config) & {"browser", "macos"}) != 1
-                or ("selector" in config and config["selector"] not in ("jev", "llm", "jev-fallback"))
+                or ("selector" in config and config["selector"] not in (
+                    "jev", "llm", "jev-fallback", "jev-vision"))
                 or ("advisor" in config and config["advisor"] != "llm")
                 or ("intake" in config and (config["intake"] != "llm" or "macos" not in config))):
             raise ValueError("Specify one explicit browser or macos channel")
@@ -60,6 +61,10 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
         selector: Selector | None = None
         if config.get("selector") == "jev":
             selector = JevSelector()
+        elif config.get("selector") == "jev-vision":
+            from .visual_selector import VisualSelector
+
+            selector = VisualSelector(channel)
         elif config.get("selector") in ("llm", "jev-fallback"):
             from .model_selector import ModelSelector
 

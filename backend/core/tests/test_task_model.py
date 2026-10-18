@@ -77,6 +77,73 @@ async def test_text_model_stopped_before_http_creation(model_stack, stop):
     assert requests == released == []
 
 
+async def test_explicit_visual_service_preserves_text_service_and_shared_ledger(model_stack):
+    from tank_backend.llm.model_data import ModelDataScope
+
+    context, profile, _, requests, released = model_stack
+    object.__setattr__(context, "model_data_scope", ModelDataScope(frozenset({"text", "image"})))
+    context.runtime.configure_visual_model("task", profile)
+    visual = context.runtime.visual_model
+    assert visual is not None and context.runtime.model is not None
+    messages = [{"role": "user", "content": [
+        {"type": "text", "text": "Choose a candidate"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,cG5n"}},
+    ]}]
+    try:
+        with pytest.raises(SubAgentStopped, match="model_data_denied"):
+            await context.runtime.model.complete(messages)
+        assert await visual.complete(messages) == "ready"
+        assert context.budget.total_tokens == 10
+        assert len(requests) == 1
+        assert json.loads(requests[0].content)["messages"] == messages
+    finally:
+        await context.runtime.aclose()
+    assert released == [True]
+
+
+def test_visual_profile_is_explicit_and_extension_only(tmp_path):
+    from tank_backend.agents.definition import parse_agent_file
+
+    path = tmp_path / "visual.md"
+    path.write_text("---\nname: visual\nextension: test:agent\n"
+                    "visual-model: approved-vision\n---\nChoose.")
+    definition = parse_agent_file(path)
+    assert definition.visual_model == "approved-vision"
+    with pytest.raises(ValueError, match="visual-model"):
+        path.write_text("---\nname: visual\nvisual-model: vision\n---\nChoose.")
+        parse_agent_file(path)
+
+
+async def test_call_purpose_is_bound_to_capture_and_unique_attempt_id(model_stack):
+    from tank_backend.llm.model_call import model_purpose
+
+    context, _, _, _, _ = model_stack
+    events, captured = [], []
+    class Observer:
+        def on_event(self, kind, metadata):
+            events.append((kind, metadata))
+    class Capture:
+        async def request(self, call_id, request):
+            captured.append((call_id, request.purpose))
+        async def response(self, call_id, response):
+            pass
+    object.__setattr__(context, "observer", Observer())
+    object.__setattr__(context, "model_capture", Capture())
+    try:
+        assert context.runtime.model is not None
+        for purpose in ("computer_use.intake", "computer_use.fallback"):
+            with model_purpose(purpose):
+                await context.runtime.model.complete([{"role": "user", "content": "choose"}])
+        starts = [m for k, m in events if k == "model_call" and m["phase"] == "started"]
+        finishes = [m for k, m in events if k == "model_call" and m["phase"] == "finished"]
+        assert len(starts) == len(finishes) == len(captured) == 2
+        assert [(m["call_id"], m["purpose"]) for m in starts] == captured
+        assert [(m["call_id"], m["purpose"]) for m in finishes] == captured
+        assert starts[0]["call_id"] != starts[1]["call_id"]
+    finally:
+        await context.runtime.aclose()
+
+
 @pytest.mark.parametrize(
     "invalid", ["choices", "truncated", "refusal", "tool_calls", "function_call"],
 )

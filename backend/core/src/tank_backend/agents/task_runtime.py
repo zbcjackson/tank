@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from ..llm.profile import LLMProfile
     from ..llm.task_decision_model import TaskDecisionModel
     from ..llm.task_model import TaskModel
+    from ..llm.task_visual_model import TaskVisualModel
     from .base import AgentOutput
     from .subagent import SubAgentContext
 
@@ -68,6 +69,7 @@ class TaskRuntime:
     ) -> None:
         self._context = context
         self._model: TaskModel | None = None
+        self._visual_model: TaskVisualModel | None = None
         self._decision_model: TaskDecisionModel | None = None
         self._task_id: str | None = None
         self._operations: dict[str, object] = {}
@@ -193,6 +195,21 @@ class TaskRuntime:
         model = TaskModel(task_id, self._context, profile)
         self.own("task-model", model.aclose)
         self._model = model
+
+    @property
+    def visual_model(self) -> TaskVisualModel | None:
+        return self._visual_model
+
+    def configure_visual_model(self, task_id: str, profile: LLMProfile) -> None:
+        """Host-only opt-in; it does not widen the context's data allowance."""
+        from ..llm.task_visual_model import TaskVisualModel
+
+        self.bind(task_id)
+        if self._visual_model is not None:
+            raise ValueError("task visual model is already configured")
+        model = TaskVisualModel(task_id, self._context, profile)
+        self.own("task-visual-model", model.aclose)
+        self._visual_model = model
 
     @property
     def decision_model(self) -> TaskDecisionModel | None:
