@@ -11,6 +11,43 @@ from tank_backend.tools.computer_observation import Observation
 from .test_native import world as shared_world  # noqa: F401
 
 
+def test_qwen_location_contract_uses_declared_thousand_scale(monkeypatch):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_eval as evaluation
+
+    answer = evaluation.parse_location('{"cardinality":"one","bbox_2d":[100,340,360,520]}')
+    assert answer == {"cardinality": "one", "box": [0.1, 0.34, 0.36, 0.52]}
+    assert evaluation.parse_location('{"cardinality":"none","bbox_2d":null}') == {
+        "cardinality": "none", "box": None}
+    # Small coordinates still mean thousandths, never an inferred 0-1 scale.
+    assert evaluation.parse_location('{"cardinality":"one","bbox_2d":[0.1,0.2,0.3,0.4]}')["box"] == [
+        0.0001, 0.0002, 0.0003, 0.0004]
+
+
+@pytest.mark.parametrize("answer", [
+    '```json\n{"cardinality":"one","bbox_2d":[100,200,300,400]}\n```',
+    '{"cardinality":"one","test":[100,200,300,400]}',
+    '{"cardinality":"one","box":[0.1,0.2,0.3,0.4]}',
+    '{"cardinality":"one","bbox_2d":[-1,200,300,400]}',
+    '{"cardinality":"one","bbox_2d":[100,200,1001,400]}',
+    '{"cardinality":"one","bbox_2d":[true,200,300,400]}',
+    '{"cardinality":"one","bbox_2d":[100,200,100,400]}',
+    '{"cardinality":"one","bbox_2d":null}',
+    '{"cardinality":"none","bbox_2d":[100,200,300,400]}',
+    '{"cardinality":"several","bbox_2d":[100,200,300,400]}',
+    '{"cardinality":"one","bbox_2d":[100,200,300,400],"units":"pixels"}',
+    '{"cardinality":"one","cardinality":"none","bbox_2d":null}',
+])
+def test_qwen_location_contract_refuses_repair_and_ambiguous_geometry(monkeypatch, answer):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_eval as evaluation
+
+    with pytest.raises(ValueError):
+        evaluation.parse_location(answer)
+
+
 def test_image_evaluation_prepares_five_arms_without_clients(monkeypatch, tmp_path):
     import json
     from pathlib import Path
@@ -27,6 +64,8 @@ def test_image_evaluation_prepares_five_arms_without_clients(monkeypatch, tmp_pa
     monkeypatch.setattr(httpx2, "AsyncClient", forbidden)
     output = tmp_path / "evaluation"
     frozen = evaluation.prepare(output)
+    assert frozen["revision"] == "jev-image-evaluation-2"
+    assert frozen["qwen_output_contract"]["coordinate_scale"] == 1000
     assert frozen["request_limit"] == 260
     assert len(frozen["schedule"]) == 300
     assert {row["arm"] for row in frozen["schedule"]} == {
@@ -36,9 +75,27 @@ def test_image_evaluation_prepares_five_arms_without_clients(monkeypatch, tmp_pa
     assert len(previews) == 260
     assert "expected_choice" not in json.dumps(previews)
     assert "clickable_regions" not in json.dumps(previews)
+    qwen = previews["dev-001-1-qwen_box"]
+    assert qwen["response_format"] == {"type": "json_object"}
+    assert "0-1000" in qwen["messages"][0]["content"]
     assert not (output / "started.json").exists()
     with pytest.raises(FileExistsError):
         evaluation.prepare(output)
+
+
+def test_image_evaluation_refuses_a_differently_labeled_protocol(monkeypatch, tmp_path):
+    import json
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_eval as evaluation
+
+    output = tmp_path / "evaluation"
+    frozen = evaluation.prepare(output)
+    frozen["revision"] = "jev-image-evaluation-1"
+    frozen["sha256"] = evaluation.dev.digest({k: v for k, v in frozen.items() if k != "sha256"})
+    (output / "freeze.json").write_text(json.dumps(frozen))
+    with pytest.raises(ValueError, match="freeze changed"):
+        evaluation.load_freeze(output, frozen["sha256"])
 
 
 async def test_image_evaluation_runs_real_sdks_and_scores_without_gui(monkeypatch, tmp_path):
@@ -70,11 +127,12 @@ async def test_image_evaluation_runs_real_sdks_and_scores_without_gui(monkeypatc
         data = payload(request)
         sent.append(data)
         if "messages" in data:
+            assert data["response_format"] == {"type": "json_object"}
             return httpx.Response(200, json={
                 "id": "evaluation", "object": "chat.completion", "created": 1,
                 "model": data["model"], "choices": [{"index": 0, "finish_reason": "stop",
                     "message": {"role": "assistant", "content": json.dumps({
-                        "cardinality": "one", "box": [0.1, 0.34, 0.36, 0.52]})}}],
+                        "cardinality": "one", "bbox_2d": [100, 340, 360, 520]})}}],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}})
         criteria = data["questions"].get("next_action", {}).get("criteria")
         if criteria:
