@@ -12,6 +12,190 @@ from tank_backend.tools.computer_observation import Observation
 from .test_native import world as shared_world  # noqa: F401
 
 
+@pytest.mark.parametrize("size", [(1920, 1080), (100, 40), (2000, 100)])
+@pytest.mark.parametrize("orientation", [1, 3, 6, 8])
+def test_jev_image_normalization_preserves_inverse_frame_mapping(size, orientation):
+    from dataclasses import replace
+    from agent_computer_use.jev_image import normalize_frame
+    from agent_computer_use.visual_selector import VisualFrame
+    import hashlib
+
+    original = Image.new("RGB", size, "white")
+    exif = Image.Exif()
+    exif[274] = orientation
+    buffer = io.BytesIO()
+    original.save(buffer, "PNG", exif=exif)
+    png = buffer.getvalue()
+    frame, _ = Observation.capture(png, session_id="task", display_id=5,
+        display_geometry=(5, -200, 100, *size, *size))
+    frame = replace(frame, image_sha256=hashlib.sha256(png).hexdigest())
+    normalized = normalize_frame(VisualFrame("obs", frame, png, ()))
+    with Image.open(io.BytesIO(normalized.asset.data)) as prepared:
+        assert prepared.format == "PNG" and prepared.getexif().get(274, 1) == 1
+        assert 280 <= prepared.width <= 1568 and 280 <= prepared.height <= 1568
+    # Image and screen centers must agree after resize/padding/EXIF orientation.
+    assert normalized.map_box((0.45, 0.45, 0.55, 0.55)) == frame.map_point(size[0] / 2, size[1] / 2)
+
+
+@pytest.mark.parametrize("orientation,expected", [
+    (1, (20, 24)), (2, (80, 24)), (3, (80, 56)), (4, (20, 56)),
+    (5, (30, 16)), (6, (30, 64)), (7, (70, 64)), (8, (70, 16)),
+])
+def test_jev_inverse_rotation_uses_asymmetric_target(orientation, expected):
+    from dataclasses import replace
+    from agent_computer_use.jev_image import normalize_frame
+    from agent_computer_use.visual_selector import VisualFrame
+    import hashlib
+
+    original = Image.new("RGB", (100, 80), "white")
+    exif = Image.Exif()
+    exif[274] = orientation
+    buffer = io.BytesIO()
+    original.save(buffer, "PNG", exif=exif)
+    png = buffer.getvalue()
+    frame, _ = Observation.capture(png, session_id="task", display_id=1)
+    frame = replace(frame, image_sha256=hashlib.sha256(png).hexdigest())
+    prepared = normalize_frame(VisualFrame("obs", frame, png, ()))
+    assert prepared.map_box((0.15, 0.25, 0.25, 0.35)) == expected
+
+
+@pytest.mark.parametrize("condition,question", [
+    (condition, "box") for condition in ("one", "none", "several", "stale", "revoked", "unknown", "scope", "receiver")
+] + [("one", "choice")])
+async def test_jev_box_probe_never_dispatches_and_rechecks_original_frame(
+    monkeypatch, shared_world, condition, question,  # noqa: F811
+):
+    import asyncio
+    import json
+    import httpx2
+    from agent_computer_use.channels.native import NativeAXChannel, NativeConfig
+    from agent_computer_use.jev_image import JevImageProbe
+    from tank_backend.agents.subagent import (
+        SubAgentAuthorization, SubAgentBudget, SubAgentContext, SubAgentStopped,
+    )
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.model_data import ModelDataScope
+    from .test_native import native_config
+
+    count = condition if condition in {"none", "several"} else "one"
+    captures, sent = [], []
+    current = io.BytesIO()
+    Image.new("RGB", (100, 80), "white").save(current, "PNG")
+    png = current.getvalue()
+    def capture(**kwargs):
+        captures.append(True)
+        return png
+    async def respond(request: httpx2.Request) -> httpx2.Response:
+        nonlocal png
+        sent.append(request)
+        if condition == "stale":
+            changed = io.BytesIO()
+            Image.new("RGB", (100, 80), "black").save(changed, "PNG")
+            png = changed.getvalue()
+        elif condition == "revoked":
+            ctx.authorization.revoke()
+        data = {"model": "jev-1.14.0", "answers": {
+            "cardinality": {"type": "choice", "choice": count, "confidence": 1.0,
+                "probabilities": {key: float(key == count) for key in ("none", "one", "several")}},
+            "target": {"type": "box", "box": {"left": 0.1, "top": 0.1, "right": 0.3,
+                "bottom": 0.4}, "confidence": 0.8}}, "usage": {"input_tokens": 13, "output_tokens": 4}}
+        if question == "choice":
+            data["answers"] = {"next_action": {"type": "choice", "choice": "c1", "confidence": 1.0,
+                                              "probabilities": {"c1": 1.0}}}
+        if condition == "unknown":
+            data.pop("usage")
+        return httpx2.Response(200, json=data)
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kw: httpx2.MockTransport(respond))
+    monkeypatch.setattr("agent_computer_use.channels.native.macos._capture_screenshot_macos", capture)
+    ctx = SubAgentContext(SubAgentAuthorization(frozenset({"network", "desktop"})),
+        SubAgentBudget(), asyncio.Event(), model_data_scope=ModelDataScope(
+            frozenset({"text"} if condition == "scope" else {"text", "image"})))
+    ctx.runtime.configure_decision_model("task", DecisionModelProfile(
+        "https://offline.invalid/v1/systemone", "jev-1.14.0", "KEY",
+        images=condition != "receiver"), credential="test")
+    channel = NativeAXChannel(config=NativeConfig.model_validate_json(json.dumps(native_config())))
+    probe = JevImageProbe(channel, ctx)
+    try:
+        snapshot = await channel.observe("counter", ctx)
+        if condition in {"one", "none", "several"}:
+            prepared, result = await probe.assess(snapshot, state={}, instructions="Increment button",
+                                                  options={"c1": "Increment"} if question == "choice" else None)
+            from tank_backend.llm.decision_model import BoxResult, ChoiceResult
+            if question == "choice":
+                assert isinstance(result, ChoiceResult) and result.choice == "c1"
+            else:
+                assert isinstance(result, BoxResult) and result.cardinality.choice == count
+            assert prepared.source.observation_id == snapshot.observation_id
+            assert ctx.budget.total_tokens == 17 and len(captures) == 2
+        else:
+            expected = {"scope": "decision_images_denied", "receiver": "decision_images_denied",
+                        "stale": "stale_visual_frame", "revoked": "error", "unknown": "invalid_decision"}
+            with pytest.raises(SubAgentStopped, match=expected[condition]):
+                await probe.assess(snapshot, state={}, instructions="Increment button")
+            if condition == "unknown":
+                assert ctx.budget.unknown_calls
+        assert shared_world.sent == []
+        assert len(sent) == (0 if condition in {"scope", "receiver"} else 1)
+        if condition in {"scope", "receiver"}:
+            assert captures == []
+    finally:
+        await channel.aclose()
+        await ctx.runtime.aclose()
+
+
+def test_new_development_set_prepares_without_clients_and_separates_labels(monkeypatch, tmp_path):
+    import copy
+    import json
+    from pathlib import Path
+    import httpx2
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_dev as dev
+    def forbidden(*args, **kwargs):
+        raise AssertionError("preparation created a model client")
+    monkeypatch.setattr(httpx2, "AsyncClient", forbidden)
+    output = tmp_path / "new-dev"
+    frozen = dev.prepare(output)
+    assert frozen["purpose"] == "development-only"
+    cases = json.loads((output / "public.json").read_text())
+    assert len(cases) == 36
+    assert {case["language"] for case in cases} == {"en", "zh"}
+    assert {case["family"] for case in cases} >= {
+        "structured", "missing-structure", "roundtrip", "recovery", "workflow", "absent", "ambiguous"}
+    case = cases[0]
+    png = (output / case["stages"][0]["image"]).read_bytes()
+    requests = dev.requests(case["stages"][0], png)
+    labels = json.loads((output / "labels.json").read_text())
+    for public_case in cases:
+        for stage in public_case["stages"]:
+            assert labels[stage["id"]]["expected_choice"] in stage["options"]
+            if public_case["family"] in {"missing-input", "stale-frame"}:
+                assert dev.requests(stage, (output / stage["image"]).read_bytes()) == {}
+    changed = copy.deepcopy(labels)
+    for value in changed.values():
+        value["expected_choice"] = "poison"
+    (output / "labels.json").write_text(json.dumps(changed))
+    assert dev.requests(case["stages"][0], png) == requests
+    assert "expected_choice" not in json.dumps(requests)
+    with pytest.raises(ValueError, match="freeze|changed"):
+        dev.load_freeze(output, frozen["sha256"])
+    with pytest.raises(FileExistsError):
+        dev.prepare(output)
+
+
+def test_development_source_drift_requires_a_new_freeze(monkeypatch, tmp_path):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_dev as dev
+
+    frozen = dev.prepare(tmp_path / "dev")
+    source_hashes = dev.sources()
+    source_hashes["core/src/tank_backend/tools/computer_observation.py"] = "changed"
+    monkeypatch.setattr(dev, "sources", lambda: source_hashes)
+    with pytest.raises(ValueError, match="freeze changed"):
+        dev.load_freeze(tmp_path / "dev", frozen["sha256"])
+
+
 async def test_repeated_state_visual_recovery_stays_bounded_with_advisor(monkeypatch):
     import json
     import httpx

@@ -4,6 +4,387 @@ import httpx2
 import pytest
 
 
+@pytest.mark.parametrize("image_format", ["PNG", "JPEG"])
+async def test_official_sdk_image_box_multipart_and_default_compression(monkeypatch, image_format):
+    import io
+    import json
+    from email.parser import BytesParser
+    from email.policy import default
+
+    from PIL import Image as PILImage
+    from typesafe_sdk import AsyncTypeSafeClient, Box, Choice, Image, RetryPolicy
+
+    png = io.BytesIO()
+    PILImage.new("RGB", (280, 280), "white").save(png, image_format)
+    captured = []
+
+    async def respond(request):
+        body = request.content
+        if request.headers.get("content-encoding") == "zstd":
+            import importlib
+            import sys
+
+            codec = importlib.import_module(
+                "compression.zstd" if sys.version_info >= (3, 14) else "backports.zstd"
+            )
+            body = codec.decompress(body)
+        envelope = BytesParser(policy=default).parsebytes(
+            ("Content-Type: " + request.headers["content-type"] + "\r\n\r\n").encode() + body
+        )
+        parts = list(envelope.iter_parts())
+        payload = parts[0].get_payload(decode=True)
+        assert isinstance(payload, bytes)
+        data = json.loads(payload)
+        assert parts[0].get_param("name", header="content-disposition") == "request"
+        assert data["assets"]["photo"] == {"type": "image", "part": "asset-0"}
+        assert parts[1].get_payload(decode=True) == png.getvalue()
+        assert parts[1].get_content_type() == (
+            "image/png" if image_format == "PNG" else "image/jpeg")
+        assert request.headers["TypeSafe-Danger-Zone-Images"] == "true"
+        captured.append(data)
+        result = response("a")
+        result["model"] = "jev-1.14.0"
+        result["answers"]["target"] = {
+            "type": "box",
+            "box": {"top": 0.1, "left": 0.2, "bottom": 0.4, "right": 0.5},
+            "confidence": 0.8,
+        }
+        return httpx2.Response(200, json=result)
+
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kw: httpx2.MockTransport(respond))
+    async with AsyncTypeSafeClient(
+        api_key="test",
+        model="jev-1.14.0",
+        base_url="https://offline.invalid",
+        retry=RetryPolicy(max_retries=0),
+    ) as client:
+        result = await client.system_one(
+            state={"image": "photo"},
+            assets={"photo": Image(png.getvalue())},
+            questions={
+                "next_action": Choice(instructions="Choose", criteria={"a": "A", "b": "B"}),
+                "target": Box(instructions="Find A in `image`"),
+            },
+            extra_headers={"TypeSafe-Danger-Zone-Images": "true"},
+        )
+        assert result.boxes["target"].box.left == 0.2
+        assert len(captured) == 1
+
+
+async def test_governed_image_choice_capture_matches_multipart(monkeypatch):
+    import asyncio
+    import io
+    import json
+    from email.parser import BytesParser
+    from email.policy import default
+
+    from PIL import Image
+
+    from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.model_data import ModelDataScope, ModelImageAsset
+
+    png = io.BytesIO()
+    Image.new("RGB", (280, 280), "white").save(png, "PNG")
+    image = ModelImageAsset("tank-image-" + "a" * 32, "asset-0", "image/png", png.getvalue())
+    captures, sent = [], []
+
+    class Capture:
+        async def request(self, call_id, request):
+            captures.append((call_id, request))
+            request.parameters["state"]["task"] = "redacted by recorder"
+
+        async def response(self, call_id, response):
+            pass
+
+    async def respond(request):
+        sent.append(request)
+        assert request.headers["TypeSafe-Danger-Zone-Images"] == "true"
+        assert "content-encoding" not in request.headers
+        message = BytesParser(policy=default).parsebytes(
+            ("Content-Type: " + request.headers["content-type"] + "\r\n\r\n").encode()
+            + request.content
+        )
+        parts = list(message.iter_parts())
+        payload = parts[0].get_payload(decode=True)
+        assert isinstance(payload, bytes)
+        data = json.loads(payload)
+        assert data["state"]["task"] == "choose"
+        assert data["state"]["image"] == image.reference
+        assert parts[1].get_payload(decode=True) == captures[0][1].images[0].data
+        result = response()
+        result["model"] = "jev-1.14.0"
+        return httpx2.Response(200, json=result)
+
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kw: httpx2.MockTransport(respond))
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})),
+        SubAgentBudget(),
+        asyncio.Event(),
+        model_capture=Capture(),
+        model_data_scope=ModelDataScope(frozenset({"text", "image"})),
+    )
+    ctx.runtime.configure_decision_model(
+        "image-task",
+        DecisionModelProfile(
+            "https://offline.invalid/v1/systemone", "jev-1.14.0", "KEY", images=True
+        ),
+        credential="test",
+    )
+    try:
+        model = ctx.runtime.decision_model
+        assert model is not None
+        result = await model.choose_image(
+            state={"task": "choose"},
+            image=image,
+            instructions="Choose",
+            options={"a": "A", "b": "B"},
+        )
+        assert result.choice == "a" and result.confidence == 1.0
+        assert len(sent) == len(captures) == ctx.budget.call_count == 1
+        assert ctx.budget.total_tokens == 9
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("count", ["none", "one", "several"])
+async def test_box_requires_same_request_cardinality_and_returns_evidence_only(monkeypatch, count):
+    import io
+
+    from PIL import Image
+
+    from tank_backend.llm.decision_model import DecisionModel
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.model_data import ModelImageAsset
+
+    png = io.BytesIO()
+    Image.new("RGB", (280, 280), "white").save(png, "PNG")
+    image = ModelImageAsset("tank-image-" + "a" * 32, "asset-0", "image/png", png.getvalue())
+    requests = []
+
+    async def respond(request):
+        requests.append(request)
+        assert b'"cardinality"' in request.content and b'"box"' in request.content
+        assert b'"none"' in request.content and b'"several"' in request.content
+        return httpx2.Response(
+            200,
+            json={
+                "model": "jev-1.14.0",
+                "answers": {
+                    "cardinality": {
+                        "type": "choice",
+                        "choice": count,
+                        "confidence": 0.9,
+                        "probabilities": {
+                            key: float(key == count) for key in ("none", "one", "several")
+                        },
+                    },
+                    "target": {
+                        "type": "box",
+                        "box": {"left": 0.2, "top": 0.1, "right": 0.5, "bottom": 0.4},
+                        "confidence": 0.8,
+                    },
+                },
+                "usage": {"input_tokens": 13, "output_tokens": 4},
+            },
+        )
+
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kw: httpx2.MockTransport(respond))
+    model = DecisionModel(
+        DecisionModelProfile(
+            "https://offline.invalid/v1/systemone", "jev-1.14.0", "KEY", images=True
+        ),
+        credential="test",
+    )
+    try:
+        result = await model.locate_image(state={}, image=image, target="the Save button")
+        assert result.cardinality.choice == count and result.confidence == 0.8
+        assert result.box == (0.2, 0.1, 0.5, 0.4)
+        assert result.input_tokens == 13 and result.output_tokens == 4
+        assert result.cardinality.input_tokens is None
+        assert len(requests) == 1
+    finally:
+        await model.aclose()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    ["mime", "dimensions", "reference", "receiver", "model", "format", "orientation", "part"],
+)
+async def test_image_rejection_precedes_sdk_allocation(monkeypatch, fault):
+    import asyncio
+    import io
+
+    from PIL import Image
+
+    from tank_backend.agents.subagent import (
+        SubAgentAuthorization,
+        SubAgentBudget,
+        SubAgentContext,
+        SubAgentStopped,
+    )
+    from tank_backend.llm import decision_model
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.model_data import ModelDataScope, ModelImageAsset
+
+    buffer = io.BytesIO()
+    image = Image.new("RGB", (100, 100) if fault == "dimensions" else (280, 280), "white")
+    exif = Image.Exif()
+    if fault == "orientation":
+        exif[274] = 6
+    image.save(buffer, "GIF" if fault == "format" else "PNG", exif=exif)
+    asset = ModelImageAsset(
+        "bad" if fault == "reference" else "tank-image-" + "a" * 32,
+        "asset-1" if fault == "part" else "asset-0",
+        "image/jpeg" if fault == "mime" else "image/png",
+        buffer.getvalue(),
+    )
+
+    def forbidden(**kwargs):
+        raise AssertionError("invalid image allocated SDK client")
+
+    monkeypatch.setattr(decision_model, "AsyncTypeSafeClient", forbidden)
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})),
+        SubAgentBudget(),
+        asyncio.Event(),
+        model_data_scope=ModelDataScope(frozenset({"text", "image"})),
+    )
+    ctx.runtime.configure_decision_model(
+        "task",
+        DecisionModelProfile(
+            "https://offline.invalid/v1/systemone",
+            "jev-9.0.0" if fault == "model" else "jev-1.14.0",
+            "KEY",
+            images=fault != "receiver",
+        ),
+        credential="test",
+    )
+    try:
+        model = ctx.runtime.decision_model
+        assert model is not None
+        with pytest.raises(SubAgentStopped, match="invalid_decision_image"):
+            await model.choose_image(
+                state={}, image=asset, instructions="Choose", options={"a": "A"}
+            )
+        assert ctx.budget.call_count == 0
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("task_bound", [False, True])
+async def test_image_choice_cannot_auto_attach_undeclared_sdk_images(monkeypatch, task_bound):
+    import asyncio
+    import io
+
+    from PIL import Image
+    from typesafe_sdk import Image as SDKImage
+
+    from tank_backend.agents.subagent import (
+        SubAgentAuthorization,
+        SubAgentBudget,
+        SubAgentContext,
+        SubAgentStopped,
+    )
+    from tank_backend.llm import decision_model
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.model_data import ModelDataScope, ModelImageAsset
+    from tank_backend.llm.task_decision_model import TaskDecisionModel
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (280, 280)).save(buffer, "PNG")
+    asset = ModelImageAsset("tank-image-" + "a" * 32, "asset-0", "image/png", buffer.getvalue())
+
+    def forbidden(**kwargs):
+        raise AssertionError("undeclared image reached SDK")
+
+    monkeypatch.setattr(decision_model, "AsyncTypeSafeClient", forbidden)
+    model = decision_model.DecisionModel(
+        DecisionModelProfile(
+            "https://offline.invalid/v1/systemone", "jev-1.14.0", "KEY", images=True
+        ),
+        credential="test",
+    )
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})),
+        SubAgentBudget(),
+        asyncio.Event(),
+        model_data_scope=ModelDataScope(frozenset({"text", "image"})),
+    )
+    task = TaskDecisionModel("task", ctx, model)
+    try:
+        options: dict[str, object] = {"a": {"example": SDKImage(b"not an approved image file")}}
+        if task_bound:
+            with pytest.raises(SubAgentStopped, match="invalid_decision_image"):
+                await task.choose_image(
+                    state={}, image=asset, instructions="Choose", options=options
+                )
+        else:
+            with pytest.raises(ValueError, match="invalid_decision_image"):
+                await model.choose_image(
+                    state={}, image=asset, instructions="Choose", options=options
+                )
+        assert ctx.budget.call_count == 0
+    finally:
+        await task.aclose()
+        await model.aclose()
+
+
+@pytest.mark.parametrize("options", [{}, {"": "A"}, {"a": 7}])
+async def test_task_image_choice_rejects_invalid_options_before_capture_or_usage(
+    monkeypatch, options,
+):
+    import asyncio
+    import io
+
+    from PIL import Image
+
+    from tank_backend.agents.subagent import (
+        SubAgentAuthorization,
+        SubAgentBudget,
+        SubAgentContext,
+        SubAgentStopped,
+    )
+    from tank_backend.llm import decision_model
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.model_data import ModelDataScope, ModelImageAsset
+    from tank_backend.llm.task_decision_model import TaskDecisionModel
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (280, 280)).save(buffer, "PNG")
+    asset = ModelImageAsset("tank-image-" + "a" * 32, "asset-0", "image/png", buffer.getvalue())
+    activity = []
+
+    class Capture:
+        async def request(self, call_id, request):
+            activity.append("capture")
+
+        async def response(self, call_id, response):
+            activity.append("response")
+
+    def forbidden(**kwargs):
+        activity.append("sdk")
+        raise AssertionError("invalid options reached SDK")
+
+    monkeypatch.setattr(decision_model, "AsyncTypeSafeClient", forbidden)
+    model = decision_model.DecisionModel(DecisionModelProfile(
+        "https://offline.invalid/v1/systemone", "jev-1.14.0", "KEY", images=True,
+    ), credential="test")
+    ctx = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        model_capture=Capture(), model_data_scope=ModelDataScope(frozenset({"text", "image"})),
+    )
+    task = TaskDecisionModel("task", ctx, model)
+    try:
+        with pytest.raises(SubAgentStopped, match="invalid_decision_image"):
+            await task.choose_image(state={}, image=asset, instructions="Choose", options=options)
+        assert activity == []
+        assert ctx.budget.call_count == 0 and not ctx.budget.unknown_calls
+    finally:
+        await task.aclose()
+        await model.aclose()
+
+
 def response(choice="a"):
     return {
         "model": "jev-1.13.0",
@@ -44,6 +425,67 @@ async def test_standalone_decision_model_has_no_task_or_custom_transport(monkeyp
         assert (result.input_tokens, result.output_tokens) == (7, 2)
         assert len(calls) == 1
         assert calls[0].headers["authorization"] == "Bearer secret"
+    finally:
+        await model.aclose()
+
+
+@pytest.mark.parametrize("kind", ["text", "image", "box"])
+async def test_successful_choice_trace_retains_decision_evidence(monkeypatch, kind):
+    import io
+    from contextlib import contextmanager
+
+    from PIL import Image
+
+    from tank_backend.llm import decision_model
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.model_data import ModelImageAsset
+
+    updates = []
+
+    @contextmanager
+    def observation(name, model):
+        yield lambda **fields: updates.append(fields)
+
+    data = response()
+    if kind != "text":
+        data["model"] = "jev-1.14.0"
+    if kind == "box":
+        data["answers"] = {
+            "cardinality": {"type": "choice", "choice": "one", "confidence": 0.9,
+                            "probabilities": {"none": 0.0, "one": 1.0, "several": 0.0}},
+            "target": {"type": "box", "box": {"left": 0.1, "top": 0.2, "right": 0.3,
+                                                "bottom": 0.4}, "confidence": 0.8},
+        }
+    monkeypatch.setattr(decision_model, "model_observation", observation)
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kw: httpx2.MockTransport(
+        lambda request: httpx2.Response(200, json=data)))
+    model = decision_model.DecisionModel(DecisionModelProfile(
+        "https://offline.invalid/v1/systemone", data["model"], "KEY", images=kind != "text",
+    ), credential="test")
+    try:
+        expected: dict[str, object] = {
+            "choice": "a", "confidence": 1.0, "probabilities": {"a": 1.0, "b": 0.0},
+            "candidates": 2, "input_tokens": 7, "output_tokens": 2,
+        }
+        if kind == "text":
+            await model.choose(state={}, instructions="Choose", options={"a": "A", "b": "B"})
+        else:
+            buffer = io.BytesIO()
+            Image.new("RGB", (280, 280)).save(buffer, "PNG")
+            asset = ModelImageAsset("tank-image-" + "a" * 32, "asset-0", "image/png",
+                                    buffer.getvalue())
+            if kind == "image":
+                await model.choose_image(state={}, image=asset, instructions="Choose",
+                                         options={"a": "A", "b": "B"})
+            else:
+                await model.locate_image(state={}, image=asset, target="A")
+                expected = {
+                    "cardinality": "one", "cardinality_confidence": 0.9,
+                    "cardinality_probabilities": {"none": 0.0, "one": 1.0, "several": 0.0},
+                    "box": (0.1, 0.2, 0.3, 0.4), "box_confidence": 0.8,
+                    "input_tokens": 7, "output_tokens": 2,
+                }
+        assert updates == [expected]
     finally:
         await model.aclose()
 

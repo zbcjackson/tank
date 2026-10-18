@@ -38,7 +38,7 @@ When('the isolated plugin task contract {string} is exercised',
         : 'structured_task_result or background_task_outcome or cleanup_failure_retains or cannot_resume_through or interruption_during_cleanup or cleanup_exception_cannot or cleanup_error_preserves_each or legacy_tool_path';
     const files = contract === 'lifecycle'
       ? ['core/tests/test_subagent.py', 'core/tests/test_task_model.py', 'core/tests/test_task_runtime.py',
-        'core/tests/test_plugin_manifest.py', 'core/tests/test_model_calls.py']
+        'core/tests/test_plugin_manifest.py', 'core/tests/test_model_calls.py', 'core/tests/test_decision_model.py']
       : ['core/tests/test_subagent.py'];
     const filter = contract === 'lifecycle' ? [] : ['-k', selection];
     const {stdout} = await promisify(execFile)('uv', [

@@ -161,8 +161,12 @@ class AgentRunner:
         task_input = validate_task_input(task_input)
         if task_input is not None and not agent_def.extension:
             raise ValueError("task_input requires an extension agent")
+        decision_profile = (self._app_config.decision_models.get(agent_def.decision_model)
+                            if agent_def.decision_model and self._app_config is not None else None)
+        decision_images = decision_profile is not None and decision_profile.images
         default_scope = (
-            ModelDataScope() if agent_def.extension and agent_def.visual_model is None
+            ModelDataScope() if (agent_def.extension and agent_def.visual_model is None
+                                and not decision_images)
             else ModelDataScope(frozenset({"text", "image"}), 32 * 1024 * 1024))
         if model_data_scope is not None and (
             not model_data_scope.allowed_types <= default_scope.allowed_types

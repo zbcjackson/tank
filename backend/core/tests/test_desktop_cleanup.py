@@ -119,7 +119,7 @@ async def test_runner_cleanup_under_lock_and_driver_result(tmp_path, monkeypatch
                             CountingLLM(MagicMock()), cast(Any, MagicMock()), input_cleanup=True)
     trace = TraceSink(tmp_path)
     pending = asyncio.create_task(driver.run("test", trace, timeout_s=1, max_steps=2))
-    await entered.wait()
+    await asyncio.wait_for(entered.wait(), 5)
     if ending == "cancel":
         pending.cancel()
         with pytest.raises(asyncio.CancelledError):

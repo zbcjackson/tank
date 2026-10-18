@@ -23,12 +23,15 @@ class DecisionModelProfile:
     url: str
     model: str
     credential_env: str
+    images: bool = False
 
     def __post_init__(self) -> None:
         if any(not isinstance(v, str) or not v.strip() for v in
                (self.url, self.model, self.credential_env)):
             raise ValueError("Decision model fields must be nonempty strings")
         validate_version(self.model)
+        if type(self.images) is not bool:
+            raise ValueError("Decision images opt-in must be a boolean")
         url = httpx.URL(self.url)
         if (url.scheme != "https" or not url.host
                 or url.userinfo or url.query or url.fragment or url.path != "/v1/systemone"
@@ -42,9 +45,10 @@ def parse_decision_profiles(raw: object) -> dict[str, DecisionModelProfile]:
     profiles = {}
     for name, values in raw.items():
         if (not isinstance(name, str) or not name.strip() or not isinstance(values, dict)
-                or set(values) != {"url", "model", "credential_env"}):
+                or not {"url", "model", "credential_env"} <= set(values)
+                or set(values) - {"url", "model", "credential_env", "images"}):
             raise ValueError(
-                "decision_models entries require url/model/credential_env only"
+                "decision_models entries require url/model/credential_env and optional images"
             )
         profiles[name] = DecisionModelProfile(**values)
     return profiles

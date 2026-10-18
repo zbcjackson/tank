@@ -28,6 +28,71 @@ def setup(**kwargs):
     return ctx, TaskModelCallRunner("task", ctx), ModelRequest("https://test.invalid", "test", {})
 
 
+@pytest.mark.parametrize("invalid", [None, "bytes", "scope", "header", "reference", "parts"])
+async def test_image_files_are_admitted_with_json_before_capture_or_sdk(invalid):
+    import io
+    import json
+    from dataclasses import replace
+
+    from PIL import Image
+
+    from tank_backend.llm.model_data import ModelDataScope, ModelImageAsset
+
+    png = io.BytesIO()
+    Image.new("RGB", (280, 280)).save(png, "PNG")
+    image = ModelImageAsset("tank-image-" + "a" * 32, "asset-0", "image/png", png.getvalue())
+    params = {
+        "state": {"image": image.reference},
+        "questions": {},
+        "assets": {image.reference: {"type": "image", "part": "asset-0"}},
+    }
+    size = len(json.dumps(params, ensure_ascii=False, separators=(",", ":")).encode()) + len(
+        image.data
+    )
+    scope = ModelDataScope(
+        frozenset({"text"} if invalid == "scope" else {"text", "image"}),
+        size - int(invalid == "bytes"),
+    )
+    request = ModelRequest(
+        "https://test.invalid",
+        "jev-1.14.0",
+        params,
+        images=(image,),
+        headers=(("TypeSafe-Danger-Zone-Images", "true"),),
+    )
+    if invalid == "header":
+        request = replace(request, headers=())
+    elif invalid == "reference":
+        request.parameters["state"]["image"] = "not the asset"
+    elif invalid == "parts":
+        request = replace(request, images=())
+    activity = []
+
+    class Capture:
+        async def request(self, call_id, request):
+            activity.append("capture")
+
+        async def response(self, call_id, response):
+            pass
+
+    ctx, calls, _ = setup(model_data_scope=scope, model_capture=Capture())
+
+    async def invoke():
+        activity.append("sdk")
+        return Result()
+
+    try:
+        if invalid:
+            with pytest.raises(SubAgentStopped, match="model_request_too_large|model_data_denied"):
+                await calls.run(request, invoke)
+            assert activity == [] and ctx.budget.call_count == 0
+        else:
+            await calls.run(request, invoke)
+            assert activity == ["capture", "sdk"] and ctx.budget.total_tokens == 9
+    finally:
+        await calls.aclose()
+
+
 async def test_call_usage_and_events_are_once_per_invocation():
     events = []
 

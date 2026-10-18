@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any
 
@@ -41,11 +42,23 @@ def chat_data_types(messages: object) -> frozenset[str]:
 
 
 @dataclass(frozen=True)
+class ModelImageAsset:
+    """Exact immutable file part accompanying a normalized SDK request."""
+
+    reference: str
+    part: str
+    media_type: str
+    data: bytes
+
+
+@dataclass(frozen=True)
 class ModelRequest:
     url: str
     model: str
     parameters: dict[str, Any]
     purpose: str | None = None
+    images: tuple[ModelImageAsset, ...] = ()
+    headers: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "parameters", copy.deepcopy(self.parameters))
@@ -69,6 +82,28 @@ class ModelDataScope:
             parameters = request.parameters
             kinds = (chat_data_types(parameters["messages"]) if "messages" in parameters
                      else frozenset({"text"}))
+            if request.images or "assets" in parameters:
+                kinds |= {"image"}
+                if dict(request.headers).get("TypeSafe-Danger-Zone-Images") != "true":
+                    raise ValueError("image capability header is missing")
+                declared = parameters.get("assets")
+                if not request.images or not isinstance(declared, dict):
+                    raise ValueError("image assets require file parts")
+                expected = {image.reference: {"type": "image", "part": image.part}
+                            for image in request.images}
+                if (declared != expected or len(expected) != len(request.images)
+                        or len({image.part for image in request.images}) != len(request.images)):
+                    raise ValueError("image asset references do not match")
+                content = json.dumps([parameters.get("state"), parameters.get("questions")],
+                                     ensure_ascii=False, allow_nan=False)
+                for image in request.images:
+                    if (not re.fullmatch(r"tank-image-[0-9a-f]{32}", image.reference)
+                            or not re.fullmatch(r"asset-[0-9]+", image.part)
+                            or image.media_type not in {"image/png", "image/jpeg"}
+                            or not isinstance(image.data, bytes)
+                            or not 0 < len(image.data) <= 16 * 1024 * 1024
+                            or content.count(image.reference) != 1):
+                        raise ValueError("invalid image file part")
             if (not kinds <= self.allowed_types or "audio" in parameters
                     or any(kind != "text" for kind in parameters.get("modalities", []))):
                 raise ValueError("unsupported request data")
@@ -76,7 +111,8 @@ class ModelDataScope:
                                  separators=(",", ":")).encode("utf-8")
         except (TypeError, ValueError, UnicodeError, RecursionError):
             raise ValueError("model_data_denied") from None
-        if len(encoded) > self.max_request_bytes:
+        # Parameter JSON plus exact file bytes, not SDK framing or HTTP compression.
+        if len(encoded) + sum(len(image.data) for image in request.images) > self.max_request_bytes:
             raise ValueError("model_request_too_large")
 
 

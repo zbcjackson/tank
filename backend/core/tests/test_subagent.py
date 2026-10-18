@@ -1701,7 +1701,10 @@ decision_models:
     assert definition.decision_model == "decision"
 
 
-async def test_runner_assembles_core_decision_without_provider_extension(stack, monkeypatch):
+@pytest.mark.parametrize("images", [False, True])
+async def test_runner_assembles_core_decision_without_provider_extension(
+    stack, monkeypatch, images,
+):
     from dataclasses import replace
 
     import httpx
@@ -1717,10 +1720,25 @@ async def test_runner_assembles_core_decision_without_provider_extension(stack, 
         async def run(self, request, context):
             self.context = context
             assert context.runtime.decision_model is not None
-            result = await context.runtime.decision_model.choose(
-                state={"ticket": "charged twice"}, instructions="Route ticket",
-                options={"billing": "Billing", "support": "Support"},
-            )
+            assert ("image" in context.model_data_scope.allowed_types) == images
+            if images:
+                import io
+
+                from PIL import Image
+
+                from tank_backend.llm.model_data import ModelImageAsset
+                buffer = io.BytesIO()
+                Image.new("RGB", (280, 280)).save(buffer, "PNG")
+                result = await context.runtime.decision_model.choose_image(
+                    state={"ticket": "charged twice"}, instructions="Route ticket",
+                    options={"billing": "Billing", "support": "Support"},
+                    image=ModelImageAsset(
+                        "tank-image-" + "a" * 32, "asset-0", "image/png", buffer.getvalue()))
+            else:
+                result = await context.runtime.decision_model.choose(
+                    state={"ticket": "charged twice"}, instructions="Route ticket",
+                    options={"billing": "Billing", "support": "Support"},
+                )
             yield TaskResult(status="completed", summary=result.choice).to_output()
 
     async def respond(request):
@@ -1739,7 +1757,7 @@ async def test_runner_assembles_core_decision_without_provider_extension(stack, 
     monkeypatch.setitem(sys.modules, "_subagent_test", SimpleNamespace(create=create))
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda: httpx.MockTransport(respond))
     runner._app_config.decision_models["decision"] = DecisionModelProfile(
-        "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_DECISION_KEY",
+        "https://offline.invalid/v1/systemone", "jev-1.13.0", "TEST_DECISION_KEY", images=images,
     )
     definition = replace(definition, decision_model="decision")
     assert runner.extension_permissions(definition) == {"network"}

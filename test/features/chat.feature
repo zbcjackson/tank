@@ -53,7 +53,7 @@ Feature: Chat mode
       | resume   |
       | lifecycle |
 
-  Scenario Outline: Computer Use host loop preserves offline task contracts
+  Scenario Outline: Computer Use host loop and image probes preserve offline task contracts
     When the isolated computer use host contract "<contract>" is exercised
     Then the computer use host contract passes without live model or desktop input
 
