@@ -1,8 +1,20 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-10-18（S5/S6已归档；复审明确现有J回退为纯文本，Jev＋视觉协作尚未实现/评估）。本文汇总自研
+更新：2026-10-18（S5/S6已归档；新增显式Jev＋图片候选接管，真实效果尚未评估）。本文汇总自研
 `computer_use` 的现行行为；旧N2及其官方SDK、独立DesktopExecutor已移除。
 历史报告中的 N2 数据仅作为当时的实验记录。
+
+显式`selector: jev-vision`与extension的`visual-model`声明接线一条有限候选图片路径。
+完整结构先Jev文本，合法弃权后用绑定窗口/主frame PNG做单步选择；缺标签或语义
+身份重复时直接读图。原TaskRuntime保留授权、期限、观察额度、账本、动作回执与
+效果读回；下一步重新评估结构准入，重复语义状态只允许一次额外图片恢复。原生
+复用M2 Observation映射和窗口/场景校验；Chromium在trial前检查图片，trial后检查
+DOM身份与导航（trial可能改变hover像素）。错误、未知用量、撤权和限制保持硬停止。
+文本TaskModel和Jev接口不接收图片；显式视觉profile可接收截图，调用方数据范围
+仍可收窄。尚无合法候选的canvas、Jev图片Choice/Box及真实模型收益未验证，生产
+默认未变。详见[插件边界](../../backend/plugins/agent-computer-use/README.md#bounded-generative-selection-and-jev-fallback-s3)
+与[进行中计划](../plans/active/computer-use-jev-vision.md)。旧J/F文本回退和历史测量
+仍按原配置解释，不追改strict/费用/unknown预留。
 逐轮原始证据、历史测试数量和异常记录见
 [macOS 调研](../research/macos-coordinate-chain.md)，复现入口见
 [benchmark 文档](../../backend/benchmarks/README.md)。

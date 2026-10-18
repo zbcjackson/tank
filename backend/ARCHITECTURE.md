@@ -141,6 +141,11 @@ reference; agents select `decision-model: <name>`. `DecisionModel` owns the offi
 SDK and has no task dependency. `TaskDecisionModel` borrows it and adds task context,
 using the same `choose()` signature and normalized `ChoiceResult` with usage.
 The runtime closes its models; a bound ordinary LLM borrows its owner's client.
+An explicit extension `visual-model` profile adds a separate image-capable task
+completion service using the same SDK lifecycle and ledger. `TaskModel` remains
+text-only. The host declaration allows text/image to the named visual profile;
+caller-provided data scope can narrow it. SDK records and captures carry source
+purpose and the same unique call ID, including failures.
 Runtime API 3 rejects explicit API 1/2 declarations before factory creation because
 the former HTTP-hook contract is gone. Langfuse and task observer telemetry are
 optional; model telemetry failure does not gate UI/SDK execution. See the

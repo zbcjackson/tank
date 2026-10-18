@@ -192,6 +192,14 @@ provider selector or provider plugin is required. Core owns SDK resources; task
 wrappers account usage. Runtime-API declarations must be 3 for the SDK-call contract.
 Callers only submit choice questions; they never configure HTTP transports.
 
+Experimental Computer Use `selector: jev-vision` additionally requires an explicit
+extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots
+to that named profile, while `model:` remains a text-only service and Jev still
+receives text Choice questions. A caller may narrow the task's image allowance;
+without image scope the visual path stops before capture. No production profile
+or default is changed. See the plugin README for the finite-candidate and
+main-frame/native-window limits and fake-model test boundary.
+
 `DecisionModel` can also be used by a core caller without a task context. Its
 `choose(state=..., instructions=..., options=...)` returns `ChoiceResult` including
 choice, confidence, probabilities and optional input/output token counts. A

@@ -941,6 +941,20 @@ or OS-sandbox claims; persistent cross-process resume remains unsupported.
 
 ## S1 observation adapters
 
+The opt-in hybrid path in `test_vision.py` exercises real Controller, TaskRuntime,
+Jev SDK and visual SDK with fake OS/HTTP: Jev → image → Jev, semantic bypass,
+bounded repeated-state recovery (including with an Advisor), crop/bounds admission,
+missing/denied images, stale pixels/window, invalid replies, revoked authority,
+unknown image usage and readback-only unknown effects. `test_task_model.py` checks
+separate text/image services, shared ledger/cleanup, explicit profile parsing and
+purpose/capture/call-ID correlation. The Runner candidate-strategy test in
+`test_dom.py` also runs `jev-vision` through real Chromium and independent page
+readback. The existing chat.feature covers visual host and managed-browser paths.
+No paid calls, model accuracy measurements or Box capability are involved.
+`test_s5_paired.py` checks failed intake attempts, SDK invocation identity,
+not-started policy/capture/data refusals, incomplete-trace missingness and both
+summary harnesses' frozen metric-source tamper detection.
+
 `plugins/agent-computer-use/tests/test_observation.py` covers native identity,
 whole-scope candidate admission, frozen AX fixtures, controller/runtime read gates,
 and text-only current-snapshot HTTP through the real SDK. `test_vision.py` replaces

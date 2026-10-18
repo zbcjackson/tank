@@ -38,7 +38,7 @@ The Advisor may supplement only existing `source: generated` inputs whose value 
 choose an offered candidate, propose bounded planning focus, request observation, or report unable/needs-user-input.
 Validated supplementation increments goal version while retaining authority, progress and
 usage. It cannot replace existing values, remove completion conditions or widen scope.
-The configured text Advisor uses the core task model. Visual advice and natural-language
+The configured text Advisor uses the core task model. Open visual planning and natural-language
 contract generation are not implemented.
 
 Core TaskRuntime retains task-bound execution records and rechecks authority after async
@@ -363,6 +363,46 @@ alone does not establish identity-evidence consistency before dispatch. See the
 follow-up record for the preserved 2-pass/1-fail/8-not-run outcome and limitations.
 
 ### Bounded generative selection and Jev fallback (S3)
+
+Explicit experimental `selector: jev-vision` replaces that text fallback with one
+image-assisted choice among admitted actions. Declare `visual-model: <llm-profile>`
+on the extension agent alongside `decision-model: <jev-profile>`. The host owns
+both services. The visual profile declaration allows screenshots to that named
+recipient; a supplied text-only `ModelDataScope` still refuses before capture.
+Jev remains text-only. Default configuration is unchanged.
+
+Complete observations and non-truncated executable candidates are required.
+Unlabelled/generic labels or duplicate semantic identities bypass Jev text;
+otherwise Jev gets the text question first. A valid Jev control output may take
+over with a bound PNG and candidate image rectangles. Each repeated semantic
+state permits one additional visual recovery. After verified effects, the next
+host step reevaluates rules/text eligibility. Missing user facts, unavailable
+images, stale references, malformed replies, unknown usage, cancellation,
+revocation and limits never permit retry through another model. Unknown effects
+retain readback-only handling.
+
+Native capture crops the bound window using M2 `Observation`, maps AX bounds into
+that image and rejects scene/geometry changes before input. Managed Chromium
+captures its isolated main-frame viewport, without child frames. It checks pixels
+before actionability trial, then DOM identity/navigation after the trial (which
+may change hover pixels). The existing executor performs one selected action;
+no coordinate invention, free-running agent or model completion claim is accepted.
+Captures consume the original observation budget; SDK calls share its ledger and
+deadline. Task closure releases images and clients. No legal candidates means no
+visual action; canvas/Box and Jev image support remain pending. Tests use fake
+models/native OS boundaries and real isolated Chromium, establishing wiring and
+stops, not model quality.
+
+Model captures and `model_call` events carry source purpose and unique call ID.
+New summary `intake_calls` counts SDK invocations including failed intake;
+`fallbacks` deduplicates those invocations by ID, not selection start/result pairs.
+Correlated `started`/`finished` records distinguish actual SDK invocations from
+policy/capture refusal (`not_started`, zero SDK calls). An unmatched start stays
+missing (`null`); it is never inferred to be zero or a known invocation.
+A legacy successful `details.intake` alone cannot establish attempts: intake is
+missing (`null`), while available fallback starts count once. Stored historical
+JSON and strict scoring are unchanged. Jev confidence, option probabilities and
+candidate count are observable for later calibration; they do not drive routing.
 
 Explicit browser configuration accepts `selector: llm` (rules then F/H3) or
 `selector: jev-fallback` (rules then Jev, then F only after a valid non-action/J3).
