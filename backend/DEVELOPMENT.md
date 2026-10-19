@@ -231,7 +231,7 @@ directories and `--catalog` (saved OpenRouter model catalog JSON); execute with 
 `--output --run --approved-sha256`. Live keys come from TYPESAFE_API_KEY and
 OPENROUTER_API_KEY. It has no desktop grant/executor, uses record-only accounting,
 and preserves six control plus 64 main rows on failure. See the
-[comparison plan](../docs/plans/active/jev-box-crop-comparison.md).
+[comparison plan](../docs/plans/done/jev-box-crop-comparison.md).
 
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots
