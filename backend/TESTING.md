@@ -1254,3 +1254,11 @@ zero dispatch after stale/revoked references, capture-race stages and refusal ev
 when observers raise. The no-model diagnostic tests forbid HTTP model clients and
 check all 48 scheduled checks, 54 immediate PNGs, stable DOM and six cleanups.
 The managed Chromium cucumber entry includes the native-caret regression.
+
+The route follow-up tests in `test_dom.py` cover optional 36-task preparation while
+preserving the default 24-task recipe, real-SDK text abstention then same-binding
+visual fallback/return, reply-before-fallback evidence, unknown usage with no
+picture capture, and preserving a lucky unsupported guess instead of rewriting it.
+A complete real-Chromium/fake-HTTP matrix retains all 36 tasks and 66 SDK calls.
+The existing managed Chromium cucumber contract includes both abstention cases.
+These tests establish wiring and scoring, not actual model abstention quality.

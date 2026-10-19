@@ -242,6 +242,15 @@ The 24 planned rows include positive multi-step work and three negative families
 known model misses remain in the denominator, unknown usage or cleanup stops the
 batch. See the [route pilot](../docs/plans/done/jev-vision-route-pilot.md).
 
+Use preparation flag `--followup` for the repaired 36-task extension: the original
+24 tasks plus uniquely named neutral palette controls with unavailable text color
+semantics. Execution still accepts only the frozen directory/digest. It does not
+force Jev to abstain. `goal_completed` records physical goal/path/cleanup; new JT
+semantic-gap tasks additionally require observed text control then same-binding
+visual fallback and no unsupported palette candidate for `strict_completed` (or
+negative acceptance). All guesses and original goal outcomes remain visible. See
+[the follow-up plan](../docs/plans/active/jev-vision-route-followup.md).
+
 The managed DOM channel uses one `visual_png` policy for evidence and rechecks.
 It suppresses native carets through a persistent constructable stylesheet, leaving
 DOM attributes/revisions intact. It still compares exact PNG hashes and retains

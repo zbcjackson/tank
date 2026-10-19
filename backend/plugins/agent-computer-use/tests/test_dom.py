@@ -1532,7 +1532,7 @@ def test_vision_route_prepares_new_tasks_without_clients(monkeypatch, tmp_path):
         pilot.load_freeze(tmp_path / 'pilot', frozen['sha256'])
 
 
-def install_route_http(monkeypatch, failure=None):
+def install_route_http(monkeypatch, failure=None, *, guess=False):
     import base64
     import io
     import json
@@ -1557,16 +1557,19 @@ def install_route_http(monkeypatch, failure=None):
         choices = packet['questions']['next_action']['criteria']
         offered = {k: v for k, v in choices.items() if isinstance(v, dict)}
         choice = next((k for k, v in offered.items() if v['label'] in ('Begin setup', 'Work title', 'Save work')), None)
+        palette = {v['label'] for v in offered.values()} == {'Option A', 'Option B'}
         if choice is None:
-            assert visual
-            with Image.open(io.BytesIO(base64.b64decode(parts[1]['image_url']['url'].split(',', 1)[1]))) as image:
-                choice = 'none'
-                for key, (x, y, w, h) in packet['image_candidates'].items():
-                    pixel = image.convert('RGB').getpixel((int(x + w / 2), int(y + h / 2)))
-                    assert isinstance(pixel, tuple)
-                    r, g, b = pixel[:3]
-                    if r > b * 2 and r > g * 2:
-                        choice = key
+            if not visual:
+                choice = next(iter(offered)) if guess else 'need_more_context'
+            else:
+                with Image.open(io.BytesIO(base64.b64decode(parts[1]['image_url']['url'].split(',', 1)[1]))) as image:
+                    choice = 'none'
+                    for key, (x, y, w, h) in packet['image_candidates'].items():
+                        pixel = image.convert('RGB').getpixel((int(x + w / 2), int(y + h / 2)))
+                        assert isinstance(pixel, tuple)
+                        r, g, b = pixel[:3]
+                        if r > b * 2 and r > g * 2:
+                            choice = key
         calls.append('visual' if visual else 'jev')
         if failure == 'cancel':
             raise asyncio.CancelledError
@@ -1583,7 +1586,7 @@ def install_route_http(monkeypatch, failure=None):
                 'confidence': 1, 'probabilities': {k: float(k == choice) for k in choices}}},
                 'usage': {'input_tokens': 7, 'output_tokens': 3}}
 
-        if failure == 'unknown':
+        if failure == 'unknown' or failure == 'palette_unknown' and palette:
             result.pop('usage')
         return result
 
@@ -1816,3 +1819,88 @@ async def test_dom_freshness_records_capture_race(channel, monkeypatch):
     assert events[-1]['stage'] == 'capture_state'
     assert events[-1]['observation_id'] == offered.binding.observation_id
     assert browser.visual_frame is None
+
+
+def test_route_followup_prepares_real_semantic_gap_without_clients(monkeypatch, tmp_path):
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+    def forbidden(*args, **kwargs):
+        raise AssertionError('preparation allocated a model client')
+    monkeypatch.setattr(httpx, 'AsyncClient', forbidden)
+    monkeypatch.setattr(httpx2, 'AsyncClient', forbidden)
+    legacy = pilot.prepare(tmp_path / 'legacy')
+    frozen = pilot.prepare(tmp_path / 'followup', followup=True)
+    assert len(legacy['schedule']) == 24 and len(frozen['schedule']) == 36
+    assert frozen['cases'][:12] == legacy['cases']
+    assert frozen['followup'] and frozen['revision'] == 'vision-route-2'
+    gaps = [c for c in frozen['cases'] if c['scenario'].startswith('fallback')]
+    assert len(gaps) == 6
+    assert all('aria-label="Option A"' in c['html'] and 'aria-label="Option B"' in c['html'] for c in gaps)
+    assert pilot.load_freeze(tmp_path / 'followup', frozen['sha256']) == frozen
+
+
+@pytest.mark.parametrize('layout', ['grid', 'drawer'])
+async def test_route_followup_abstention_uses_same_palette_binding(chromium_required, monkeypatch, tmp_path, layout):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+    calls, payloads = install_route_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / layout, followup=True)
+    case = next(c for c in frozen['cases'] if c['id'] == f'{layout}-fallback-0')
+    row = await pilot.run_task(case, 'jt', tmp_path / layout, jev_credential='fixture', peer_credential='fixture')
+    assert row['strict_completed'] and row['cleanup_confirmed'], row
+    assert calls == (['jev', 'visual'] if layout == 'grid' else ['jev', 'jev', 'visual', 'jev'])
+    peers = [p for p in payloads if 'messages' in p]
+    assert len(peers) == 1
+    packet = json.loads(peers[0]['messages'][1]['content'][0]['text'])
+    text = next(p for p in payloads if 'questions' in p and {v['label'] for v in p['questions']['next_action']['criteria'].values() if isinstance(v, dict)} == {'Option A', 'Option B'})
+    assert packet['state']['binding'] == text['state']['binding']
+    assert packet['state']['snapshot'] == text['state']['snapshot']
+    purposes = [e['purpose'] for e in row['events'] if e['kind'] == 'model_call' and e.get('phase') == 'finished']
+    assert purposes.count('computer_use.visual_fallback') == 1
+    assert 'computer_use.visual' not in purposes
+    journal = [json.loads(line) for line in (tmp_path / layout / row['id'] / 'calls.jsonl').read_text().splitlines()]
+    proof = row['fallback_proofs'][0]
+    delayed = next(r for r in journal if r['call_id'] == proof['text_call_id'] and 'response' in r)
+    reordered = [r for r in journal if r is not delayed] + [delayed]
+    assert not pilot.palette_evidence(reordered, row['events'])['fallback_verified']
+    assert all('oracle' not in p.get('state', {}) for p in payloads)
+
+
+@pytest.mark.parametrize('mode', ['guess', 'unknown'])
+async def test_route_followup_does_not_repair_guesses_or_unknown_usage(chromium_required, monkeypatch, tmp_path, mode):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+    calls, _ = install_route_http(monkeypatch, 'palette_unknown' if mode == 'unknown' else None, guess=mode == 'guess')
+    frozen = pilot.prepare(tmp_path / mode, followup=True)
+    case = next(c for c in frozen['cases'] if c['id'] == 'grid-fallback-1')
+    row = await pilot.run_task(case, 'jt', tmp_path / mode, jev_credential='fixture', peer_credential='fixture')
+    assert calls == ['jev'] and row['cleanup_confirmed']
+    assert row['visual_captures'] == 0
+    assert not row['fallback_verified'] and not row['strict_completed']
+    if mode == 'guess':
+        assert row['goal_completed']
+        assert len(row['palette_guesses']) == 1
+        assert row['page_state']['trail'] == ['pick:a']
+        assert row['capped_completion_ms'] == 120000
+    else:
+        assert row['usage']['unknown_calls'] == 1
+        assert not row['page_state']['trail']
+
+
+async def test_route_followup_full_matrix_keeps_old_tasks_and_new_fallbacks(chromium_required, monkeypatch, tmp_path):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+    calls, _ = install_route_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'matrix', followup=True)
+    result = await pilot.run_batch(tmp_path / 'matrix', frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    assert result['completed'] and len(result['rows']) == 36
+    assert len(calls) == 66
+    assert all(r['strict_completed'] for r in result['rows'] if r['scenario'] in {'positive', 'fallback'})
+    assert all(r['negative_passed'] for r in result['rows'] if r['scenario'] not in {'positive', 'fallback'})
+    gap_jt = [r for r in result['rows'] if r['arm'] == 'jt' and r['scenario'].startswith('fallback')]
+    assert len(gap_jt) == 6 and all(r['fallback_verified'] for r in gap_jt)
+    assert all(not r['palette_guesses'] for r in result['rows'])
+    assert all(r['cleanup_confirmed'] for r in result['rows'])
