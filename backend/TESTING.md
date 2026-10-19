@@ -1247,3 +1247,10 @@ absent targets, replaced controls, no-effect refusal without replay, known inval
 choices, unknown usage, cancellation and cleanup failure. The existing managed
 Chromium cucumber entry includes both V/JT return tests. This is functional
 wiring evidence on synthetic HTML, not model quality or real-product acceptance.
+
+DOM freshness regressions in `test_dom.py` use real native caret blinking and
+actual canvas/value/node/navigation changes. They preserve exact-hash refusal,
+zero dispatch after stale/revoked references, capture-race stages and refusal even
+when observers raise. The no-model diagnostic tests forbid HTTP model clients and
+check all 48 scheduled checks, 54 immediate PNGs, stable DOM and six cleanups.
+The managed Chromium cucumber entry includes the native-caret regression.

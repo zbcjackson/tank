@@ -242,6 +242,17 @@ The 24 planned rows include positive multi-step work and three negative families
 known model misses remain in the denominator, unknown usage or cleanup stops the
 batch. See the [route pilot](../docs/plans/done/jev-vision-route-pilot.md).
 
+The managed DOM channel uses one `visual_png` policy for evidence and rechecks.
+It suppresses native carets through a persistent constructable stylesheet, leaving
+DOM attributes/revisions intact. It still compares exact PNG hashes and retains
+DOM-object, navigation, actionability and authority checks. Freshness refusals emit
+`computer_use_freshness` metadata (stage/observation/action and image hashes where
+applicable); these events contain no PNG or page body. The no-model
+`benchmarks.computer_use.dom_visual_freshness --output <new-directory>` records
+actual check PNGs, native-caret/hide controls, DOM equality and owned-browser cleanup.
+Its focus/seed setup precedes observation; it never dispatches task inputs or loads
+model credentials. See the [diagnosis plan](../docs/plans/active/dom-visual-freshness.md).
+
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots
 to that named profile. Its visual choices request JSON-object mode and still

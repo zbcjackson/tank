@@ -1675,3 +1675,144 @@ async def test_vision_route_cancellation_preserves_all_rows(chromium_required, m
     assert result['rows'][0]['status'] == 'cancelled'
     assert result['rows'][0]['cleanup_confirmed']
     assert sum(r['status'] == 'not_run' for r in result['rows']) == 23
+
+
+@pytest.mark.parametrize('observer_raises', [False, True])
+async def test_dom_freshness_records_exact_pixel_refusal(channel, observer_raises):
+    import hashlib
+    from dataclasses import replace
+    from agent_computer_use.contracts import Action, Binding
+    browser, ctx = channel
+    events = []
+    class Observer:
+        def on_event(self, kind, metadata):
+            events.append((kind, metadata))
+            if observer_raises:
+                raise RuntimeError('observer unavailable')
+    object.__setattr__(ctx, 'observer', Observer())
+    await browser.page.set_content('<canvas width="200" height="80"></canvas><button>Save</button>')
+    snapshot = await browser.observe('managed-page', ctx)
+    target = next(e for e in snapshot.elements if e.label == 'Save')
+    binding = Binding('goal', 1, snapshot.observation_id, snapshot.scope, snapshot.generation, 'candidates')
+    action = Action('save', target.ref, 'click', None)
+    previous = await browser.capture(snapshot, ctx)
+    await browser.page.locator('canvas').evaluate("n => {const c=n.getContext('2d');c.fillStyle='red';c.fillRect(0,0,20,20)}")
+    assert not await browser.is_current(binding, action, ctx)
+    assert len(events) == 1 and events[0][0] == 'computer_use_freshness'
+    meta = events[0][1]
+    assert meta['channel'] == 'dom' and meta['stage'] == 'frame_scene'
+    assert meta['action_id'] == 'save' and meta['observation_id'] == snapshot.observation_id
+    assert meta['expected_sha256'] == hashlib.sha256(previous.png).hexdigest()
+    assert meta['current_sha256'] != meta['expected_sha256']
+    assert set(meta) == {'channel', 'stage', 'action_id', 'observation_id', 'expected_sha256', 'current_sha256'}
+    assert not await browser.is_current(replace(binding, observation_id='old'), action, ctx)
+    assert events[-1][1]['stage'] == 'binding'
+
+
+async def test_dom_freshness_diagnostic_saves_internal_frames_without_models(chromium_required, monkeypatch, tmp_path):
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import dom_visual_freshness as pilot
+    def forbidden(*args, **kwargs):
+        raise AssertionError('diagnosis allocated a model client')
+    monkeypatch.setattr(httpx, 'AsyncClient', forbidden)
+    monkeypatch.setattr(httpx2, 'AsyncClient', forbidden)
+    result = await pilot.run(tmp_path / 'diagnosis')
+    assert len(result['contexts']) == 6 and len(result['checks']) == 48
+    assert result['model_calls'] == 0 and result['task_inputs'] == 0
+    assert all(c['cleanup_confirmed'] for c in result['contexts'])
+    assert all(c['dom_unchanged'] for c in result['checks'])
+    assert all(c['current'] for c in result['checks'] if c['policy'] == 'hide')
+    assert len(list((tmp_path / 'diagnosis').glob('*/*.png'))) == 54
+    for check in result['checks']:
+        assert check['current'] == (check['expected_sha256'] == check['current_sha256'])
+        if not check['current']:
+            assert check['refusals'][0]['stage'] == 'frame_scene'
+            assert check['refusals'][0]['current_sha256'] == check['current_sha256']
+    with pytest.raises(FileExistsError):
+        await pilot.run(tmp_path / 'diagnosis')
+
+
+async def test_dom_freshness_ignores_native_caret(channel):
+    browser, ctx = channel
+    await browser.page.set_content('<form><label>Name<input value="Launch"></label><button>Save</button></form>')
+    await browser.page.get_by_role('textbox').focus()
+    offered = await actions(browser, ctx)
+    snapshot = browser.previous
+    before = browser.view
+    await browser.capture(snapshot, ctx)
+    for _ in range(4):
+        await asyncio.sleep(.3)
+        assert await browser.is_current(offered.binding, offered.actions[0], ctx)
+        assert await browser.read(browser.bound_frame(), ctx) == before
+    assert await browser.page.get_by_role('textbox').input_value() == 'Launch'
+    assert await browser.page.get_by_role('textbox').evaluate('n => n === document.activeElement')
+    assert await browser.page.get_by_role('textbox').get_attribute('style') is None
+
+
+@pytest.mark.parametrize('change,stage', [('pixels', 'frame_scene'), ('value', 'frame_scene'),
+    ('replacement', 'dom_state'), ('navigation', 'navigation'), ('binding', 'binding'),
+    ('action', 'selected_action'), ('authority', None)])
+async def test_dom_freshness_keeps_real_change_guards(channel, change, stage):
+    from dataclasses import replace
+    from tank_backend.agents.subagent import SubAgentStopped
+    browser, ctx = channel
+    events = []
+    class Observer:
+        def on_event(self, kind, metadata):
+            if kind == 'computer_use_freshness':
+                events.append(metadata)
+    object.__setattr__(ctx, 'observer', Observer())
+    await browser.page.set_content('''<canvas width="100" height="40"></canvas><form onsubmit="event.preventDefault();window.sent++">
+        <label>Name<input value="Launch"></label><button>Save</button></form><script>window.sent=0</script>''')
+    await browser.page.get_by_role('textbox').focus()
+    offered = await actions(browser, ctx)
+    action, binding = offered.actions[0], offered.binding
+    await browser.capture(browser.previous, ctx)
+    if change == 'pixels':
+        await browser.page.locator('canvas').evaluate("n => n.getContext('2d').fillRect(0,0,10,10)")
+    elif change == 'value':
+        await browser.page.get_by_role('textbox').evaluate("n => n.value='Changed'")
+    elif change == 'replacement':
+        await browser.page.get_by_role('button').evaluate('n => n.replaceWith(n.cloneNode(true))')
+    elif change == 'navigation':
+        await browser.page.reload()
+    elif change == 'binding':
+        binding = replace(binding, observation_id='old')
+    elif change == 'action':
+        action = replace(action, target_ref='not-offered')
+    else:
+        ctx.authorization.revoke()
+        with pytest.raises(SubAgentStopped):
+            await browser.dispatch(binding, action, ctx)
+        assert await browser.page.evaluate('window.sent') == 0
+        return
+    receipt = await browser.dispatch(binding, action, ctx)
+    assert receipt.status == 'not_sent'
+    assert events[-1]['stage'] == stage
+    if change != 'navigation':
+        assert await browser.page.evaluate('window.sent') == 0
+
+
+async def test_dom_freshness_records_capture_race(channel, monkeypatch):
+    from tank_backend.agents.subagent import SubAgentStopped
+    browser, ctx = channel
+    events = []
+    class Observer:
+        def on_event(self, kind, metadata):
+            if kind == 'computer_use_freshness':
+                events.append(metadata)
+    object.__setattr__(ctx, 'observer', Observer())
+    offered = await actions(browser, ctx)
+    original = browser.visual_png
+    async def changing_frame():
+        png = await original()
+        await browser.page.get_by_role('textbox').evaluate("n => n.value='Changed'")
+        return png
+    monkeypatch.setattr(browser, 'visual_png', changing_frame)
+    with pytest.raises(SubAgentStopped, match='stale_reference'):
+        await browser.capture(browser.previous, ctx)
+    assert events[-1]['stage'] == 'capture_state'
+    assert events[-1]['observation_id'] == offered.binding.observation_id
+    assert browser.visual_frame is None

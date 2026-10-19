@@ -140,6 +140,19 @@ _READ = r"""nodes => {
 }"""
 
 
+# Constructable stylesheets avoid the attribute mutations performed by
+# Playwright's temporary caret="hide" styling. DOM revisions stay meaningful.
+_HIDE_CARET = r"""namespace => {
+    const state = globalThis[namespace];
+    if (!state.caretSheet) {
+        state.caretSheet = new CSSStyleSheet();
+        state.caretSheet.replaceSync('input,textarea,[contenteditable] {caret-color: transparent !important}');
+    }
+    if (!document.adoptedStyleSheets.includes(state.caretSheet))
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, state.caretSheet];
+}"""
+
+
 class ManagedChromiumChannel:
     """Lazy isolated browser; constructed only from trusted host configuration.
 
@@ -307,6 +320,8 @@ class ManagedChromiumChannel:
         frame = self.bound_frame()
         if (self.page is None or frame is not self.page.main_frame
                 or snapshot != self.previous or await self.read(frame, context) != self.view):
+            context.observe("computer_use_freshness", channel="dom", stage="capture_precheck",
+                            observation_id=snapshot.observation_id)
             raise SubAgentStopped("visual_frame_unavailable")
         bounds = []
         for element in snapshot.elements:
@@ -315,10 +330,12 @@ class ManagedChromiumChannel:
             rect = await frame.locator(f"{self.engine}={element.ref}").bounding_box()
             if rect is not None:
                 bounds.append((element.ref, (rect["x"], rect["y"], rect["width"], rect["height"])))
-        png = await self.page.screenshot(type="png", scale="css", caret="initial")
+        png = await self.visual_png()
         self.check(context)
         if (await self.read(frame, context) != self.view
                 or self.observed_navigation != self.navigation):
+            context.observe("computer_use_freshness", channel="dom", stage="capture_state",
+                            observation_id=snapshot.observation_id)
             raise SubAgentStopped("stale_reference")
         with Image.open(io.BytesIO(png)) as image:
             width, height = image.size
@@ -329,34 +346,54 @@ class ManagedChromiumChannel:
         self.visual_frame = captured
         return captured
 
+    async def visual_png(self) -> bytes:
+        """Hide native carets consistently without changing DOM attributes/revisions."""
+        assert self.page is not None
+        await self.page.evaluate(_HIDE_CARET, self.namespace)
+        return await self.page.screenshot(type="png", scale="css", caret="initial")
+
     async def is_current(
         self, binding: Binding, action: Action, context: SubAgentContext,
         *, check_image: bool = True,
     ) -> bool:
         self.check(context)
         snapshot = self.previous
+
+        def refused(stage: str, **metadata: str) -> bool:
+            context.observe("computer_use_freshness", channel="dom", stage=stage,
+                observation_id=snapshot.observation_id if snapshot is not None else None,
+                action_id=action.id, **metadata)
+            return False
+
         if (snapshot is None or not snapshot.complete
                 or (binding.scope, binding.observation_id, binding.generation) !=
-                (snapshot.scope, snapshot.observation_id, snapshot.generation)
-                or self.observed_navigation != self.navigation):
-            return False
+                (snapshot.scope, snapshot.observation_id, snapshot.generation)):
+            return refused("binding")
+        if self.observed_navigation != self.navigation:
+            return refused("navigation")
         element = next((item for item in snapshot.elements if item.ref == action.target_ref), None)
         if (element is None or not element.enabled or action.operation not in element.actions
                 or (action.operation == "fill") != (action.value is not None)):
-            return False
+            return refused("selected_action")
         frame = self.bound_frame()
         current = await self.read(frame, context)
         if check_image and self.visual_frame is not None:
             import hashlib
 
             if self.page is None or self.visual_frame.observation_id != snapshot.observation_id:
-                return False
-            png = await self.page.screenshot(type="png", scale="css", caret="initial")
+                return refused("frame_identity")
+            png = await self.visual_png()
             self.check(context)
-            if hashlib.sha256(png).hexdigest() != self.visual_frame.frame.image_sha256:
-                return False
+            current_sha = hashlib.sha256(png).hexdigest()
+            if current_sha != self.visual_frame.frame.image_sha256:
+                return refused("frame_scene", expected_sha256=self.visual_frame.frame.image_sha256,
+                               current_sha256=current_sha)
             current = await self.read(frame, context)
-        return current == self.view and self.navigation == self.observed_navigation
+        if current != self.view:
+            return refused("dom_state")
+        if self.navigation != self.observed_navigation:
+            return refused("navigation")
+        return True
 
     def locator(self, action: Action) -> Locator:
         assert self.frame is not None

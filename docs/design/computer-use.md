@@ -39,6 +39,11 @@ Observation先按逻辑窗口映射裁剪原图，再缩放输出，避免整屏
 效果读回；下一步重新评估结构准入，重复语义状态只允许一次额外图片恢复。原生
 复用M2 Observation映射和窗口/场景校验；Chromium在trial前检查图片，trial后检查
 DOM身份与导航（trial可能改变hover像素）。错误、未知用量、撤权和限制保持硬停止。
+Chromium模型图与复查图统一使用`visual_png`：通过constructable stylesheet隐藏
+原生输入光标，不改DOM属性或修订号；仍按原PNG哈希逐字节核对，其他画面变化
+不作容差。输入值、焦点、节点身份、导航和动作准入检查保持；当前动作仅click/fill。
+DOM新鲜度拒绝发`computer_use_freshness`阶段/观察/动作关联及必要图片hash，
+普通事件不含PNG或正文；即时图片仅由显式诊断配方保留。
 文本TaskModel及普通Jev choose不接收图片；显式视觉profile或image-enabled Jev
 可接收截图，调用方数据范围仍可收窄。尚无合法候选的canvas/Box动作及真实系统收益未验证，生产
 默认未变。详见[插件边界](../../backend/plugins/agent-computer-use/README.md#bounded-generative-selection-and-jev-fallback-s3)
