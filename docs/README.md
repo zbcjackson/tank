@@ -24,7 +24,8 @@
 | [research/jev-box-crop-comparison.md](research/jev-box-crop-comparison.md) | 调研 | 真实开发对照完成 | Jev中心5/8→8/8；Gemini7/8→8/8但裁剪一次误报唯一；无重试或点击 |
 | [plans/done/jev-vision-route-pilot.md](plans/done/jev-vision-route-pilot.md) | 计划 | 已完成 | 24任务/40调用及两轮独立审查完成；JT正例6/6、V2/6，执行拒绝和全部失败保留 |
 | [research/jev-vision-route-pilot.md](research/jev-vision-route-pilot.md) | 调研 | 真实开发对照完成 | V四个正确保存选择后被执行门拒绝；JT往返完成，参考路径需新鲜度诊断 |
-| [plans/active/dom-visual-freshness.md](plans/active/dom-visual-freshness.md) | 计划 | 实施中 | 无模型DOM即时帧/拒绝阶段复现，确认光标机制后最小修复 |
+| [plans/active/dom-visual-freshness.md](plans/active/dom-visual-freshness.md) | 计划 | 待独立审查 | 光标机制已复现并修复，最终完整回归与E2E通过，旧失败保持 |
+| [research/dom-visual-freshness.md](research/dom-visual-freshness.md) | 调研 | 组件机制已解决 | 96次无模型检查、108即时PNG；通道拒绝6/16→0/16，其他守卫保持；首次加载波动未确定原因 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 路由开发对照完成 | 下一步DOM新鲜度诊断；真实产品/弃权后接管/故障恢复与确认待测，生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
