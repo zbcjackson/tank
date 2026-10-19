@@ -1570,3 +1570,187 @@ async def test_ocr_checks_after_capture_before_native(monkeypatch, case: str) ->
     with pytest.raises((SubAgentStopped, asyncio.CancelledError)):
         await source.observe("window-7", ctx)
     native.assert_not_called()
+
+
+def test_box_crop_inverse_padding_units_and_outside_rejection(monkeypatch):
+    from pathlib import Path
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_box_crop as probe
+    from benchmarks.computer_use.jev_image_eval import parse_location
+
+    stream = io.BytesIO()
+    Image.new("RGB", (1600, 1000), "white").save(stream, "PNG")
+    png, view = probe.make_view(stream.getvalue(), (0, 100, 1600, 240))
+    assert Image.open(io.BytesIO(png)).size == tuple(view["size"])
+    left, top, right, bottom = view["content"]
+    width, height = view["size"]
+    box = [100 / 1600, (top + 20 / 140 * (bottom - top)) / height,
+           200 / 1600, (top + 80 / 140 * (bottom - top)) / height]
+    label = {"rectangles": [[100, 120, 100, 60]], "base_size": [1600, 1000],
+             "crop": [0, 0, 1600, 1000], "origin": [0, 0]}
+    score = probe.score(label, view, {"cardinality": "one", "box": box})
+    assert score["correct"] and score["screen_point"] == [150, 150]
+    peer = parse_location(__import__('json').dumps({"cardinality": "one", "bbox_2d": [v * 1000 for v in box]}))
+    assert probe.score(label, view, peer) == score
+    padding = probe.score(label, view, {"cardinality": "one", "box": [0, 0, .1, .01]})
+    assert not padding["correct"] and not padding["geometry_valid"]
+
+
+def box_crop_inputs(tmp_path):
+    import hashlib
+    import json
+    from benchmarks.computer_use import jev_box_crop as probe
+    roots = {}
+    for layout in ("textedit", "calculator"):
+        root = tmp_path / layout
+        root.mkdir()
+        rows = []
+        for pos in range(2):
+            width, height = (400, 600) if layout == "textedit" else (240, 408)
+            x0, y0 = 20 + pos * 50, 40 + pos * 80
+            stream = io.BytesIO()
+            Image.new("RGB", (width, height), "white").save(stream, "PNG")
+            png = stream.getvalue()
+            image = root / f'{pos}.png'
+            image.write_bytes(png)
+            state = {"image_metadata": {"orientation": 1, "size": [width, height], "content": [0, 0, width, height],
+                "source": {"crop": [x0, y0, x0 + width, y0 + height], "display_geometry": [4, 0, 0, 1000, 800, 2000, 1600]}}}
+            if layout == "textedit":
+                state["full_ax"] = {"elements": [
+                    {"description": name, "frame": [x0 + x, y0 + 25, w, 12]} for name, x, w in
+                    [("italic", 20, 12), ("typeface", 240, 82), ("align left", 60, 12), ("align center", 74, 12), ("align right", 88, 12), ("fully justify", 102, 12)]]}
+                tag = "trial"
+                case_id = ("scene-01-p0-image", "scene-02-p1-image")[pos]
+            else:
+                state["snapshot"] = {"elements": [
+                    {"label": name, "bounds": [x0 + x, y0 + y, 48, 48]} for name, x, y in
+                    [("Equals", 180, 350), ("All Clear", 10, 140)] + [(str(i), 10 + i % 4 * 50, 210 + i // 4 * 50) for i in range(10)]]}
+                tag = "case_id"
+                case_id = ("jev-image-multiply", "jev-image-add")[pos]
+            rows.append({tag: case_id, "purpose": "computer_use.jev_image", "request": {"state": state},
+                         "images": [{"path": image.name, "sha256": hashlib.sha256(png).hexdigest()}]})
+        (root / 'calls.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in rows))
+        roots[layout] = root
+    catalog = tmp_path / 'catalog.json'
+    catalog.write_text(json.dumps({"data": [{"id": probe.PEER["model"], "architecture": {"input_modalities": ["text", "image"]},
+        "supported_parameters": ["response_format"], "pricing": {"prompt": "0.000000825", "completion": "0.000004125"}}]}))
+    return roots['textedit'], roots['calculator'], catalog
+
+
+def test_box_crop_preparation_is_offline_and_frozen(monkeypatch, tmp_path):
+    from pathlib import Path
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_box_crop as probe
+    textedit, calculator, catalog = box_crop_inputs(tmp_path)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("preparation must not create clients")
+
+    monkeypatch.setattr(httpx, 'AsyncClient', forbidden)
+    monkeypatch.setattr(httpx2, 'AsyncClient', forbidden)
+    output = tmp_path / 'study'
+    frozen = probe.prepare(output, textedit=textedit, calculator=calculator, catalog=catalog)
+    assert len(frozen['schedule']) == 70 and frozen['record_only']
+    assert probe.load_freeze(output, frozen['sha256']) == frozen
+    (output / 'private.json').write_text('{}')
+    with pytest.raises(ValueError, match='freeze'):
+        probe.load_freeze(output, frozen['sha256'])
+
+
+@pytest.mark.parametrize('fault', ['none', 'unknown', 'contract', 'invalid_ui'])
+async def test_box_crop_runs_two_real_sdks_with_complete_denominators(monkeypatch, tmp_path, fault):
+    import json
+    from pathlib import Path
+    from email.parser import BytesParser
+    from email.policy import default
+    import httpx
+    import httpx2
+    from tank_backend.agents.task_runtime import TaskRuntime
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_box_crop as probe
+    textedit, calculator, catalog = box_crop_inputs(tmp_path)
+    output = tmp_path / 'study'
+    frozen = probe.prepare(output, textedit=textedit, calculator=calculator, catalog=catalog)
+    public = json.loads((output / 'public.json').read_text())
+    labels = json.loads((output / 'private.json').read_text())
+    cases = {c['id']: c for c in public['cases']}
+    sent, closed = [], []
+    used_fault = False
+
+    def answer(parameters, peer):
+        nonlocal used_fault
+        state = json.loads(parameters['messages'][1]['content'][0]['text'])['state'] if peer else parameters['state']
+        snapshot = state['snapshot']
+        case = cases[snapshot['case_id']]
+        label = labels[case['id']]
+        view = next(v for v in public['views'][case['source']].values() if v['size'] == snapshot['size'] and v['content'] == snapshot['content'])
+        rects = label['rectangles']
+        count = 'none' if not rects else 'one' if len(rects) == 1 else 'several'
+        box = [.1, .1, .2, .2]
+        if count == 'one':
+            x, y, w, h = rects[0]
+            x0, y0, x1, y1 = label['crop']
+            ox, oy = label['origin']
+            bw, bh = label['base_size']
+            base = [(x - ox - x0) * bw / (x1 - x0), (y - oy - y0) * bh / (y1 - y0),
+                    (x + w - ox - x0) * bw / (x1 - x0), (y + h - oy - y0) * bh / (y1 - y0)]
+            rx0, ry0, rx1, ry1 = view['roi']
+            left, top, right, bottom = view['content']
+            width, height = view['size']
+            box = [(left + (base[0] - rx0) * (right - left) / (rx1 - rx0)) / width,
+                   (top + (base[1] - ry0) * (bottom - top) / (ry1 - ry0)) / height,
+                   (left + (base[2] - rx0) * (right - left) / (rx1 - rx0)) / width,
+                   (top + (base[3] - ry0) * (bottom - top) / (ry1 - ry0)) / height]
+        sent.append((case['id'], peer))
+        if peer:
+            content = json.dumps({'cardinality': count, 'bbox_2d': [v * 1000 for v in box] if count == 'one' else None})
+            if not used_fault and ((fault == 'contract' and case['phase'] == 'control') or (fault == 'invalid_ui' and case['phase'] == 'main')):
+                content = '{"cardinality":"one","bbox_2d":[1,2]}'
+                used_fault = True
+            return {'id': 'fake', 'object': 'chat.completion', 'created': 0, 'model': probe.PEER['model'],
+                    'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': content}, 'finish_reason': 'stop'}],
+                    'usage': {'prompt_tokens': 10, 'completion_tokens': 2, 'total_tokens': 12}}
+        result = {'model': probe.JEV['model'], 'answers': {
+            'cardinality': {'type': 'choice', 'choice': count, 'confidence': 1, 'probabilities': {k: float(k == count) for k in ('none', 'one', 'several')}},
+            'target': {'type': 'box', 'box': dict(zip(('left', 'top', 'right', 'bottom'), box)), 'confidence': 1}},
+            'usage': {'input_tokens': 10, 'output_tokens': 2}}
+        if fault == 'unknown' and len(sent) == 1:
+            result.pop('usage')
+        return result
+
+    async def jev_http(request):
+        message = BytesParser(policy=default).parsebytes(('Content-Type: ' + request.headers['content-type'] + '\r\n\r\n').encode() + request.content)
+        payload = list(message.iter_parts())[0].get_payload(decode=True)
+        assert isinstance(payload, bytes)
+        parameters = json.loads(payload)
+        return httpx2.Response(200, json=answer(parameters, False))
+
+    def peer_http(request):
+        return httpx.Response(200, json=answer(json.loads(request.content), True))
+
+    monkeypatch.setattr(httpx, 'AsyncHTTPTransport', lambda **kwargs: httpx.MockTransport(peer_http))
+    from benchmarks.computer_use.s4_ax import fake_model_http
+    original_close = TaskRuntime.aclose
+
+    async def close(runtime):
+        await original_close(runtime)
+        closed.append(runtime.task_id)
+
+    monkeypatch.setattr(TaskRuntime, 'aclose', close)
+    with fake_model_http(jev_http):
+        report = await probe.run_batch(output, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    assert len(report['rows']) == 70 and len(closed) == len(sent)
+    assert report['desktop_operations'] == 0
+    if fault == 'unknown':
+        assert len(sent) == 1 and report['spend']['stop_reason'] == 'unknown_usage'
+        assert sum(r['status'] == 'not_run' for r in report['rows']) == 69
+    elif fault == 'contract':
+        assert len(sent) == 6 and report['spend']['stop_reason'] == 'contract_gate'
+        assert sum(r['status'] == 'not_run' for r in report['rows']) == 64
+    else:
+        assert len(sent) == 70 and report['completed']
+        assert sum(r['status'] == 'invalid' for r in report['rows']) == int(fault == 'invalid_ui')
+        assert report['spend']['batch']['known_tokens'] == 840
+        assert all(r['cleanup_confirmed'] for r in report['rows'])

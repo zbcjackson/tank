@@ -224,6 +224,14 @@ compares one-decision text/image replacements on temporary colored RTF documents
 It preserves actual AX evidence and original native gates, keeps private completion
 out of both model projections, and separates model choice, native completion and
 read-only Box calibration. Its benchmark-only selector is not a production factory mode.
+The separate `benchmarks.computer_use.jev_box_crop` comparison reuses saved experiment
+request PNGs and same-request AX labels, with full-window/region representations and
+Jev/Gemini profiles. Prepare with `--output`, `--textedit`, `--calculator` source-run
+directories and `--catalog` (saved OpenRouter model catalog JSON); execute with only
+`--output --run --approved-sha256`. Live keys come from TYPESAFE_API_KEY and
+OPENROUTER_API_KEY. It has no desktop grant/executor, uses record-only accounting,
+and preserves six control plus 64 main rows on failure. See the
+[comparison plan](../docs/plans/active/jev-box-crop-comparison.md).
 
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots

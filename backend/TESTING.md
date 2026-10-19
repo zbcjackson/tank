@@ -967,6 +967,11 @@ The post-crop extension covers record-only uncapped batch accounting (with unkno
 usage still stopping), explicit named-line text controls, private completion
 invariance and persistence of every capture, including Box response checks.
 Native stage-event tests retain zero input on all refusals even when observers fail.
+The existing vision tests also exercise `jev_box_crop` preparation and the real Jev/
+OpenAI SDKs with fake external HTTP: paired crop/padding inverse mapping and strict
+0–1000 conversion, frozen input tampering, no-client preparation, control-gate refusal,
+known invalid replies, unknown usage, all 70 planned rows and client cleanup. This
+uses saved pictures only; no desktop authority or coordinate executor is configured.
 
 The image development recipe's separate `jev_image_eval` executor is covered in
 the existing `test_vision.py` and chat.feature visual contract. Tests exercise the
