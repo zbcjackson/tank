@@ -1,6 +1,6 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-10-18（S5/S6已归档；新增显式Jev＋图片候选接管，真实效果尚未评估）。本文汇总自研
+更新：2026-10-19（Jev图片真实计算器闭环小样本完成，图片增量/跨应用待验证，默认不变）。本文汇总自研
 `computer_use` 的现行行为；旧N2及其官方SDK、独立DesktopExecutor已移除。
 历史报告中的 N2 数据仅作为当时的实验记录。
 
@@ -9,8 +9,19 @@
 参数JSON、图片引用/实验头与独立文件字节；限额不冒称HTTP线级大小。插件
 `JevImageProbe`只读，规范化方向/尺寸/补边、保留原帧逆映射并在响应后复核帧；
 Box同请求另问none/one/several，无任何自动动作派发。新合成开发任务规格36项/
-60阶段，输入与标签分离；未运行真实模型、没有校准派发门，也不构成完成质量
-或GUI恢复收益证据。详见[准备协议](../../backend/benchmarks/computer_use/fixtures/jev-image-dev/README.md)。
+60阶段，输入与标签分离；两轮真实开发调用已完成，但只有两个合成布局，不构成
+真实应用完成质量或GUI恢复收益证据。详见[准备协议](../../backend/benchmarks/computer_use/fixtures/jev-image-dev/README.md)。
+
+新增显式`selector: jev-image`，原生/浏览器正向PNG经尺寸/补边规范化后，将候选
+bounds同步映射到图内像素，直接由Jev图片Choice选择原动作；不创造坐标动作。
+先在最多三次捕获中确认两帧一致，输入前仍由原执行器核验窗口、场景及引用。
+可选`advisor: jev-image`只作有限候选复核，保留四次上限且不生成事实/输入/焦点。
+Qwen专项后置，视觉服务保持可替换；Box只读校准。真实应用先用新拥有的系统
+计算器窗口，独立AX读回和实际按钮路径核验；
+[配方](../../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md)不使用手工页面。
+真实Jev小样本已完成两个算式，独立AX值、完整按钮路径与清理均通过；只读Box
+中心2/2命中、未派发动作。完整AX仍在，不能据此认定图片增量或开放规划能力。
+详见[真实计算器记录](../research/jev-image-native-pilot.md)。
 
 显式`selector: jev-vision`与extension的`visual-model`声明接线一条有限候选图片路径。
 完整结构先Jev文本，合法弃权后用绑定窗口/主frame PNG做单步选择；缺标签或语义
@@ -18,8 +29,8 @@ Box同请求另问none/one/several，无任何自动动作派发。新合成开�
 效果读回；下一步重新评估结构准入，重复语义状态只允许一次额外图片恢复。原生
 复用M2 Observation映射和窗口/场景校验；Chromium在trial前检查图片，trial后检查
 DOM身份与导航（trial可能改变hover像素）。错误、未知用量、撤权和限制保持硬停止。
-文本TaskModel和Jev接口不接收图片；显式视觉profile可接收截图，调用方数据范围
-仍可收窄。尚无合法候选的canvas、Jev图片Choice/Box及真实模型收益未验证，生产
+文本TaskModel及普通Jev choose不接收图片；显式视觉profile或image-enabled Jev
+可接收截图，调用方数据范围仍可收窄。尚无合法候选的canvas/Box动作及真实系统收益未验证，生产
 默认未变。详见[插件边界](../../backend/plugins/agent-computer-use/README.md#bounded-generative-selection-and-jev-fallback-s3)
 与[进行中计划](../plans/active/computer-use-jev-vision.md)。旧J/F文本回退和历史测量
 仍按原配置解释，不追改strict/费用/unknown预留。

@@ -154,8 +154,11 @@ Choice and cardinality+Box evidence APIs with SDK 0.7.5. Task image scope can
 narrow that recipient opt-in. Parameter JSON, experimental header and immutable
 image file parts are admitted/captured together before lazy SDK client creation.
 The read-only plugin probe normalizes bound frames and rechecks them after the
-response. It has no executor; uncalibrated results do not add a production
-selector or dispatch path. Existing `choose()` remains JSON/text-only.
+response. It has no coordinate executor. Explicit experimental `selector: jev-image`
+can choose original bound actions from an upright normalized PNG, with candidate
+geometry transformed to the image and original executor freshness/effect checks.
+Optional same-Jev image candidate review retains the original four-review limit.
+Box stays read-only; production defaults and ordinary text `choose()` are unchanged.
 Runtime API 3 rejects explicit API 1/2 declarations before factory creation because
 the former HTTP-hook contract is gone. Langfuse and task observer telemetry are
 optional; model telemetry failure does not gate UI/SDK execution. See the

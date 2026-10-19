@@ -212,6 +212,13 @@ as `complete`. It returns the raw text; callers validate its fields and semantic
 The revision-2 image evaluator uses this mode and explicitly converts declared
 0–1000 `bbox_2d` edges into normalized coordinates, without guessing or repairing
 provider output. Existing plain completions do not enable JSON mode.
+Experimental `selector: jev-image` and optional bounded `advisor: jev-image` use the
+image-enabled decision profile directly, without a separate visual LLM. Only finite
+bound actions are executable; Box remains read-only. The new real-application
+[Calculator recipe](benchmarks/computer_use/fixtures/jev-image-native/README.md)
+prepares offline and supports separately frozen fake-model or live-model runs on
+new owned Calculator windows. Fake-model real-app runs are functional verification,
+not model-quality evidence.
 
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots

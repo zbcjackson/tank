@@ -941,6 +941,15 @@ or OS-sandbox claims; persistent cross-process resume remains unsupported.
 
 ## S1 observation adapters
 
+`test_vision.py` additionally exercises the explicit Jev image factory/controller
+path through the actual SDK multipart boundary with fake native OS/HTTP: admitted
+candidate execution, same-image bounded review, scale/padding geometry, receiver and
+task scope refusal, changed/unstable frames, revocation, unknown usage, malformed
+choices and unknown effects. The real Calculator recipe's preparation refuses
+client/app allocation and detects frozen-input drift; setup/cleanup failures retain
+both planned rows and zero-send evidence. Actual Calculator runs are separate
+explicit artifacts, never part of ordinary pytest or model-quality claims from mocks.
+
 The image development recipe's separate `jev_image_eval` executor is covered in
 the existing `test_vision.py` and chat.feature visual contract. Tests exercise the
 real Jev/OpenAI SDKs with external HTTP replaced: all five arms and 260 requests,

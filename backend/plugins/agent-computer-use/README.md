@@ -379,11 +379,23 @@ coordinates. It makes one image Choice or combined cardinality+Box call, then
 rechecks a second capture from the same task/window/source observation. A stale
 frame, revoked authority or unknown usage yields no evidence usable for progress.
 The probe returns read-only evidence, has no executor and is not a factory
-selector. No image/Box point is automatically dispatched, including `one` results:
-confidence gates and live capability quality have not been calibrated/measured.
+selector. No Box point is automatically dispatched, including `one` results;
+confidence gates and real-application quality still need calibration/confirmation.
 No-candidate Choice still cannot create an executable control. The new synthetic
 [development recipe](../../benchmarks/computer_use/fixtures/jev-image-dev/README.md)
 prepares input/label-separated task/stage specifications without SDK calls.
+
+Explicit experimental `selector: jev-image` sends screenshots directly to an
+image-enabled Jev decision profile and chooses only the original admitted actions.
+It needs the host profile's `images: true` and task image scope; no separate visual
+LLM is required. Images/candidate rectangles are normalized together and labeled
+as attached-image pixels; the current execution path requires upright PNG sources.
+Before submission it requires two identical captures within three attempts, then
+retains the original native/DOM preflight and independent effect checks. Optional
+`advisor: jev-image` reuses this path for bounded candidate review only, within the
+original four-review cap; it cannot generate inputs, focus or arbitrary operations.
+The advisor value requires this same selector. Existing selectors remain unchanged.
+See the [real Calculator protocol](../../benchmarks/computer_use/fixtures/jev-image-native/README.md).
 
 Explicit experimental `selector: jev-vision` replaces that text fallback with one
 image-assisted choice among admitted actions. Declare `visual-model: <llm-profile>`
@@ -410,7 +422,7 @@ may change hover pixels). The existing executor performs one selected action;
 no coordinate invention, free-running agent or model completion claim is accepted.
 Captures consume the original observation budget; SDK calls share its ledger and
 deadline. Task closure releases images and clients. No legal candidates means no
-visual action; canvas/Box and Jev image support remain pending. Tests use fake
+visual action; canvas/Box coordinate execution remains pending. Tests use fake
 models/native OS boundaries and real isolated Chromium, establishing wiring and
 stops, not model quality.
 
@@ -731,5 +743,5 @@ server readback. See the [capability/resource inventory](../../../docs/design/co
 and [current native fake-GUI/Vision evidence](../../benchmarks/computer_use/reports/20261017-g3-resource-native-fake/README.md).
 These validate host wiring and ownership, not real-model accuracy or adoption.
 OCR/fusion remain read-only injectable adapters with no default factory switch;
-visual Advisor, automatic OCR fallback, Jev images/Box and persistent cross-process
+open visual planning, automatic OCR fallback, Box coordinate execution and persistent cross-process
 resume are not enabled by this work. Production defaults remain unchanged.
