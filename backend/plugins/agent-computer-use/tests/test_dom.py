@@ -1890,6 +1890,20 @@ async def test_route_followup_does_not_repair_guesses_or_unknown_usage(chromium_
         assert not row['page_state']['trail']
 
 
+async def test_route_followup_absent_guess_retains_blue_terminal_state(chromium_required, monkeypatch, tmp_path):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+    calls, _ = install_route_http(monkeypatch, guess=True)
+    frozen = pilot.prepare(tmp_path / 'absent-guess', followup=True)
+    case = next(c for c in frozen['cases'] if c['id'] == 'grid-fallback_absent-1')
+    row = await pilot.run_task(case, 'jt', tmp_path / 'absent-guess', jev_credential='fixture', peer_credential='fixture')
+    assert calls == ['jev'] and row['cleanup_confirmed']
+    assert row['page_state']['trail'] == ['pick:a']
+    assert row['page_state']['result'] == 'selected:blue'
+    assert not row['negative_passed'] and not row['exit_correct']
+    assert not row['fallback_verified'] and len(row['palette_guesses']) == 1
+
+
 async def test_route_followup_full_matrix_keeps_old_tasks_and_new_fallbacks(chromium_required, monkeypatch, tmp_path):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_vision_route as pilot

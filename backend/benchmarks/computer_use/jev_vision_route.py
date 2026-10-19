@@ -73,7 +73,7 @@ def cases(*, followup: bool = False) -> list[dict]:
                 if(!NO_EFFECT)document.querySelector('[aria-label=Result]').textContent=
                     work==='Launch'&&archive==='Draft'&&(!IS_DRAWER||colors[selected]==='red')?'saved:Launch':'wrong';}
             </script>""".replace('NO_EFFECT', json.dumps(scenario == 'no_effect')).replace('IS_DRAWER', json.dumps(layout == 'drawer'))
-            colors = {s: 'red' if s == red and scenario != 'absent' else 'blue' for s in slots}
+            colors = {s: 'red' if s == red and scenario not in {'absent', 'fallback_absent'} else 'blue' for s in slots}
             script = '<script>const colors=' + json.dumps(colors) + ';</script>' + script
             html = ('<!doctype html><meta charset="utf-8"><style>body{font:20px system-ui;margin:48px;background:#fafafa;color:#171717}label{display:block;margin:24px}input{font:inherit;margin-left:24px}button{font:inherit;padding:12px;margin:16px}.tiles{display:grid;grid-template-columns:180px 180px;gap:90px}.tile{width:140px;height:110px} [hidden]{display:none!important}</style>'
                     + body + '<output aria-label="Result">idle</output>' + script)
