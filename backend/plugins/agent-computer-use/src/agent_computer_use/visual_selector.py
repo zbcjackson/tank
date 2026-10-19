@@ -72,7 +72,7 @@ class VisualSelector:
             key: bounds[action.target_ref] for key, action in candidates.items()}
         payload["frame_id"] = frame.frame_id
         with model_purpose("computer_use.visual_fallback" if actions.reason == "jev_eligible" else "computer_use.visual"):
-            text = await model.complete([
+            text = await model.complete_json([
                 {"role": "system", "content": (
                     'Return only JSON {"choice":"one offered key"}. Choose one whole candidate '
                     'or none/ambiguous/need_more_context/escalate. image_candidates are [x,y,width,height] '

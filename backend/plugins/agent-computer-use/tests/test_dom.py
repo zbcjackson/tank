@@ -1504,3 +1504,174 @@ async def test_runner_advisor_returns_to_jev_for_multistep_goal(
         assert calls[2]["state"]["goal"]["completion"] == task["completion"]
     usage = [e for k, e in events if k == "model_call" and e["phase"] == "finished"]
     assert sum(e["prompt_tokens"] + e["completion_tokens"] for e in usage) == (len(calls) - 1) * 12 + 15
+
+
+def test_vision_route_prepares_new_tasks_without_clients(monkeypatch, tmp_path):
+    import json
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError('offline preparation allocated a client')
+    monkeypatch.setattr(httpx, 'AsyncClient', forbidden)
+    monkeypatch.setattr(httpx2, 'AsyncClient', forbidden)
+    frozen = pilot.prepare(tmp_path / 'pilot')
+    assert len(frozen['cases']) == 12 and len(frozen['schedule']) == 24
+    assert frozen['record_only'] and frozen['models']['peer']['model'] == 'google/gemini-3.8-flash'
+    assert {c['layout'] for c in frozen['cases']} == {'form', 'grid', 'drawer'}
+    assert pilot.load_freeze(tmp_path / 'pilot', frozen['sha256']) == frozen
+    with pytest.raises(FileExistsError):
+        pilot.prepare(tmp_path / 'pilot')
+    disk = tmp_path / 'pilot/freeze.json'
+    changed = json.loads(disk.read_text())
+    changed['cases'][0]['html'] += '<p>tampered</p>'
+    disk.write_text(json.dumps(changed))
+    with pytest.raises(ValueError):
+        pilot.load_freeze(tmp_path / 'pilot', frozen['sha256'])
+
+
+def install_route_http(monkeypatch, failure=None):
+    import base64
+    import io
+    import json
+    import httpx
+    import httpx2
+    from PIL import Image
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+    calls = []
+    payloads = []
+
+    def answer(payload):
+        payloads.append(payload)
+        parts = []
+        visual = 'messages' in payload
+        if visual:
+            assert payload['response_format'] == {'type': 'json_object'}
+            parts = payload['messages'][1]['content']
+            packet = json.loads(parts[0]['text'])
+        else:
+            packet = payload
+        choices = packet['questions']['next_action']['criteria']
+        offered = {k: v for k, v in choices.items() if isinstance(v, dict)}
+        choice = next((k for k, v in offered.items() if v['label'] in ('Begin setup', 'Work title', 'Save work')), None)
+        if choice is None:
+            assert visual
+            with Image.open(io.BytesIO(base64.b64decode(parts[1]['image_url']['url'].split(',', 1)[1]))) as image:
+                choice = 'none'
+                for key, (x, y, w, h) in packet['image_candidates'].items():
+                    pixel = image.convert('RGB').getpixel((int(x + w / 2), int(y + h / 2)))
+                    assert isinstance(pixel, tuple)
+                    r, g, b = pixel[:3]
+                    if r > b * 2 and r > g * 2:
+                        choice = key
+        calls.append('visual' if visual else 'jev')
+        if failure == 'cancel':
+            raise asyncio.CancelledError
+        if visual:
+            result = {'id': 'fixture', 'object': 'chat.completion', 'created': 1, 'model': pilot.PEER['model'],
+                    'choices': [{'index': 0, 'finish_reason': 'stop', 'message': {'role': 'assistant', 'content': json.dumps({'choice': choice})}}],
+                    'usage': {'prompt_tokens': 7, 'completion_tokens': 3, 'total_tokens': 10}}
+            if failure == 'unknown':
+                result.pop('usage')
+            if failure == 'invalid':
+                result['choices'][0]['message']['content'] = '{\"choice\":\"invented\"}'
+            return result
+        result = {'model': pilot.JEV['model'], 'answers': {'next_action': {'type': 'choice', 'choice': choice,
+                'confidence': 1, 'probabilities': {k: float(k == choice) for k in choices}}},
+                'usage': {'input_tokens': 7, 'output_tokens': 3}}
+
+        if failure == 'unknown':
+            result.pop('usage')
+        return result
+
+    monkeypatch.setattr(httpx, 'AsyncHTTPTransport', lambda **kwargs: httpx.MockTransport(
+        lambda request: httpx.Response(200, json=answer(json.loads(request.content)))))
+    monkeypatch.setattr(httpx2, 'AsyncHTTPTransport', lambda **kwargs: httpx2.MockTransport(
+        lambda request: httpx2.Response(200, json=answer(json.loads(request.content)))))
+    return calls, payloads
+
+
+@pytest.mark.parametrize('arm', ['v', 'jt'])
+async def test_vision_route_real_browser_returns_to_structure(chromium_required, monkeypatch, tmp_path, arm):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+    calls, _ = install_route_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / arm)
+    case = next(c for c in frozen['cases'] if c['id'] == 'drawer-positive-0')
+    row = await pilot.run_task(case, arm, tmp_path / arm, jev_credential='fixture', peer_credential='fixture')
+    assert row['strict_completed'] and row['cleanup_confirmed'], row
+    assert row['page_state']['trail'] == case['oracle']['events']
+    assert calls == (['visual'] * 3 if arm == 'v' else ['jev', 'visual', 'jev'])
+    assert row['rules_actions'] == 1
+    assert row['visual_captures'] == (3 if arm == 'v' else 1)
+    assert row['usage']['total_tokens'] == 30
+
+
+@pytest.mark.parametrize('failure', [None, 'unknown', 'invalid', 'cleanup'])
+async def test_vision_route_batch_retains_denominators_and_hard_stops(chromium_required, monkeypatch, tmp_path, failure):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+    calls, payloads = install_route_http(monkeypatch, failure)
+    if failure == 'cleanup':
+        close = pilot.dom.ManagedChromiumChannel.aclose
+        async def fail_close(self):
+            await close(self)
+            raise RuntimeError('reported cleanup failure')
+        monkeypatch.setattr(pilot.dom.ManagedChromiumChannel, 'aclose', fail_close)
+    frozen = pilot.prepare(tmp_path / 'batch')
+    result = await pilot.run_batch(tmp_path / 'batch', frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    assert len(result['rows']) == 24
+    assert len({r['id'] for r in result['rows']}) == 24
+    assert all('oracle' not in json.dumps(p) for p in payloads)
+    if failure in ('unknown', 'cleanup'):
+        assert not result['completed']
+        assert len(calls) == (1 if failure == 'unknown' else 2)
+        assert sum(r['status'] == 'not_run' for r in result['rows']) == 23
+        assert result['spend']['stop_reason'] == ('unknown_usage' if failure == 'unknown' else 'cleanup_failed')
+    else:
+        assert result['completed']
+        assert all(r['cleanup_confirmed'] for r in result['rows'])
+        if failure is None:
+            assert all(r['strict_completed'] for r in result['rows'] if r['scenario'] == 'positive')
+            assert all(r['negative_passed'] for r in result['rows'] if r['scenario'] != 'positive')
+            assert sum(r['strict_completed'] for r in result['rows']) == 12
+        else:
+            assert any(not r['strict_completed'] and r['capped_completion_ms'] == 120000 for r in result['rows'] if r['scenario'] == 'positive')
+    assert result['spend'] == json.loads((tmp_path / 'batch/spend.jsonl').read_text().splitlines()[-1])
+    with pytest.raises(FileExistsError):
+        await pilot.run_batch(tmp_path / 'batch', frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+
+
+async def test_vision_route_private_oracle_cannot_choose_or_fix_actions(chromium_required, monkeypatch, tmp_path):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+    calls, payloads = install_route_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'private')
+    case = next(c for c in frozen['cases'] if c['id'] == 'drawer-positive-1')
+    expected = case['oracle']['events']
+    case['oracle'] = {'red': 'PRIVATE_ORACLE_SENTINEL', 'events': ['PRIVATE_ORACLE_SENTINEL']}
+    row = await pilot.run_task(case, 'jt', tmp_path / 'private', jev_credential='fixture', peer_credential='fixture')
+    assert calls == ['jev', 'visual', 'jev']
+    assert row['page_state']['trail'] == expected
+    assert not row['strict_completed']
+    assert 'PRIVATE_ORACLE_SENTINEL' not in json.dumps(payloads)
+
+
+async def test_vision_route_cancellation_preserves_all_rows(chromium_required, monkeypatch, tmp_path):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_vision_route as pilot
+    calls, _ = install_route_http(monkeypatch, 'cancel')
+    frozen = pilot.prepare(tmp_path / 'cancel')
+    with pytest.raises(asyncio.CancelledError):
+        await pilot.run_batch(tmp_path / 'cancel', frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    result = json.loads((tmp_path / 'cancel/result.json').read_text())
+    assert len(result['rows']) == 24 and len(calls) == 1
+    assert result['rows'][0]['status'] == 'cancelled'
+    assert result['rows'][0]['cleanup_confirmed']
+    assert sum(r['status'] == 'not_run' for r in result['rows']) == 23

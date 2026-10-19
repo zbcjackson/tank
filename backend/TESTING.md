@@ -1239,3 +1239,11 @@ production follows the SDK's default environment proxy/certificate behavior.
 Existing stream, request-budget, desktop and strategy tests use ModelResponseStream,
 TaskModelCallRunner and model_request/model_response names. Old report artifacts are
 unchanged. No paid model calls or S4 changes are part of this refactor.
+
+The existing `test_dom.py` route-pilot tests run real Chromium and the real SDKs,
+replacing only external HTTP. They cover V/JT multi-step return, a shared rule,
+actual PNG color-based mock decisions, private-oracle isolation, all 24 rows,
+absent targets, replaced controls, no-effect refusal without replay, known invalid
+choices, unknown usage, cancellation and cleanup failure. The existing managed
+Chromium cucumber entry includes both V/JT return tests. This is functional
+wiring evidence on synthetic HTML, not model quality or real-product acceptance.

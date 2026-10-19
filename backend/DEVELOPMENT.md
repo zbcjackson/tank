@@ -233,9 +233,19 @@ OPENROUTER_API_KEY. It has no desktop grant/executor, uses record-only accountin
 and preserves six control plus 64 main rows on failure. See the
 [comparison plan](../docs/plans/done/jev-box-crop-comparison.md).
 
+`benchmarks.computer_use.jev_vision_route` prepares new synthetic HTML tasks offline
+with `--output`; `--output --run --approved-sha256` runs the frozen V/JT comparison
+in isolated Chromium, using TYPESAFE_API_KEY and OPENROUTER_API_KEY. The V policy
+exists only in this benchmark; JT reuses `jev-vision`. Both use the same visual
+JSON-object choice contract, rules, action checks and independent page readback.
+The 24 planned rows include positive multi-step work and three negative families;
+known model misses remain in the denominator, unknown usage or cleanup stops the
+batch. See the [route pilot](../docs/plans/active/jev-vision-route-pilot.md).
+
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots
-to that named profile, while `model:` remains a text-only service and Jev still
+to that named profile. Its visual choices request JSON-object mode and still
+validate the exact choice contract. `model:` remains a text-only service and Jev still
 receives text Choice questions. A caller may narrow the task's image allowance;
 without image scope the visual path stops before capture. No production profile
 or default is changed. See the plugin README for the finite-candidate and
