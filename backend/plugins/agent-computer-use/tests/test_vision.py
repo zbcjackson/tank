@@ -11,6 +11,386 @@ from tank_backend.tools.computer_observation import Observation
 from .test_native import world as shared_world  # noqa: F401
 
 
+@pytest.mark.parametrize("arm,outcome", [
+    (arm, outcome) for arm in ("text", "image") for outcome in ("correct", "wrong", "abstain")
+] + [("image", outcome) for outcome in ("revoked", "unknown", "stale", "scope", "receiver", "unstable")])
+async def test_ablation_selector_uses_same_candidates_and_real_sdk_without_oracle(
+    monkeypatch, shared_world, arm, outcome,  # noqa: F811
+):
+    import asyncio
+    import json
+    from dataclasses import replace
+    from email.parser import BytesParser
+    from email.policy import default
+    from pathlib import Path
+    import httpx2
+    from agent_computer_use import create_subagent
+    from agent_computer_use.channels import native
+    from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext, SubAgentRequest
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.model_data import ModelDataScope
+    from .test_native import macos_policy
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_ablation as pilot
+
+    shared_world.value = pilot.BODY
+    shared_world.buttons = []
+    shared_world.output = replace(shared_world.output, role="AXTextArea", identifier="First Text View", value_settable=True)
+    monkeypatch.setattr(pilot.s4_ax.computer_ax, "ax_window_candidates", shared_world.read)
+    image = io.BytesIO()
+    Image.new("RGB", (100, 80), "white").save(image, "PNG")
+    monkeypatch.setattr(native.macos, "_capture_screenshot_macos", lambda **kwargs: image.getvalue())
+    calls = []
+    png_bytes = image.getvalue()
+    captures = 0
+    def screenshot(**kwargs):
+        nonlocal captures
+        captures += 1
+        if outcome == "unstable" and captures % 2 == 0:
+            changed = io.BytesIO()
+            Image.new("RGB", (100, 80), "black").save(changed, "PNG")
+            return changed.getvalue()
+        return png_bytes
+    monkeypatch.setattr(native.macos, "_capture_screenshot_macos", screenshot)
+
+    def respond(request):
+        nonlocal png_bytes
+        if arm == "image":
+            assert request.headers["TypeSafe-Danger-Zone-Images"] == "true"
+            message = BytesParser(policy=default).parsebytes(
+                ("Content-Type: " + request.headers["content-type"] + "\r\n\r\n").encode() + request.content)
+            parts = list(message.iter_parts())
+            assert len(parts) == 2
+            raw = parts[0].get_payload(decode=True)
+            assert isinstance(raw, bytes)
+            payload = json.loads(raw)
+            assert "image" in payload["state"]
+        else:
+            payload = json.loads(request.content)
+            assert "TypeSafe-Danger-Zone-Images" not in request.headers
+            assert "image" not in payload["state"]
+        calls.append(payload)
+        assert "completion" not in payload["state"]["goal"]
+        assert payload["state"]["full_ax"]["elements"][0]["identifier"] == "First Text View"
+        criteria = payload["questions"]["next_action"]["criteria"]
+        assert {v["value"] for v in criteria.values() if isinstance(v, dict)} == set(pilot.VARIANTS.values())
+        choice = ("need_more_context" if outcome == "abstain" else next(k for k, v in criteria.items()
+            if isinstance(v, dict) and v["value"] == pilot.VARIANTS["south" if outcome == "wrong" else "north"]))
+        reply = {"model": "jev-1.14.0", "answers": {"next_action": {
+            "type": "choice", "choice": choice, "confidence": 1,
+            "probabilities": {k: float(k == choice) for k in criteria}}},
+            "usage": {"input_tokens": 10, "output_tokens": 2}}
+        if outcome == "unknown":
+            reply.pop("usage")
+        elif outcome == "revoked":
+            context.authorization.revoke()
+        elif outcome == "stale":
+            changed = io.BytesIO()
+            Image.new("RGB", (100, 80), "black").save(changed, "PNG")
+            png_bytes = changed.getvalue()
+        return httpx2.Response(200, json=reply)
+
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kwargs: httpx2.MockTransport(respond))
+    context = SubAgentContext(SubAgentAuthorization(frozenset({"desktop", "network"})), SubAgentBudget(),
+        asyncio.Event(), max_actions=2, model_data_scope=ModelDataScope(
+            frozenset({"text"} if outcome == "scope" else {"text", "image"})))
+    context.runtime.configure_decision_model("task", DecisionModelProfile(
+        "https://offline.invalid/v1/systemone", "jev-1.14.0", "KEY", images=outcome != "receiver"), credential="fixture")
+    plugin = create_subagent({"macos": macos_policy(labels="identifier", readouts=[
+        {"name": "document", "role": "AXTextArea", "identifier": "First Text View"}])})
+    assert isinstance(plugin.controller.source, native.NativeAXChannel)
+    selector = pilot.PairedSelector(plugin.controller.source, arm)
+    selector.register(context)
+    plugin.controller.selector = selector
+    trial = {"id": "task", "scene": "scene-01", "arm": arm}
+    task = pilot.goal(trial, pilot.VARIANTS["north"])
+    task["scope"] = "counter"
+    task["target"] = {"application": "test.counter"}
+    try:
+        outputs = [o async for o in plugin.run(SubAgentRequest(pilot.INSTRUCTION, "", "task", task), context)]
+        result = outputs[-1].metadata["task_result"]
+        if outcome in {"correct", "wrong"}:
+            assert (result["status"] == "completed") == (outcome == "correct"), result
+            assert shared_world.sent == [("fill", pilot.VARIANTS["south" if outcome == "wrong" else "north"])]
+        else:
+            assert result["status"] != "completed" and not shared_world.sent, result
+        assert len(calls) == (0 if outcome in {"scope", "receiver", "unstable"} else 1)
+        assert bool(context.budget.unknown_calls) == (outcome == "unknown")
+        if outcome == "unstable":
+            assert len(selector.captures) == 3
+        if outcome not in {"scope", "receiver", "unknown", "unstable"}:
+            assert context.budget.total_tokens == 12
+    finally:
+        await plugin.aclose()
+        await context.runtime.aclose()
+
+
+@pytest.mark.parametrize("selected", ["Jev visual probe", "North"])
+def test_ablation_selects_only_neutral_header_and_verifies_setup(monkeypatch, shared_world, selected):  # noqa: F811
+    import json
+    from pathlib import Path
+    from dataclasses import replace
+    from agent_computer_use.channels import native
+    from .test_native import native_config
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_ablation as pilot
+    shared_world.value = pilot.BODY
+    shared_world.buttons = []
+    shared_world.output = replace(shared_world.output, role="AXTextArea", identifier="First Text View")
+    monkeypatch.setattr(pilot.s4_ax.computer_ax, "ax_window_candidates", shared_world.read)
+    writes = []
+    monkeypatch.setattr(pilot.s4_ax.computer_ax, "_load_ax", lambda: {
+        "AXUIElementSetAttributeValue": lambda ref, key, value: writes.append((key, value)) or 0,
+        "AXUIElementCopyAttributeValue": lambda ref, key, out: (0, selected)})
+    foundation = SimpleNamespace(NSBundle=SimpleNamespace(bundleWithPath_=lambda path: "bundle"))
+    objc = SimpleNamespace(loadBundleFunctions=lambda bundle, functions, spec: functions.update(
+        AXValueCreate=lambda kind, value: value))
+    original = pilot.importlib.import_module
+    monkeypatch.setattr(pilot.importlib, "import_module", lambda name:
+        {"Foundation": foundation, "objc": objc}.get(name) or original(name))
+    monkeypatch.setattr(pilot.s4_ax, "pump", lambda *args: None)
+    owner = pilot.s4_ax.OwnedApplication(pilot.s4_ax.CASES[0])
+    owner.pid = 42
+    monkeypatch.setattr(owner, "read_values", lambda: {"document": shared_world.value})
+    config = native.NativeConfig.model_validate_json(json.dumps(native_config()))
+    if selected == "North":
+        with pytest.raises(RuntimeError, match="header selection"):
+            pilot.select_heading(owner, config)
+        assert not owner.setup_actions
+    else:
+        pilot.select_heading(owner, config)
+        assert owner.setup_actions == ["select_neutral_header"]
+    assert writes == [("AXSelectedTextRange", (0, len("Jev visual probe")))]
+    assert shared_world.value == pilot.BODY
+
+
+@pytest.mark.parametrize("unknown,blocked", [(False, False), (True, False), (False, True)])
+async def test_ablation_batch_governs_all_real_sdk_calls_and_stops_unknown(
+    monkeypatch, shared_world, tmp_path, unknown, blocked,  # noqa: F811
+):
+    import json
+    from pathlib import Path
+    from dataclasses import replace
+    from contextlib import contextmanager
+    import httpx2
+    from agent_computer_use.channels import native
+    from tank_backend.agents import resources
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_ablation as pilot
+
+    shared_world.value = pilot.BODY
+    shared_world.buttons = []
+    shared_world.output = replace(shared_world.output, role="AXTextArea", identifier="First Text View", value_settable=True)
+    monkeypatch.setattr(pilot.s4_ax.computer_ax, "ax_window_candidates", shared_world.read)
+    monkeypatch.setattr(pilot.s4_ax.computer_use_macos, "_active_displays", lambda: (shared_world.window.display_geometry,))
+    image = io.BytesIO()
+    Image.new("RGB", (100, 80), "white").save(image, "PNG")
+    monkeypatch.setattr(native.macos, "_capture_screenshot_macos", lambda **kwargs: image.getvalue())
+    closed = []
+    idle = True
+    monkeypatch.setattr(native, "inputs_idle", lambda: idle)
+
+    class Owner:
+        pid = 42
+        setup_actions = []
+
+        def __init__(self, case, *, rtf):
+            self.case = case
+            assert b"\\rtf1" in rtf
+
+        def start(self):
+            nonlocal idle
+            idle = True
+            shared_world.value = pilot.BODY
+            return native.NativeConfig.model_validate_json(json.dumps({
+                "scope": self.case["id"], "bundle_id": "com.apple.TextEdit", "pid": 42,
+                "process_start": "1:0", "window_id": 7, "labels": "identifier",
+                "readouts": pilot.s4_ax.channel_readouts("textedit")}))
+
+        def read_values(self):
+            return {"document": shared_world.value}
+
+        def bound_ax_window(self, api):
+            return "window"
+
+        def close(self):
+            closed.append(self.case["id"])
+            return {"confirmed": True}
+
+    def attribute(element, key, out):
+        attrs = ({"AXRole": "AXWindow", "AXChildren": [shared_world.output.element.native, "italic", "align left", "align center", "align right", "fully justify"]}
+                 if element == "window" else {"AXRole": "AXTextArea", "AXIdentifier": "First Text View", "AXSelectedText": "Jev visual probe"}
+                 if element is shared_world.output.element.native else {
+                     "AXRole": "AXCheckBox", "AXDescription": element, "AXPosition": (10, 10), "AXSize": (20, 20)})
+        return 0, attrs.get(key)
+
+    monkeypatch.setattr(pilot.s4_ax, "OwnedApplication", Owner)
+    monkeypatch.setattr(pilot.s4_ax.computer_ax, "_load_ax", lambda: {
+        "AXUIElementGetPid": lambda element, out: (0, 42), "AXUIElementCopyAttributeValue": attribute,
+        "AXUIElementSetAttributeValue": lambda *args: 0})
+    foundation = SimpleNamespace(NSBundle=SimpleNamespace(bundleWithPath_=lambda path: "bundle"))
+    objc = SimpleNamespace(loadBundleFunctions=lambda bundle, functions, spec: functions.update(
+        AXValueCreate=lambda kind, value: value))
+    original_import = pilot.importlib.import_module
+    monkeypatch.setattr(pilot.importlib, "import_module", lambda name:
+        {"Foundation": foundation, "objc": objc}.get(name) or original_import(name))
+    monkeypatch.setattr(pilot.s4_ax, "pump", lambda *args: None)
+    monkeypatch.setattr(resources, "DESKTOP_RESOURCE", resources.DesktopResource())
+    if unknown or blocked:
+        original = pilot.s4_ax.fake_model_http
+
+        @contextmanager
+        def missing_usage(respond):
+            async def changed(request):
+                nonlocal idle
+                response = await respond(request)
+                payload = response.json()
+                if unknown:
+                    payload.pop("usage")
+                    answer = payload["answers"]["next_action"]
+                    answer["choice"] = "c1"
+                    answer["probabilities"] = {k: float(k == "c1") for k in answer["probabilities"]}
+                elif request.headers["content-type"].startswith("multipart/") and "next_action" in payload["answers"]:
+                    idle = False
+                return httpx2.Response(200, json=payload)
+            with original(changed):
+                yield
+        monkeypatch.setattr(pilot.s4_ax, "fake_model_http", missing_usage)
+    root = tmp_path / "pilot"
+    frozen = pilot.prepare(root)
+    report = await pilot.run_batch(root, frozen["sha256"], mode="fake")
+    assert len(report["rows"]) == 10 and sum(len(r.get("boxes", [])) for r in report["rows"]) == 6
+    assert report["completed"] == (not unknown), report.get("spend")
+    calls = [json.loads(line) for line in (root / "calls.jsonl").read_text().splitlines()]
+    requests = [r for r in calls if "request" in r]
+    if unknown:
+        assert len(requests) == len(closed) == 1 and not shared_world.sent
+        assert report["spend"]["stop_reason"] == "unknown_usage"
+        assert report["spend"]["batch"]["reserved_tokens"] > 0
+        assert all(r["status"] == "not_run" for r in report["rows"][1:])
+    else:
+        assert len(requests) == 14 and len(closed) == 10
+        image_rows = [r for r in report["rows"] if r["kind"] == "task" and r["arm"] == "image"]
+        assert sum(r["passed"] for r in image_rows) == (0 if blocked else 4)
+        assert all(r["model_correct"] for r in image_rows)
+        if blocked:
+            assert all(not r["native_actions"] and r["result"]["reason"] == "not_sent" for r in image_rows)
+        assert all(r.get("model_abstained") and not r["native_actions"] for r in report["rows"] if r["arm"] == "text")
+        assert all(not r["native_actions"] for r in report["rows"] if r["kind"] == "box")
+        assert report["spend"]["batch"]["known_tokens"] == 14 * 12
+        assert report["spend"]["batch"]["known_nano_usd"] == 14 * 10 * 42
+        assert report["spend"]["batch"]["reserved_tokens"] == 0
+
+
+@pytest.mark.parametrize("cleanup", [True, False])
+async def test_ablation_setup_failure_keeps_all_task_and_box_denominators(monkeypatch, tmp_path, cleanup):
+    from pathlib import Path
+    from tank_backend.agents import resources
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_ablation as pilot
+
+    closed = []
+    class Owner:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            raise RuntimeError("setup unavailable")
+
+        def close(self):
+            closed.append(True)
+            return {"confirmed": cleanup}
+
+    monkeypatch.setattr(pilot.s4_ax, "OwnedApplication", Owner)
+    monkeypatch.setattr(resources, "DESKTOP_RESOURCE", resources.DesktopResource())
+    root = tmp_path / "pilot"
+    frozen = pilot.prepare(root)
+    report = await pilot.run_batch(root, frozen["sha256"], mode="fake")
+    assert not report["completed"] and report["spend"]["batch"]["admitted_requests"] == 0
+    assert len(report["rows"]) == 10 and closed == [True]
+    assert report["rows"][0]["cleanup_confirmed"] == cleanup
+    assert [r["status"] for r in report["rows"]] == ["error"] + ["not_run"] * 9
+    assert sum(len(r.get("boxes", [])) for r in report["rows"]) == 6
+    with pytest.raises(FileExistsError):
+        await pilot.run_batch(root, frozen["sha256"], mode="fake")
+
+
+async def test_ablation_live_preflight_refuses_before_marker_or_client(monkeypatch, tmp_path):
+    from pathlib import Path
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_ablation as pilot
+    def refuse():
+        raise RuntimeError("desktop locked")
+    def forbidden(*args, **kwargs):
+        raise AssertionError("preflight cannot create a client")
+    monkeypatch.setattr(pilot, "preflight", refuse)
+    monkeypatch.setattr(httpx2, "AsyncClient", forbidden)
+    root = tmp_path / "pilot"
+    frozen = pilot.prepare(root)
+    with pytest.raises(RuntimeError, match="desktop locked"):
+        await pilot.run_batch(root, frozen["sha256"], mode="live", credential="fixture")
+    assert not (root / "started.json").exists()
+
+
+def test_ablation_public_question_keeps_both_variants_and_hides_private_completion(monkeypatch):
+    from pathlib import Path
+    from agent_computer_use.action_builder import ActionBuilder
+    from agent_computer_use.contracts import Element, Fact, GoalContract, Snapshot
+    from agent_computer_use.jev_image import normalize_frame
+    from agent_computer_use.visual_selector import VisualFrame
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_ablation as pilot
+
+    trial = pilot.trials()[0]
+    raw = pilot.goal(trial, pilot.VARIANTS["north"])
+    raw.pop("target")
+    goal = GoalContract.from_input(raw)
+    snapshot = Snapshot("obs", goal.scope, 0, (
+        Element("body", "textbox", "First Text View", ("fill",), source="ax", value=pilot.BODY),),
+        facts=(Fact(key="ax:value:document", value=pilot.BODY),))
+    actions = ActionBuilder().build(goal.goal_id, 1, goal, snapshot)
+    stream = io.BytesIO()
+    Image.new("RGB", (100, 80), "white").save(stream, format="PNG")
+    frame, png = Observation.capture(stream.getvalue(), session_id="task", display_id=5)
+    image = normalize_frame(VisualFrame("obs", frame, png, (("body", (5, 5, 90, 70)),)))
+    extra = {"incomplete": True, "elements": [{"description": "bold", "value": ""}]}
+    first = pilot.question(goal, snapshot, actions, image, extra)
+    changed = goal.model_copy(update={"completion": (Fact(key="ax:value:document", value=pilot.VARIANTS["south"]),)})
+    assert pilot.question(changed, snapshot, actions, image, extra) == first
+    assert "completion" not in first["state"]["goal"]
+    assert first["state"]["full_ax"] == extra
+    choices = first["questions"]["next_action"]["criteria"]
+    assert {v["value"] for v in choices.values() if isinstance(v, dict)} == set(pilot.VARIANTS.values())
+    assert list(first["state"]["image_candidates"].values()) == [[17.5, 17.5, 315.0, 245.0]] * 2
+
+
+def test_real_app_ablation_prepares_private_oracle_without_clients_or_desktop(monkeypatch, tmp_path):
+    import json
+    from pathlib import Path
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_ablation as pilot
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("prepare is offline")
+
+    monkeypatch.setattr(pilot.s4_ax.OwnedApplication, "start", forbidden)
+    monkeypatch.setattr(httpx2, "AsyncClient", forbidden)
+    root = tmp_path / "pilot"
+    frozen = pilot.prepare(root)
+    assert len(frozen["trials"]) == 10
+    assert [t["arm"] for t in frozen["trials"]].count("text") == 4
+    assert frozen["request_limit"] == 14 and frozen["nano_usd_limit"] == 100_000_000
+    assert pilot.load_freeze(root, frozen["sha256"]) == frozen
+    assert b"\\red220" in (root / "private/scene-01.rtf").read_bytes()
+    public = json.loads((root / "public.json").read_text())
+    assert "expected_body" not in json.dumps(public)
+    (root / "private/labels.json").write_text('{}')
+    with pytest.raises(ValueError, match="freeze changed"):
+        pilot.load_freeze(root, frozen["sha256"])
+
+
 def test_real_application_image_recipe_prepares_without_desktop_or_clients(monkeypatch, tmp_path):
     import json
     from pathlib import Path
