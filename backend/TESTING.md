@@ -949,6 +949,12 @@ choices and unknown effects. The real Calculator recipe's preparation refuses
 client/app allocation and detects frozen-input drift; setup/cleanup failures retain
 both planned rows and zero-send evidence. Actual Calculator runs are separate
 explicit artifacts, never part of ordinary pytest or model-quality claims from mocks.
+The TextEdit ablation additionally checks paired real-SDK JSON/multipart behavior,
+private completion non-disclosure, both replacement alternatives, one-fill limits
+for wrong answers, abstentions/stale/authority/usage refusals, all task/Box denominators,
+shared known/unknown reservations, header-only selection setup and independent cleanup.
+`test_native.py` checks seeded RTF versus default empty-text fixture allocation and
+cleanup after failed launch. Ordinary tests still replace OS/HTTP boundaries.
 
 The image development recipe's separate `jev_image_eval` executor is covered in
 the existing `test_vision.py` and chat.feature visual contract. Tests exercise the

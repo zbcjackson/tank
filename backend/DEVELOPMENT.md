@@ -219,6 +219,11 @@ bound actions are executable; Box remains read-only. The new real-application
 prepares offline and supports separately frozen fake-model or live-model runs on
 new owned Calculator windows. Fake-model real-app runs are functional verification,
 not model-quality evidence.
+The separate [TextEdit ablation](benchmarks/computer_use/fixtures/jev-image-ablation/README.md)
+compares one-decision text/image replacements on temporary colored RTF documents.
+It preserves actual AX evidence and original native gates, keeps private completion
+out of both model projections, and separates model choice, native completion and
+read-only Box calibration. Its benchmark-only selector is not a production factory mode.
 
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots
