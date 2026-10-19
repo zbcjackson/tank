@@ -505,6 +505,14 @@ smoke exclusion and suite abortion after unconfirmed cleanup.
 
 ## macOS coordinate chain
 
+Bound native frames additionally retain backing pixels until after the window crop.
+`test_vision.py` checks adjacent outside pixels cannot change the PNG or scene hash,
+inside single-pixel changes still fail the actual native freshness gate, and logical
+mapping survives 1x/1.5x/2x, odd/full-display crops and negative display origins.
+Mismatched dimensions and invalid crops refuse. `test_computer_use_macos.py` exercises
+the actual screenshot function with fake OS commands to ensure opt-in backing capture
+does not downscale the whole display; existing default screenshot tests remain active.
+
 `core/tests/test_computer_use_macos.py` covers backing-to-logical sizing, crop
 and upscale pixels, image serialization through the actual OpenAI SDK HTTP
 boundary, fragmented SSE arguments and final Quartz event coordinates. Only OS

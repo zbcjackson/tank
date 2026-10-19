@@ -23,6 +23,14 @@ Qwen专项后置，视觉服务保持可替换；Box只读校准。真实应用�
 中心2/2命中、未派发动作。完整AX仍在，不能据此认定图片增量或开放规划能力。
 详见[真实计算器记录](../research/jev-image-native-pilot.md)。
 
+绑定原生窗口的图片路径与输入前场景复查获取所选显示器的原始backing像素，
+Observation先按逻辑窗口映射裁剪原图，再缩放输出，避免整屏缩小过滤器混入
+窗口外像素。scene_sha256覆盖原始裁剪像素；screen_size/crop和图内点逆映射
+仍使用逻辑坐标与显示器原点。普通截图默认的逻辑PNG路径不变，未采用离屏
+窗口捕获或像素容差，原进程/窗口/AX/输入门继续生效。原生AX仍仅支持主屏；
+通用帧的副屏映射回归不代表新增AX副屏执行能力。诊断依据见
+[新鲜度记录](../research/jev-frame-freshness-diagnostics.md)。
+
 显式`selector: jev-vision`与extension的`visual-model`声明接线一条有限候选图片路径。
 完整结构先Jev文本，合法弃权后用绑定窗口/主frame PNG做单步选择；缺标签或语义
 身份重复时直接读图。原TaskRuntime保留授权、期限、观察额度、账本、动作回执与

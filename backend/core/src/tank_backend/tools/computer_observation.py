@@ -11,8 +11,6 @@ from dataclasses import dataclass
 
 from PIL import Image
 
-from .computer_use_common import crop_pixels_and_upscale
-
 
 @dataclass(frozen=True)
 class Observation:
@@ -42,7 +40,14 @@ class Observation:
         display_geometry: tuple[int, ...] = (),
     ) -> tuple[Observation, bytes]:
         with Image.open(io.BytesIO(png)) as image:
-            width, height = image.size
+            pixel_width, pixel_height = image.size
+        width, height = pixel_width, pixel_height
+        if len(display_geometry) == 7:
+            width, height = display_geometry[3:5]
+            if (width <= 0 or height <= 0
+                    or (pixel_width, pixel_height) not in (
+                        (width, height), display_geometry[5:7])):
+                raise ValueError("Screenshot dimensions do not match the bound display")
         crop = window_bounds or (0, 0, width, height)
         origin_x, origin_y, right, bottom = crop
         area_width, area_height = right - origin_x, bottom - origin_y
@@ -60,9 +65,21 @@ class Observation:
         if not (0 <= left < right <= width and 0 <= top < bottom <= height):
             raise ValueError("Crop/window must lie inside the captured display image")
         with Image.open(io.BytesIO(png)) as image:
-            scene_hash = hashlib.sha256(image.convert("RGB").crop(crop).tobytes()).hexdigest()
-        if crop != (0, 0, width, height):
-            png = crop_pixels_and_upscale(png, crop)
+            # Crop backing pixels before any filtering can mix in pixels outside the window.
+            pixels = image.crop((round(left * pixel_width / width),
+                                 round(top * pixel_height / height),
+                                 round(right * pixel_width / width),
+                                 round(bottom * pixel_height / height)))
+            scene_hash = hashlib.sha256(pixels.convert("RGB").tobytes()).hexdigest()
+            if crop != (0, 0, width, height) or image.size != (width, height):
+                scale = min(max(width, height) / max(right - left, bottom - top), 3.0)
+                scale = scale if scale > 1.01 else 1.0
+                size = (round((right - left) * scale), round((bottom - top) * scale))
+                if pixels.size != size:
+                    pixels = pixels.resize(size, Image.Resampling.LANCZOS)
+                buffer = io.BytesIO()
+                pixels.save(buffer, format="PNG")
+                png = buffer.getvalue()
         with Image.open(io.BytesIO(png)) as image:
             image_size = image.size
         return cls(

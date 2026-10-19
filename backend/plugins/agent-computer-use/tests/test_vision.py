@@ -1294,6 +1294,95 @@ async def test_same_task_jev_image_jev_loop(monkeypatch, shared_world, failure):
         await ctx.runtime.aclose()
 
 
+@pytest.mark.parametrize("scale", [1, 1.5, 2])
+@pytest.mark.parametrize("bounds", [(10, 10, 70, 60), (9, 7, 73, 61), (0, 0, 100, 80)])
+def test_backing_frame_crops_before_resizing_and_keeps_logical_mapping(scale, bounds):
+    import hashlib
+
+    geometry = (5, -100, -80, 100, 80, round(100 * scale), round(80 * scale))
+    left, top, right, bottom = bounds
+    original = Image.new("RGB", geometry[5:7], "white")
+    outside = original.copy()
+    if right < 100:
+        outside.paste("black", (round(right * scale), round(top * scale),
+                                round((right + 2) * scale), round(bottom * scale)))
+    inside = original.copy()
+    inside.putpixel((round(right * scale) - 1, round((top + bottom) / 2 * scale)), (0, 0, 0))
+
+    def capture(image):
+        stream = io.BytesIO()
+        image.save(stream, "PNG")
+        return Observation.capture(stream.getvalue(), session_id="task", display_id=5,
+                                   window_id=7, window_bounds=bounds, display_geometry=geometry)
+
+    first, png = capture(original)
+    same, same_png = capture(outside)
+    changed, _ = capture(inside)
+    assert first.screen_size == (100, 80)
+    assert first.crop == bounds
+    assert first.scene_sha256 == same.scene_sha256
+    assert png == same_png
+    assert changed.scene_sha256 != first.scene_sha256
+    assert first.image_sha256 == hashlib.sha256(png).hexdigest()
+    assert first.map_point(first.image_size[0] / 2, first.image_size[1] / 2) == (-100 + (left + right) // 2, -80 + (top + bottom) // 2)
+    assert first.map_point(0, 0) == (-100 + left, -80 + top)
+    assert first.map_point(first.image_size[0] - 1, first.image_size[1] - 1) == (-100 + right - 1, -80 + bottom - 1)
+
+
+@pytest.mark.parametrize("size,bounds", [
+    ((199, 160), (10, 10, 70, 60)),
+    ((200, 159), (10, 10, 70, 60)),
+    ((200, 160), (-1, 10, 70, 60)),
+    ((200, 160), (10, 10, 101, 60)),
+])
+def test_backing_frame_refuses_mismatched_display_or_outside_crop(size, bounds):
+    stream = io.BytesIO()
+    Image.new("RGB", size, "white").save(stream, "PNG")
+    with pytest.raises(ValueError):
+        Observation.capture(stream.getvalue(), session_id="task", display_id=5,
+                            window_bounds=bounds, display_geometry=(5, 0, 0, 100, 80, 200, 160))
+
+
+async def test_native_backing_freshness_ignores_outside_but_rejects_inside(monkeypatch, shared_world):  # noqa: F811
+    import json
+    from dataclasses import replace
+    from agent_computer_use.channels import native
+    from agent_computer_use.contracts import Action, Binding
+    from .test_native import context, native_config
+
+    shared_world.window = replace(shared_world.window, bounds=(5, 5, 80, 60),
+                                  display_geometry=(5, 0, 0, 100, 80, 200, 160))
+    pixels = Image.new("RGB", (200, 160), "white")
+
+    def screenshot(**kwargs):
+        assert kwargs["backing"] is True
+        stream = io.BytesIO()
+        pixels.save(stream, "PNG")
+        return stream.getvalue()
+
+    monkeypatch.setattr(native.macos, "_capture_screenshot_macos", screenshot)
+    ctx = context()
+    ctx.runtime.bind("task")
+    channel = native.NativeAXChannel(config=native.NativeConfig.model_validate_json(json.dumps(native_config())))
+    try:
+        snapshot = await channel.observe("counter", ctx)
+        captured = await channel.capture(snapshot, ctx)
+        button = next(e for e in snapshot.elements if e.label == "Increment")
+        binding = Binding("goal", 1, snapshot.observation_id, snapshot.scope, snapshot.generation, "c")
+        action = Action("a", button.ref, "click", None)
+        pixels.putpixel((170, 30), (0, 0, 0))
+        assert await channel.is_current(binding, action, ctx)
+        same = await channel.capture(snapshot, ctx)
+        assert same.png == captured.png
+        assert same.frame.scene_sha256 == captured.frame.scene_sha256
+        pixels.putpixel((169, 30), (0, 0, 0))
+        assert not await channel.is_current(binding, action, ctx)
+        assert shared_world.sent == []
+    finally:
+        await channel.aclose()
+        await ctx.runtime.aclose()
+
+
 async def test_native_visual_candidates_map_into_the_bound_crop(monkeypatch, shared_world):  # noqa: F811
     import json
     from dataclasses import replace

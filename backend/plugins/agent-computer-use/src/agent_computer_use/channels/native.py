@@ -408,7 +408,8 @@ class NativeAXChannel:
             window = self.bound_window(context)
             if snapshot != self.previous or window != self.window or snapshot.window != str(window.window_id):
                 raise SubAgentStopped("stale_reference")
-            png = macos._capture_screenshot_macos(include_cursor=False, display=window.display_geometry[0])
+            png = macos._capture_screenshot_macos(
+                include_cursor=False, display=window.display_geometry[0], backing=True)
             if not png:
                 raise SubAgentStopped("invalid_visual_frame")
             self.check(context)
@@ -445,7 +446,8 @@ class NativeAXChannel:
             from tank_backend.tools.computer_observation import Observation
 
             captured = self.visual_frame
-            png = macos._capture_screenshot_macos(include_cursor=False, display=window.display_geometry[0])
+            png = macos._capture_screenshot_macos(
+                include_cursor=False, display=window.display_geometry[0], backing=True)
             if not png or captured.observation_id != snapshot.observation_id:
                 return None
             fresh_frame, _ = Observation.capture(

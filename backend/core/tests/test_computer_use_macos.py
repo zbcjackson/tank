@@ -794,6 +794,21 @@ def capture_chain(
     assert all(not path.exists() for path in paths), "capture temp files must be removed"
 
 
+@pytest.mark.parametrize("capture_chain", [
+    (1920, 1080, 1, False), (1600, 1000, 1.5, False), (1512, 982, 2, False),
+], indirect=True)
+def test_backing_capture_retains_original_pixels_without_whole_display_resize(capture_chain):
+    from PIL import Image
+
+    quartz, command = capture_chain
+    png = cu_macos._capture_screenshot_macos(include_cursor=False, backing=True)
+    geometry = quartz.topology[0]
+    with Image.open(io.BytesIO(png)) as image:
+        assert image.size == geometry[5:7]
+        assert image.getpixel((round(image.width * .75), round(image.height * .75))) == (255, 0, 0)
+    assert [call.args[0][0] for call in command.call_args_list] == ["screencapture"]
+
+
 def screenshot_wire_image(result: object) -> tuple[bytes, str]:
     """Use the actual tool-result/follow-up serializer, not the UI display."""
     from tank_backend.llm.llm import _build_follow_up_user_message, _tool_result_to_llm

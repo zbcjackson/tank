@@ -138,7 +138,7 @@ def _displays_note(
 # ---------------------------------------------------------------------------
 
 def _capture_screenshot_macos(
-    *, include_cursor: bool = True, display: int | None = None,
+    *, include_cursor: bool = True, display: int | None = None, backing: bool = False,
 ) -> bytes:
     """Capture one display and return PNG bytes scaled to point-resolution.
 
@@ -151,7 +151,8 @@ def _capture_screenshot_macos(
     macOS screencapture produces backing-resolution images (2x on Retina),
     but CGEvent uses point coordinates. We resize the screenshot to match
     point-space so the vision model returns coordinates that map directly
-    to CGEvent.
+    to CGEvent. Bound observations request ``backing=True`` to crop the original
+    pixels before resampling; their metadata still maps to logical points.
     """
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
         tmp_path = f.name
@@ -172,7 +173,7 @@ def _capture_screenshot_macos(
         if result.returncode != 0:
             raise RuntimeError(f"screencapture failed: {result.stderr}")
 
-        if geometry[5] > geometry[3]:
+        if not backing and geometry[5] > geometry[3]:
             # Downscale to point-resolution so vision model coordinates
             # map directly to CGEvent points
             result2 = subprocess.run(
@@ -189,11 +190,11 @@ def _capture_screenshot_macos(
 
         from PIL import Image
 
-        expected = (geometry[3], geometry[4])
+        expected = geometry[5:7] if backing else geometry[3:5]
         with Image.open(io.BytesIO(png_bytes)) as image:
             if image.size != expected:
                 raise RuntimeError(
-                    f"screenshot dimensions {image.size} do not match logical "
+                    f"screenshot dimensions {image.size} do not match "
                     f"display {geometry[0]} size {expected}"
                 )
     finally:
