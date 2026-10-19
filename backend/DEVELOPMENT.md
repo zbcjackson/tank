@@ -249,7 +249,7 @@ force Jev to abstain. `goal_completed` records physical goal/path/cleanup; new J
 semantic-gap tasks additionally require observed text control then same-binding
 visual fallback and no unsupported palette candidate for `strict_completed` (or
 negative acceptance). All guesses and original goal outcomes remain visible. See
-[the follow-up plan](../docs/plans/active/jev-vision-route-followup.md).
+[the follow-up plan](../docs/plans/done/jev-vision-route-followup.md).
 
 The managed DOM channel uses one `visual_png` policy for evidence and rechecks.
 It suppresses native carets through a persistent constructable stylesheet, leaving

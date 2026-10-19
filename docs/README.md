@@ -26,7 +26,7 @@
 | [research/jev-vision-route-pilot.md](research/jev-vision-route-pilot.md) | 调研 | 真实开发对照完成 | V四个正确保存选择后被执行门拒绝；JT往返完成，参考路径需新鲜度诊断 |
 | [plans/done/dom-visual-freshness.md](plans/done/dom-visual-freshness.md) | 计划 | 已完成 | 光标机制、完整回归、归档及第1轮独立审查通过，旧失败保持 |
 | [research/dom-visual-freshness.md](research/dom-visual-freshness.md) | 调研 | 组件机制已解决 | 96次无模型检查、108即时PNG；通道拒绝6/16→0/16，其他守卫保持；首次加载波动未确定原因 |
-| [plans/active/jev-vision-route-followup.md](plans/active/jev-vision-route-followup.md) | 计划 | 结果审查中 | 修复后36任务/66调用，两臂正例10/10、负例8/8，真实弃权兜底6/6，旧结果不重判 |
+| [plans/done/jev-vision-route-followup.md](plans/done/jev-vision-route-followup.md) | 计划 | 已完成 | 修复后36任务/66调用，第2轮独立结果审查通过；两臂正例10/10、负例8/8，真实弃权兜底6/6，旧结果不重判 |
 | [research/jev-vision-route-followup.md](research/jev-vision-route-followup.md) | 调研 | 真实开发复测完成 | 原24项均通过；新增JT六项先弃权后同绑定图片接管，无猜选；三种已见手写布局非确认集 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 真实弃权后接管已验证 | 下一步真实产品/新任务族、已知可恢复故障及独立确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
