@@ -251,7 +251,7 @@ applicable); these events contain no PNG or page body. The no-model
 `benchmarks.computer_use.dom_visual_freshness --output <new-directory>` records
 actual check PNGs, native-caret/hide controls, DOM equality and owned-browser cleanup.
 Its focus/seed setup precedes observation; it never dispatches task inputs or loads
-model credentials. See the [diagnosis plan](../docs/plans/active/dom-visual-freshness.md).
+model credentials. See the [diagnosis plan](../docs/plans/done/dom-visual-freshness.md).
 
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots
