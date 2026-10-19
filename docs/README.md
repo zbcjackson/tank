@@ -13,8 +13,9 @@
 | [research/jev-image-capability-pilot.md](research/jev-image-capability-pilot.md) | 调研 | 首轮完成，结论开放 | 260次真实请求；Jev图片Choice/Box各52/52，Qwen契约失败需修正；仅两种合成布局，未判采用 |
 | [research/jev-image-capability-v2-pilot.md](research/jev-image-capability-v2-pilot.md) | 调研 | v2重测完成，结论开放 | 260次请求；Qwen26/52严格合格、22/52通过，含重复键/额外字段及单位混用线索；Jev图片路径各52/52 |
 | [research/jev-image-native-pilot.md](research/jev-image-native-pilot.md) | 调研 | 真实计算器小样本完成 | Jev图片闭环2/2、只读Box中心2/2；12次请求，完整AX仍在，图片增量与跨应用能力待验证 |
-| [plans/active/jev-image-real-app-ablation.md](plans/active/jev-image-real-app-ablation.md) | 计划 | 真实应用探查中 | 第二应用的Jev文本/图片增量对照与只读Box，优先TextEdit临时文档，保留真实AX与独立验收 |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 真实计算器小样本完成 | 图片闭环与只读Box校准已跑通；图片增量/跨应用待验证，Qwen专项后置，生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
+| [research/jev-image-real-app-ablation.md](research/jev-image-real-app-ablation.md) | 调研 | TextEdit小样本完成 | 图片选择3/3正确、闭环2/4；文本3次调用均弃权；Box3/6数量判断通过、3项帧拒绝，下一步诊断稳定性 |
+| [plans/done/jev-image-real-app-ablation.md](plans/done/jev-image-real-app-ablation.md) | 计划 | 已完成 | 第二真实应用文本/图片对照与只读Box已运行，196项原始工件归档，拒绝与未完成保留分母 |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | TextEdit增量小样本完成 | 颜色任务观察到图片增量，先诊断帧/引用拒绝；广泛验证及Qwen专项待做，生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
