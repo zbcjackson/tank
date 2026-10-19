@@ -7,7 +7,7 @@ from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 
 from .agent import ComputerUseSubAgent
 from .contracts import Action, Binding, DispatchReceipt, Snapshot
-from .controller import ComputerUseController, Selector
+from .controller import Advisor, ComputerUseController, Selector
 
 
 class UnavailableChannel:
@@ -31,8 +31,9 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
         if (set(config) - {"browser", "macos", "selector", "advisor", "intake"}
                 or len(set(config) & {"browser", "macos"}) != 1
                 or ("selector" in config and config["selector"] not in (
-                    "jev", "llm", "jev-fallback", "jev-vision"))
-                or ("advisor" in config and config["advisor"] != "llm")
+                    "jev", "llm", "jev-fallback", "jev-vision", "jev-image"))
+                or ("advisor" in config and config["advisor"] not in ("llm", "jev-image"))
+                or config.get("advisor") == "jev-image" and config.get("selector") != "jev-image"
                 or ("intake" in config and (config["intake"] != "llm" or "macos" not in config))):
             raise ValueError("Specify one explicit browser or macos channel")
         binder = intake = None
@@ -61,6 +62,10 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
         selector: Selector | None = None
         if config.get("selector") == "jev":
             selector = JevSelector()
+        elif config.get("selector") == "jev-image":
+            from .jev_image_selector import JevImageSelector
+
+            selector = JevImageSelector(channel)
         elif config.get("selector") == "jev-vision":
             from .visual_selector import VisualSelector
 
@@ -69,7 +74,13 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
             from .model_selector import ModelSelector
 
             selector = ModelSelector(use_jev=config["selector"] == "jev-fallback")
-        advisor = LLMAdvisor(allow_focus=selector is not None) if config.get("advisor") == "llm" else None
+        advisor: Advisor | None = (
+            LLMAdvisor(allow_focus=selector is not None) if config.get("advisor") == "llm" else None)
+        if config.get("advisor") == "jev-image":
+            from .jev_image_selector import JevImageSelector
+
+            assert isinstance(selector, JevImageSelector)
+            advisor = selector
         return ComputerUseSubAgent(
             ComputerUseController(channel, channel, selector=selector, advisor=advisor,
                                   binder=binder, intake=intake, completion_keys=completion_keys,

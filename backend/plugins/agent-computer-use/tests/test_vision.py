@@ -11,6 +11,227 @@ from tank_backend.tools.computer_observation import Observation
 from .test_native import world as shared_world  # noqa: F401
 
 
+def test_real_application_image_recipe_prepares_without_desktop_or_clients(monkeypatch, tmp_path):
+    import json
+    from pathlib import Path
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_native as pilot
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("offline preparation cannot open clients or applications")
+
+    monkeypatch.setattr(httpx, "AsyncClient", forbidden)
+    monkeypatch.setattr(httpx2, "AsyncClient", forbidden)
+    monkeypatch.setattr(pilot.OwnedApplication, "start", forbidden)
+    root = tmp_path / "pilot"
+    frozen = pilot.prepare(root)
+    assert frozen["request_limit"] == 26 and frozen["nano_usd_limit"] == 100_000_000
+    assert [case["expression"] for case in frozen["cases"]] == ["7×8", "12+34"]
+    assert frozen["application"]["bundle_id"] == "com.apple.calculator"
+    assert pilot.load_freeze(root, frozen["sha256"]) == frozen
+    assert not (root / "started.json").exists()
+    frozen["cases"][0]["result"] = "57"
+    (root / "freeze.json").write_text(json.dumps(frozen))
+    with pytest.raises(ValueError, match="freeze changed"):
+        pilot.load_freeze(root, frozen["sha256"])
+
+
+def test_native_image_freeze_rejects_changed_selector_gate(monkeypatch, tmp_path):
+    from pathlib import Path
+    from agent_computer_use import model_selector
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_native as pilot
+
+    root = tmp_path / "pilot"
+    frozen = pilot.prepare(root)
+    source = Path(model_selector.__file__)
+    original = Path.read_bytes
+
+    def changed(path):
+        data = original(path)
+        return data + b"\n# changed selector gate\n" if path == source else data
+
+    monkeypatch.setattr(Path, "read_bytes", changed)
+    with pytest.raises(ValueError, match="freeze changed"):
+        pilot.load_freeze(root, frozen["sha256"])
+
+
+@pytest.mark.parametrize("cleanup_confirmed", [True, False])
+async def test_native_image_setup_failure_preserves_tasks_and_closes_owner(monkeypatch, tmp_path, cleanup_confirmed):
+    from pathlib import Path
+    from tank_backend.agents import resources
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_native as pilot
+
+    closed = []
+    class Owner:
+        def __init__(self, case):
+            pass
+
+        def start(self):
+            raise RuntimeError("native setup unavailable")
+
+        def close(self):
+            closed.append(True)
+            return {"confirmed": cleanup_confirmed}
+
+    monkeypatch.setattr(pilot, "OwnedApplication", Owner)
+    monkeypatch.setattr(resources, "DESKTOP_RESOURCE", resources.DesktopResource())
+    root = tmp_path / "pilot"
+    frozen = pilot.prepare(root)
+    report = await pilot.run_batch(root, frozen["sha256"], mode="fake")
+    assert not report["completed"] and not report["all_passed"]
+    assert [row["status"] for row in report["rows"]] == ["error", "not_run"]
+    assert report["rows"][0]["cleanup_confirmed"] == cleanup_confirmed
+    assert closed == [True] and report["spend"]["batch"]["admitted_requests"] == 0
+    with pytest.raises(FileExistsError):
+        await pilot.run_batch(root, frozen["sha256"], mode="fake")
+
+
+async def test_native_image_live_preflight_refuses_before_marker_or_client(monkeypatch, tmp_path):
+    from pathlib import Path
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_image_native as pilot
+
+    def denied():
+        raise RuntimeError("OS access denied")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("preflight refusal cannot create a client")
+
+    monkeypatch.setattr(pilot, "preflight", denied)
+    monkeypatch.setattr(httpx2, "AsyncClient", forbidden)
+    root = tmp_path / "pilot"
+    frozen = pilot.prepare(root)
+    with pytest.raises(RuntimeError, match="OS access denied"):
+        await pilot.run_batch(root, frozen["sha256"], mode="live", credential="test")
+    assert not (root / "started.json").exists()
+
+
+@pytest.mark.parametrize("count,failure", [(3, None), (5, None)] + [
+    (3, failure) for failure in ("scope", "receiver", "stale_image", "revoked", "unknown",
+                                "unoffered", "abstain", "bounds", "effect_unknown", "settle", "unstable", "padding")])
+async def test_jev_native_image_factory_executes_bound_candidates(
+    monkeypatch, shared_world, count, failure,  # noqa: F811
+):
+    import asyncio
+    import json
+    from email.parser import BytesParser
+    from email.policy import default
+    import httpx2
+    from agent_computer_use import create_subagent
+    from tank_backend.agents.subagent import (
+        SubAgentAuthorization, SubAgentBudget, SubAgentContext, SubAgentRequest,
+    )
+    from tank_backend.llm.decision_profile import DecisionModelProfile
+    from tank_backend.llm.model_data import ModelDataScope
+    from .test_native import goal, macos_policy, targeted
+
+    requests = []
+
+    def respond(request):
+        nonlocal png_bytes
+        assert request.headers["TypeSafe-Danger-Zone-Images"] == "true"
+        message = BytesParser(policy=default).parsebytes(
+            ("Content-Type: " + request.headers["content-type"] + "\r\n\r\n").encode()
+            + request.content)
+        parts = list(message.iter_parts())
+        raw = parts[0].get_payload(decode=True)
+        assert isinstance(raw, bytes)
+        body = json.loads(raw)
+        requests.append(body)
+        assert len(parts) == 2
+        expected_bounds = [7.84, 108.8, 15.68, 15.6] if failure == "padding" else [35, 35, 70, 70]
+        assert body["state"]["image_candidates"]["c1"] == pytest.approx(expected_bounds)
+        criteria = body["questions"]["next_action"]["criteria"]
+        choice = "none" if failure == "abstain" else "invented" if failure == "unoffered" else "c1"
+        reply = {"model": "jev-1.14.0", "answers": {
+            "next_action": {"type": "choice", "choice": choice, "confidence": 1.0,
+                "probabilities": {key: float(key == choice) for key in criteria}}},
+            "usage": {"input_tokens": 7, "output_tokens": 0}}
+        if failure == "stale_image":
+            changed = io.BytesIO()
+            Image.new("RGB", (100, 80), "black").save(changed, "PNG")
+            png_bytes = changed.getvalue()
+        elif failure == "revoked":
+            context.authorization.revoke()
+        elif failure == "unknown":
+            reply.pop("usage")
+        return httpx2.Response(200, json=reply)
+
+    monkeypatch.setattr(httpx2, "AsyncHTTPTransport", lambda **kwargs: httpx2.MockTransport(respond))
+    size = (100, 80)
+    if failure == "padding":
+        from dataclasses import replace
+        size = (2000, 100)
+        shared_world.window = replace(shared_world.window, bounds=(0, 0, *size),
+            display_geometry=(5, 0, 0, *size, *size))
+    png = io.BytesIO()
+    Image.new("RGB", size, "white").save(png, "PNG")
+    png_bytes = png.getvalue()
+    captures = 0
+    def screenshot(**kwargs):
+        nonlocal captures
+        captures += 1
+        if failure in {"settle", "unstable"} and captures > 1 and (
+            failure == "settle" or captures % 2 == 0
+        ):
+            changed = io.BytesIO()
+            Image.new("RGB", (100, 80), "black").save(changed, "PNG")
+            return changed.getvalue()
+        return png_bytes
+    monkeypatch.setattr("agent_computer_use.channels.native.macos._capture_screenshot_macos",
+                        screenshot)
+    context = SubAgentContext(SubAgentAuthorization(frozenset({"desktop", "network"})),
+        SubAgentBudget(), asyncio.Event(),
+        model_data_scope=ModelDataScope(frozenset({"text"} if failure == "scope" else {"text", "image"})))
+    context.runtime.configure_decision_model("task", DecisionModelProfile(
+        "https://offline.invalid/v1/systemone", "jev-1.14.0", "KEY", images=failure != "receiver"),
+        credential="test")
+    plugin = create_subagent({"macos": macos_policy(), "selector": "jev-image", "advisor": "jev-image"})
+    if failure == "effect_unknown":
+        monkeypatch.setattr("agent_computer_use.channels.native.ax_press",
+                            lambda ref: shared_world.sent.append(("press", ref)))
+    elif failure == "bounds":
+        from dataclasses import replace
+        from agent_computer_use.channels.native import NativeAXChannel
+        channel = plugin.controller.source
+        assert isinstance(channel, NativeAXChannel)
+        capture = channel.capture
+        async def outside(snapshot, context):
+            frame = await capture(snapshot, context)
+            return replace(frame, bounds=tuple((ref, (90, 10, 20, 20)) for ref, _ in frame.bounds))
+        monkeypatch.setattr(channel, "capture", outside)
+    task = goal().model_dump(mode="json")
+    task["completion"][0]["value"] = str(count)
+    try:
+        outputs = [o async for o in plugin.run(SubAgentRequest(
+            "Increment to the requested result", "", "task", targeted(task)), context)]
+        result = outputs[-1].metadata["task_result"]
+        if failure and failure not in {"settle", "padding"}:
+            expected = {"scope": "model_data_denied", "receiver": "decision_images_denied",
+                "stale_image": "stale_reference", "revoked": "error", "unknown": "invalid_decision",
+                "unoffered": "invalid_decision", "abstain": "none",
+                "bounds": "visual_target_unavailable", "effect_unknown": "effect_unknown",
+                "unstable": "unstable_visual_frame"}
+            assert result["reason"] == expected[failure], result
+            assert len(shared_world.sent) == (1 if failure == "effect_unknown" else 0)
+            assert len(requests) == (0 if failure in {"scope", "receiver", "bounds", "unstable"} else 1)
+            assert bool(context.budget.unknown_calls) == (failure == "unknown")
+            return
+        assert result["status"] == "completed"
+        assert shared_world.value == str(count) and len(shared_world.sent) == count
+        assert len(requests) == count and context.budget.total_tokens == 7 * count
+        if count == 5:
+            assert requests[3]["state"]["selection_reason"] == "goal_progress_unverified"
+    finally:
+        await plugin.aclose()
+        await context.runtime.aclose()
+
+
 def test_qwen_location_contract_uses_declared_thousand_scale(monkeypatch):
     from pathlib import Path
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))

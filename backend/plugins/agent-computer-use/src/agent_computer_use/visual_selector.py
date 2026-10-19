@@ -63,35 +63,10 @@ class VisualSelector:
         model = context.runtime.visual_model
         if model is None:
             raise SubAgentStopped("visual_model_unavailable")
-        if "image" not in context.model_data_scope.allowed_types:
-            raise SubAgentStopped("model_data_denied")
-        assert self.capture_operation is not None
-        captured = await context.runtime.execute(self.capture_operation, snapshot)
-        ModelSelector.check(context)
+        captured = await self.capture_frame(snapshot, actions, context)
         frame, png = captured.frame, captured.png
-        if (captured.observation_id != snapshot.observation_id
-                or frame.session_id != context.runtime.task_id
-                or not png or len(png) > 16 * 1024 * 1024
-                or hashlib.sha256(png).hexdigest() != frame.image_sha256):
-            raise SubAgentStopped("invalid_visual_frame")
-        with Image.open(io.BytesIO(png)) as image:
-            if (image.format != "PNG" or image.size != frame.image_size
-                    or image.width * image.height > 16_000_000):
-                raise SubAgentStopped("invalid_visual_frame")
         bounds = dict(captured.bounds)
-        if len(bounds) != len(captured.bounds):
-            raise SubAgentStopped("invalid_visual_frame")
         candidates = candidate_aliases(actions)
-        import math
-        for action in candidates.values():
-            rect = bounds.get(action.target_ref)
-            if rect is None:
-                raise SubAgentStopped("visual_target_unavailable")
-            x, y, width, height = rect
-            if (not all(math.isfinite(v) for v in rect)
-                    or not 0 <= x < x + width <= frame.image_size[0]
-                    or not 0 <= y < y + height <= frame.image_size[1]):
-                raise SubAgentStopped("visual_target_unavailable")
         payload = decision_question(goal, snapshot, actions)
         payload["image_candidates"] = {
             key: bounds[action.target_ref] for key, action in candidates.items()}
@@ -126,3 +101,38 @@ class VisualSelector:
         except ValueError:
             pass
         raise SubAgentStopped("invalid_decision")
+
+    async def capture_frame(
+        self, snapshot: Snapshot, actions: ActionSet, context: SubAgentContext,
+    ) -> VisualFrame:
+        """Capture one bound upright-source frame and validate candidate geometry."""
+        if "image" not in context.model_data_scope.allowed_types:
+            raise SubAgentStopped("model_data_denied")
+        assert self.capture_operation is not None
+        captured = await context.runtime.execute(self.capture_operation, snapshot)
+        ModelSelector.check(context)
+        frame, png = captured.frame, captured.png
+        if (captured.observation_id != snapshot.observation_id
+                or frame.session_id != context.runtime.task_id
+                or not png or len(png) > 16 * 1024 * 1024
+                or hashlib.sha256(png).hexdigest() != frame.image_sha256):
+            raise SubAgentStopped("invalid_visual_frame")
+        with Image.open(io.BytesIO(png)) as image:
+            if (image.format != "PNG" or image.size != frame.image_size
+                    or image.width * image.height > 16_000_000):
+                raise SubAgentStopped("invalid_visual_frame")
+        bounds = dict(captured.bounds)
+        if len(bounds) != len(captured.bounds):
+            raise SubAgentStopped("invalid_visual_frame")
+        candidates = candidate_aliases(actions)
+        import math
+        for action in candidates.values():
+            rect = bounds.get(action.target_ref)
+            if rect is None:
+                raise SubAgentStopped("visual_target_unavailable")
+            x, y, width, height = rect
+            if (not all(math.isfinite(v) for v in rect)
+                    or not 0 <= x < x + width <= frame.image_size[0]
+                    or not 0 <= y < y + height <= frame.image_size[1]):
+                raise SubAgentStopped("visual_target_unavailable")
+        return captured
