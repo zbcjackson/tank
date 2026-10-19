@@ -20,6 +20,7 @@
 | [plans/done/jev-bound-frame-capture.md](plans/done/jev-bound-frame-capture.md) | 计划 | 已完成 | 绑定窗口先裁剪backing像素再缩放；完整回归、24次只读检查与独立审查通过 |
 | [research/jev-post-crop-live-validation.md](research/jev-post-crop-live-validation.md) | 调研 | 真实复测完成 | 颜色图片4/4完成；指定行两臂模型各4/4正确，文本1次frame_scene拒绝；小Box中心0/2、数量6/6 |
 | [plans/done/jev-post-crop-live-validation.md](plans/done/jev-post-crop-live-validation.md) | 计划 | 已完成 | 无固定请求/费用上限的22次真实判断已归档，两轮独立审查完成，含文字充分对照及精确拒绝阶段 |
+| [plans/active/jev-box-crop-comparison.md](plans/active/jev-box-crop-comparison.md) | 计划 | 实施中 | 冻结TextEdit/Calculator同图整窗与区域裁剪，Jev/Gemini只读Box及大小/数量对照 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 真实复测完成 | 颜色图片与文字充分对照已测，小目标Box失败/场景拒绝保留；跨应用及混合路由待验证，生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
