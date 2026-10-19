@@ -18,8 +18,9 @@
 | [research/jev-frame-freshness-diagnostics.md](research/jev-frame-freshness-diagnostics.md) | 调研 | 机制已复现 | 确认整屏缩小再裁剪可引入窗口外像素；18次只读检查中5次像素拒绝，未改生产或旧评分 |
 | [plans/done/jev-frame-freshness-diagnostics.md](plans/done/jev-frame-freshness-diagnostics.md) | 计划 | 已完成 | 无模型TextEdit新鲜度诊断，8上下文清理通过，97项证据及独立审查完成，后续捕获修复由主计划承接 |
 | [plans/done/jev-bound-frame-capture.md](plans/done/jev-bound-frame-capture.md) | 计划 | 已完成 | 绑定窗口先裁剪backing像素再缩放；完整回归、24次只读检查与独立审查通过 |
-| [plans/active/jev-post-crop-live-validation.md](plans/active/jev-post-crop-live-validation.md) | 计划 | 实施中 | 裁剪修复后真实TextEdit复测、文字充分负对照、拒绝阶段及完整帧记录；用户授权取消建议的固定调用/费用上限 |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | TextEdit增量小样本完成 | 颜色任务观察到图片增量，先诊断帧/引用拒绝；广泛验证及Qwen专项待做，生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
+| [research/jev-post-crop-live-validation.md](research/jev-post-crop-live-validation.md) | 调研 | 真实复测完成 | 颜色图片4/4完成；指定行两臂模型各4/4正确，文本1次frame_scene拒绝；小Box中心0/2、数量6/6 |
+| [plans/done/jev-post-crop-live-validation.md](plans/done/jev-post-crop-live-validation.md) | 计划 | 已完成 | 无固定请求/费用上限的22次真实判断已归档，两轮独立审查完成，含文字充分对照及精确拒绝阶段 |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 真实复测完成 | 颜色图片与文字充分对照已测，小目标Box失败/场景拒绝保留；跨应用及混合路由待验证，生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
