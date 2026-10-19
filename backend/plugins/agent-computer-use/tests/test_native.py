@@ -723,6 +723,42 @@ def test_independent_native_readback_has_bounded_read_only_retries(monkeypatch, 
     assert read.call_count == 3
 
 
+@pytest.mark.parametrize("rtf", [None, b"{\\rtf1\\ansi seeded document}"])
+def test_owned_textedit_opens_seed_before_launch_and_cleans_failed_setup(monkeypatch, tmp_path, rtf):
+    from pathlib import Path
+    from types import SimpleNamespace
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import s4_ax
+
+    owner = s4_ax.OwnedApplication(next(c for c in s4_ax.CASES if c["application"] == "textedit"), rtf=rtf)
+    opened = []
+
+    def launch(urls, app, configuration, callback):
+        path = Path(urls[0])
+        opened.append((path.suffix, path.read_bytes()))
+        callback(None, RuntimeError("fixture launch refused"))
+
+    workspace = SimpleNamespace(runningApplications=lambda: [], frontmostApplication=lambda: None,
+        URLForApplicationWithBundleIdentifier_=lambda bundle: "app-url",
+        openURLs_withApplicationAtURL_configuration_completionHandler_=launch)
+    configuration = SimpleNamespace(setCreatesNewApplicationInstance_=lambda value: None,
+        setActivates_=lambda value: None, setArguments_=lambda value: None)
+    modules = {"AppKit": SimpleNamespace(NSWorkspace=SimpleNamespace(sharedWorkspace=lambda: workspace),
+        NSWorkspaceOpenConfiguration=SimpleNamespace(configuration=lambda: configuration)),
+        "Foundation": SimpleNamespace(NSURL=SimpleNamespace(fileURLWithPath_=lambda path: path))}
+    original = s4_ax.importlib.import_module
+    monkeypatch.setattr(s4_ax.importlib, "import_module", lambda name: modules.get(name) or original(name))
+    original_temp = s4_ax.tempfile.mkstemp
+    monkeypatch.setattr(s4_ax.tempfile, "mkstemp", lambda **kwargs: original_temp(dir=tmp_path, **kwargs))
+    monkeypatch.setattr(s4_ax, "pump", lambda *args: None)
+    monkeypatch.setattr(s4_ax.computer_ax, "ax_focused_pid", lambda: 0)
+    with pytest.raises(RuntimeError, match="launch unconfirmed"):
+        owner.start()
+    assert opened == [(".txt", b"") if rtf is None else (".rtf", rtf)]
+    assert owner.path is not None and owner.path.exists()
+    assert owner.close()["confirmed"] and not owner.path.exists()
+
+
 def test_independent_validator_ignores_other_ax_windows_only_after_geometry_binding(monkeypatch):
     from pathlib import Path
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))

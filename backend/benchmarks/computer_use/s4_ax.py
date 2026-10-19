@@ -227,8 +227,9 @@ def setup_position(bounds: dict[str, float], geometry: tuple[int, ...], shifted:
 class OwnedApplication:
     """Pilot-only process owner; production channels merely borrow their bound window."""
 
-    def __init__(self, case: PilotCase) -> None:
+    def __init__(self, case: PilotCase, *, rtf: bytes | None = None) -> None:
         self.case = case
+        self.rtf = rtf
         self.app: Any = None
         self.pid: int | None = None
         self.identity: native.ProcessIdentity | None = None
@@ -303,9 +304,11 @@ class OwnedApplication:
 
         self.launch_pending = True
         if self.case["application"] == "textedit":
-            fd, filename = tempfile.mkstemp(prefix="tank-s4-ax-", suffix=".txt")
-            os.close(fd)
+            fd, filename = tempfile.mkstemp(prefix="tank-s4-ax-", suffix=".rtf" if self.rtf is not None else ".txt")
             self.path = Path(filename)
+            with os.fdopen(fd, "wb") as stream:
+                if self.rtf is not None:
+                    stream.write(self.rtf)
             workspace.openURLs_withApplicationAtURL_configuration_completionHandler_(
                 [foundation.NSURL.fileURLWithPath_(filename)], app_url, configuration, launched)
         else:
