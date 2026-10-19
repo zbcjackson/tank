@@ -1388,3 +1388,62 @@ async def test_nl_pilot_fake_runs_intake_then_completes_calculator(world, monkey
     assert row["result"]["details"]["intake"]["completion"][0]["value"] == "56"
     assert world.sent == ["7", "Multiply", "8", "Equals"]
     assert report["fake_http_requests"] >= 2
+
+
+@pytest.mark.parametrize("stage", ["binding", "window", "frame_identity", "frame_scene", "selected_action", "ax_incomplete", "ax_count", "ax_identity"])
+@pytest.mark.parametrize("observer_fails", [False, True])
+async def test_native_freshness_reports_refusal_stage_without_changing_gate(world, monkeypatch, stage, observer_fails):
+    import io
+    import json
+    from PIL import Image
+    from unittest.mock import Mock
+    from agent_computer_use.channels import native
+    from agent_computer_use.contracts import Action, Binding
+
+    observer = Mock()
+    if observer_fails:
+        observer.on_event.side_effect = RuntimeError("telemetry unavailable")
+    ctx = replace(context(), observer=observer)
+    ctx.runtime.bind("task")
+    channel = native.NativeAXChannel(config=native.NativeConfig.model_validate_json(json.dumps(native_config())))
+    pixels = Image.new("RGB", (100, 80), "white")
+
+    def screenshot(**kwargs):
+        stream = io.BytesIO()
+        pixels.save(stream, "PNG")
+        return stream.getvalue()
+
+    monkeypatch.setattr(native.macos, "_capture_screenshot_macos", screenshot)
+    try:
+        snapshot = await channel.observe("counter", ctx)
+        binding = Binding("g", 1, snapshot.observation_id, "counter", snapshot.generation, "c")
+        action = Action("a", snapshot.elements[0].ref, "click", None)
+        if stage == "binding":
+            binding = replace(binding, generation=99)
+        elif stage == "window":
+            world.window = replace(world.window, bounds=(1, 0, 99, 80))
+        elif stage == "frame_scene":
+            await channel.capture(snapshot, ctx)
+            pixels.putpixel((99, 79), (0, 0, 0))
+        elif stage == "frame_identity":
+            await channel.capture(snapshot, ctx)
+            assert channel.visual_frame is not None
+            channel.visual_frame = replace(channel.visual_frame, observation_id="other")
+        elif stage == "selected_action":
+            action = replace(action, operation="fill", value="test")
+        elif stage == "ax_count":
+            world.buttons = []
+        elif stage == "ax_incomplete":
+            world.incomplete = True
+        else:
+            world.button = replace(world.button, enabled=False)
+            world.buttons = [world.button]
+        assert not await channel.is_current(binding, action, ctx)
+        assert world.sent == []
+        if not observer_fails:
+            events = [call.args[1] for call in observer.on_event.call_args_list
+                      if call.args[0] == "computer_use_freshness"]
+            assert events == [{"stage": stage, "observation_id": snapshot.observation_id}]
+    finally:
+        await channel.aclose()
+        await ctx.runtime.aclose()

@@ -165,8 +165,9 @@ def test_ablation_selects_only_neutral_header_and_verifies_setup(monkeypatch, sh
 
 
 @pytest.mark.parametrize("unknown,blocked", [(False, False), (True, False), (False, True)])
+@pytest.mark.parametrize("unlimited", [False, True])
 async def test_ablation_batch_governs_all_real_sdk_calls_and_stops_unknown(
-    monkeypatch, shared_world, tmp_path, unknown, blocked,  # noqa: F811
+    monkeypatch, shared_world, tmp_path, unknown, blocked, unlimited,  # noqa: F811
 ):
     import json
     from pathlib import Path
@@ -257,28 +258,35 @@ async def test_ablation_batch_governs_all_real_sdk_calls_and_stops_unknown(
                 yield
         monkeypatch.setattr(pilot.s4_ax, "fake_model_http", missing_usage)
     root = tmp_path / "pilot"
-    frozen = pilot.prepare(root)
+    frozen = pilot.prepare(root, record_only=unlimited, text_controls=unlimited)
     report = await pilot.run_batch(root, frozen["sha256"], mode="fake")
-    assert len(report["rows"]) == 10 and sum(len(r.get("boxes", [])) for r in report["rows"]) == 6
+    assert len(report["rows"]) == (18 if unlimited else 10) and sum(len(r.get("boxes", [])) for r in report["rows"]) == 6
     assert report["completed"] == (not unknown), report.get("spend")
     calls = [json.loads(line) for line in (root / "calls.jsonl").read_text().splitlines()]
     requests = [r for r in calls if "request" in r]
     if unknown:
         assert len(requests) == len(closed) == 1 and not shared_world.sent
         assert report["spend"]["stop_reason"] == "unknown_usage"
-        assert report["spend"]["batch"]["reserved_tokens"] > 0
+        assert (report["spend"]["batch"]["reserved_tokens"] > 0) != unlimited
         assert all(r["status"] == "not_run" for r in report["rows"][1:])
     else:
-        assert len(requests) == 14 and len(closed) == 10
+        assert len(requests) == (22 if unlimited else 14) and len(closed) == (18 if unlimited else 10)
         image_rows = [r for r in report["rows"] if r["kind"] == "task" and r["arm"] == "image"]
-        assert sum(r["passed"] for r in image_rows) == (0 if blocked else 4)
+        assert sum(r["passed"] for r in image_rows) == (0 if blocked else (8 if unlimited else 4))
         assert all(r["model_correct"] for r in image_rows)
         if blocked:
             assert all(not r["native_actions"] and r["result"]["reason"] == "not_sent" for r in image_rows)
-        assert all(r.get("model_abstained") and not r["native_actions"] for r in report["rows"] if r["arm"] == "text")
+        assert all(r.get("model_abstained") and not r["native_actions"] for r in report["rows"] if r["arm"] == "text" and not r.get("named_target"))
         assert all(not r["native_actions"] for r in report["rows"] if r["kind"] == "box")
-        assert report["spend"]["batch"]["known_tokens"] == 14 * 12
-        assert report["spend"]["batch"]["known_nano_usd"] == 14 * 10 * 42
+        assert report["spend"]["batch"]["known_tokens"] == len(requests) * 12
+        assert report["spend"]["batch"]["known_nano_usd"] == (0 if unlimited else 14 * 10 * 42)
+        assert report["spend"]["record_only"] == unlimited
+        if unlimited:
+            assert frozen["request_limit"] is None
+            named_text = [r for r in report["rows"] if r.get("named_target") and r["arm"] == "text"]
+            assert len(named_text) == 4 and all(r["passed"] for r in named_text)
+        assert all(r.get("frames") for r in report["rows"])
+        assert sum(len(r["frames"]) for r in report["rows"] if r["kind"] == "box") == 12
         assert report["spend"]["batch"]["reserved_tokens"] == 0
 
 
@@ -333,7 +341,8 @@ async def test_ablation_live_preflight_refuses_before_marker_or_client(monkeypat
     assert not (root / "started.json").exists()
 
 
-def test_ablation_public_question_keeps_both_variants_and_hides_private_completion(monkeypatch):
+@pytest.mark.parametrize("named", [None, "north", "south"])
+def test_ablation_public_question_keeps_both_variants_and_hides_private_completion(monkeypatch, named):
     from pathlib import Path
     from agent_computer_use.action_builder import ActionBuilder
     from agent_computer_use.contracts import Element, Fact, GoalContract, Snapshot
@@ -342,7 +351,7 @@ def test_ablation_public_question_keeps_both_variants_and_hides_private_completi
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_image_ablation as pilot
 
-    trial = pilot.trials()[0]
+    trial = {**pilot.trials()[0], **({"named_target": named} if named else {})}
     raw = pilot.goal(trial, pilot.VARIANTS["north"])
     raw.pop("target")
     goal = GoalContract.from_input(raw)
@@ -365,7 +374,8 @@ def test_ablation_public_question_keeps_both_variants_and_hides_private_completi
     assert list(first["state"]["image_candidates"].values()) == [[17.5, 17.5, 315.0, 245.0]] * 2
 
 
-def test_real_app_ablation_prepares_private_oracle_without_clients_or_desktop(monkeypatch, tmp_path):
+@pytest.mark.parametrize("unlimited", [False, True])
+def test_real_app_ablation_prepares_private_oracle_without_clients_or_desktop(monkeypatch, tmp_path, unlimited):
     import json
     from pathlib import Path
     import httpx2
@@ -378,10 +388,11 @@ def test_real_app_ablation_prepares_private_oracle_without_clients_or_desktop(mo
     monkeypatch.setattr(pilot.s4_ax.OwnedApplication, "start", forbidden)
     monkeypatch.setattr(httpx2, "AsyncClient", forbidden)
     root = tmp_path / "pilot"
-    frozen = pilot.prepare(root)
-    assert len(frozen["trials"]) == 10
-    assert [t["arm"] for t in frozen["trials"]].count("text") == 4
-    assert frozen["request_limit"] == 14 and frozen["nano_usd_limit"] == 100_000_000
+    frozen = pilot.prepare(root, record_only=unlimited, text_controls=unlimited)
+    assert len(frozen["trials"]) == (18 if unlimited else 10)
+    assert [t["arm"] for t in frozen["trials"]].count("text") == (8 if unlimited else 4)
+    assert frozen["request_limit"] == (None if unlimited else 14)
+    assert frozen["nano_usd_limit"] == (0 if unlimited else 100_000_000)
     assert pilot.load_freeze(root, frozen["sha256"]) == frozen
     assert b"\\red220" in (root / "private/scene-01.rtf").read_bytes()
     public = json.loads((root / "public.json").read_text())

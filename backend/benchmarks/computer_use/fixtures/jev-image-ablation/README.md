@@ -1,5 +1,24 @@
 # Real TextEdit image ablation
 
+## Post-crop validation options
+
+Preparation accepts `--record-only --text-controls`. The reviewed freeze then has
+no batch request/token/cost admission limit; usage is still journaled, unknown
+usage/effects stop, and each microtask retains one decision/one fill and a 120s
+deadline. The original limited mode below remains the default. `record_only`
+reports unpriced usage; any historical-rate estimate is calculated separately.
+Execution reads the flags from the approved freeze rather than accepting overrides.
+
+Text controls add eight trials (North/South named explicitly, two positions, both
+arms). They retain both replacement alternatives and omit private completion;
+the task and GoalContract share the named instruction. Together with the original
+eight color trials and six Box questions this gives 22 planned judgments, not a
+new billing cap. All captures are saved under `frames`, including Box before/after
+captures even when the response is rejected. Native `computer_use_freshness`
+events identify the exact refusing stage without changing dispatch outcomes.
+
+## Original comparison protocol
+
 This uses the installed TextEdit with seeded temporary RTF documents, not a handmade
 UI. Current plain AX observations expose the body and toolbar but not per-character
 body colors. Both arms retain actual AX descriptions, including the incomplete

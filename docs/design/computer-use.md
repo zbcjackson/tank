@@ -30,6 +30,8 @@ Observation先按逻辑窗口映射裁剪原图，再缩放输出，避免整屏
 窗口捕获或像素容差，原进程/窗口/AX/输入门继续生效。原生AX仍仅支持主屏；
 通用帧的副屏映射回归不代表新增AX副屏执行能力。诊断依据见
 [新鲜度记录](../research/jev-frame-freshness-diagnostics.md)。
+原生新鲜度拒绝另发只读stage/observation事件，区分绑定、窗口、像素与AX复扫；
+观察者失败不影响原输入门或stale_reference结果语义。
 
 显式`selector: jev-vision`与extension的`visual-model`声明接线一条有限候选图片路径。
 完整结构先Jev文本，合法弃权后用绑定窗口/主frame PNG做单步选择；缺标签或语义

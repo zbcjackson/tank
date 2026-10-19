@@ -436,12 +436,18 @@ class NativeAXChannel:
     def current(self, binding: Binding, action: Action, context: SubAgentContext) -> AXCandidate | None:
         self.check(context)
         snapshot, source, window, config = self.previous, self.source, self.window, self.config
+
+        def refused(stage: str) -> None:
+            context.observe("computer_use_freshness", stage=stage,
+                            observation_id=snapshot.observation_id if snapshot is not None else None)
+
         if (config is None or snapshot is None or source is None or window is None
                 or not snapshot.complete
                 or (binding.observation_id, binding.generation, binding.scope) !=
-                (snapshot.observation_id, snapshot.generation, snapshot.scope)
-                or read_window(config) != window):
-            return None
+                (snapshot.observation_id, snapshot.generation, snapshot.scope)):
+            return refused("binding")
+        if read_window(config) != window:
+            return refused("window")
         if self.visual_frame is not None:
             from tank_backend.tools.computer_observation import Observation
 
@@ -449,32 +455,33 @@ class NativeAXChannel:
             png = macos._capture_screenshot_macos(
                 include_cursor=False, display=window.display_geometry[0], backing=True)
             if not png or captured.observation_id != snapshot.observation_id:
-                return None
+                return refused("frame_identity")
             fresh_frame, _ = Observation.capture(
                 png, session_id=context.runtime.task_id, display_id=captured.frame.display_id,
                 window_id=window.window_id, window_bounds=captured.frame.window_bounds,
                 display_geometry=window.display_geometry)
-            if (fresh_frame.scene_sha256 != captured.frame.scene_sha256
-                    or self.bound_window(context) != window):
-                return None
+            if fresh_frame.scene_sha256 != captured.frame.scene_sha256:
+                return refused("frame_scene")
+            if self.bound_window(context) != window:
+                return refused("window")
         selected = next((e for e in snapshot.elements if e.ref == action.target_ref), None)
         if (selected is None or not selected.enabled or action.operation not in selected.actions
                 or (action.operation == "fill") != (action.value is not None)):
-            return None
+            return refused("selected_action")
         candidates, incomplete = source.scan()
         if incomplete:
-            return None
+            return refused("ax_incomplete")
         unique: list[AXCandidate] = []
         for item in candidates:
             if not any(item.element.native == other.element.native for other in unique):
                 unique.append(item)
         if len(unique) != len(source.targets):
-            return None
+            return refused("ax_count")
         target = None
         for ref, old in source.targets:
             fresh = next((item for item in unique if item.element.native == old.element.native), None)
             if fresh is None or replace(fresh, index=old.index) != old:
-                return None
+                return refused("ax_identity")
             if ref == action.target_ref:
                 target = fresh
         self.check(context)

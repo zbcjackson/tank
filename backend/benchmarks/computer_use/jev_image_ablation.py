@@ -67,7 +67,7 @@ def inputs() -> dict[str, bytes]:
             **{"private/" + name + ".rtf": data for name, data in documents().items()}}
 
 
-def trials() -> list[dict]:
+def trials(*, text_controls: bool = False) -> list[dict]:
     rows = []
     for position in range(2):
         for index, scene in enumerate(documents()):
@@ -75,12 +75,19 @@ def trials() -> list[dict]:
             for arm in order:
                 rows.append({"id": f"{scene}-p{position}-{arm}", "scene": scene,
                     "kind": "task", "arm": arm, "move_window": bool(position)})
+    if text_controls:
+        for position in range(2):
+            for index, scene in enumerate(documents()):
+                for arm in (("text", "image") if (index + position) % 2 == 0 else ("image", "text")):
+                    rows.append({"id": f"named-{scene}-p{position}-{arm}", "scene": scene,
+                        "kind": "task", "arm": arm, "move_window": bool(position),
+                        "named_target": "north" if index == 0 else "south"})
     rows.extend({"id": scene + "-box", "scene": scene, "kind": "box", "arm": "image",
                  "move_window": bool(index)} for index, scene in enumerate(documents()))
     return rows
 
 
-def freeze_inputs() -> dict:
+def freeze_inputs(*, record_only: bool = False, text_controls: bool = False) -> dict:
     sources = jev_image_native.freeze_inputs()["source_sha256"].copy()
     sources[str(Path(__file__).relative_to(ROOT))] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     # The existing recipe pins the controller, models, geometry, source and owner.
@@ -88,14 +95,16 @@ def freeze_inputs() -> dict:
         Path(inspect.getfile(s4_ax)).read_bytes()).hexdigest()
     path = Path("/System/Applications/TextEdit.app/Contents/Info.plist")
     info = plistlib.loads(path.read_bytes()) if path.exists() else {}
-    return {"revision": "jev-image-ablation-1", "trials": trials(), "boxes": list(BOXES),
+    return {"revision": "jev-image-ablation-2", "trials": trials(text_controls=text_controls),
+        "record_only": record_only, "text_controls": text_controls, "boxes": list(BOXES),
         "source_sha256": sources,
         "input_sha256": {name: hashlib.sha256(data).hexdigest() for name, data in inputs().items()},
         "model": dict(jev_image_native.MODEL),
         "application": {"bundle_id": "com.apple.TextEdit", "version": info.get("CFBundleShortVersionString"),
                         "build": info.get("CFBundleVersion"), "macos": platform.mac_ver()[0]},
         "versions": {name: version(name) for name in ("typesafe-sdk", "pillow")},
-        "request_limit": 14, "nano_usd_limit": 100_000_000, "token_limit": 4_000_000,
+        "request_limit": None if record_only else (22 if text_controls else 14),
+        "nano_usd_limit": 0 if record_only else 100_000_000, "token_limit": 0 if record_only else 4_000_000,
         "seconds_per_trial": 120, "primary_calls_per_trial": 1,
         "price_evidence": "https://docs.typesafe.ai/models ; 2026-10-18 ; frozen conservative context reservation",
         "scope": "new owned TextEdit process and seeded temporary RTF only; refuse existing sessions",
@@ -105,8 +114,8 @@ def freeze_inputs() -> dict:
         "box_interior_inset": 0.1, "retries": 0}
 
 
-def prepare(output: Path) -> dict:
-    frozen = freeze_inputs()
+def prepare(output: Path, *, record_only: bool = False, text_controls: bool = False) -> dict:
+    frozen = freeze_inputs(record_only=record_only, text_controls=text_controls)
     frozen["sha256"] = digest(frozen)
     output.mkdir(parents=True, exist_ok=False)
     (output / "private").mkdir()
@@ -117,7 +126,9 @@ def prepare(output: Path) -> dict:
 
 
 def load_freeze(output: Path, approved: str) -> dict:
-    frozen = freeze_inputs()
+    stored = json.loads((output / "freeze.json").read_text())
+    frozen = freeze_inputs(record_only=bool(stored.get("record_only")),
+                           text_controls=bool(stored.get("text_controls")))
     frozen["sha256"] = digest(frozen)
     if (approved != frozen["sha256"]
             or json.loads((output / "freeze.json").read_text()) != frozen
@@ -127,13 +138,21 @@ def load_freeze(output: Path, approved: str) -> dict:
     return frozen
 
 
+def instruction(trial: dict) -> str:
+    if trial.get("named_target"):
+        return (f"Replace only the {trial['named_target'].title()} line with DONE. Keep all other text unchanged. "
+                "Choose exactly one supplied full-body alternative. Formatting preservation is outside this test. "
+                "Do not save or close the document.")
+    return INSTRUCTION
+
+
 def goal(trial: dict, expected_body: str) -> dict:
     alternatives = list(VARIANTS.items())
     if trial.get("move_window"):
         alternatives.reverse()
     return {"schema_version": 2, "goal_id": trial["id"], "scope": trial["id"],
         "target": {"application": "com.apple.TextEdit"}, "authorization_ref": "current_task",
-        "intent": INSTRUCTION, "objective": INSTRUCTION, "allowed_operations": ["fill"],
+        "intent": instruction(trial), "objective": instruction(trial), "allowed_operations": ["fill"],
         "inputs": [{"key": name, "purpose": "Alternative complete-body replacement; choose only one",
                     "field_label": "First Text View", "value": value} for name, value in alternatives],
         "completion": [{"key": "ax:value:document", "value": expected_body}]}
@@ -159,7 +178,7 @@ def question(goal: GoalContract, snapshot: Snapshot, actions: ActionSet,
         for alias, action in candidate_aliases(actions).items()})
     questions = cast(dict[str, dict[str, object]], packet["questions"])
     questions["next_action"]["instructions"] = (
-        "Choose one offered full-body replacement for the red-line task, or abstain if evidence "
+        "Choose one offered full-body replacement for the stated task, or abstain if evidence "
         "does not distinguish them. Input variants are alternatives, not sequential requirements. "
         "Completion is checked independently. Both arms retain all current AX descriptors; only "
         "the image arm attaches a PNG. image_candidates are [x,y,width,height] in attached-image "
@@ -361,13 +380,13 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
         preflight()
     (output / "started.json").write_text(json.dumps({"mode": mode, "sha256": approved}) + "\n")
     (output / "images").mkdir()
-    rows = [{**trial, "status": "not_run", "passed": False, "native_actions": [],
+    rows = [{**trial, "status": "not_run", "passed": False, "native_actions": [], "frames": [],
              **({"boxes": [{**b, "status": "not_run"} for b in frozen["boxes"]]} if trial["kind"] == "box" else {})}
             for trial in frozen["trials"]]
     report = {"sha256": approved, "mode": mode, "completed": False, "rows": rows}
     labels = json.loads((output / "private/labels.json").read_text())
     ledger = SpendLedger(SpendLimit(frozen["token_limit"], frozen["nano_usd_limit"]),
-        request_limit=frozen["request_limit"], journal=output / "spend.jsonl")
+        request_limit=frozen["request_limit"], record_only=frozen["record_only"], journal=output / "spend.jsonl")
     model = frozen["model"]
     endpoint = model["url"] if mode == "live" else "https://ablation.invalid/v1/systemone"
     contract = ContextWindowContract(endpoint, model["model"], TokenAllowance(
@@ -390,9 +409,16 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                     "dispatch": "ax_press", "repeat": 0, "max_decisions": 1, "move_window": row["move_window"]}),
                     rtf=(output / ("private/" + row["scene"] + ".rtf")).read_bytes())
                 context = plugin = selector = channel = None
-                observer = s4_ax.PilotObserver()
+                class Observer(s4_ax.PilotObserver):
+                    def on_event(self, kind: str, metadata: dict[str, object]) -> None:
+                        if kind == "computer_use_freshness":
+                            self.events.append({"kind": kind, **metadata})
+                        else:
+                            super().on_event(kind, metadata)
+                observer = Observer()
                 started = time.monotonic()
-                expected = labels[row["scene"]]["expected_body"]
+                expected = VARIANTS[row["named_target"]] if row.get("named_target") else labels[row["scene"]]["expected_body"]
+                box_label = None
 
                 class Policy(BenchmarkModelPolicy):
                     count = 0
@@ -449,12 +475,24 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                             "target": {"type": "box", "box": {"left": .1, "top": .1, "right": .2, "bottom": .2}, "confidence": .5}}
                     else:
                         criteria = payload["questions"]["next_action"]["criteria"]
-                        choice = ("need_more_context" if row["arm"] == "text" else next(k for k, v in criteria.items()
+                        choice = ("need_more_context" if row["arm"] == "text" and not row.get("named_target") else next(k for k, v in criteria.items()
                             if isinstance(v, dict) and v.get("value") == expected))
                         answers = {"next_action": {"type": "choice", "choice": choice, "confidence": 1,
                             "probabilities": {k: float(k == choice) for k in criteria}}}
                     return httpx2.Response(200, json={"model": model["model"], "answers": answers,
                                                     "usage": {"input_tokens": 10, "output_tokens": 2}})
+
+                original_capture = NativeAXChannel.capture
+
+                async def recorded_capture(source: NativeAXChannel, snapshot: Snapshot,
+                                           ctx: SubAgentContext) -> VisualFrame:
+                    captured = await original_capture(source, snapshot, ctx)
+                    path = "images/" + row["id"] + f"-trace-{len(row['frames'])}.png"
+                    (output / path).write_bytes(captured.png)
+                    row["frames"].append({"box": box_label, "path": path,
+                        "observation_id": captured.observation_id, "frame": asdict(captured.frame)})
+                    persist()
+                    return captured
 
                 original_fill = native.ax_set_value
 
@@ -479,6 +517,7 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                         if mode == "fake":
                             stack.enter_context(s4_ax.fake_model_http(fake_http))
                         stack.enter_context(patch.object(native, "ax_set_value", witnessed_fill))
+                        stack.enter_context(patch.object(NativeAXChannel, "capture", recorded_capture))
                         try:
                             row["status"] = "started"
                             config = owner.start()
@@ -502,7 +541,7 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                                 selector = PairedSelector(channel, row["arm"])
                                 selector.register(context)
                                 plugin.controller.selector = selector
-                                outputs = [o async for o in plugin.run(SubAgentRequest(INSTRUCTION, "", row["id"], goal(row, expected)), context)]
+                                outputs = [o async for o in plugin.run(SubAgentRequest(instruction(row), "", row["id"], goal(row, expected)), context)]
                                 row["result"] = outputs[-1].metadata["task_result"]
                                 row["independent_values"] = owner.read_values()
                                 answer = row.get("model_answer", {})
@@ -543,6 +582,7 @@ async def run_batch(output: Path, approved: str, *, mode: str, credential: str =
                                 context.runtime.register(annotate)
                                 snapshot = await context.runtime.execute(observe, row["id"])
                                 for box in row["boxes"]:
+                                    box_label = box["id"]
                                     try:
                                         prepared, answer = await probe.assess(snapshot,
                                             state={"task": "Read-only localization; no action authorized."}, instructions=box["target"])
@@ -624,13 +664,17 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--run", choices=("fake", "live"))
     parser.add_argument("--approved-sha256")
+    parser.add_argument("--record-only", action="store_true")
+    parser.add_argument("--text-controls", action="store_true")
     args = parser.parse_args()
     if args.run is None:
         if args.approved_sha256:
             parser.error("a digest requires --run")
-        frozen = prepare(args.output)
+        frozen = prepare(args.output, record_only=args.record_only, text_controls=args.text_controls)
         print(json.dumps({k: frozen[k] for k in ("sha256", "request_limit", "nano_usd_limit")}))
         return
+    if args.record_only or args.text_controls:
+        parser.error("record-only/text-controls are preparation options; execution uses the frozen settings")
     if not args.approved_sha256:
         parser.error("execution requires the reviewed frozen digest")
     load_freeze(args.output, args.approved_sha256)

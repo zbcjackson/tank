@@ -164,6 +164,8 @@ backing pixels. Observation crops the bound logical window in those pixels befor
 resampling, hashes the original crop, and retains logical display/crop metadata for
 point mapping. This prevents whole-display resize filters from mixing pixels outside
 the window into its frame; ordinary screenshot tools still default to logical PNGs.
+Native freshness refusals additionally emit a best-effort stage/observation event
+for binding, window, frame or AX checks; telemetry failure cannot change the gate.
 Runtime API 3 rejects explicit API 1/2 declarations before factory creation because
 the former HTTP-hook contract is gone. Langfuse and task observer telemetry are
 optional; model telemetry failure does not gate UI/SDK execution. See the

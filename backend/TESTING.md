@@ -963,6 +963,10 @@ for wrong answers, abstentions/stale/authority/usage refusals, all task/Box deno
 shared known/unknown reservations, header-only selection setup and independent cleanup.
 `test_native.py` checks seeded RTF versus default empty-text fixture allocation and
 cleanup after failed launch. Ordinary tests still replace OS/HTTP boundaries.
+The post-crop extension covers record-only uncapped batch accounting (with unknown
+usage still stopping), explicit named-line text controls, private completion
+invariance and persistence of every capture, including Box response checks.
+Native stage-event tests retain zero input on all refusals even when observers fail.
 
 The image development recipe's separate `jev_image_eval` executor is covered in
 the existing `test_vision.py` and chat.feature visual contract. Tests exercise the
