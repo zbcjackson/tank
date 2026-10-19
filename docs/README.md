@@ -22,8 +22,9 @@
 | [plans/done/jev-post-crop-live-validation.md](plans/done/jev-post-crop-live-validation.md) | 计划 | 已完成 | 无固定请求/费用上限的22次真实判断已归档，两轮独立审查完成，含文字充分对照及精确拒绝阶段 |
 | [plans/done/jev-box-crop-comparison.md](plans/done/jev-box-crop-comparison.md) | 计划 | 已完成 | 70请求与归档完成，两轮独立审查通过；Jev/Gemini中心与数量分别报告 |
 | [research/jev-box-crop-comparison.md](research/jev-box-crop-comparison.md) | 调研 | 真实开发对照完成 | Jev中心5/8→8/8；Gemini7/8→8/8但裁剪一次误报唯一；无重试或点击 |
-| [plans/active/jev-vision-route-pilot.md](plans/active/jev-vision-route-pilot.md) | 计划 | 实施中 | 新建受控网页的V/JT完整路由对照，含多步往返及缺失/过期/未知效果负例 |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 开发对照完成 | Box表示与可替换视觉模型已比较，更广独立布局及混合路由待验证，生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
+| [plans/active/jev-vision-route-pilot.md](plans/active/jev-vision-route-pilot.md) | 计划 | 结果待审查 | 24任务/40调用，JT正例6/6、V2/6；执行拒绝和全部失败保留 |
+| [research/jev-vision-route-pilot.md](research/jev-vision-route-pilot.md) | 调研 | 真实开发对照完成 | V四个正确保存选择后被执行门拒绝；JT往返完成，参考路径需新鲜度诊断 |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 路由开发对照完成 | 下一步DOM新鲜度诊断；真实产品/弃权后接管/故障恢复与确认待测，生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
