@@ -17,6 +17,7 @@
 | [plans/done/jev-image-real-app-ablation.md](plans/done/jev-image-real-app-ablation.md) | 计划 | 已完成 | 第二真实应用文本/图片对照与只读Box已运行，196项原始工件归档，拒绝与未完成保留分母 |
 | [research/jev-frame-freshness-diagnostics.md](research/jev-frame-freshness-diagnostics.md) | 调研 | 机制已复现 | 确认整屏缩小再裁剪可引入窗口外像素；18次只读检查中5次像素拒绝，未改生产或旧评分 |
 | [plans/done/jev-frame-freshness-diagnostics.md](plans/done/jev-frame-freshness-diagnostics.md) | 计划 | 已完成 | 无模型TextEdit新鲜度诊断，8上下文清理通过，97项证据及独立审查完成，后续捕获修复由主计划承接 |
+| [plans/active/jev-bound-frame-capture.md](plans/active/jev-bound-frame-capture.md) | 计划 | 实现中 | 绑定窗口先裁剪原始backing像素再缩放，保留严格新鲜度检查和逻辑坐标映射 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | TextEdit增量小样本完成 | 颜色任务观察到图片增量，先诊断帧/引用拒绝；广泛验证及Qwen专项待做，生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
