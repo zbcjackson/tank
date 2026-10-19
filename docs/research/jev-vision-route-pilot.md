@@ -131,7 +131,10 @@ Gemini输出包含推理tokens。OpenRouter原始usage另报USD0.085884000，
 backend/CLI lint、web类型、3个Python文件pyright、dev日志和docs/diff通过。
 第1轮独立代码审查无源码修复，宿主权限9专项通过（30.56秒）。真实结果之后
 只改docs/工件/面板，复用未变代码验证并执行docs/diff和面板类型检查；不声称
-面板已实际渲染。第2轮独立结果审查待完成。
+面板已实际渲染。第2轮独立结果审查已完成：另写只读脚本逐一重算请求/响应/
+图片、调用ID及审计/task_id、评分、封顶耗时、用量与费用口径，并核验归档/
+凭据/旧证据及面板内嵌数据，未发现可操作或遗留问题；无源码或原始证据修改。
+本开发子计划已[关档](../plans/done/jev-vision-route-pilot.md)，后续仍由主计划推进。
 
 下一步由[主计划](../plans/active/computer-use-jev-vision.md)承接：根据本轮具体
 失败先以无付费的DOM光标/新鲜度复现及拒绝阶段记录检查宿主门禁，修复后重新

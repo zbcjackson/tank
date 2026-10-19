@@ -240,7 +240,7 @@ exists only in this benchmark; JT reuses `jev-vision`. Both use the same visual
 JSON-object choice contract, rules, action checks and independent page readback.
 The 24 planned rows include positive multi-step work and three negative families;
 known model misses remain in the denominator, unknown usage or cleanup stops the
-batch. See the [route pilot](../docs/plans/active/jev-vision-route-pilot.md).
+batch. See the [route pilot](../docs/plans/done/jev-vision-route-pilot.md).
 
 Experimental Computer Use `selector: jev-vision` additionally requires an explicit
 extension-agent `visual-model: <llm-profile>` declaration. It permits screenshots
