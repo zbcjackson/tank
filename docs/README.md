@@ -15,6 +15,7 @@
 | [research/jev-image-native-pilot.md](research/jev-image-native-pilot.md) | 调研 | 真实计算器小样本完成 | Jev图片闭环2/2、只读Box中心2/2；12次请求，完整AX仍在，图片增量与跨应用能力待验证 |
 | [research/jev-image-real-app-ablation.md](research/jev-image-real-app-ablation.md) | 调研 | TextEdit小样本完成 | 图片选择3/3正确、闭环2/4；文本3次调用均弃权；Box3/6数量判断通过、3项帧拒绝，下一步诊断稳定性 |
 | [plans/done/jev-image-real-app-ablation.md](plans/done/jev-image-real-app-ablation.md) | 计划 | 已完成 | 第二真实应用文本/图片对照与只读Box已运行，196项原始工件归档，拒绝与未完成保留分母 |
+| [plans/active/jev-frame-freshness-diagnostics.md](plans/active/jev-frame-freshness-diagnostics.md) | 计划 | 诊断中 | 用现有原图和无模型调用的真实TextEdit探查区分像素/窗口/AX引用拒绝，不放宽原门 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | TextEdit增量小样本完成 | 颜色任务观察到图片增量，先诊断帧/引用拒绝；广泛验证及Qwen专项待做，生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
