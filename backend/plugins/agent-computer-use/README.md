@@ -531,8 +531,15 @@ The current DOM templates support navigation via `aria-controls` to a uniquely
 named form/region/dialog, and native form submission once declared inputs are
 observably satisfied. Same-origin, same-window non-download links may instead use
 an exact destination-URL effect; blocked or redirected-to-other-URL navigation is
-not verified. Uniquely named native checkboxes use their actual checked value as
-the local effect. Duplicate checkbox names supply no executable checkbox template.
+not verified. Uniquely named native checkboxes retain their checked-value effect.
+Same-label native checkboxes instead use host-owned `dom:checked:` facts bound to
+the actual node, so another same-name or replacement node cannot verify that effect.
+Page-provided roles cannot supply these facts. A distinct authored form `name` is
+shown literally as `[name=...]` for context. Missing/repeated names add no qualifier;
+otherwise indistinguishable controls remain ambiguous.
+Opaque readback keys never make checkbox targets semantically unique; collisions
+between a name annotation and page labels also remain ambiguous. An image selector
+can choose among the original bound candidates, without inventing a new action.
 Controls without a supported effect template are excluded.
 Completion requires `status:` facts; field values establish only local fill effects.
 Optional `outcomes` add conjunctive result conditions and acyclic `depends_on`

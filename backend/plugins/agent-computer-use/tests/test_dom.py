@@ -284,7 +284,7 @@ async def test_dom_navigation_fact_and_checkbox_identity_are_host_checked(channe
     assert next(f.value for f in snapshot.facts if f.key == "status:Page URL") == actual_url
     assert not any(f.key == "checkbox:Same" for f in snapshot.facts)
     actions = ActionBuilder(visual=True).build("goal", 1, goal(), snapshot)
-    assert not actions.actions
+    assert len(actions.actions) == 2 and actions.reason == 'visual_required'
 
 
 async def actions(channel, ctx, index=1):
@@ -2323,3 +2323,181 @@ async def test_real_product_failed_readback_preserves_attempted_row(chromium_req
     assert result['rows'][0]['status'] == 'error'
     assert sum(r['status'] == 'not_run' for r in result['rows']) == 11
     assert not calls
+
+
+async def test_checkbox_diagnostic_distinguishes_values_and_written_columns(chromium_required, product_python, monkeypatch, tmp_path):
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_checkbox_diagnostics as diagnostic
+    def forbidden(*args, **kwargs):
+        raise AssertionError('diagnosis allocated a model HTTP client')
+    monkeypatch.setattr(httpx.AsyncClient, '__init__', forbidden)
+    monkeypatch.setattr(httpx2.AsyncClient, '__init__', forbidden)
+    result = await diagnostic.run(tmp_path / 'manual', app_python=product_python)
+    assert result['completed'] and result['model_calls'] == 0
+    assert len(result['rows']) == 4 and all(r['cleanup_confirmed'] and r['app_unchanged'] for r in result['rows'])
+    assert all(r['value_success'] and len(r['evidence']['writes']) == 1 for r in result['rows'])
+    for row in result['rows']:
+        columns = {w['column_name'] for w in row['evidence']['column_writes']}
+        assert columns == ({'id', 'title', 'notes'} if row['mode'] == 'all' else {'title'})
+        assert row['column_success'] == (row['mode'] == 'title')
+        assert row['input_attempts'] == 3
+    with pytest.raises(FileExistsError):
+        await diagnostic.run(tmp_path / 'manual', app_python=product_python)
+
+
+async def test_dom_same_named_checkboxes_have_node_effects_not_fake_semantic_identity(channel):
+    from agent_computer_use.controller import ComputerUseController
+    from agent_computer_use.contracts import DecisionResult
+    from agent_computer_use.visual_selector import VisualSelector
+    browser, ctx = channel
+    await browser.page.set_content('''<label>Same<input type="checkbox" id="first"></label>
+      <label>Same<input type="checkbox" id="second" onchange="document.querySelector('output').textContent='second'"></label>
+      <output aria-label="Result">idle</output>''')
+    contract = GoalContract.from_input({**goal().model_dump(mode='json'), 'inputs': [],
+        'completion': [{'key': 'status:Result', 'value': 'second'}]})
+    observed = await browser.observe('managed-page', ctx)
+    offered = ActionBuilder(visual=True).build('goal', 1, contract, observed)
+    assert len(offered.actions) == 2 and offered.reason == 'visual_required'
+    assert not ActionBuilder().build('goal', 1, contract, observed).actions
+    effects = [d.effect[0] for d in offered.details]
+    assert len({f.key for f in effects}) == 2
+    assert all(any(f.key == e.key and f.value == 'false' for f in observed.facts) for e in effects)
+    assert not any(f.key == 'checkbox:Same' for f in observed.facts)
+    second = offered.actions[1].target_ref
+    class ScriptedVisual(VisualSelector):
+        async def choose(self, goal, snapshot, actions, context):
+            action = next(a for a in actions.actions if a.target_ref == second)
+            return DecisionResult(actions.binding, 'candidate', action.id)
+    host = ComputerUseController(browser, browser, selector=ScriptedVisual(browser))
+    result = await host.run(SubAgentRequest('Check the second box', '', 'dom-task', contract.model_dump(mode='json')), ctx)
+    assert result.reason == 'goal_verified' and len(host.receipts) == 1
+    assert not await browser.page.locator('#first').is_checked()
+    assert await browser.page.locator('#second').is_checked()
+
+
+@pytest.mark.parametrize('names,reason', [(['chk_title','chk_notes'],'jev_eligible'), (['same','same'],'visual_required')])
+async def test_dom_checkbox_uses_authored_form_names_only_when_distinct(channel, names, reason):
+    browser, ctx = channel
+    await browser.page.set_content(''.join(f'<label>Same<input type="checkbox" name="{name}"></label>' for name in names))
+    observed = await browser.observe('managed-page', ctx)
+    offered = ActionBuilder(visual=True).build('goal', 1, goal(), observed)
+    assert len(offered.actions) == 2 and offered.reason == reason
+    labels = [d.label for d in offered.details]
+    if reason == 'jev_eligible':
+        assert labels == ['Same [name=chk_title]', 'Same [name=chk_notes]']
+        assert len({d.effect[0].key for d in offered.details}) == 2
+    else:
+        assert labels == ['Same','Same']
+
+
+@pytest.mark.parametrize('behavior', ['prevent', 'replace'])
+async def test_dom_same_named_checkbox_does_not_verify_other_node_or_prevented_click(channel, behavior):
+    from agent_computer_use.controller import ComputerUseController
+    from agent_computer_use.contracts import DecisionResult
+    from agent_computer_use.visual_selector import VisualSelector
+    browser, ctx = channel
+    handler = ('event.preventDefault();' if behavior == 'prevent' else
+               'const n=this.cloneNode(true);n.checked=true;this.replaceWith(n);')
+    await browser.page.set_content(f'''<label>Same<input name="a" type="checkbox" onclick="{handler}document.querySelector('output').textContent='done'"></label>
+      <label>Same<input name="b" type="checkbox"></label><output aria-label="Result">idle</output>''')
+    contract = GoalContract.from_input({**goal().model_dump(mode='json'), 'inputs': [],
+        'completion': [{'key': 'status:Result', 'value': 'done'}]})
+    class ScriptedVisual(VisualSelector):
+        async def choose(self, goal, snapshot, actions, context):
+            target = next(d.action_id for d in actions.details if d.label == 'Same [name=a]')
+            return DecisionResult(actions.binding, 'candidate', target)
+    host = ComputerUseController(browser, browser, selector=ScriptedVisual(browser))
+    result = await host.run(SubAgentRequest('Check a', '', 'dom-task', contract.model_dump(mode='json')), ctx)
+    assert result.reason == 'effect_unknown' and len(host.receipts) == 1
+    assert await browser.page.locator('output').inner_text() == 'done'
+
+
+async def test_dom_checkbox_bound_facts_cannot_be_forged_by_page_roles(channel):
+    browser, ctx = channel
+    await browser.page.set_content('<label>Same<input name="a" type="checkbox"></label><label>Same<input name="b" type="checkbox"></label>')
+    before = await browser.observe('managed-page', ctx)
+    offered = ActionBuilder(visual=True).build('goal', 1, goal(), before)
+    key = offered.details[0].effect[0].key
+    await browser.page.evaluate('hash => {const n=document.createElement("span");n.role="dom:checked";n.setAttribute("aria-label",hash);n.textContent="true";document.body.append(n)}', key.removeprefix('dom:checked:'))
+    after = await browser.observe('managed-page', ctx)
+    assert [f.value for f in after.facts if f.key == key] == ['false']
+
+
+async def test_dom_checkbox_name_annotation_collision_stays_ambiguous(channel):
+    browser, ctx = channel
+    await browser.page.set_content('''<label>Same<input name="x" type="checkbox"></label>
+      <label>Same<input name="y" type="checkbox"></label>
+      <label>Same [name=x]<input name="z" type="checkbox"></label>''')
+    observed = await browser.observe('managed-page', ctx)
+    offered = ActionBuilder(visual=True).build('goal', 1, goal(), observed)
+    assert len(offered.actions) == 3 and offered.reason == 'visual_required'
+
+
+async def test_checkbox_diagnostic_host_enforces_column_receipt_without_models(chromium_required, product_python, monkeypatch, tmp_path):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_checkbox_diagnostics as diagnostic
+    result = await diagnostic.run(tmp_path / 'host', app_python=product_python, include_host=True)
+    assert result['completed'] and result['model_calls'] == 0 and not result['client_attempts']
+    assert len(result['rows']) == 8
+    for row in result['rows']:
+        assert row['value_success'] and row['cleanup_confirmed'] and row['input_attempts'] == 3
+        assert row['captures'][0]['column_candidates'] == 3
+        assert row['captures'][0]['reason'] == 'jev_eligible'
+        if row['actor'] == 'host':
+            assert row['host_result']['reason'] == ('goal_verified' if row['mode'] == 'title' else 'effect_unknown')
+            assert row['column_success'] == (row['mode'] == 'title')
+            assert sum(r['method'] == 'POST' for r in row['http']) == 1
+
+
+async def test_checkbox_diagnostic_cancellation_closes_and_keeps_attempted_case(chromium_required, product_python, monkeypatch, tmp_path):
+    import json
+    from tank_backend.agents.task_runtime import TaskRuntime
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_checkbox_diagnostics as diagnostic
+    closing, release = asyncio.Event(), asyncio.Event()
+    original = TaskRuntime.aclose
+    async def delayed_close(self):
+        closing.set()
+        await release.wait()
+        await original(self)
+    monkeypatch.setattr(TaskRuntime, 'aclose', delayed_close)
+    worker = asyncio.create_task(diagnostic.run(tmp_path / 'cancel', app_python=product_python))
+    try:
+        await asyncio.wait_for(closing.wait(), 10)
+        worker.cancel()
+        await asyncio.sleep(0)
+        worker.cancel()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await worker
+        result = json.loads((tmp_path/'cancel/result.json').read_text())
+        assert len(result['rows']) == 4 and result['model_calls'] == 0
+        assert result['rows'][0]['status'] == 'cancelled' and result['rows'][0]['cleanup_confirmed']
+        assert not result['rows'][0]['value_success'] and len(result['rows'][0]['evidence']['writes']) == 1
+        assert sum(r['status'] == 'not_run' for r in result['rows']) == 3
+    finally:
+        release.set()
+        if not worker.done():
+            worker.cancel()
+        await asyncio.gather(worker, return_exceptions=True)
+
+
+async def test_checkbox_diagnostic_freeze_tamper_stops_before_next_app(chromium_required, product_python, monkeypatch, tmp_path):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_checkbox_diagnostics as diagnostic
+    original = diagnostic.run_case
+    async def tamper_after_case(case, output, **kwargs):
+        row = await original(case, output, **kwargs)
+        frozen = json.loads((output/'freeze.json').read_text())
+        frozen['no_models'] = False
+        (output/'freeze.json').write_text(json.dumps(frozen))
+        return row
+    monkeypatch.setattr(diagnostic, 'run_case', tamper_after_case)
+    result = await diagnostic.run(tmp_path/'tampered', app_python=product_python)
+    assert not result['completed'] and result['model_calls'] == 0
+    assert [r['status'] for r in result['rows']] == ['finished', 'error', 'not_run', 'not_run']
+    assert result['rows'][1]['error_type'] == 'ValueError'
+    assert not (tmp_path/'tampered'/result['rows'][1]['id']).exists()

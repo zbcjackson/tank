@@ -777,3 +777,16 @@ list navigation/record discovery and open planning are not measured. The benchma
 adds actual read-only database rows to the same observation in both arms, while a
 separate final schema/write audit checks full business state. See
 [the completed plan](../docs/plans/done/jev-real-product-route.md).
+
+`benchmarks.computer_use.jev_checkbox_diagnostics` runs only local scripted UI
+inputs, never real models. Use `--output <new-dir> --app-python <isolated-python>`;
+add `--include-host` for Controller proposals with an additional actual written-
+column receipt. It instruments only the new synthetic database with UPDATE OF
+triggers, preserving the installed sqlite-web source/pages. All-select and title-
+only paths share the value-level result but different SQL column inclusion. The
+strong title-only receipt rejects all-select as effect-unknown, with one POST.
+SDK HTTP client construction is forbidden; source/recipe drift stops the next app,
+and cancelled tasks preserve their row after resource cleanup. A snapshot and exact
+source copy are retained for each diagnostic run. This is functional evidence,
+not model-quality or paid-route evidence. See
+[the checkbox plan](../docs/plans/active/jev-checkbox-grounding.md).

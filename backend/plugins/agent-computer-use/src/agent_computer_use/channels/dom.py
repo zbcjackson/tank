@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections import Counter
+from hashlib import sha256
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -49,6 +50,7 @@ class DOMElement(BaseModel):
     click_effect: tuple[Fact, ...] = ()
     submits: bool = False
     input_type: str = "text"
+    control_name: str = ""
 
 
 class DOMView(BaseModel):
@@ -145,7 +147,8 @@ _READ = r"""nodes => {
             focused: document.activeElement === node,
             ancestors: ancestors.slice(0, 8).map(a => [a[0], a[1].slice(0, 256)]), click_effect,
             submits: !!node.form && node.type === 'submit',
-            input_type: tag === 'input' ? node.type : 'text'});
+            input_type: tag === 'input' ? node.type : 'text',
+            control_name: tag === 'input' && node.type === 'checkbox' && node.name.length <= 128 ? node.name : ''});
         if (elements.length >= 256) { complete = false; break; }
     }
     return {elements, complete, revision: state.revision};
@@ -296,29 +299,40 @@ class ManagedChromiumChannel:
         if navigation != self.navigation:
             raise SubAgentStopped("navigation_changed")
         elements = []
+        checked_facts = []
         keys = Counter(f"{item.role}:{item.label}" for item in view.elements)
+        names = Counter(item.control_name for item in view.elements
+                        if item.role == "checkbox" and item.input_type == "checkbox"
+                        and item.control_name)
         for item in view.elements:
             actions: tuple[Literal["click", "fill"], ...] = ()
             click_effect = item.click_effect
+            label = item.label
             if item.role in {"button", "link"}:
                 actions = ("click",)
             elif (item.role == "checkbox" and item.input_type == "checkbox"
-                  and item.label and len(item.label) <= 119
-                  and keys[f"checkbox:{item.label}"] == 1):
+                  and item.label and len(item.label) <= 119):
                 actions = ("click",)
-                click_effect = (Fact(key=f"checkbox:{item.label}",
+                key = f"checkbox:{item.label}"
+                if keys[key] != 1:
+                    key = "dom:checked:" + sha256(item.ref.encode()).hexdigest()
+                    checked_facts.append(Fact(key=key, value=item.value))
+                    if item.control_name and names[item.control_name] == 1:
+                        label += f" [name={item.control_name}]"
+                click_effect = (Fact(key=key,
                                      value="false" if item.value == "true" else "true"),)
             elif item.editable:
                 actions = ("fill",)
-            elements.append(Element(item.ref, item.role, item.label, actions, item.enabled,
+            elements.append(Element(item.ref, item.role, label, actions, item.enabled,
                                     "control" if actions else "text_region", "dom",
                                     item.value, item.focused, item.ancestors,
                                     click_effect=click_effect, submits=item.submits,
                                     input_type=item.input_type))
-        facts = (Fact(key="status:Page URL", value=frame.url),) + tuple(
+        facts = (Fact(key="status:Page URL", value=frame.url), *checked_facts) + tuple(
                       Fact(key=key, value=item.value) for item in view.elements
                       if item.label and len(key := f"{item.role}:{item.label}") <= 128
-                      and key != "status:Page URL" and keys[key] == 1)
+                      and key != "status:Page URL" and not key.startswith("dom:checked:")
+                      and keys[key] == 1)
         facts += tuple(Fact(key=f"visible:{item.role}:{item.label}", value="true")
                        for item in view.elements if item.role in {"region", "dialog"}
                        and item.label and len(f"visible:{item.role}:{item.label}") <= 128

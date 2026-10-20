@@ -87,7 +87,12 @@ class ActionBuilder:
                                              element.click_changes, element.click_observable))
         if len(actions) > self.max_candidates:
             return ActionSet(binding, (), "candidate_limit", len(actions), truncated=True)
-        identities = [(d.role, d.label, d.ancestors, d.current_value, d.input_key, d.effect, d.changes)
+        # Node-bound readback keys identify effects, not human-distinguishable targets.
+        identities = [(d.role, d.label, d.ancestors, d.current_value, d.input_key,
+                       tuple(("checkbox:checked" if d.role == "checkbox" and
+                              (f.key.startswith("dom:checked:") or
+                               f.key == f"checkbox:{d.label}") else f.key, f.value)
+                             for f in d.effect), d.changes)
                       for d in details]
         ambiguous = len(set(identities)) != len(identities)
         if ambiguous and not self.visual:

@@ -1278,3 +1278,12 @@ Without that explicit environment the product qualification tests skip; producti
 DOM regressions and managed-Chromium E2E do not require sqlite-web. They cover
 same-origin navigation, checked-state readback, URL spoof/malformed links, loading
 documents, finite transitions and refusing continuing motion. No paid calls run.
+
+Same-label checkbox regressions in the existing `test_dom.py` cover node-bound
+readback, semantic ambiguity despite different opaque effect keys, distinct authored
+form names, annotation collisions, page-role forgery, prevented defaults and replaced
+nodes. The managed Chromium E2E entry includes these generic contracts. The optional
+real-product fixture also exercises no-model checkbox diagnostics: 4 manual paths,
+4 Controller/scripted-proposal paths, SQL column receipts, one write/POST, model-client
+construction refusal, repeated cancellation and frozen-recipe tampering. Set the same
+TANK_REAL_PRODUCT_PYTHON variable to require the app cases. None calls a paid model.
