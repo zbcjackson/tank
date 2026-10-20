@@ -790,7 +790,7 @@ in their declared order. It does not normalize row order: identical records in a
 different display order fail the frozen list condition. Sorting, column changes,
 filtering and pagination are outside this development recipe.
 The original twelve-task form recipe remains the default. See
-[the list-workflow plan](../docs/plans/active/jev-product-list-workflow.md).
+[the list-workflow plan](../docs/plans/done/jev-product-list-workflow.md).
 
 `benchmarks.computer_use.jev_checkbox_diagnostics` runs only local scripted UI
 inputs, never real models. Use `--output <new-dir> --app-python <isolated-python>`;
