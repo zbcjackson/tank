@@ -30,8 +30,9 @@
 | [research/jev-vision-route-followup.md](research/jev-vision-route-followup.md) | 调研 | 真实开发复测完成 | 原24项均通过；新增JT六项先弃权后同绑定图片接管，无猜选；三种已见手写布局非确认集 |
 | [plans/done/jev-real-product-route.md](plans/done/jev-real-product-route.md) | 计划 | 已完成 | 真实sqlite-web12项及第2轮独立结果审查完成，V6/6、JT5/6，GET恢复各2/2；未建立净收益，失败与旧证据保留 |
 | [research/jev-real-product-route.md](research/jev-real-product-route.md) | 调研 | 真实单产品开发实验已执行 | JT少图但质量较低，封顶均值未提速；同图不同输出和逐列checkbox缺候选分别记录，未测列表/确认 |
-| [plans/active/jev-checkbox-grounding.md](plans/active/jev-checkbox-grounding.md) | 计划 | 无付费诊断中 | 区分值不变与title-only列写入，按实际节点补同名checkbox效果与上下文，旧模型失败保持 |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 首个真实产品对照完成 | 下一步无付费诊断逐列checkbox候选/业务语义，再新冻结、跨页/第二产品及独立确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
+| [plans/active/jev-checkbox-grounding.md](plans/active/jev-checkbox-grounding.md) | 计划 | 修复/验证完成，待收尾审查 | 同页逐列候选0→3；12上下文36输入0模型，强列回执区分已写集合；新开发配方仅prepare |
+| [research/jev-checkbox-grounding.md](research/jev-checkbox-grounding.md) | 调研 | 无模型诊断完成 | 全选触及三列、仅选title触及一列；修复候选遗漏，不重判旧模型失败或推断模型收益 |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 逐列候选修复待收尾审查 | 下一步修复后真实开发对照，再跨页/第二产品及独立确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
