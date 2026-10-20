@@ -776,4 +776,4 @@ link. No product HTML/source is changed. Both conditions start on actual forms;
 list navigation/record discovery and open planning are not measured. The benchmark
 adds actual read-only database rows to the same observation in both arms, while a
 separate final schema/write audit checks full business state. See
-[the active plan](../docs/plans/active/jev-real-product-route.md).
+[the completed plan](../docs/plans/done/jev-real-product-route.md).
