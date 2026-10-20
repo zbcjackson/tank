@@ -8,8 +8,44 @@ from collections.abc import Awaitable
 from contextlib import closing
 from importlib import metadata
 from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
+
+
+class ProductAdapter(Protocol):
+    def manifest(self, app_python: Path) -> dict: ...
+    async def initialize(self, path: Path, app_python: Path, case: dict) -> Path: ...
+    def server_command(self, app_python: Path, database: Path, output: Path) -> tuple[str, ...]: ...
+    def server_directory(self, database: Path, output: Path) -> Path: ...
+    def channel(self, config: BrowserConfig, database: Path, row: dict) -> ManagedChromiumChannel: ...
+    async def readback(self, channel: ManagedChromiumChannel, row: dict) -> None: ...
+    def database_state(self, database: Path) -> dict: ...
+    def accepted(self, row: dict, case: dict, initial_schema: list) -> bool: ...
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+async def settle_cleanup(operation: Awaitable[object]) -> bool:
+    pending = asyncio.ensure_future(operation)
+    interrupted = False
+    while True:
+        try:
+            await asyncio.shield(pending)
+            return interrupted
+        except asyncio.CancelledError:
+            if pending.cancelled():
+                raise
+            interrupted = True
+
+
+def backup_database(database: Path, output: Path) -> None:
+    import sqlite3
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as source:
+        with closing(sqlite3.connect(output)) as target:
+            source.backup(target)
+
 
 _LIST_READ = """() => {
     const visible = node => node && node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden';
@@ -195,7 +231,8 @@ def serve_product(database: Path, output: Path, fault_path: str | None) -> None:
 
 
 async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
-                   jev_credential: str, peer_credential: str, ledger=None) -> dict:
+                   jev_credential: str, peer_credential: str, ledger=None,
+                   adapter: ProductAdapter | None = None) -> dict:
     import base64
     import os
     import time
@@ -219,7 +256,9 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
     path = output / row_id
     path.mkdir(exist_ok=False)
     started = time.monotonic()
-    app_before = app_manifest(app_python)
+    manifest = app_manifest if adapter is None else adapter.manifest
+    read_database = database_state if adapter is None else adapter.database_state
+    app_before = manifest(app_python)
     own_ledger = ledger is None
     if ledger is None:
         ledger = SpendLedger(SpendLimit(0, 0), record_only=True, journal=path / 'spend.jsonl')
@@ -228,8 +267,7 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
            'recovery': case['recovery'], 'workflow': bool(case.get('workflow')), 'status': 'started', 'strict_completed': False,
            'recovery_completed': False, 'cleanup_confirmed': False, 'events': [], 'calls': []}
     database = path / 'fixture.db'
-    create_database(database, case['seed'])
-    initial_schema = database_state(database)['schema']
+    initial_schema: list | None = None
     process = channel = ctx = None
     app_log = None
     seen_editors: set[str] = set()
@@ -281,21 +319,24 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
     cleanup_interrupted = False
     async def finish_cleanup(operation: Awaitable[object]) -> None:
         nonlocal cleanup_interrupted
-        pending = asyncio.ensure_future(operation)
-        while True:
-            try:
-                await asyncio.shield(pending)
-                return
-            except asyncio.CancelledError:
-                if pending.cancelled():
-                    raise
-                cleanup_interrupted = True
+        cleanup_interrupted |= await settle_cleanup(operation)
     try:
         app_log = (path / 'app.log').open('wb')
+        if adapter is None:
+            create_database(database, case['seed'])
+        else:
+            database = await adapter.initialize(path, app_python, case)
+        initial_schema = read_database(database)['schema']
+        await finish_cleanup(asyncio.to_thread(backup_database, database, path / 'before.db'))
+        if cleanup_interrupted:
+            raise asyncio.CancelledError
         fault_path = case.get('fault_path', case['start_path']) if case['recovery'] else None
-        process = await asyncio.create_subprocess_exec(str(app_python), str(Path(__file__)), '--serve',
-            '--database', str(database), '--output', str(path), *(['--fault-path', fault_path] if fault_path else []),
-            stdout=app_log, stderr=asyncio.subprocess.STDOUT, cwd=path,
+        command = ((str(app_python), str(Path(__file__)), '--serve', '--database', str(database),
+                    '--output', str(path), *(['--fault-path', fault_path] if fault_path else []))
+                   if adapter is None else adapter.server_command(app_python, database, path))
+        process = await asyncio.create_subprocess_exec(*command,
+            stdout=app_log, stderr=asyncio.subprocess.STDOUT,
+            cwd=path if adapter is None else adapter.server_directory(database, path),
             env={'PATH': os.environ.get('PATH', ''), 'PYTHONUNBUFFERED': '1'})
         async with asyncio.timeout(10):
             while not (path / 'ready.json').exists():
@@ -303,7 +344,8 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
                     raise RuntimeError('product process exited before ready')
                 await asyncio.sleep(.02)
         port = json.loads((path / 'ready.json').read_text())['port']
-        channel = ProductChannel(BrowserConfig(scope='real-product', url=f'http://127.0.0.1:{port}' + case['start_path']))
+        config = BrowserConfig(scope=case['goal']['scope'], url=f'http://127.0.0.1:{port}' + case['start_path'])
+        channel = ProductChannel(config) if adapter is None else adapter.channel(config, database, row)
         selector = base.VisionBaseline(channel) if arm == 'v' else VisualSelector(channel)
         host = ComputerUseController(channel, channel, selector=selector)
         ctx = SubAgentContext(SubAgentAuthorization(frozenset({'desktop', 'network'})), SubAgentBudget(),
@@ -319,6 +361,8 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
             row['final_url'] = channel.page.url
             if case.get('workflow'):
                 row['list_readback'] = await channel.page.evaluate(_LIST_READ)
+            if adapter is not None:
+                await adapter.readback(channel, row)
             (path / 'final.png').write_bytes(await channel.page.screenshot(type='png', scale='css'))
         if result.reason == 'backend_error' or ctx.runtime.audit_failed:
             ledger.stop('operational_error')
@@ -348,25 +392,39 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
                 errors.append('product_termination_timeout')
         if app_log is not None:
             app_log.close()
+        if database.is_file():
+            try:
+                await finish_cleanup(asyncio.to_thread(backup_database, database, path / 'after.db'))
+            except asyncio.CancelledError:
+                cleanup_interrupted = True
+            except Exception as exc:
+                row.update(status='error', evidence_error_type=type(exc).__name__)
+                ledger.stop('operational_error')
         if cleanup_interrupted:
             row['status'] = 'cancelled'
             ledger.stop('cancelled')
         row['cleanup_confirmed'] = not errors and (process is None or process.returncode is not None) and (channel is None or channel.closed and (channel.browser is None or not channel.browser.is_connected()))
         row['cleanup_errors'] = errors
-        row['database'] = database_state(database)
+        actual = read_database(database) if database.is_file() else None
+        row['database'] = actual
         http = path / 'http.jsonl'
         row['http'] = [json.loads(line) for line in http.read_text().splitlines()] if http.exists() else []
-        row['app_unchanged'] = app_manifest(app_python) == app_before
+        row['app_unchanged'] = manifest(app_python) == app_before
         row['app_sha256'] = digest(app_before)
         row['usage'] = ctx.budget.snapshot() if ctx is not None else {}
         if 'result' in row:
             row['result']['cleanup'] = 'confirmed' if row['cleanup_confirmed'] else 'unknown'
         row['elapsed_ms'] = (time.monotonic() - started) * 1000
-        row['strict_completed'] = bool(row['status'] == 'finished' and row['cleanup_confirmed'] and row['app_unchanged'] and row['elapsed_ms'] <= 120000
-            and row.get('result', {}).get('status') == 'completed' and row['database']['records'] == case['oracle']['rows']
-            and row['database']['schema'] == initial_schema and len(row['database']['writes']) == case['oracle']['writes']
-            and all(w['operation'] == case['oracle']['operation'] for w in row['database']['writes'])
-            and sum(r['method'] == 'POST' for r in row['http']) == 1)
+        execution_completed = bool(row['status'] == 'finished' and row['cleanup_confirmed'] and row['app_unchanged']
+            and row['elapsed_ms'] <= 120000 and row.get('result', {}).get('status') == 'completed')
+        if adapter is None:
+            row['strict_completed'] = bool(execution_completed and actual is not None and actual['records'] == case['oracle']['rows']
+                and actual['schema'] == initial_schema and len(actual['writes']) == case['oracle']['writes']
+                and all(w['operation'] == case['oracle']['operation'] for w in actual['writes'])
+                and sum(r['method'] == 'POST' for r in row['http']) == 1)
+        else:
+            row['strict_completed'] = bool(execution_completed and actual is not None and initial_schema is not None
+                and adapter.accepted(row, case, initial_schema))
         if case.get('workflow'):
             posts = [(i, h) for i, h in enumerate(row['http']) if h['method'] == 'POST']
             lists = [i for i, h in enumerate(row['http']) if h['method'] == 'GET' and h['status'] == '200 OK' and h['path'] == '/work_items/content/']

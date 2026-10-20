@@ -2071,6 +2071,14 @@ def install_product_http(monkeypatch, failure=None):
         selected = next((k for k, v in offered.items() if v['label'] == 'Retry'), None)
         if selected is None:
             selected = next((k for k, v in offered.items() if v['operation'] == 'fill'), None)
+        if selected is None and packet['state']['goal']['scope'] == 'linkding':
+            target = '2' if 'item-2' in intent else '1'
+            if failure == 'wrong_record':
+                target = '1' if target == '2' else '2'
+            selected = next((k for k, v in offered.items() if v['label'] == 'Save' and v['role'] == 'button'), None)
+            if selected is None:
+                selected = next((k for k, v in offered.items() if v['label'] == 'Edit'
+                                 and any(f'/bookmarks/{target}/edit?' in f['value'] for f in v['effect'])), None)
         if selected is None and intent.startswith('Create'):
             selected = next((k for k, v in offered.items() if v['label'] == 'Insert' and v['role'] == 'button'), None) or next((k for k, v in offered.items() if v['label'] == 'Insert'), None)
         if selected is None and not intent.startswith('Create'):
@@ -2108,6 +2116,32 @@ def install_product_http(monkeypatch, failure=None):
     monkeypatch.setattr(httpx2, 'AsyncHTTPTransport', lambda **kwargs: httpx2.MockTransport(
         lambda request: httpx2.Response(200, json=answer(json.loads(request.content)))))
     return calls, packets
+
+
+@pytest.mark.parametrize('arm', ['v', 'jt'])
+@pytest.mark.parametrize('target', [1, 2])
+async def test_linkding_product_actual_controller_persists_and_returns(chromium_required, monkeypatch, tmp_path, linkding_root, arm, target):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    calls, packets = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'actual-linkding', app_root=linkding_root)
+    case = frozen['cases'][target - 1]
+    row = await pilot.run_task(case, arm, tmp_path / 'actual-linkding',
+                               app_python=Path(frozen['app']['python']),
+                               jev_credential='fixture', peer_credential='fixture')
+    assert row['strict_completed'] and row['cleanup_confirmed'], row
+    assert row['database']['records'] == case['oracle']['rows']
+    assert row['list_readback']['path'] == '/bookmarks'
+    assert len(row['database']['tables']) == 10
+    assert sum(h['method'] == 'POST' for h in row['http']) == 1
+    assert calls == (['peer', 'peer', 'peer'] if arm == 'v' else ['peer', 'jev', 'jev'])
+    assert all('oracle' not in json.dumps(packet) for packet in packets)
+    assert row['trial_source_unchanged'] and row['app_unchanged']
+    path = tmp_path / 'actual-linkding' / row['id']
+    assert pilot.database_state(path / 'before.db') == row['database_before']
+    assert pilot.database_state(path / 'after.db') == row['database']
+    assert 'version.txt' not in (path / 'app.log').read_text()
 
 
 def test_real_product_schedule_balances_normal_family_order(monkeypatch, product_python):
