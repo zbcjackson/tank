@@ -813,7 +813,7 @@ current visible list and observed editor URL history are distinct from the priva
 scorer. Final physical snapshots check all bookmark tables/schema, one correct
 POST302 and returned DOM; automatic target `date_modified` may increase. This is a
 final-value check, not a SQL-column/write-count claim. No product page is relabelled.
-See [the linkding plan](../docs/plans/active/jev-linkding-route.md).
+See [the linkding plan](../docs/plans/done/jev-linkding-route.md).
 
 `benchmarks.computer_use.jev_checkbox_diagnostics` runs only local scripted UI
 inputs, never real models. Use `--output <new-dir> --app-python <isolated-python>`;

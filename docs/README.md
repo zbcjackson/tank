@@ -38,10 +38,10 @@
 | [research/jev-product-list-workflow.md](research/jev-product-list-workflow.md) | 调研 | 真实列表工作流开发实验完成 | 自主选记录、编辑并核验返回内容；一次图片接管再返回Jev，固定两行/次序非独立确认 |
 | [plans/done/jev-second-product-qualification.md](plans/done/jev-second-product-qualification.md) | 计划 | 已完成 | 第1轮独立审查通过；原版linkding原生脚本4/4，视觉资格仍被隐藏动画阻塞，声明式任务冻结/零模型 |
 | [research/jev-second-product-qualification.md](research/jev-second-product-qualification.md) | 调研 | 宿主阻塞已定位 | 32完整观察，列表16/16可读图、编辑页16/16拒绝；隐藏无限动画/5张同字节PNG，不是模型比较 |
-| [plans/active/dom-hidden-animation.md](plans/active/dom-hidden-animation.md) | 计划 | 待统一结果审查 | 隐藏伪元素双重定义检查；资格32/32及5归因通过，真实四项已完成 |
-| [plans/active/jev-linkding-route.md](plans/active/jev-linkding-route.md) | 计划 | 待第2轮结果审查 | 首次实现审查通过；真实V/JT各2/2，均时34.614/12.047秒，原始复算一致 |
+| [plans/done/dom-hidden-animation.md](plans/done/dom-hidden-animation.md) | 计划 | 已完成 | 隐藏伪元素双重定义检查；资格32/32及5归因通过，同轮两次独立审查完成 |
+| [plans/done/jev-linkding-route.md](plans/done/jev-linkding-route.md) | 计划 | 已完成 | 同轮两次独立审查通过；真实V/JT各2/2，均时34.614/12.047秒，9741成员核验一致 |
 | [research/jev-linkding-route.md](research/jev-linkding-route.md) | 调研 | 两臂成功、本批JT更快少图 | 原版第二产品四项、12 SDK、107904已知tokens、4清理；非独立采用确认 |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 第二产品四项完成 | 待统一结果审查/独立采用确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 第二产品结果审查通过 | 下一步未见任务独立采用确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
