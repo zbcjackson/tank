@@ -95,7 +95,7 @@ def cases() -> list[dict]:
                 'inputs': [{'key': 'title', 'purpose': 'Requested title', 'field_label': 'Title',
                             'value': f'Launch bookmark {target}'}],
                 'outcomes': [{'id': 'requested-editor-observed', 'conditions': [
-                    {'key': f'status:Editor seen:{target}', 'value': 'true'}]}],
+                    {'key': f'status:Editor seen:https://example.test/item-{target}', 'value': 'true'}]}],
                 'completion': [{'key': 'status:Records', 'value': encoded(records)},
                                {'key': 'status:List records', 'value': encoded(visible)}]}
         result.append({'id': key, 'target': target, 'kind': 'update', 'recovery': False, 'workflow': False,
@@ -119,8 +119,10 @@ def freeze_inputs(app_python: Path) -> dict:
          'versions': {n: metadata.version(n) for n in ('playwright', 'openai', 'typesafe-sdk', 'pillow')},
          'seconds_per_task': 120, 'max_actions': 6, 'max_observations': 24, 'retries': 0,
          'scope': 'unmodified qualified linkding; isolated copies and synthetic accounts/bookmarks only',
+         'data_policy': {'jev': 'text only', 'peer': 'synthetic PNG plus the same goal/snapshot/candidates',
+                         'max_parameter_bytes': 32 * 1024 * 1024},
          'business_evidence': 'actual read-only records/tags projection, current visible list and actual observed editor history; no oracle comparisons in observer',
-         'acceptance': 'all bookmarks tables/columns and schema preserved except requested title and increasing target date_modified; one correct POST302 and actual returned list; list order not scored',
+         'acceptance': 'final values of all bookmarks tables/columns and schema preserved except requested title and increasing target date_modified; one correct POST302 and actual returned list; list order not scored; no claim of one SQL write or title-only SQL columns',
          'authentication': 'synthetic session setup before measured Controller actions; elapsed time includes setup and cleanup',
          'fixture_initialization': 'official authenticated list GET primes lazy defaults before initial DB receipt',
          'provenance_task_spec_sha256': provenance()['sha256'],
@@ -220,6 +222,7 @@ def seed_product(app_root: Path, output: Path, seed_file: Path) -> None:
 
 def serve_product(app_root: Path, output: Path) -> None:
     import os
+    import time
     from socketserver import ThreadingMixIn
     from wsgiref.simple_server import WSGIServer, WSGIRequestHandler, make_server
     sys.path.insert(0, str(app_root))
@@ -237,7 +240,8 @@ def serve_product(app_root: Path, output: Path) -> None:
         def status_line(status, headers, exc_info=None):
             with (output / 'http.jsonl').open('a') as journal:
                 journal.write(json.dumps({'method': environ['REQUEST_METHOD'], 'path': environ['PATH_INFO'],
-                    'query': environ.get('QUERY_STRING', ''), 'status': status, 'injected': False}) + '\n')
+                    'query': environ.get('QUERY_STRING', ''), 'status': status, 'injected': False,
+                    'at_monotonic': time.monotonic()}) + '\n')
             return start_response(status, headers, exc_info)
         return application(environ, status_line)
     (output / 'http.jsonl').touch(exist_ok=False)
@@ -252,6 +256,9 @@ class LinkdingAdapter:
             raise ValueError('absolute qualified product Python required')
         self.root = app_python.parents[2]
         self.expected_source = source_files(self.root)
+
+    def load_freeze(self, output: Path, approved: str) -> dict:
+        return load_freeze(output, approved)
 
     def manifest(self, app_python: Path) -> dict:
         return app_manifest(app_python)
@@ -324,9 +331,10 @@ class LinkdingAdapter:
                 self.check(context)
                 editor = page['editor']
                 if editor is not None:
-                    seen.add(editor['id'])
+                    seen.add(editor['url'])
                 row['product_observations'].append({'observation_id': snapshot.observation_id,
-                    'list': page['list'], 'editor': editor, 'seen_editors': sorted(seen)})
+                    'list': page['list'], 'records': actual['records'], 'editor': editor,
+                    'seen_editor_urls': sorted(seen)})
                 self.previous = replace(snapshot, facts=(*snapshot.facts,
                     Fact(key='status:Records', value=encoded(actual['records'])),
                     Fact(key='status:List records', value=encoded(canonical_list(page['list']))),
@@ -374,24 +382,55 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
         peer_credential=peer_credential, ledger=ledger, adapter=LinkdingAdapter(app_python))
 
 
+async def run_batch(output: Path, approved: str, *, jev_credential: str, peer_credential: str) -> dict:
+    from benchmarks.computer_use import jev_real_product_route as shared
+    frozen = load_freeze(output, approved)
+    return await shared.run_batch(output, approved, jev_credential=jev_credential, peer_credential=peer_credential,
+        adapter=LinkdingAdapter(Path(frozen['app']['python'])))
+
+
 def main() -> None:
     import argparse
+    import os
     parser = argparse.ArgumentParser(description=__doc__)
-    mode = parser.add_mutually_exclusive_group(required=True)
+    mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--seed', action='store_true')
     mode.add_argument('--serve', action='store_true')
-    parser.add_argument('--app-root', type=Path, required=True)
+    mode.add_argument('--run', action='store_true')
+    parser.add_argument('--app-root', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--seed-file', type=Path)
+    parser.add_argument('--approved-sha256')
     args = parser.parse_args()
-    if args.seed:
-        if not args.seed_file:
+    if args.seed or args.serve:
+        if args.app_root is None or args.approved_sha256:
+            parser.error('internal fixture modes require app root, no approval digest')
+        if args.seed and args.seed_file is None:
             parser.error('fixture seed requires input file')
-        seed_product(args.app_root, args.output, args.seed_file)
-    else:
-        if args.seed_file:
+        if args.serve and args.seed_file:
             parser.error('server does not accept seed input')
-        serve_product(args.app_root, args.output)
+        if args.seed and args.seed_file is not None:
+            seed_product(args.app_root, args.output, args.seed_file)
+        else:
+            serve_product(args.app_root, args.output)
+        return
+    if args.seed_file:
+        parser.error('seed input is only for internal initialization')
+    if not args.run:
+        if args.app_root is None or args.approved_sha256:
+            parser.error('preparation requires app root, no approval digest')
+        frozen = prepare(args.output, app_root=args.app_root)
+        print(json.dumps({'sha256': frozen['sha256'], 'tasks': len(frozen['schedule']), 'record_only': True}))
+        return
+    if not args.approved_sha256 or args.app_root:
+        parser.error('execution uses only the approved executable freeze')
+    load_freeze(args.output, args.approved_sha256)
+    from dotenv import dotenv_values
+    values = {**dotenv_values(ROOT / 'core/.env'), **os.environ}
+    result = asyncio.run(run_batch(args.output, args.approved_sha256,
+        jev_credential=values.get('TYPESAFE_API_KEY') or '', peer_credential=values.get('OPENROUTER_API_KEY') or ''))
+    print(json.dumps({'completed': result['completed'], 'stop_reason': result['spend']['stop_reason']}))
+    raise SystemExit(0 if result['completed'] else 1)
 
 
 if __name__ == '__main__':

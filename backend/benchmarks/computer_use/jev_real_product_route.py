@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 
 class ProductAdapter(Protocol):
+    def load_freeze(self, output: Path, approved: str) -> dict: ...
     def manifest(self, app_python: Path) -> dict: ...
     async def initialize(self, path: Path, app_python: Path, case: dict) -> Path: ...
     def server_command(self, app_python: Path, database: Path, output: Path) -> tuple[str, ...]: ...
@@ -454,9 +455,11 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
     return row
 
 
-async def run_batch(output: Path, approved: str, *, jev_credential: str, peer_credential: str) -> dict:
+async def run_batch(output: Path, approved: str, *, jev_credential: str, peer_credential: str,
+                    adapter: ProductAdapter | None = None) -> dict:
     from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit
-    f = load_freeze(output, approved)
+    loader = load_freeze if adapter is None else adapter.load_freeze
+    f = loader(output, approved)
     if not jev_credential.strip() or not peer_credential.strip():
         raise ValueError('both credentials required')
     if any((output / name).exists() for name in ('started.json', 'result.json', 'spend.jsonl')):
@@ -472,11 +475,16 @@ async def run_batch(output: Path, approved: str, *, jev_credential: str, peer_cr
     persist()
     try:
         for row in rows:
-            load_freeze(output, approved)
+            loader(output, approved)
             case = next(c for c in f['cases'] if c['id'] == row['case'])
             try:
-                row.update(await run_task(case, row['arm'], output, app_python=Path(f['app']['python']),
-                    jev_credential=jev_credential, peer_credential=peer_credential, ledger=ledger))
+                if adapter is None:
+                    trial = run_task(case, row['arm'], output, app_python=Path(f['app']['python']),
+                        jev_credential=jev_credential, peer_credential=peer_credential, ledger=ledger)
+                else:
+                    trial = run_task(case, row['arm'], output, app_python=Path(f['app']['python']),
+                        jev_credential=jev_credential, peer_credential=peer_credential, ledger=ledger, adapter=adapter)
+                row.update(await trial)
             except asyncio.CancelledError:
                 saved = output / row['id'] / 'row.json'
                 row.update(json.loads(saved.read_text()) if saved.exists() else {'status': 'cancelled'})

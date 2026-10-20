@@ -796,6 +796,25 @@ filtering and pagination are outside this development recipe.
 The original twelve-task form recipe remains the default. See
 [the list-workflow plan](../docs/plans/done/jev-product-list-workflow.md).
 
+For the second-product development recipe, use the already qualified, externally
+installed linkding 1.47.0 source/build and isolated `.venv`. Prepare with
+`uv run --no-sync python -m benchmarks.computer_use.jev_linkding_route --output <new-absolute-dir> --app-root <qualified-absolute-root>`.
+The preparation checks the prior immutable qualification archive, all 446 original/
+built application files and the 26 pinned dependency versions; it freezes installed
+dependency/Python bytes and the shared runtime too. It allocates no clients or
+servers and does not read credentials. `--run --approved-sha256 <digest>` validates
+the executable freeze before loading credentials; use it only after verification,
+review and authorization for the fixed TypeSafe-text/OpenRouter-PNG recipients.
+Each of the four scheduled V/JT tasks gets an unmodified source copy, a migrated
+SQLite database, synthetic session and two bookmarks. A setup list GET initializes
+native lazy defaults before the initial database receipt. The same governed lifecycle
+handles both products; sqlite-web's original modes remain unchanged. Actual records,
+current visible list and observed editor URL history are distinct from the private
+scorer. Final physical snapshots check all bookmark tables/schema, one correct
+POST302 and returned DOM; automatic target `date_modified` may increase. This is a
+final-value check, not a SQL-column/write-count claim. No product page is relabelled.
+See [the linkding plan](../docs/plans/active/jev-linkding-route.md).
+
 `benchmarks.computer_use.jev_checkbox_diagnostics` runs only local scripted UI
 inputs, never real models. Use `--output <new-dir> --app-python <isolated-python>`;
 add `--include-host` for Controller proposals with an additional actual written-

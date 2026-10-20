@@ -1310,3 +1310,16 @@ wrong-record writes, missing/wrong/wrong-page list returns, and eight-row stop
 denominators for unknown usage, cancellation and cleanup failure. The default
 twelve-case schedule and its original guards remain covered. These are functional
 tests, not real model quality measurements.
+
+The same domain file adds 20 linkding cases, enabled by
+`TANK_LINKDING_ROOT=/absolute/qualified/linkding-1.47.0`. Full qualification also sets
+`TANK_REQUIRE_CHROMIUM=1`; no product dependency is added to the backend environment.
+They exercise qualified-provenance/source/dependency preparation without clients,
+both arms/positions through actual product/Controller/SDKs with fake external model
+HTTP, physical before/after SQLite receipts, SDK facts versus actual per-observation
+records/editor history, and final DOM/schema/whole-bookmark-table verification.
+Wrong records, poisoned private oracles and actual missing/wrong/wrong-page final
+DOM cannot become strict success. Unknown usage, cancellation, failed audit/cleanup
+and fixture IO retain all four scheduled rows; known invalid choices never dispatch.
+Application tampering is rejected before clients, and repeated cancellation drains
+an in-flight source copy. These are wiring/governance tests, not real model scores.

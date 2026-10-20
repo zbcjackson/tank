@@ -2096,7 +2096,7 @@ def install_product_http(monkeypatch, failure=None):
                 else:
                     token = base64.urlsafe_b64encode(b'[2]' if 'id 2 ' in intent else b'[1]').decode().rstrip('=')
                     selected = next((k for k, v in offered.items() if v['label'] == 'Edit' and any('/update/' + token + '/' in f['value'] for f in v['effect'])), None)
-        choice = 'none' if failure == 'wrong' else selected or 'none'
+        choice = 'not-offered' if failure == 'invalid' else 'none' if failure == 'wrong' else selected or 'none'
         calls.append('peer' if visual else 'jev')
         if failure == 'cancel':
             raise asyncio.CancelledError
@@ -2137,6 +2137,13 @@ async def test_linkding_product_actual_controller_persists_and_returns(chromium_
     assert sum(h['method'] == 'POST' for h in row['http']) == 1
     assert calls == (['peer', 'peer', 'peer'] if arm == 'v' else ['peer', 'jev', 'jev'])
     assert all('oracle' not in json.dumps(packet) for packet in packets)
+    observations = {o['observation_id']: o for o in row['product_observations']}
+    for packet in packets:
+        snapshot = packet['state']['snapshot']
+        actual = observations[snapshot['observation_id']]
+        facts = {f['key']: f['value'] for f in snapshot['facts']}
+        assert json.loads(facts['status:Records']) == actual['records']
+        assert all(facts[f'status:Editor seen:{url}'] == 'true' for url in actual['seen_editor_urls'])
     assert row['trial_source_unchanged'] and row['app_unchanged']
     path = tmp_path / 'actual-linkding' / row['id']
     assert pilot.database_state(path / 'before.db') == row['database_before']
@@ -2153,6 +2160,205 @@ def test_real_product_schedule_balances_normal_family_order(monkeypatch, product
     for kind in ('insert', 'update'):
         normal = [first_arms[c['id']] for c in frozen['cases'] if c['kind'] == kind and not c['recovery']]
         assert sorted(normal) == ['jt', 'v']
+
+
+@pytest.mark.parametrize('failure', [None, 'unknown'])
+async def test_linkding_product_batch_keeps_frozen_denominator(chromium_required, monkeypatch, tmp_path, linkding_root, failure):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    calls, _ = install_product_http(monkeypatch, failure)
+    frozen = pilot.prepare(tmp_path / 'batch-linkding', app_root=linkding_root)
+    result = await pilot.run_batch(tmp_path / 'batch-linkding', frozen['sha256'],
+                                   jev_credential='fixture', peer_credential='fixture')
+    assert len(result['rows']) == 4
+    ran = [r for r in result['rows'] if r['status'] != 'not_run']
+    assert all(r['cleanup_confirmed'] for r in ran)
+    if failure:
+        assert not result['completed'] and len(ran) == 1
+        assert len(calls) == 1 and ran[0]['usage']['unknown_calls'] == 1
+        assert not any(h['method'] == 'POST' for h in ran[0]['http'])
+        assert not ran[0]['strict_completed']
+    else:
+        assert result['completed'] and all(r['strict_completed'] for r in ran)
+        assert len(calls) == 12 and calls.count('jev') == 4
+
+
+def test_linkding_product_cli_prepares_without_credentials(monkeypatch, tmp_path, linkding_root, capsys):
+    import sys
+    import json
+    import dotenv
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    def forbidden(*args, **kwargs):
+        raise AssertionError('preparation read credentials')
+    monkeypatch.setattr(dotenv, 'dotenv_values', forbidden)
+    monkeypatch.setattr(sys, 'argv', ['linkding-route', '--output', str(tmp_path/'cli'), '--app-root', str(linkding_root)])
+    pilot.main()
+    result = json.loads(capsys.readouterr().out)
+    assert result['tasks'] == 4 and result['record_only']
+    monkeypatch.setattr(sys, 'argv', ['linkding-route', '--output', str(tmp_path/'cli'), '--run', '--approved-sha256', 'wrong'])
+    with pytest.raises(ValueError, match='freeze changed'):
+        pilot.main()
+
+
+async def test_linkding_product_private_oracle_cannot_select_actions(chromium_required, monkeypatch, tmp_path, linkding_root):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    _, packets = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path/'oracle-linkding', app_root=linkding_root)
+    case = frozen['cases'][0]
+    case['oracle']['rows'][0]['title'] = 'PRIVATE-ORACLE-POISON'
+    row = await pilot.run_task(case, 'jt', tmp_path/'oracle-linkding', app_python=Path(frozen['app']['python']),
+                               jev_credential='fixture', peer_credential='fixture')
+    assert row['result']['status'] == 'completed' and not row['strict_completed']
+    assert row['database']['records'][0]['title'] == 'Launch bookmark 1'
+    assert all('PRIVATE-ORACLE-POISON' not in json.dumps(p) for p in packets)
+    assert row['cleanup_confirmed']
+
+
+async def test_linkding_product_wrong_record_is_not_completion(chromium_required, monkeypatch, tmp_path, linkding_root):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    install_product_http(monkeypatch, 'wrong_record')
+    frozen = pilot.prepare(tmp_path/'wrong-linkding', app_root=linkding_root)
+    row = await pilot.run_task(frozen['cases'][0], 'jt', tmp_path/'wrong-linkding', app_python=Path(frozen['app']['python']),
+                               jev_credential='fixture', peer_credential='fixture')
+    assert not row['strict_completed'] and row['cleanup_confirmed']
+    assert row['database']['records'][0]['title'] == 'Draft bookmark 1'
+    assert row['database']['records'][1]['title'] == 'Launch bookmark 1'
+    assert sum(h['method'] == 'POST' for h in row['http']) == 1
+
+
+@pytest.mark.parametrize('fault', ['missing', 'wrong', 'wrong_page'])
+async def test_linkding_product_independent_final_list_receipt(chromium_required, monkeypatch, tmp_path, linkding_root, fault):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    install_product_http(monkeypatch)
+    original = pilot.LinkdingAdapter.readback
+    async def changed(self, channel, row):
+        if fault == 'wrong_page':
+            await channel.page.goto(channel.config.url + '/archived', timeout=5000)
+        elif fault == 'missing':
+            await channel.page.locator('.bookmark-list').evaluate('node => node.remove()')
+        else:
+            await channel.page.locator('li[data-bookmark-id="1"] .title a').evaluate("node => node.textContent='Wrong title'")
+        await original(self, channel, row)
+    monkeypatch.setattr(pilot.LinkdingAdapter, 'readback', changed)
+    frozen = pilot.prepare(tmp_path/fault, app_root=linkding_root)
+    row = await pilot.run_task(frozen['cases'][0], 'jt', tmp_path/fault, app_python=Path(frozen['app']['python']),
+                               jev_credential='fixture', peer_credential='fixture')
+    assert row['result']['status'] == 'completed'
+    assert row['database']['records'] == frozen['cases'][0]['oracle']['rows']
+    assert not row['strict_completed'] and row['cleanup_confirmed']
+    assert sum(h['method'] == 'POST' for h in row['http']) == 1
+
+
+@pytest.mark.parametrize('failure', ['cancel', 'audit', 'cleanup', 'fixture_io'])
+async def test_linkding_product_operational_stops_keep_four_rows(chromium_required, monkeypatch, tmp_path, linkding_root, failure):
+    import json
+    from agent_computer_use.channels.dom import ManagedChromiumChannel
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    calls, _ = install_product_http(monkeypatch, 'cancel' if failure == 'cancel' else None)
+    if failure == 'cleanup':
+        close = ManagedChromiumChannel.aclose
+        async def reported_failure(self):
+            await close(self)
+            raise RuntimeError('reported cleanup failure')
+        monkeypatch.setattr(ManagedChromiumChannel, 'aclose', reported_failure)
+    if failure in ('audit', 'fixture_io'):
+        original_open = Path.open
+        def denied(path, *args, **kwargs):
+            if path.name == ('audit.jsonl' if failure == 'audit' else 'seed.log'):
+                raise OSError('controlled evidence IO failure')
+            return original_open(path, *args, **kwargs)
+        monkeypatch.setattr(Path, 'open', denied)
+    output = tmp_path/failure
+    frozen = pilot.prepare(output, app_root=linkding_root)
+    if failure == 'cancel':
+        with pytest.raises(asyncio.CancelledError):
+            await pilot.run_batch(output, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+        result = json.loads((output/'result.json').read_text())
+    else:
+        result = await pilot.run_batch(output, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    assert not result['completed'] and len(result['rows']) == 4
+    assert [r['status'] for r in result['rows'][1:]] == ['not_run'] * 3
+    assert not result['rows'][0]['strict_completed'] and result['spend']['stop_reason']
+    if failure == 'fixture_io':
+        assert not calls and result['rows'][0]['database'] is None
+    if failure != 'cleanup':
+        assert result['rows'][0]['cleanup_confirmed']
+    if failure in ('cancel', 'audit', 'fixture_io'):
+        assert not any(h['method'] == 'POST' for h in result['rows'][0]['http'])
+
+
+async def test_linkding_product_invalid_known_reply_never_dispatches(chromium_required, monkeypatch, tmp_path, linkding_root):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    calls, _ = install_product_http(monkeypatch, 'invalid')
+    frozen = pilot.prepare(tmp_path/'invalid-linkding', app_root=linkding_root)
+    result = await pilot.run_batch(tmp_path/'invalid-linkding', frozen['sha256'],
+                                   jev_credential='fixture', peer_credential='fixture')
+    assert len(result['rows']) == 4 and len(calls) == 4
+    assert all(r['status'] == 'finished' and not r['strict_completed'] and r['cleanup_confirmed'] for r in result['rows'])
+    assert all(r['usage']['unknown_calls'] == 0 and not any(h['method'] == 'POST' for h in r['http']) for r in result['rows'])
+
+
+def test_linkding_product_rejects_changed_application_before_clients(monkeypatch, tmp_path, linkding_root):
+    import shutil
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    app = tmp_path/'qualified-copy'
+    app.mkdir()
+    for name in pilot.source_files(linkding_root):
+        target = app/name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(linkding_root/name, target)
+    (app/'.venv').symlink_to(linkding_root/'.venv', target_is_directory=True)
+    frozen = pilot.prepare(tmp_path/'pinned-copy', app_root=app)
+    form = app/'bookmarks/templates/bookmarks/form.html'
+    form.write_text(form.read_text() + '<button>Altered</button>')
+    with pytest.raises(ValueError, match='unmodified qualified product'):
+        pilot.load_freeze(tmp_path/'pinned-copy', frozen['sha256'])
+    assert not (tmp_path/'pinned-copy/started.json').exists()
+
+
+async def test_linkding_product_repeated_cancel_during_copy_drains_fixture(chromium_required, monkeypatch, tmp_path, linkding_root):
+    import json
+    import shutil
+    import threading
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    calls, _ = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path/'copy-cancel', app_root=linkding_root)
+    reached, release = threading.Event(), threading.Event()
+    original = shutil.copyfile
+    def pending_copy(*args, **kwargs):
+        reached.set()
+        assert release.wait(5)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(shutil, 'copyfile', pending_copy)
+    case = frozen['cases'][0]
+    worker = asyncio.create_task(pilot.run_task(case, 'v', tmp_path/'copy-cancel',
+        app_python=Path(frozen['app']['python']), jev_credential='fixture', peer_credential='fixture'))
+    try:
+        async with asyncio.timeout(5):
+            while not reached.is_set():
+                await asyncio.sleep(.01)
+        worker.cancel()
+        await asyncio.sleep(.01)
+        worker.cancel()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await worker
+    finally:
+        release.set()
+        await asyncio.gather(worker, return_exceptions=True)
+    path = tmp_path/'copy-cancel'/(case['id']+'-v')
+    row = json.loads((path/'row.json').read_text())
+    assert row['status'] == 'cancelled' and row['cleanup_confirmed'] and not row['strict_completed']
+    assert not calls and pilot.source_files(path/'app') == frozen['app']['source_files']
 
 
 @pytest.mark.parametrize('failure', [None, 'cancel'])
