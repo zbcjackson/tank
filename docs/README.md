@@ -36,6 +36,7 @@
 | [research/jev-checkbox-route-retest.md](research/jev-checkbox-route-retest.md) | 调研 | 修复后真实开发复测完成 | 原失败此次选逐列title并完成；本批质量齐平且JT更快少图，单产品已知案例非独立采用确认 |
 | [plans/done/jev-product-list-workflow.md](plans/done/jev-product-list-workflow.md) | 计划 | 已完成 | 第2轮独立结果审查通过；V/JT各4/4，编辑GET恢复各2/2，均时46.258/6.736秒，图片18/1；旧14归档保持 |
 | [research/jev-product-list-workflow.md](research/jev-product-list-workflow.md) | 调研 | 真实列表工作流开发实验完成 | 自主选记录、编辑并核验返回内容；一次图片接管再返回Jev，固定两行/次序非独立确认 |
+| [plans/active/jev-second-product-qualification.md](plans/active/jev-second-product-qualification.md) | 计划 | 资格检查进行中 | 原版linkding第二产品；先检查宿主准入并冻结任务，未调用模型 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 列表往返真实实验已审查 | 新V/JT各4/4，列表/编辑器历史/DB/HTTP同验收；下一步第二产品及独立确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
