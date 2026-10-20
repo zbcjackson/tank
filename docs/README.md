@@ -36,8 +36,9 @@
 | [research/jev-checkbox-route-retest.md](research/jev-checkbox-route-retest.md) | 调研 | 修复后真实开发复测完成 | 原失败此次选逐列title并完成；本批质量齐平且JT更快少图，单产品已知案例非独立采用确认 |
 | [plans/done/jev-product-list-workflow.md](plans/done/jev-product-list-workflow.md) | 计划 | 已完成 | 第2轮独立结果审查通过；V/JT各4/4，编辑GET恢复各2/2，均时46.258/6.736秒，图片18/1；旧14归档保持 |
 | [research/jev-product-list-workflow.md](research/jev-product-list-workflow.md) | 调研 | 真实列表工作流开发实验完成 | 自主选记录、编辑并核验返回内容；一次图片接管再返回Jev，固定两行/次序非独立确认 |
-| [plans/active/jev-second-product-qualification.md](plans/active/jev-second-product-qualification.md) | 计划 | 资格检查进行中 | 原版linkding第二产品；先检查宿主准入并冻结任务，未调用模型 |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 列表往返真实实验已审查 | 新V/JT各4/4，列表/编辑器历史/DB/HTTP同验收；下一步第二产品及独立确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
+| [plans/active/jev-second-product-qualification.md](plans/active/jev-second-product-qualification.md) | 计划 | 资格检查完成，待收尾审查 | 原版linkding原生脚本4/4；隐藏动画阻断编辑页读图，声明式任务冻结/零模型 |
+| [research/jev-second-product-qualification.md](research/jev-second-product-qualification.md) | 调研 | 宿主阻塞已定位 | 32完整观察，列表16/16可读图、编辑页16/16拒绝；隐藏无限动画/5张同字节PNG，不是模型比较 |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 第二产品资格阻塞已定位 | linkding隐藏动画使视觉准入失败，先TDD修复再做V/JT迁移；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
