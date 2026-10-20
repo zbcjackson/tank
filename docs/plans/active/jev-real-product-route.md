@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-20：真实应用准入探查中；未调用模型）。
+> 状态：进行中（2026-10-20：实现及完整验证通过，第1轮独立审查待执行；真实模型0调用）。
 
 # 真实产品中的结构优先与视觉路由
 
@@ -11,12 +11,14 @@ sqlite-web 0.8.1，在临时目录新建合成SQLite数据库及隔离Chromium�
 来源：[项目官方仓库](https://github.com/coleifer/sqlite-web)。
 
 先无模型检查原始页面与现有宿主契约。已发现普通链接无声明效果时不会进入
-ActionBuilder，编辑页还可能需要勾选列；不能通过给应用添加aria标签或脚本
+ActionBuilder，编辑页需要勾选列；不能通过给应用添加aria标签或脚本
 操纵真实模型选择来掩盖缺口。必要通用DOM能力按TDD最小补齐，保留新鲜度、
 权限、效果未知不重放和独立完成守卫。若准入不成立，保留实际失败并先处理宿主，
 不以手工页面替代产品实验。
 
-拟测创建记录、编辑指定记录且保持其他字段/记录不变，两种合成数据顺序；
+配方为创建/编辑各两种合成数据顺序，外加各一组故障×两臂，共12任务。
+两条件均直接从未修改的实际创建/编辑表单开始，未测列表定位/跨页入口；
+编辑只改目标标题，其他字段/记录保持不变；
 附初始GET一次503后可显式重试的可恢复故障。故障由实验边界注入，产品页面/
 实现不改；仅GET可重试，不重放未知POST。最终任务数、数据、故障时点与计分
 须在真实调用前冻结。共享真实Controller/TaskRuntime/ActionBuilder/守卫与清理；
@@ -26,7 +28,15 @@ V规则后Gemini带图选择，JT适用时Jev文字，其余同一Gemini；Jev�
 沿用无固定批次请求/token/费用上限授权，record-only、每任务120秒/6动作/24观察、
 SDK不重试，未知用量/运行/审计/清理失败停批、保留未运行分母。仅发实验合成数据
 及真实产品界面：api.typesafe.ai接收Jev文字，openrouter.ai接收Gemini PNG+文字。
-不访问个人数据库、账户或现有浏览器；全部旧11归档/原评分保持，生产默认不变。
+不访问个人数据库、账户或现有浏览器；全部旧11归档/原评分保持，不切生产默认策略。
+本切片更新通用DOM能力：同源链接URL效果、唯一原生checkbox勾选读回、加载中
+文档不完整，以及截图前最多250ms等动画结束，持续动态拒绝。精确图片哈希、引用/
+权限及未知效果不重放仍保持。产品页面/JS/CSS源码不修改或禁动画。
+
+两臂都接收同一独立SQLite mode=ro事务读回的实际work_items行；该观察函数不读
+目标或私有评分，不把期望值伪造为回执。最后另以全行、schema、触发器写入轨迹、
+HTTP POST次数及清理独立验收，必须恰一次正确写入。明确它比仅DOM多业务读回，
+不是一般网页随手可得的能力。已有错误记录写入及私有oracle投毒回归。
 
 ## Tests
 
@@ -42,12 +52,32 @@ SDK不重试，未知用量/运行/审计/清理失败停批、保留未运行�
    开销；归档与实际凭据扫描，旧证据核验，报告/主计划/索引/面板更新，经第2轮
    结果审查关档；不把本开发产品/探查用例当独立确认。
 
+## 实现与验证
+
+实现cbbe9c22。新增21项回归；其中20项专项44.33秒通过，末项读回异常TDD后与
+四项产品恢复一起5项通过（8.64秒）；全部现行代码完整后端6408通过/1跳过、
+21警告（584.71秒），串行E2E21场景/83步骤（152.149秒）通过。web lint/tsc-b、
+backend/CLI lint、3项改动Python pyright均通过；dev错误日志为空通过，docs72/
+diff检查通过。协议未变。E2E现有managed Chromium场景含39项宿主契约，产品
+外部环境资格回归由显式TANK_REAL_PRODUCT_PYTHON启用，本次全回归已启用而非跳过。
+
+原始无模型探查使用/tmp专用产品与数据库，列表页原0候选，通用准入修复后24；
+实际编辑路由为上游生成的WzFd，初始试探MQ==返回404，不用该无效页判断编辑能力。
+修正路由后编辑页16候选。探查初次漏runtime绑定和后续JSON序列化问题均已修正，
+无写入或模型调用；该探查实例已关闭，JSON/最后一轮控件截图保留，不冒称严格
+配对前后截图。本轮模型任务不使用列表或错误URL作为起点。
+
+独立重算脚本未导入宿主/评分代码，在完整12项fake矩阵核验通过：每臂6/6，
+各2/2已知GET故障恢复；40次fake SDK请求、400假用量tokens、32任务图，不能
+当真实模型质量/费用。34宿主源文件、654应用环境源/资源/元数据与解释器文件已
+纳入准备冻结。当前真实模型0调用、未开始真实批次；需第1轮审查后新目录prepare。
+
 ## Verification Checklist（最终步骤）
 
 1. `cd web && pnpm lint`
 2. `cd web && npx tsc -b --noEmit`
 3. `cd backend && uv run --no-sync ruff check core/src/ core/tests/ plugins/`及改动benchmark。
-4. `cd backend && TANK_REQUIRE_CHROMIUM=1 uv run --no-sync pytest`
+4. `cd backend && TANK_REQUIRE_CHROMIUM=1 TANK_REAL_PRODUCT_PYTHON=<app-venv>/bin/python uv run --no-sync pytest`
 5. `cd backend && uv run --no-sync pyright <全部改动Python>`，不得type-ignore。
 6. `cd cli && uv run --no-sync ruff check src/ tests/`
 7. `tmux capture-pane -t tank -p -S -50 | grep -i 'error\|traceback\|exception'`，空输出通过。
