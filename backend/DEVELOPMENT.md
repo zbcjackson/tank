@@ -252,6 +252,14 @@ negative acceptance). All guesses and original goal outcomes remain visible. See
 [the follow-up plan](../docs/plans/done/jev-vision-route-followup.md).
 
 The managed DOM channel uses one `visual_png` policy for evidence and rechecks.
+Ordinary same-origin, same-window links can declare an exact destination effect
+through the host-owned `status:Page URL` fact; downloads, external/new-window and
+malformed destinations are excluded. A blocked navigation stays effect-unknown.
+Uniquely named native checkboxes use actual checked-state readback, not a click
+receipt. These are local effects; task completion still requires its own evidence.
+Loading documents are incomplete observations. Image capture waits at most 250ms
+for active Web Animations to settle, then refuses continuing motion; it does not
+disable animations or relax the exact PNG comparison at dispatch.
 It suppresses native carets through a persistent constructable stylesheet, leaving
 DOM attributes/revisions intact. It still compares exact PNG hashes and retains
 DOM-object, navigation, actionability and authority checks. Freshness refusals emit
@@ -755,3 +763,17 @@ serialization and tests inspect the SDK default separately. Environment proxy an
 certificate settings now follow SDK defaults (`trust_env=True` in the pinned HTTP
 library), replacing the earlier explicit opt-out. The current library default does
 not follow redirects. Other model/replay client settings are unchanged.
+
+For the real-product development comparison, install `sqlite-web==0.8.1` into a
+separate temporary venv, then prepare with
+`uv run --no-sync python -m benchmarks.computer_use.jev_real_product_route --output <new-dir> --app-python /absolute/venv/bin/python`.
+Execute only after verification/review using `--output <dir> --run --approved-sha256 <digest>`.
+Preparation freezes the app environment's source/assets/metadata and Python bytes,
+SDK versions, host source and all 12 tasks without creating clients or servers.
+Each task starts its own upstream app and synthetic database on loopback; an
+external WSGI boundary may reject the first form GET once with an explicit Retry
+link. No product HTML/source is changed. Both conditions start on actual forms;
+list navigation/record discovery and open planning are not measured. The benchmark
+adds actual read-only database rows to the same observation in both arms, while a
+separate final schema/write audit checks full business state. See
+[the active plan](../docs/plans/active/jev-real-product-route.md).

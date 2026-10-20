@@ -42,6 +42,8 @@ DOM身份与导航（trial可能改变hover像素）。错误、未知用量、�
 Chromium模型图与复查图统一使用`visual_png`：通过constructable stylesheet隐藏
 原生输入光标，不改DOM属性或修订号；仍按原PNG哈希逐字节核对，其他画面变化
 不作容差。输入值、焦点、节点身份、导航和动作准入检查保持；当前动作仅click/fill。
+截图前最多250ms等Web Animations结束，不禁用动画；继续动态则拒绝捕获，后续派发
+仍比较精确PNG。加载中的文档标为不完整观察，不能提前生成动作。
 DOM新鲜度拒绝发`computer_use_freshness`阶段/观察/动作关联及必要图片hash，
 普通事件不含PNG或正文；即时图片仅由显式诊断配方保留。
 文本TaskModel及普通Jev choose不接收图片；显式视觉profile或image-enabled Jev
@@ -878,8 +880,10 @@ allowed_operations、带 purpose/field_scope 的 inputs 和 completion；不接�
 
 v2 根据当前 DOM 能力构造混合 click/fill；fill 只使用声明范围内的已给定输入，
 已核验输入绑定实际元素引用；引用包含文档实例身份，不因同名控件替换或 reload
-后局部编号重用而自动迁移。导航 click 当前仅接受
-`aria-controls` 指向唯一具名区域的可观察关系，submit 需先满足输入并核验目标回执。
+后局部编号重用而自动迁移。导航click接受`aria-controls`指向唯一具名区域，或同源/
+同窗口/非下载链接的精确目的URL效果；`status:Page URL`来自宿主真实frame URL，
+页面同名文本不能覆盖它。唯一具名原生复选框用实际checked读回确认局部效果，
+同名歧义框不形成模板。submit仍需先满足输入并核验目标回执。
 不按按钮名字猜副作用，不将任意页面变化或输入框内容视为保存成功。
 
 Jev/F 接收同一目标、当前快照、完整动作描述与宿主进度。v2 不沿用“单一同名按钮即执行”

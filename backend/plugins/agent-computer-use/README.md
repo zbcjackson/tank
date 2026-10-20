@@ -165,14 +165,18 @@ actual element identities, so locators do not silently select replacement nodes.
 The same locator engine serves observation, dispatch and readback; native handles
 never leave the channel.
 
-Supported action templates are button/link click and editable textbox fill.
+Supported action templates are button/link/native-checkbox click and editable textbox fill.
 Names use aria-labelledby, aria-label, native labels or element text. This is a
 bounded subset of DOM semantics, not a full accessible-name implementation.
 Visible unique `role:label` observations produce facts with the current input
 value or text content, e.g. `textbox:Name = 小明` and `status:Result = 小明`.
 Goals must use these page predicates; a page message alone does not prove external
 persistence or file creation. Duplicate keys supply no fact. DOM/node/text caps
-and open shadow roots make the scope incomplete; shadow DOM is not supported.
+and open shadow roots make the scope incomplete; loading documents are also incomplete.
+Shadow DOM is not supported. The host-owned `status:Page URL` reports the real frame URL,
+even if page text uses that label. Before capture, active Web Animations may settle
+for at most 250ms; continuing animation refuses capture. No animation is disabled
+and dispatch still compares exact PNG hashes.
 
 Click and fill require a successful non-forced trial click plus fresh identity,
 state and task checks. Native input has a short timeout; while a command is
@@ -525,7 +529,11 @@ instance identity, so a reload cannot transfer that binding to a new control.
 
 The current DOM templates support navigation via `aria-controls` to a uniquely
 named form/region/dialog, and native form submission once declared inputs are
-observably satisfied. Controls without a supported effect template are excluded.
+observably satisfied. Same-origin, same-window non-download links may instead use
+an exact destination-URL effect; blocked or redirected-to-other-URL navigation is
+not verified. Uniquely named native checkboxes use their actual checked value as
+the local effect. Duplicate checkbox names supply no executable checkbox template.
+Controls without a supported effect template are excluded.
 Completion requires `status:` facts; field values establish only local fill effects.
 Optional `outcomes` add conjunctive result conditions and acyclic `depends_on`
 references; they must all be verified as well as completion. No custom verification

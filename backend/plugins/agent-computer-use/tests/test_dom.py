@@ -220,6 +220,73 @@ async def channel(site: str, chromium_required: None):
         await ctx.runtime.aclose()
 
 
+@pytest.mark.parametrize("prevent", [False, True])
+async def test_dom_same_origin_link_requires_actual_navigation(channel, prevent):
+    from agent_computer_use.controller import ComputerUseController
+
+    browser, ctx = channel
+    destination = browser.page.url + "next"
+    await browser.page.set_content(
+        f'<a href="{destination}" {"onclick=\"event.preventDefault()\"" if prevent else ""}>Next</a>'
+        '<a href="https://example.invalid/">External</a>'
+        '<a href="/download" download>Download</a>'
+        '<a href="/new" target="_blank">New window</a>')
+    contract = GoalContract.from_input({
+        **goal().model_dump(mode="json"), "inputs": [],
+        "completion": [{"key": "status:Page URL", "value": destination}],
+    })
+    snapshot = await browser.observe("managed-page", ctx)
+    actions = ActionBuilder(visual=True).build("goal", 1, contract, snapshot)
+    assert len(actions.actions) == 1
+    assert actions.details[0].label == "Next"
+    host = ComputerUseController(browser, browser, selector=SelectOnlyCandidate())
+    result = await host.run(SubAgentRequest("Go next", "", "dom-task",
+                                           contract.model_dump(mode="json")), ctx)
+    assert result.reason == ("effect_unknown" if prevent else "goal_verified")
+    assert len(host.receipts) == 1
+
+
+@pytest.mark.parametrize("prevent", [False, True])
+async def test_dom_checkbox_requires_checked_readback(channel, prevent):
+    from agent_computer_use.controller import ComputerUseController
+
+    browser, ctx = channel
+    handler = 'onclick="event.preventDefault()"' if prevent else ''
+    await browser.page.set_content(
+        f'<label>Allow edit<input type="checkbox" {handler} '
+        'onchange="document.querySelector(\'output\').textContent=\'enabled\'"></label>'
+        '<output aria-label="Result">disabled</output>')
+    contract = GoalContract.from_input({
+        **goal().model_dump(mode="json"), "inputs": [],
+        "completion": [{"key": "status:Result", "value": "enabled"}],
+    })
+    snapshot = await browser.observe("managed-page", ctx)
+    actions = ActionBuilder(visual=True).build("goal", 1, contract, snapshot)
+    assert len(actions.actions) == 1
+    assert actions.details[0].effect[0].key == "checkbox:Allow edit"
+    host = ComputerUseController(browser, browser, selector=SelectOnlyCandidate())
+    result = await host.run(SubAgentRequest("Enable editing", "", "dom-task",
+                                           contract.model_dump(mode="json")), ctx)
+    assert result.reason == ("effect_unknown" if prevent else "goal_verified")
+    assert len(host.receipts) == 1
+
+
+async def test_dom_navigation_fact_and_checkbox_identity_are_host_checked(channel):
+    browser, ctx = channel
+    actual_url = browser.page.url
+    await browser.page.set_content(
+        '<output aria-label="Page URL">https://example.invalid/spoof</output>'
+        '<a href="http://[">Malformed</a>'
+        '<label>Same<input type="checkbox"></label>'
+        '<label>Same<input type="checkbox"></label>'
+        '<label>Unavailable<input type="checkbox" disabled></label>')
+    snapshot = await browser.observe("managed-page", ctx)
+    assert next(f.value for f in snapshot.facts if f.key == "status:Page URL") == actual_url
+    assert not any(f.key == "checkbox:Same" for f in snapshot.facts)
+    actions = ActionBuilder(visual=True).build("goal", 1, goal(), snapshot)
+    assert not actions.actions
+
+
 async def actions(channel, ctx, index=1):
     snapshot = await channel.observe("managed-page", ctx)
     contract = goal()
@@ -1918,3 +1985,273 @@ async def test_route_followup_full_matrix_keeps_old_tasks_and_new_fallbacks(chro
     assert len(gap_jt) == 6 and all(r['fallback_verified'] for r in gap_jt)
     assert all(not r['palette_guesses'] for r in result['rows'])
     assert all(r['cleanup_confirmed'] for r in result['rows'])
+
+
+@pytest.fixture
+def product_python():
+    value = os.environ.get('TANK_REAL_PRODUCT_PYTHON')
+    if not value:
+        pytest.skip('Set TANK_REAL_PRODUCT_PYTHON to an isolated sqlite-web 0.8.1 environment')
+    assert Path(value).is_file()
+    return Path(value)
+
+
+def test_real_product_prepare_has_no_clients_or_server(monkeypatch, tmp_path, product_python):
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    def forbidden(*args, **kwargs):
+        raise AssertionError('preparation allocated HTTP or a server')
+    monkeypatch.setattr(httpx.AsyncClient, '__init__', forbidden)
+    monkeypatch.setattr(httpx2.AsyncClient, '__init__', forbidden)
+    monkeypatch.setattr(asyncio, 'create_subprocess_exec', forbidden)
+    frozen = pilot.prepare(tmp_path / 'product', app_python=product_python)
+    assert len(frozen['cases']) == 6 and len(frozen['schedule']) == 12
+    assert frozen['app']['versions']['sqlite-web'] == '0.8.1'
+    assert frozen['app']['files'] and frozen['source_sha256']
+    assert pilot.load_freeze(tmp_path / 'product', frozen['sha256']) == frozen
+    with pytest.raises(FileExistsError):
+        pilot.prepare(tmp_path / 'product', app_python=product_python)
+    import json
+    (tmp_path / 'product/freeze.json').write_text(json.dumps({**frozen, 'seconds_per_task': 121}))
+    with pytest.raises(ValueError):
+        pilot.load_freeze(tmp_path / 'product', frozen['sha256'])
+
+
+def install_product_http(monkeypatch, failure=None):
+    import base64
+    import json
+    import httpx
+    import httpx2
+    from benchmarks.computer_use import jev_vision_route as base
+    calls, packets = [], []
+    def answer(payload):
+        visual = 'messages' in payload
+        packet = json.loads(payload['messages'][1]['content'][0]['text']) if visual else payload
+        packets.append(packet)
+        offered = {k: v for k, v in packet['questions']['next_action']['criteria'].items() if isinstance(v, dict)}
+        intent = packet['state']['goal']['intent']
+        selected = next((k for k, v in offered.items() if v['label'] == 'Retry'), None)
+        if selected is None:
+            selected = next((k for k, v in offered.items() if v['operation'] == 'fill'), None)
+        if selected is None and intent.startswith('Create'):
+            selected = next((k for k, v in offered.items() if v['label'] == 'Insert' and v['role'] == 'button'), None) or next((k for k, v in offered.items() if v['label'] == 'Insert'), None)
+        if selected is None and not intent.startswith('Create'):
+            selected = next((k for k, v in offered.items() if v['label'] == 'include all columns' and v['current_value'] == 'false'), None)
+            if selected is None:
+                selected = next((k for k, v in offered.items() if v['label'] == 'Update'), None)
+            if selected is None:
+                token = base64.urlsafe_b64encode(b'[2]' if 'id 2 ' in intent else b'[1]').decode().rstrip('=')
+                selected = next((k for k, v in offered.items() if v['label'] == 'Edit' and any('/update/' + token + '/' in f['value'] for f in v['effect'])), None)
+        choice = 'none' if failure == 'wrong' else selected or 'none'
+        calls.append('peer' if visual else 'jev')
+        if failure == 'cancel':
+            raise asyncio.CancelledError
+        if visual:
+            result = {'id': 'fixture', 'object': 'chat.completion', 'created': 1, 'model': base.PEER['model'],
+                      'choices': [{'index': 0, 'finish_reason': 'stop', 'message': {'role': 'assistant', 'content': json.dumps({'choice': choice})}}],
+                      'usage': {'prompt_tokens': 7, 'completion_tokens': 3, 'total_tokens': 10}}
+        else:
+            result = {'model': base.JEV['model'], 'answers': {'next_action': {'type': 'choice', 'choice': choice,
+                      'confidence': 1, 'probabilities': {k: float(k == choice) for k in packet['questions']['next_action']['criteria']}}},
+                      'usage': {'input_tokens': 7, 'output_tokens': 3}}
+        if failure == 'unknown':
+            result.pop('usage')
+        return result
+    monkeypatch.setattr(httpx, 'AsyncHTTPTransport', lambda **kwargs: httpx.MockTransport(
+        lambda request: httpx.Response(200, json=answer(json.loads(request.content)))))
+    monkeypatch.setattr(httpx2, 'AsyncHTTPTransport', lambda **kwargs: httpx2.MockTransport(
+        lambda request: httpx2.Response(200, json=answer(json.loads(request.content)))))
+    return calls, packets
+
+
+@pytest.mark.parametrize('kind', ['insert', 'update'])
+@pytest.mark.parametrize('arm', ['v', 'jt'])
+async def test_real_product_actual_sdk_browser_database_recovery(chromium_required, monkeypatch, tmp_path, product_python, kind, arm):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    calls, packets = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'real', app_python=product_python)
+    case = next(c for c in frozen['cases'] if c['kind'] == kind and c['recovery'])
+    row = await pilot.run_task(case, arm, tmp_path / 'real', app_python=product_python, jev_credential='fixture', peer_credential='fixture')
+    assert row['strict_completed'] and row['recovery_completed'] and row['cleanup_confirmed'], row
+    assert row['database']['records'] == case['oracle']['rows']
+    assert len(row['database']['writes']) == 1
+    assert row['database']['writes'][0]['operation'] == kind
+    assert sum(r['status'] == '503 Service Unavailable' for r in row['http']) == 1
+    assert sum(r['method'] == 'POST' for r in row['http']) == 1
+    assert calls and all(p['state']['binding']['scope'] == 'real-product' for p in packets)
+    assert row['app_unchanged']
+
+
+async def test_dom_loading_document_is_not_a_complete_observation(chromium_required):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
+    release = asyncio.Event()
+    async def respond(reader, writer):
+        request = await reader.readuntil(b'\r\n\r\n')
+        streamed = request.startswith(b'GET /stream ')
+        body = b'<!doctype html><button>Pending</button>'
+        tail = b'<button>Ready</button>' if streamed else b''
+        writer.write(b'HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: ' + str(len(body)+len(tail)).encode() + b'\r\nConnection: close\r\n\r\n' + body)
+        await writer.drain()
+        if streamed:
+            await release.wait()
+            writer.write(tail)
+            await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+    server = await asyncio.start_server(respond, '127.0.0.1', 0)
+    url = f'http://127.0.0.1:{server.sockets[0].getsockname()[1]}/'
+    browser = ManagedChromiumChannel(BrowserConfig(scope='managed-page', url=url))
+    ctx = context()
+    try:
+        await browser.observe('managed-page', ctx)
+        assert browser.page is not None
+        await browser.page.goto(url+'stream', wait_until='commit')
+        await browser.page.get_by_role('button', name='Pending').wait_for()
+        loading = await browser.observe('managed-page', ctx)
+        assert not loading.complete
+        assert not ActionBuilder(visual=True).build('goal', 1, goal(), loading).actions
+        release.set()
+        await browser.page.wait_for_load_state('load')
+        loaded = await browser.observe('managed-page', ctx)
+        assert loaded.complete and any(e.label == 'Ready' for e in loaded.elements)
+    finally:
+        release.set()
+        await browser.aclose()
+        await ctx.runtime.aclose()
+        server.close()
+        await server.wait_closed()
+
+
+async def test_dom_visual_capture_waits_for_finite_css_transition(channel):
+    browser, ctx = channel
+    await browser.page.set_content('''<style>
+      input{border:8px solid black;transition:border-color .15s linear}
+      input:focus{border-color:red;outline:none}
+      </style><label>Name<input value="Bob"></label>''')
+    await browser.page.screenshot()
+    await browser.page.get_by_role('textbox').focus()
+    assert await browser.page.evaluate('document.getAnimations().length')
+    offered = await actions(browser, ctx, index=2)
+    await browser.capture(browser.previous, ctx)
+    await asyncio.sleep(.2)
+    assert await browser.is_current(offered.binding, offered.actions[0], ctx)
+
+
+async def test_dom_visual_capture_refuses_continuing_animation(channel):
+    from tank_backend.agents.subagent import SubAgentStopped
+    browser, ctx = channel
+    await browser.page.set_content('''<style>@keyframes pulse{to{opacity:.1}}
+      button{animation:pulse .1s infinite alternate}</style><button>Save</button>''')
+    snapshot = await browser.observe('managed-page', ctx)
+    with pytest.raises(SubAgentStopped, match='unstable_visual_frame'):
+        await browser.capture(snapshot, ctx)
+    assert browser.visual_frame is None
+
+
+@pytest.mark.parametrize('failure', [None, 'unknown', 'wrong', 'cleanup'])
+async def test_real_product_batch_retains_all_rows_and_no_unsafe_retries(chromium_required, monkeypatch, tmp_path, product_python, failure):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    from agent_computer_use.channels.dom import ManagedChromiumChannel
+    calls, packets = install_product_http(monkeypatch, failure)
+    if failure == 'cleanup':
+        original = ManagedChromiumChannel.aclose
+        async def fail_close(self):
+            await original(self)
+            raise RuntimeError('reported cleanup failure')
+        monkeypatch.setattr(ManagedChromiumChannel, 'aclose', fail_close)
+    frozen = pilot.prepare(tmp_path / 'batch', app_python=product_python)
+    result = await pilot.run_batch(tmp_path / 'batch', frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    assert len(result['rows']) == 12
+    assert all('oracle' not in json.dumps(p) for p in packets)
+    ran = [r for r in result['rows'] if r['status'] != 'not_run']
+    if failure in ('unknown', 'cleanup'):
+        assert not result['completed'] and len(ran) == 1
+        assert result['spend']['stop_reason'] == ('unknown_usage' if failure == 'unknown' else 'cleanup_failed')
+        if failure == 'unknown':
+            assert len(calls) == 1 and not ran[0]['database']['writes']
+            assert not any(r['method'] == 'POST' for r in ran[0]['http'])
+    else:
+        assert result['completed'] and len(ran) == 12
+        assert all(r['cleanup_confirmed'] and r['app_unchanged'] for r in ran)
+        if failure is None:
+            assert all(r['strict_completed'] for r in ran), ran
+            assert sum(r['recovery_completed'] for r in ran) == 4
+        else:
+            assert not any(r['strict_completed'] for r in ran)
+            assert all(r['capped_completion_ms'] == 120000 for r in ran)
+            assert not any(r['database']['writes'] for r in ran)
+    assert result['spend'] == json.loads((tmp_path / 'batch/spend.jsonl').read_text().splitlines()[-1])
+    with pytest.raises(FileExistsError):
+        await pilot.run_batch(tmp_path / 'batch', frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+
+
+async def test_real_product_cancellation_preserves_denominator(chromium_required, monkeypatch, tmp_path, product_python):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    calls, _ = install_product_http(monkeypatch, 'cancel')
+    frozen = pilot.prepare(tmp_path / 'cancel', app_python=product_python)
+    with pytest.raises(asyncio.CancelledError):
+        await pilot.run_batch(tmp_path / 'cancel', frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    result = json.loads((tmp_path / 'cancel/result.json').read_text())
+    assert len(result['rows']) == 12 and len(calls) == 1
+    assert result['rows'][0]['status'] == 'cancelled' and result['rows'][0]['cleanup_confirmed']
+    assert sum(r['status'] == 'not_run' for r in result['rows']) == 11
+    assert not result['rows'][0]['database']['writes']
+
+
+async def test_real_product_wrong_record_write_is_not_completion(chromium_required, monkeypatch, tmp_path, product_python):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'wrong-record', app_python=product_python)
+    case = next(c for c in frozen['cases'] if c['kind'] == 'update' and not c['recovery'] and c['order'] == 0)
+    case['start_path'] = '/work_items/update/WzJd/'
+    row = await pilot.run_task(case, 'jt', tmp_path / 'wrong-record', app_python=product_python, jev_credential='fixture', peer_credential='fixture')
+    assert row['cleanup_confirmed'] and row['app_unchanged']
+    assert len(row['database']['writes']) == 1 and row['database']['writes'][0]['id'] == 2
+    assert row['database']['records'] != case['oracle']['rows']
+    assert not row['strict_completed'] and row['capped_completion_ms'] == 120000
+    assert row['result']['reason'] == 'effect_unknown'
+    assert sum(r['method'] == 'POST' for r in row['http']) == 1
+
+
+async def test_real_product_private_oracle_never_enters_observer_or_model(chromium_required, monkeypatch, tmp_path, product_python):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    _, packets = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'private', app_python=product_python)
+    case = frozen['cases'][0]
+    expected = case['oracle']['rows']
+    case['oracle']['rows'] = [{'PRIVATE_SENTINEL': 'never send'}]
+    row = await pilot.run_task(case, 'jt', tmp_path / 'private', app_python=product_python, jev_credential='fixture', peer_credential='fixture')
+    assert row['database']['records'] == expected and row['result']['status'] == 'completed'
+    assert not row['strict_completed'] and row['cleanup_confirmed']
+    assert 'PRIVATE_SENTINEL' not in json.dumps(packets)
+
+
+async def test_real_product_failed_readback_preserves_attempted_row(chromium_required, monkeypatch, tmp_path, product_python):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    calls, _ = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'failed-read', app_python=product_python)
+    original = pilot.database_state
+    reads = 0
+    def fail_read(path):
+        nonlocal reads
+        reads += 1
+        if reads > 1:
+            raise OSError('readback unavailable')
+        return original(path)
+    monkeypatch.setattr(pilot, 'database_state', fail_read)
+    result = await pilot.run_batch(tmp_path / 'failed-read', frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    assert not result['completed'] and result['spend']['stop_reason'] == 'operational_error'
+    assert result['rows'][0]['status'] == 'error'
+    assert sum(r['status'] == 'not_run' for r in result['rows']) == 11
+    assert not calls

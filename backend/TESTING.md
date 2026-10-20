@@ -1262,3 +1262,16 @@ picture capture, and preserving a lucky unsupported guess instead of rewriting i
 A complete real-Chromium/fake-HTTP matrix retains all 36 tasks and 66 SDK calls.
 The existing managed Chromium cucumber contract includes both abstention cases.
 These tests establish wiring and scoring, not actual model abstention quality.
+
+Real-product route qualification uses the unmodified sqlite-web 0.8.1 installation
+in an isolated external environment; it is not a default application dependency.
+Set `TANK_REAL_PRODUCT_PYTHON=/absolute/venv/bin/python` when running the existing
+`test_dom.py -k real_product` cases to require it. Preparation forbids SDK/server
+allocation; the real product/server/Chromium and real SDKs run with only external
+model HTTP replaced. Tests cover all 12 tasks, one injected GET refusal/recovery,
+read-only database receipts, exactly one write, wrong-record non-completion,
+private-oracle isolation, unknown usage, cancellation and cleanup-stop denominators.
+Without that explicit environment the product qualification tests skip; production
+DOM regressions and managed-Chromium E2E do not require sqlite-web. They cover
+same-origin navigation, checked-state readback, URL spoof/malformed links, loading
+documents, finite transitions and refusing continuing motion. No paid calls run.

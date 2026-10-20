@@ -80,7 +80,7 @@ _ENGINE = r"""({
 _READ = r"""nodes => {
     const state = globalThis[NAMESPACE];
     state.refs.clear();
-    let complete = nodes.length <= 4096;
+    let complete = nodes.length <= 4096 && document.readyState !== 'loading';
     const elements = [];
     const text = value => (value || '').replace(/\s+/g, ' ').trim();
     const name = node => text((node.getAttribute('aria-labelledby') || '').split(/\s+/)
@@ -92,6 +92,7 @@ _READ = r"""nodes => {
         const tag = node.tagName.toLowerCase();
         const role = node.getAttribute('role') || ({button: 'button', textarea: 'textbox',
             input: ['button', 'submit', 'reset'].includes(node.type) ? 'button' :
+                node.type === 'checkbox' ? 'checkbox' :
                 ['text', 'search', 'email', 'url', 'tel', 'password'].includes(node.type) ?
                 'textbox' : '', a: node.hasAttribute('href') ? 'link' : '',
             output: 'status', form: name(node) ? 'region' : '', dialog: 'dialog'}[tag] || '');
@@ -104,7 +105,8 @@ _READ = r"""nodes => {
         const label = text(labelled || node.getAttribute('aria-label') ||
             [...(node.labels || [])].map(e => e.textContent).join(' ') ||
             (tag === 'input' && role === 'button' ? node.value : node.textContent));
-        const value = role === 'textbox' ? node.value ?? node.textContent : node.textContent;
+        const value = tag === 'input' && node.type === 'checkbox' ? String(node.checked) :
+            role === 'textbox' ? node.value ?? node.textContent : node.textContent;
         const ancestors = [];
         for (let parent = node.parentElement; parent; parent = parent.parentElement) {
             if (name(parent)) ancestors.push([parent.tagName.toLowerCase(), name(parent)]);
@@ -115,10 +117,20 @@ _READ = r"""nodes => {
         const targetName = target && name(target);
         const targetRole = target && (target.getAttribute('role') ||
             (target.tagName.toLowerCase() === 'dialog' ? 'dialog' : 'region'));
-        const click_effect = targetName && targetName.length <= 113 &&
+        let click_effect = targetName && targetName.length <= 113 &&
             ['region', 'dialog'].includes(targetRole) &&
             regions.filter(r => name(r) === targetName).length === 1 && regions.includes(target) ?
             [{key: 'visible:' + targetRole + ':' + targetName, value: 'true'}] : [];
+        if (!click_effect.length && tag === 'a' && node.hasAttribute('href') &&
+            !node.hasAttribute('download') && !document.querySelector('base[target]') &&
+            ['', '_self'].includes((node.target || '').toLowerCase())) {
+            let destination;
+            try { destination = new URL(node.href, location.href); } catch (_) {}
+            if (destination && destination.origin === location.origin &&
+                ['http:', 'https:'].includes(destination.protocol) &&
+                destination.href !== location.href && destination.href.length <= 4096)
+                click_effect = [{key: 'status:Page URL', value: destination.href}];
+        }
         if (label.length > 512 || (value || '').length > 4096 || role.length > 128)
             complete = false;
         if (!state.ids.has(node))
@@ -284,21 +296,29 @@ class ManagedChromiumChannel:
         if navigation != self.navigation:
             raise SubAgentStopped("navigation_changed")
         elements = []
+        keys = Counter(f"{item.role}:{item.label}" for item in view.elements)
         for item in view.elements:
             actions: tuple[Literal["click", "fill"], ...] = ()
+            click_effect = item.click_effect
             if item.role in {"button", "link"}:
                 actions = ("click",)
+            elif (item.role == "checkbox" and item.input_type == "checkbox"
+                  and item.label and len(item.label) <= 119
+                  and keys[f"checkbox:{item.label}"] == 1):
+                actions = ("click",)
+                click_effect = (Fact(key=f"checkbox:{item.label}",
+                                     value="false" if item.value == "true" else "true"),)
             elif item.editable:
                 actions = ("fill",)
             elements.append(Element(item.ref, item.role, item.label, actions, item.enabled,
                                     "control" if actions else "text_region", "dom",
                                     item.value, item.focused, item.ancestors,
-                                    click_effect=item.click_effect, submits=item.submits,
+                                    click_effect=click_effect, submits=item.submits,
                                     input_type=item.input_type))
-        keys = Counter(f"{item.role}:{item.label}" for item in view.elements)
-        facts = tuple(Fact(key=key, value=item.value) for item in view.elements
+        facts = (Fact(key="status:Page URL", value=frame.url),) + tuple(
+                      Fact(key=key, value=item.value) for item in view.elements
                       if item.label and len(key := f"{item.role}:{item.label}") <= 128
-                      and keys[key] == 1)
+                      and key != "status:Page URL" and keys[key] == 1)
         facts += tuple(Fact(key=f"visible:{item.role}:{item.label}", value="true")
                        for item in view.elements if item.role in {"region", "dialog"}
                        and item.label and len(f"visible:{item.role}:{item.label}") <= 128
@@ -323,6 +343,23 @@ class ManagedChromiumChannel:
             context.observe("computer_use_freshness", channel="dom", stage="capture_precheck",
                             observation_id=snapshot.observation_id)
             raise SubAgentStopped("visual_frame_unavailable")
+        settled = await frame.evaluate("""async () => {
+            const active = () => document.getAnimations().filter(a => a.pending || a.playState === 'running');
+            const animations = active();
+            if (!animations.length) return true;
+            let timer;
+            await Promise.race([
+                Promise.all(animations.map(a => a.finished.catch(() => {}))),
+                new Promise(resolve => { timer = setTimeout(resolve, 250); })
+            ]);
+            clearTimeout(timer);
+            return active().length === 0;
+        }""")
+        self.check(context)
+        if not settled:
+            context.observe("computer_use_freshness", channel="dom", stage="capture_motion",
+                            observation_id=snapshot.observation_id)
+            raise SubAgentStopped("unstable_visual_frame")
         bounds = []
         for element in snapshot.elements:
             if not element.actions:
