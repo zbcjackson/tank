@@ -1293,6 +1293,15 @@ of hidden text, preserving ambiguity for repeated/empty row context, oversize
 observation refusal and rejecting an action after its row text changes. The
 existing managed Chromium E2E entry includes these generic contracts.
 
+Hidden-pseudo animation regressions in the same file use real Chromium CSS effects,
+imports/adopted sheets and public capture/is_current interfaces. Empty hidden
+before/after transform/opacity animations keep running while capture succeeds;
+visible/visibility-changing, text/marker, layout/custom-property, ordinary-element
+and programmatic animations remain refused. Actual CSS definitions guard against
+Chromium omitting custom properties from getKeyframes. Failed imports and the
+4096-rule cap fail closed; CSSOM-only reveals/pixel changes and node replacement
+invalidate a captured frame. The managed Chromium E2E entry includes these contracts.
+
 The same `test_dom.py` real-product fixture covers `--workflow` preparation and
 all eight list/edit/return cases with real SDKs and fake model HTTP. It checks
 record-row context, actual editor-seen history and returned DOM cells/path, one

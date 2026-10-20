@@ -258,8 +258,12 @@ malformed destinations are excluded. A blocked navigation stays effect-unknown.
 Uniquely named native checkboxes use actual checked-state readback, not a click
 receipt. These are local effects; task completion still requires its own evidence.
 Loading documents are incomplete observations. Image capture waits at most 250ms
-for active Web Animations to settle, then refuses continuing motion; it does not
-disable animations or relax the exact PNG comparison at dispatch.
+for active Web Animations to settle, then refuses continuing motion. Empty hidden
+`::before`/`::after` CSS animations limited to transform/opacity are excluded only
+after checking reported keyframes and readable CSS definitions (4096-rule cap).
+Text/marker descendants, unknown/custom properties, unreadable definitions, ordinary
+element animations and programmatic effects remain conservative. It does not disable
+animations or relax the exact PNG comparison at dispatch.
 It suppresses native carets through a persistent constructable stylesheet, leaving
 DOM attributes/revisions intact. It still compares exact PNG hashes and retains
 DOM-object, navigation, actionability and authority checks. Freshness refusals emit

@@ -42,8 +42,12 @@ DOM身份与导航（trial可能改变hover像素）。错误、未知用量、�
 Chromium模型图与复查图统一使用`visual_png`：通过constructable stylesheet隐藏
 原生输入光标，不改DOM属性或修订号；仍按原PNG哈希逐字节核对，其他画面变化
 不作容差。输入值、焦点、节点身份、导航和动作准入检查保持；当前动作仅click/fill。
-截图前最多250ms等Web Animations结束，不禁用动画；继续动态则拒绝捕获，后续派发
-仍比较精确PNG。加载中的文档标为不完整观察，不能提前生成动作。
+截图前最多250ms等Web Animations结束，不禁用动画；继续动态则拒绝捕获。仅排除
+空内容、无list marker、computed visibility:hidden的::before/::after CSS动画，
+且报告关键帧与全部可读CSS定义均只含transform/opacity。CSS扫描包含import/
+嵌套/adopted sheet，最多4096规则；未知/自定义属性、不可读来源、普通元素及
+程序动画仍保守纳入。后续派发仍比较精确PNG，CSSOM无DOM修订的可见性/像素
+变化也会拒绝。加载中的文档标为不完整观察，不能提前生成动作。
 DOM新鲜度拒绝发`computer_use_freshness`阶段/观察/动作关联及必要图片hash，
 普通事件不含PNG或正文；即时图片仅由显式诊断配方保留。
 文本TaskModel及普通Jev choose不接收图片；显式视觉profile或image-enabled Jev

@@ -175,8 +175,15 @@ persistence or file creation. Duplicate keys supply no fact. DOM/node/text caps
 and open shadow roots make the scope incomplete; loading documents are also incomplete.
 Shadow DOM is not supported. The host-owned `status:Page URL` reports the real frame URL,
 even if page text uses that label. Before capture, active Web Animations may settle
-for at most 250ms; continuing animation refuses capture. No animation is disabled
-and dispatch still compares exact PNG hashes.
+for at most 250ms; continuing animation refuses capture. The sole exclusion is an
+empty, hidden `::before`/`::after` CSS animation without a list marker, whose reported
+keyframes and all readable CSS definitions contain only transform/opacity properties.
+CSS rules (including imports, nested rules and adopted sheets) are scanned with a
+4096-rule cap because Chromium omits custom properties from `getKeyframes()`.
+Unreadable/unknown definitions, other properties, programmatic effects, ordinary
+elements and visible pseudo-elements remain active. No animation is disabled and
+dispatch still compares exact PNG hashes; CSSOM-only visibility/pixel changes reject
+the captured frame too.
 
 Click and fill require a successful non-forced trial click plus fresh identity,
 state and task checks. Native input has a short timeout; while a command is

@@ -2227,6 +2227,141 @@ async def test_dom_visual_capture_refuses_continuing_animation(channel):
     assert browser.visual_frame is None
 
 
+@pytest.mark.parametrize('pseudo', ['::before', '::after'])
+@pytest.mark.parametrize('property_value', ['transform:rotate(360deg)', 'opacity:.1'])
+async def test_dom_hidden_pseudo_animation_keeps_running_during_capture(channel, pseudo, property_value):
+    browser, ctx = channel
+    await browser.page.set_content(f'''<style>
+      @keyframes spin{{to{{{property_value}}}}}
+      i{{visibility:hidden}}
+      i{pseudo}{{content:"";display:block;width:16px;height:16px;
+        background:red;animation:spin .1s infinite linear}}
+      </style><i></i><label>Name<input value="Bob"></label>''')
+    offered = await actions(browser, ctx, index=2)
+    captured = await browser.capture(browser.previous, ctx)
+    await asyncio.sleep(.15)
+    assert await browser.is_current(offered.binding, offered.actions[0], ctx)
+    assert await browser.visual_png() == captured.png
+    assert await browser.page.evaluate('''pseudo => document.getAnimations().some(a =>
+      a.playState === 'running' && a.effect.pseudoElement === pseudo)''', pseudo)
+
+
+@pytest.mark.parametrize('css', [
+    'i::after{visibility:visible}',
+    'i{visibility:visible}i::after{opacity:0}',
+    '@keyframes spin{from{visibility:hidden}to{visibility:visible}}',
+    '@keyframes spin{to{width:100px}}',
+    '@keyframes spin{to{--unknown:1}}',
+    '@keyframes spin{to{transform:rotate(360deg);--unknown:1}}',
+    'i::after{content:"Text"}',
+    'i::after{display:list-item;list-style:disc}',
+    'i{animation:spin .1s infinite}i::after{animation:none}',
+    'i{animation:spin .1s infinite}i::after{animation:none;visibility:visible}',
+    'i{animation:spin .1s infinite}i::after{animation:none}i span{visibility:visible}',
+    'i::before{content:"";visibility:visible;display:block;width:16px;height:16px;animation:spin .1s infinite}',
+])
+async def test_dom_hidden_pseudo_animation_admission_stays_conservative(channel, css):
+    from tank_backend.agents.subagent import SubAgentStopped
+    browser, ctx = channel
+    await browser.page.set_content('''<style>
+      @keyframes spin{to{transform:rotate(360deg)}}
+      i{visibility:hidden;display:block;width:16px;height:16px}
+      i::after{content:"";display:block;width:16px;height:16px;
+        background:red;animation:spin .1s infinite linear}
+      ''' + css + '</style><i><span>Child</span></i><button>Save</button>')
+    snapshot = await browser.observe('managed-page', ctx)
+    with pytest.raises(SubAgentStopped, match='unstable_visual_frame'):
+        await browser.capture(snapshot, ctx)
+    assert browser.visual_frame is None
+
+
+@pytest.mark.parametrize('change', ['pseudo_visible', 'pixels', 'reference'])
+async def test_dom_hidden_pseudo_animation_does_not_bypass_freshness(channel, change):
+    from tank_backend.agents.subagent import SubAgentStopped
+    browser, ctx = channel
+    events = []
+    class Observer:
+        def on_event(self, kind, metadata):
+            if kind == 'computer_use_freshness':
+                events.append(metadata)
+    object.__setattr__(ctx, 'observer', Observer())
+    await browser.page.set_content('''<style>
+      @keyframes spin{to{transform:rotate(360deg)}}
+      i{visibility:hidden}
+      i::after{content:"";display:block;width:16px;height:16px;
+        background:red;animation:spin .1s infinite linear}
+      </style><i></i><label>Name<input value="Bob"></label>''')
+    offered = await actions(browser, ctx, index=2)
+    await browser.capture(browser.previous, ctx)
+    if change == 'pseudo_visible':
+        # CSSOM changes can reveal the pseudo-element without a DOM mutation.
+        await browser.page.evaluate('''document.styleSheets[0].insertRule(
+            'i::after {visibility:visible}', document.styleSheets[0].cssRules.length)''')
+    elif change == 'pixels':
+        await browser.page.evaluate('''document.styleSheets[0].insertRule(
+            'body {background:green}', document.styleSheets[0].cssRules.length)''')
+    else:
+        await browser.page.get_by_role('textbox').evaluate('(node) => node.replaceWith(node.cloneNode(true))')
+    assert not await browser.is_current(offered.binding, offered.actions[0], ctx)
+    if change != 'reference':
+        assert any(e['stage'] == 'frame_scene' for e in events)
+    if change == 'pseudo_visible':
+        snapshot = await browser.observe('managed-page', ctx)
+        with pytest.raises(SubAgentStopped, match='unstable_visual_frame'):
+            await browser.capture(snapshot, ctx)
+
+
+@pytest.mark.parametrize('source', ['adopted', 'imported'])
+async def test_dom_hidden_pseudo_animation_reads_actual_css_definitions(channel, source):
+    browser, ctx = channel
+    css = '''@layer spinner {
+      @keyframes spin{to{transform:rotate(360deg)}}
+      i{visibility:hidden}
+      i::after{content:"";display:block;width:16px;height:16px;
+        background:red;animation:spin .1s infinite linear}}
+    '''
+    await browser.page.set_content('<i></i><label>Name<input value="Bob"></label>')
+    if source == 'adopted':
+        await browser.page.evaluate('''css => {
+          const sheet = new CSSStyleSheet(); sheet.replaceSync(css);
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        }''', css)
+    else:
+        await browser.page.route('**/spinner.css', lambda route: route.fulfill(body=css, content_type='text/css'))
+        await browser.page.add_style_tag(content='@import url("/spinner.css");')
+    offered = await actions(browser, ctx, index=2)
+    await browser.capture(browser.previous, ctx)
+    assert await browser.is_current(offered.binding, offered.actions[0], ctx)
+
+
+@pytest.mark.parametrize('source', ['failed_import', 'rule_limit', 'programmatic'])
+async def test_dom_hidden_pseudo_animation_unknown_sources_remain_active(channel, source):
+    from tank_backend.agents.subagent import SubAgentStopped
+    browser, ctx = channel
+    css = '''@keyframes spin{to{transform:rotate(360deg)}}
+      i{visibility:hidden}
+      i::after{content:"";display:block;width:16px;height:16px;
+        background:red;animation:spin .1s infinite linear}'''
+    if source == 'failed_import':
+        await browser.page.route('**/unavailable.css', lambda route: route.abort())
+        css = '@import url("/unavailable.css");' + css
+    if source == 'rule_limit':
+        css += 'b{color:red}' * 4096
+    await browser.page.set_content('<style>' + css + '</style><i></i><button>Save</button>')
+    if source == 'programmatic':
+        await browser.page.evaluate('''() => {
+          document.getAnimations().forEach(a => a.cancel());
+          const effect = new KeyframeEffect(document.querySelector('i'),
+            [{transform:'rotate(0deg)'}, {transform:'rotate(360deg)'}],
+            {duration:100, iterations:Infinity, pseudoElement:'::after'});
+          new Animation(effect, document.timeline).play();
+        }''')
+    snapshot = await browser.observe('managed-page', ctx)
+    with pytest.raises(SubAgentStopped, match='unstable_visual_frame'):
+        await browser.capture(snapshot, ctx)
+    assert browser.visual_frame is None
+
+
 @pytest.mark.parametrize('failure', [None, 'unknown', 'wrong', 'cleanup'])
 async def test_real_product_batch_retains_all_rows_and_no_unsafe_retries(chromium_required, monkeypatch, tmp_path, product_python, failure):
     import json

@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-20：开始TDD修复linkding隐藏伪元素动画误拒绝，尚未新增模型调用）。
+> 状态：进行中（2026-10-20：TDD修复及完整适用验证通过，原版编辑页预检查可捕获；待新目录重验和独立审查，未新增Jev/Gemini实验调用）。
 
 # DOM隐藏伪元素动画准入
 
@@ -10,8 +10,10 @@
 250ms有界等待与精确PNG/ref/导航/撤权守卫。不得修改产品页面、暂停动画或按
 loading类特判；不将零模型资格结果解释为模型收益。
 
-先支持可确认的::before/::after、computed visibility:hidden、仅transform/opacity
-属性的动画。伪元素可见覆盖、visibility或其他属性动画、无法识别的效果仍纳入
+先支持空内容且无marker的::before/::after CSS动画，computed visibility:hidden，
+报告关键帧及全部可读CSS定义仅含transform/opacity。CSS扫描最多4096规则，
+包含import/嵌套/adopted sheet，读取失败或超限保守拒绝。伪元素可见覆盖、
+visibility或其他属性动画、无法识别的效果仍纳入
 运动检查；不依据父元素隐藏或当前opacity=0笼统跳过动画。边界测试驱动具体实现。
 
 ## 步骤
@@ -19,7 +21,8 @@ loading类特判；不将零模型资格结果解释为模型收益。
 1. 在既有test_dom.py逐项red→green：真实CSS隐藏无限伪元素可捕获且动画仍运行；
    可见/变可见/普通元素及其可见子代继续拒绝；捕获后变更仍拒绝派发。
 2. 最小修改现有capture的动画筛选，补既有managed Chromium E2E及现行设计/
-   开发文档。完成适用完整验证和第1轮review-and-refactor后冻结稳定修复。
+   开发文档，完成适用完整验证。与同轮主计划的Controller配方一起做第1轮
+   实现审查，收费模型执行须在审查后新冻结；无模型重验保留完整源快照。
 3. 使用全新输出目录重跑原版linkding四个无模型脚本流程及五次动画检查，保持
    原资格分母、页面/任务/业务验收，记录源与应用hash、前后PNG与清理。
 4. 独立复算、扫描、归档并在剩余审查轮次内审查结果；修复/资格切片关档。
@@ -37,6 +40,29 @@ loading类特判；不将零模型资格结果解释为模型收益。
   全部书签表/字段/schema、单POST与返回列表，全部新旧归档及实际凭据扫描。
 - 复用既有managed Chromium cucumber条目，不新增同域feature。模型比较需要
   真实业务回执与新执行器，本切片的脚本成功不能替代它。
+
+## 实现与验证进展
+
+先在真实Chromium复现隐藏无限伪元素捕获拒绝，再最小修复；新增24项回归。
+进一步红测发现getKeyframes省略CSS自定义属性，混合transform/未知属性能被
+误准入，故同时检查可读CSS定义并限制4096规则；采用/导入/嵌套样式表真实验证。
+空内容/无marker的隐藏before/after transform/opacity可捕获且保持running，
+可见/变可见、文字/marker、其他属性/程序动画、读入失败/超限保持保守；CSSOM
+无DOM修订的变可见/像素变化及替换引用仍拒绝。26专项（含2旧动画回归）通过。
+
+完整后端6469 passed、1 skipped、21 warnings（662.05秒），强制Chromium及
+既有sqlite-web fixture。web lint/tsc-b、backend/CLI ruff、两份Python pyright
+0错误/警告、docs82及diff通过。dev日志空输出通过；初次沙箱拒绝读取tmux，
+按只读权限重试后通过，不把权限错误当空日志。协议未变。
+
+E2E最终21场景/83步骤通过（182.685秒）。初次75项子进程超过旧45秒包装器，
+单独诊断75 passed（57.53秒），将该进程/步骤等待改为75/90秒，生产期限不变。
+随后一次E2E语音场景遇ElevenLabs提交超时，单独诊断1场景4步骤通过，再完整
+重跑全部通过；保留失败记录，没有据一次远端超时推测修改ASR或放松断言。
+
+原版linkding单次预检查通过，隐藏loading仍running，PNG与旧归因图字节相同
+（308c1d0f…9ed206），资源已关闭；不是32项重验或模型结果。下一步新目录
+冻结/完整无模型重验，并接着完成主计划下的真实Controller/模型对照配方。
 
 ## Verification Checklist（最终步骤）
 

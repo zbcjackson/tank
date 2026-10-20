@@ -362,7 +362,43 @@ class ManagedChromiumChannel:
                             observation_id=snapshot.observation_id)
             raise SubAgentStopped("visual_frame_unavailable")
         settled = await frame.evaluate("""async () => {
-            const active = () => document.getAnimations().filter(a => a.pending || a.playState === 'running');
+            const hiddenPaint = animation => {
+                const effect = animation.effect;
+                if (!(animation instanceof CSSAnimation) || !(effect instanceof KeyframeEffect) ||
+                    !(effect.target instanceof Element) ||
+                    !['::before', '::after'].includes(effect.pseudoElement)) return false;
+                const style = getComputedStyle(effect.target, effect.pseudoElement);
+                // Empty generated content has no text/marker descendants that can override visibility.
+                if (style.visibility !== 'hidden' || style.content !== '\"\"' ||
+                    style.display.includes('list-item')) return false;
+                const frames = effect.getKeyframes();
+                const allowed = ['offset', 'computedOffset', 'easing', 'composite', 'transform', 'opacity'];
+                if (!frames.some(f => 'transform' in f || 'opacity' in f) ||
+                    !frames.every(f => Object.keys(f).every(k => allowed.includes(k)))) return false;
+                // Chromium omits custom properties from getKeyframes(); also inspect CSS definitions.
+                const properties = [];
+                let remaining = 4096;
+                const scan = rules => {
+                    for (const rule of rules) {
+                        if (--remaining < 0) throw new Error('css_rule_limit');
+                        if (rule instanceof CSSKeyframesRule) {
+                            if (rule.name !== animation.animationName) continue;
+                            for (const keyframe of rule.cssRules) {
+                                if (--remaining < 0) throw new Error('css_rule_limit');
+                                properties.push(...keyframe.style);
+                            }
+                        } else if (rule instanceof CSSImportRule) scan(rule.styleSheet.cssRules);
+                        else if (rule.cssRules) scan(rule.cssRules);
+                    }
+                };
+                try {
+                    for (const sheet of [...document.styleSheets, ...document.adoptedStyleSheets])
+                        scan(sheet.cssRules);
+                } catch (_) { return false; }
+                return properties.length > 0 && properties.every(p => ['transform', 'opacity'].includes(p));
+            };
+            const active = () => document.getAnimations().filter(a =>
+                (a.pending || a.playState === 'running') && !hiddenPaint(a));
             const animations = active();
             if (!animations.length) return true;
             let timer;
