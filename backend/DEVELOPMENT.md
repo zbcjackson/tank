@@ -778,6 +778,16 @@ adds actual read-only database rows to the same observation in both arms, while 
 separate final schema/write audit checks full business state. See
 [the completed plan](../docs/plans/done/jev-real-product-route.md).
 
+Add `--workflow` only when preparing a new real-product directory to select the
+eight-task list → edit → returned-list comparison. Execution reads that mode from
+the freeze; it does not accept a mode override. Each arm starts on the real list,
+selects the record's Edit link and verifies the returned visible cells/path plus
+database/HTTP history. The additional editor-seen facts record actual previously
+observed DOM field values, independent of the goal/oracle; they preserve meaningful
+progress through the injected first-edit GET refusal without relaxing host guards.
+The original twelve-task form recipe remains the default. See
+[the list-workflow plan](../docs/plans/active/jev-product-list-workflow.md).
+
 `benchmarks.computer_use.jev_checkbox_diagnostics` runs only local scripted UI
 inputs, never real models. Use `--output <new-dir> --app-python <isolated-python>`;
 add `--include-host` for Controller proposals with an additional actual written-

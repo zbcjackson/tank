@@ -21,7 +21,9 @@ HTML表格行的可见文字上下文，不添加产品专用aria/selector到生
 目标新标题、原注释和其他记录，物理数据库恰一次正确UPDATE/POST且schema不变。
 
 两臂共用实际mode=ro数据库回执，workflow额外读取实际DOM表头/单元格及path
-作为列表回执，不读goal/oracle。强验收同时核对列表→正确编辑GET→一次POST→
+作为列表回执，不读goal/oracle。另保留实际观察到的编辑器记录id历史，明确是
+已观察事实而非当前页状态，为正确记录已定位提供阶段证据，不放松原无进展守卫。
+强验收同时核对列表→正确编辑GET→一次POST→
 返回列表的HTTP时序、可见列表与DB，不能只因DB写对或URL看似返回就成功。
 仍按其他字段最终值保持，不新增SQL只能写title列条件。
 
@@ -55,6 +57,25 @@ SDK零重试；未知用量/运行/审计/清理失败停批，保留全部分�
 - 扩展既有managed Chromium E2E的通用行上下文契约，不新建同域feature。
   原始产品资格由TANK_REAL_PRODUCT_PYTHON显式启用，本轮完整验证必须启用。
 - 所有模型/GUI真实测量与fake接线证据分开；源码修改后新freeze，不修补旧目录。
+
+## 实现与验证进展
+
+原生行上下文只读可见文字，未修改应用；相同初始列表PNG逐字节一致，Edit从
+无行语义变为携带实际记录编号/标题/注释，结构准入由visual_required变为
+jev_eligible。新workflow选项保留默认12项表单配方；实际列表内容/path、实际
+观察到的编辑器id历史和物理DB/HTTP共同验收，原无进展守卫未放松。
+
+23项新增回归通过（39.49秒）；完整后端6445 passed、1 skipped、21 warnings
+（645.99秒），启用固定应用环境及TANK_REQUIRE_CHROMIUM=1。web lint/tsc-b、
+backend/CLI ruff、3份改动Python的pyright（0错误/警告）、dev日志空输出通过。
+E2E21场景83步骤通过（158.366秒），managed Chromium为51契约。初轮E2E中
+51项子测试均通过，但遗漏同步旧46数量断言；修正该断言后完整重跑通过，未放松
+产品守卫或修改Python源码。协议未变。进行第1轮实现审查，未运行收费模型。
+
+真实产品/fake HTTP完整8项已保存`/private/tmp/tank-product-workflow-fake-20261020`，
+digest `d7bb8616e03d4b751c9ec6c03cb68a4418ac0458a38359f0df0f86120833dec6`。
+独立重算8项全部通过、4项GET恢复、36次fake SDK调用/360假tokens、26任务PNG，
+34源快照与654应用文件一致，8清理。只证明功能接线/核验，不是模型成功率。
 
 ## Verification Checklist（最终步骤）
 

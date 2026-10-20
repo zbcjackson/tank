@@ -1287,3 +1287,17 @@ real-product fixture also exercises no-model checkbox diagnostics: 4 manual path
 4 Controller/scripted-proposal paths, SQL column receipts, one write/POST, model-client
 construction refusal, repeated cancellation and frozen-recipe tampering. Set the same
 TANK_REAL_PRODUCT_PYTHON variable to require the app cases. None calls a paid model.
+
+Native table-row context tests in the same file cover visible row text, exclusion
+of hidden text, preserving ambiguity for repeated/empty row context, oversize
+observation refusal and rejecting an action after its row text changes. The
+existing managed Chromium E2E entry includes these generic contracts.
+
+The same `test_dom.py` real-product fixture covers `--workflow` preparation and
+all eight list/edit/return cases with real SDKs and fake model HTTP. It checks
+record-row context, actual editor-seen history and returned DOM cells/path, one
+correct UPDATE/POST, the first-edit GET503 recovery, private-oracle isolation,
+wrong-record writes, missing/wrong/wrong-page list returns, and eight-row stop
+denominators for unknown usage, cancellation and cleanup failure. The default
+twelve-case schedule and its original guards remain covered. These are functional
+tests, not real model quality measurements.

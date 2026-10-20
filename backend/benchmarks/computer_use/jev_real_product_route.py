@@ -11,8 +11,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
+_LIST_READ = """() => {
+    const visible = node => node && node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden';
+    const table = document.querySelector('table.cell-content');
+    const columns = table ? [...table.querySelectorAll('thead th')].map((node, index) =>
+        ({index, name: node.getAttribute('data-col'), visible: visible(node)})).filter(c => c.name && c.visible) : [];
+    const rows = table ? [...table.querySelectorAll('tbody tr')].filter(visible).map(row =>
+        columns.map(c => visible(row.cells[c.index]) ? row.cells[c.index].innerText.trim() : null)) : [];
+    return {path: location.pathname, columns: columns.map(c => c.name), rows};
+}"""
 
-def encoded(records: list[dict]) -> str:
+
+def encoded(records: list[dict] | dict) -> str:
     return json.dumps(records, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
 
 
@@ -48,6 +58,31 @@ def cases() -> list[dict]:
     return result
 
 
+def workflow_cases() -> list[dict]:
+    result = []
+    for recovery in (False, True):
+        for case in cases():
+            if case['kind'] != 'update' or case['recovery']:
+                continue
+            key = f'workflow-update-{case["order"]}-' + ('recovery' if recovery else 'normal')
+            target = case['order'] + 1
+            old = next(r for r in case['seed'] if r['id'] == target)
+            new = next(r for r in case['oracle']['rows'] if r['id'] == target)
+            intent = (f'Starting from the work_items list, find record id {target} with title {old["title"]!r}. '
+                      f'Change its title to {new["title"]!r}. Keep its notes and all other records unchanged. '
+                      'Confirm the updated record and unchanged records on the returned list.')
+            visible = {'path': '/work_items/content/', 'columns': ['id', 'title', 'notes'],
+                       'rows': [[str(r[k]) for k in ('id', 'title', 'notes')] for r in case['oracle']['rows']]}
+            goal = {**case['goal'], 'goal_id': 'goal-' + hashlib.sha256(key.encode()).hexdigest()[:16],
+                    'intent': intent, 'objective': intent,
+                    'outcomes': [{'id': 'correct-record-editor', 'conditions': [{'key': f'status:Editor seen:{target}', 'value': 'true'}]}],
+                    'completion': [*case['goal']['completion'], {'key': 'status:List rows', 'value': encoded(visible)}]}
+            result.append({**case, 'id': key, 'workflow': True, 'recovery': recovery,
+                           'start_path': '/work_items/content/', 'fault_path': case['start_path'] if recovery else None,
+                           'goal': goal, 'oracle': {**case['oracle'], 'visible_list': visible, 'edit_path': case['start_path']}})
+    return result
+
+
 def app_manifest(app_python: Path) -> dict:
     if not app_python.is_absolute() or not app_python.is_file():
         raise ValueError('absolute isolated app Python required')
@@ -66,11 +101,11 @@ def app_manifest(app_python: Path) -> dict:
     return {'python': str(app_python), 'versions': versions, 'files': files}
 
 
-def freeze_inputs(app_python: Path) -> dict:
+def freeze_inputs(app_python: Path, *, workflow: bool = False) -> dict:
     from benchmarks.computer_use import jev_vision_route as base
     from benchmarks.computer_use.jev_image_dev import digest
-    items = cases()
-    f = {'revision': 'real-product-1', 'cases': items,
+    items = workflow_cases() if workflow else cases()
+    f = {'revision': 'real-product-workflow-1' if workflow else 'real-product-1', 'workflow': workflow, 'cases': items,
          'schedule': [{'id': c['id'] + '-' + arm, 'case': c['id'], 'arm': arm}
                       for c in items for arm in (('v', 'jt') if (c['order'] + (c['kind'] == 'update')) % 2 == 0 else ('jt', 'v'))],
          'app': app_manifest(app_python), 'source_sha256': {**base.sources(),
@@ -79,16 +114,18 @@ def freeze_inputs(app_python: Path) -> dict:
          'versions': {n: metadata.version(n) for n in ('playwright', 'openai', 'typesafe-sdk', 'pillow')},
          'seconds_per_task': 120, 'max_actions': 6, 'max_observations': 24, 'retries': 0,
          'scope': 'unmodified local sqlite-web; synthetic records only; Jev text and Gemini PNG+text',
-         'business_evidence': 'read-only actual work_items rows, no expected-data comparison in observer',
-         'recovery': 'first form GET returns injected 503 without forwarding; Retry adds retry=1; no POST retry; direct form starts in both conditions',
+         'business_evidence': ('read-only actual work_items rows plus actual visible list cells/path, no oracle in observer' if workflow else
+                               'read-only actual work_items rows, no expected-data comparison in observer'),
+         'recovery': ('first edit GET returns injected 503; list starts, Retry only GET; actual list readback required' if workflow else
+                      'first form GET returns injected 503 without forwarding; Retry adds retry=1; no POST retry; direct form starts in both conditions'),
          'price_nano_usd': {'jev': [42, 0], 'peer': [825, 4125]},
          'price_evidence': 'historical frozen estimate, not an invoice'}
     f['sha256'] = digest(f)
     return f
 
 
-def prepare(output: Path, *, app_python: Path) -> dict:
-    f = freeze_inputs(app_python)
+def prepare(output: Path, *, app_python: Path, workflow: bool = False) -> dict:
+    f = freeze_inputs(app_python, workflow=workflow)
     output.mkdir(parents=True, exist_ok=False)
     (output / 'freeze.json').write_text(json.dumps(f, ensure_ascii=False, indent=2) + '\n')
     return f
@@ -96,7 +133,7 @@ def prepare(output: Path, *, app_python: Path) -> dict:
 
 def load_freeze(output: Path, approved: str) -> dict:
     stored = json.loads((output / 'freeze.json').read_text())
-    f = freeze_inputs(Path(stored['app']['python']))
+    f = freeze_inputs(Path(stored['app']['python']), workflow=stored.get('workflow', False))
     if stored != f or f['sha256'] != approved:
         raise ValueError('real-product freeze changed')
     return f
@@ -188,18 +225,35 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
         ledger = SpendLedger(SpendLimit(0, 0), record_only=True, journal=path / 'spend.jsonl')
     ledger.start_trial(row_id, SpendLimit(0, 0))
     row = {'id': row_id, 'case': case['id'], 'task_id': task_id, 'arm': arm, 'kind': case['kind'],
-           'recovery': case['recovery'], 'status': 'started', 'strict_completed': False,
+           'recovery': case['recovery'], 'workflow': bool(case.get('workflow')), 'status': 'started', 'strict_completed': False,
            'recovery_completed': False, 'cleanup_confirmed': False, 'events': [], 'calls': []}
     database = path / 'fixture.db'
     create_database(database, case['seed'])
     initial_schema = database_state(database)['schema']
     process = channel = ctx = None
     app_log = None
+    seen_editors: set[str] = set()
+    if case.get('workflow'):
+        row['workflow_observations'] = []
     class ProductChannel(ManagedChromiumChannel):
         async def observe(self, scope, context):
             snapshot = await super().observe(scope, context)
             actual = await asyncio.to_thread(database_state, database)
             self.previous = replace(snapshot, facts=(*snapshot.facts, Fact(key='status:Records', value=encoded(actual['records']))))
+            if case.get('workflow'):
+                context.check('desktop')
+                assert self.page is not None
+                visible = await self.page.evaluate(_LIST_READ)
+                editor = self.page.get_by_role('textbox', name='id', exact=True)
+                editor_id = await editor.input_value() if await editor.count() == 1 and await editor.is_visible() else ''
+                context.check('desktop')
+                if editor_id:
+                    seen_editors.add(editor_id)
+                row['workflow_observations'].append({'observation_id': snapshot.observation_id,
+                    'list': visible, 'editor_id': editor_id, 'seen_editors': sorted(seen_editors)})
+                self.previous = replace(self.previous, facts=(*self.previous.facts,
+                    Fact(key='status:List rows', value=encoded(visible)),
+                    *(Fact(key=f'status:Editor seen:{identity}', value='true') for identity in sorted(seen_editors))))
             return self.previous
     class Observer:
         def on_event(self, kind, metadata):
@@ -238,8 +292,9 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
                 cleanup_interrupted = True
     try:
         app_log = (path / 'app.log').open('wb')
+        fault_path = case.get('fault_path', case['start_path']) if case['recovery'] else None
         process = await asyncio.create_subprocess_exec(str(app_python), str(Path(__file__)), '--serve',
-            '--database', str(database), '--output', str(path), *(['--fault-path', case['start_path']] if case['recovery'] else []),
+            '--database', str(database), '--output', str(path), *(['--fault-path', fault_path] if fault_path else []),
             stdout=app_log, stderr=asyncio.subprocess.STDOUT, cwd=path,
             env={'PATH': os.environ.get('PATH', ''), 'PYTHONUNBUFFERED': '1'})
         async with asyncio.timeout(10):
@@ -262,6 +317,8 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
         row['status'] = 'finished'
         if channel.page is not None:
             row['final_url'] = channel.page.url
+            if case.get('workflow'):
+                row['list_readback'] = await channel.page.evaluate(_LIST_READ)
             (path / 'final.png').write_bytes(await channel.page.screenshot(type='png', scale='css'))
         if result.reason == 'backend_error' or ctx.runtime.audit_failed:
             ledger.stop('operational_error')
@@ -310,6 +367,16 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
             and row['database']['schema'] == initial_schema and len(row['database']['writes']) == case['oracle']['writes']
             and all(w['operation'] == case['oracle']['operation'] for w in row['database']['writes'])
             and sum(r['method'] == 'POST' for r in row['http']) == 1)
+        if case.get('workflow'):
+            posts = [(i, h) for i, h in enumerate(row['http']) if h['method'] == 'POST']
+            lists = [i for i, h in enumerate(row['http']) if h['method'] == 'GET' and h['status'] == '200 OK' and h['path'] == '/work_items/content/']
+            edits = [i for i, h in enumerate(row['http']) if h['method'] == 'GET' and h['status'] == '200 OK' and h['path'] == case['oracle']['edit_path']]
+            row['workflow_completed'] = bool(row['strict_completed'] and row.get('list_readback') == case['oracle']['visible_list']
+                and any(o['editor_id'] == str(case['order'] + 1) and o['list']['path'] == case['oracle']['edit_path']
+                        for o in row.get('workflow_observations', []))
+                and len(posts) == 1 and posts[0][1]['path'] == case['oracle']['edit_path']
+                and any(i < j < posts[0][0] for i in lists for j in edits) and any(i > posts[0][0] for i in lists))
+            row['strict_completed'] = row['workflow_completed']
         row['recovery_completed'] = bool(case['recovery'] and row['strict_completed']
             and sum(r['status'] == '503 Service Unavailable' for r in row['http']) == 1
             and any(r['method'] == 'GET' and r['query'] == 'retry=1' and r['status'] == '200 OK' for r in row['http']))
@@ -377,13 +444,14 @@ def main() -> None:
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--app-python', type=Path)
     parser.add_argument('--run', action='store_true')
+    parser.add_argument('--workflow', action='store_true')
     parser.add_argument('--approved-sha256')
     parser.add_argument('--serve', action='store_true')
     parser.add_argument('--database', type=Path)
     parser.add_argument('--fault-path')
     args = parser.parse_args()
     if args.serve:
-        if not args.database or args.app_python or args.run or args.approved_sha256:
+        if not args.database or args.app_python or args.run or args.approved_sha256 or args.workflow:
             parser.error('internal server requires only database/output and optional fault path')
         serve_product(args.database, args.output, args.fault_path)
         return
@@ -392,10 +460,10 @@ def main() -> None:
     if not args.run:
         if not args.app_python or args.approved_sha256:
             parser.error('preparation requires app Python, no approval digest')
-        f = prepare(args.output, app_python=args.app_python)
+        f = prepare(args.output, app_python=args.app_python, workflow=args.workflow)
         print(json.dumps({'sha256': f['sha256'], 'tasks': len(f['schedule']), 'record_only': True}))
         return
-    if not args.approved_sha256 or args.app_python:
+    if not args.approved_sha256 or args.app_python or args.workflow:
         parser.error('execution uses the frozen digest only')
     from dotenv import dotenv_values
     values = {**dotenv_values(ROOT / 'core/.env'), **os.environ}

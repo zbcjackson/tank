@@ -2038,12 +2038,20 @@ def install_product_http(monkeypatch, failure=None):
         if selected is None and intent.startswith('Create'):
             selected = next((k for k, v in offered.items() if v['label'] == 'Insert' and v['role'] == 'button'), None) or next((k for k, v in offered.items() if v['label'] == 'Insert'), None)
         if selected is None and not intent.startswith('Create'):
-            selected = next((k for k, v in offered.items() if v['label'] == 'include all columns' and v['current_value'] == 'false'), None)
+            checkbox_label = 'Allow updating this column. [name=chk_title]' if intent.startswith('Starting from') else 'include all columns'
+            selected = next((k for k, v in offered.items() if v['label'] == checkbox_label and v['current_value'] == 'false'), None)
             if selected is None:
                 selected = next((k for k, v in offered.items() if v['label'] == 'Update'), None)
             if selected is None:
-                token = base64.urlsafe_b64encode(b'[2]' if 'id 2 ' in intent else b'[1]').decode().rstrip('=')
-                selected = next((k for k, v in offered.items() if v['label'] == 'Edit' and any('/update/' + token + '/' in f['value'] for f in v['effect'])), None)
+                if intent.startswith('Starting from'):
+                    target = '2' if 'id 2 ' in intent else '1'
+                    if failure == 'wrong_record':
+                        target = '1' if target == '2' else '2'
+                    selected = next((k for k, v in offered.items() if v['label'] == 'Edit'
+                                     and any(kind == 'row' and name.split()[0] == target for kind, name in v['ancestors'])), None)
+                else:
+                    token = base64.urlsafe_b64encode(b'[2]' if 'id 2 ' in intent else b'[1]').decode().rstrip('=')
+                    selected = next((k for k, v in offered.items() if v['label'] == 'Edit' and any('/update/' + token + '/' in f['value'] for f in v['effect'])), None)
         choice = 'none' if failure == 'wrong' else selected or 'none'
         calls.append('peer' if visual else 'jev')
         if failure == 'cancel':
@@ -2501,3 +2509,188 @@ async def test_checkbox_diagnostic_freeze_tamper_stops_before_next_app(chromium_
     assert [r['status'] for r in result['rows']] == ['finished', 'error', 'not_run', 'not_run']
     assert result['rows'][1]['error_type'] == 'ValueError'
     assert not (tmp_path/'tampered'/result['rows'][1]['id']).exists()
+
+
+async def test_dom_table_row_context_uses_visible_text(channel):
+    browser, ctx = channel
+    await browser.page.set_content('''<table><tbody>
+      <tr><td>Alpha<span hidden>private-hidden</span></td><td><a href="/alpha">Edit</a></td></tr>
+      <tr><td>Beta</td><td><a href="/beta">Edit</a></td></tr>
+      </tbody></table>''')
+    offered = await actions(browser, ctx)
+    edits = [d for d in offered.details if d.label == 'Edit']
+    assert [d.ancestors for d in edits] == [(('row', 'Alpha Edit'),), (('row', 'Beta Edit'),)]
+    assert offered.reason == 'jev_eligible'
+
+
+@pytest.mark.parametrize('names,reason', [
+    (('Alpha', 'Beta'), 'jev_eligible'),
+    (('Same', 'Same'), 'visual_required'),
+    (('', ''), 'visual_required'),
+])
+async def test_dom_table_row_context_preserves_ambiguity(channel, names, reason):
+    browser, ctx = channel
+    await browser.page.set_content('<table><tbody>' + ''.join(
+        f'<tr><td>{name}</td><td><button aria-controls="panel">Open</button></td></tr>'
+        for name in names) + '</tbody></table><section id="panel" role="region" aria-label="Panel" hidden></section>')
+    snapshot = await browser.observe('managed-page', ctx)
+    offered = ActionBuilder(visual=True).build('goal', 1, goal(), snapshot)
+    assert len(offered.actions) == 2 and offered.reason == reason
+
+
+async def test_dom_table_row_context_limits_and_change_reject(channel):
+    browser, ctx = channel
+    await browser.page.set_content('<table><tr><td>Alpha</td><td><a href="/alpha">Edit</a></td></tr></table>')
+    offered = await actions(browser, ctx)
+    await browser.page.locator('td').first.evaluate("node => node.textContent = 'Beta'")
+    assert not await browser.is_current(offered.binding, offered.actions[0], ctx)
+    await browser.page.locator('td').first.evaluate("node => node.textContent = 'x'.repeat(257)")
+    snapshot = await browser.observe('managed-page', ctx)
+    assert not snapshot.complete
+    assert not ActionBuilder(visual=True).build('goal', 1, goal(), snapshot).actions
+
+
+def test_real_product_workflow_preparation_is_frozen_and_balanced(monkeypatch, tmp_path, product_python):
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    def forbidden(*args, **kwargs):
+        raise AssertionError('preparation allocated a client or server')
+    monkeypatch.setattr(httpx.AsyncClient, '__init__', forbidden)
+    monkeypatch.setattr(httpx2.AsyncClient, '__init__', forbidden)
+    monkeypatch.setattr(asyncio, 'create_subprocess_exec', forbidden)
+    frozen = pilot.prepare(tmp_path/'workflow', app_python=product_python, workflow=True)
+    assert len(frozen['cases']) == 4 and len(frozen['schedule']) == 8
+    assert frozen['workflow'] and len(pilot.freeze_inputs(product_python)['schedule']) == 12
+    assert all(c['start_path'] == '/work_items/content/' and c['kind'] == 'update' for c in frozen['cases'])
+    assert all(c['fault_path'] == c['oracle']['edit_path'] for c in frozen['cases'] if c['recovery'])
+    first = {r['case']:r['arm'] for r in reversed(frozen['schedule'])}
+    for recovery in (False, True):
+        assert sorted(first[c['id']] for c in frozen['cases'] if c['recovery'] == recovery) == ['jt','v']
+    assert pilot.load_freeze(tmp_path/'workflow', frozen['sha256']) == frozen
+    import json
+    (tmp_path/'workflow/freeze.json').write_text(json.dumps({**frozen, 'workflow':False}))
+    with pytest.raises(ValueError):
+        pilot.load_freeze(tmp_path/'workflow', frozen['sha256'])
+
+
+@pytest.mark.parametrize('arm', ['v', 'jt'])
+@pytest.mark.parametrize('index', range(4))
+async def test_real_product_workflow_controller_locates_and_returns_list(chromium_required, monkeypatch, tmp_path, product_python, arm, index):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    _, packets = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path/'workflow', app_python=product_python, workflow=True)
+    case = frozen['cases'][index]
+    row = await pilot.run_task(case, arm, tmp_path/'workflow', app_python=product_python,
+                               jev_credential='fixture', peer_credential='fixture')
+    assert row['strict_completed'] and row['workflow_completed'] and row['cleanup_confirmed'], row
+    assert row['list_readback'] == case['oracle']['visible_list']
+    assert len(row['database']['writes']) == 1 and sum(h['method'] == 'POST' for h in row['http']) == 1
+    assert row['recovery_completed'] == case['recovery']
+    if case['recovery']:
+        assert next(h for h in row['http'] if h['injected'])['path'] == case['oracle']['edit_path']
+    first = packets[0]['questions']['next_action']['criteria']
+    assert any(v['label'] == 'Edit' and v['ancestors'] for v in first.values() if isinstance(v, dict))
+    expected = ['Edit', *(['Retry'] if case['recovery'] else []),
+                'Allow updating this column. [name=chk_title]', 'title', 'Update']
+    assert [s['label'] for s in row['result']['details']['progress']['recent_steps']] == expected
+
+
+@pytest.mark.parametrize('failure', ['missing', 'wrong', 'wrong_page'])
+async def test_real_product_workflow_requires_actual_returned_list(chromium_required, monkeypatch, tmp_path, product_python, failure):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    from playwright.async_api import Page
+    install_product_http(monkeypatch)
+    original = Page.evaluate
+    changed = False
+    async def corrupt_return(self, expression, arg=None):
+        nonlocal changed
+        if not changed and urlsplit(self.url).path == '/work_items/content/' and await self.get_by_text('Launch 0', exact=True).count():
+            changed = True
+            if failure == 'wrong_page':
+                await self.goto(self.url.replace('/content/', '/'))
+            elif failure == 'missing':
+                await self.locator('table.cell-content').evaluate('table => table.remove()')
+            else:
+                await self.get_by_text('Launch 0', exact=True).evaluate("cell => cell.textContent = 'Stale rendering'")
+        return await original(self, expression, arg=arg)
+    monkeypatch.setattr(Page, 'evaluate', corrupt_return)
+    frozen = pilot.prepare(tmp_path/'wrong-ui', app_python=product_python, workflow=True)
+    case = frozen['cases'][0]
+    row = await pilot.run_task(case, 'jt', tmp_path/'wrong-ui', app_python=product_python,
+                               jev_credential='fixture', peer_credential='fixture')
+    assert changed and row['database']['records'] == case['oracle']['rows']
+    assert row['cleanup_confirmed'] and row['app_unchanged']
+    assert not row['strict_completed'] and not row['workflow_completed']
+    assert row['result']['reason'] == 'effect_unknown' and row['capped_completion_ms'] == 120000
+    assert len(row['database']['writes']) == 1 and sum(h['method'] == 'POST' for h in row['http']) == 1
+
+
+async def test_real_product_workflow_wrong_record_is_not_completion(chromium_required, monkeypatch, tmp_path, product_python):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    install_product_http(monkeypatch, 'wrong_record')
+    frozen = pilot.prepare(tmp_path/'wrong-record', app_python=product_python, workflow=True)
+    row = await pilot.run_task(frozen['cases'][0], 'jt', tmp_path/'wrong-record', app_python=product_python,
+                               jev_credential='fixture', peer_credential='fixture')
+    assert row['cleanup_confirmed'] and not row['strict_completed'] and not row['workflow_completed']
+    assert len(row['database']['writes']) == 1 and row['database']['writes'][0]['id'] == 2
+    assert sum(h['method'] == 'POST' for h in row['http']) == 1
+
+
+async def test_real_product_workflow_private_oracle_is_not_readback(chromium_required, monkeypatch, tmp_path, product_python):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    _, packets = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path/'private-ui', app_python=product_python, workflow=True)
+    case = frozen['cases'][0]
+    case['oracle']['visible_list'] = {'PRIVATE_UI_SENTINEL': 'never send'}
+    row = await pilot.run_task(case, 'jt', tmp_path/'private-ui', app_python=product_python,
+                               jev_credential='fixture', peer_credential='fixture')
+    assert row['cleanup_confirmed'] and row['result']['status'] == 'completed'
+    assert not row['strict_completed'] and not row['workflow_completed']
+    assert 'PRIVATE_UI_SENTINEL' not in json.dumps(packets)
+
+
+@pytest.mark.parametrize('failure', [None, 'unknown', 'cleanup', 'cancel'])
+async def test_real_product_workflow_batch_preserves_denominator(chromium_required, monkeypatch, tmp_path, product_python, failure):
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    from agent_computer_use.channels.dom import ManagedChromiumChannel
+    calls, _ = install_product_http(monkeypatch, failure)
+    if failure == 'cleanup':
+        original = ManagedChromiumChannel.aclose
+        async def fail_close(self):
+            await original(self)
+            raise RuntimeError('reported cleanup failure')
+        monkeypatch.setattr(ManagedChromiumChannel, 'aclose', fail_close)
+    out = tmp_path/'workflow-batch'
+    frozen = pilot.prepare(out, app_python=product_python, workflow=True)
+    if failure == 'cancel':
+        with pytest.raises(asyncio.CancelledError):
+            await pilot.run_batch(out, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    else:
+        await pilot.run_batch(out, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    result = json.loads((out/'result.json').read_text())
+    assert len(result['rows']) == 8
+    ran = [r for r in result['rows'] if r['status'] != 'not_run']
+    if failure is None:
+        assert result['completed'] and len(ran) == 8
+        assert all(r['strict_completed'] and r['workflow_completed'] and r['cleanup_confirmed'] for r in ran)
+        assert sum(r['recovery_completed'] for r in ran) == 4
+    else:
+        assert not result['completed'] and len(ran) == 1
+        assert not ran[0]['strict_completed'] and ran[0]['capped_completion_ms'] == 120000
+        # Cancellation after SDK entry retains the earlier unknown-usage stop.
+        assert result['spend']['stop_reason'] == {'unknown':'unknown_usage','cleanup':'cleanup_failed','cancel':'unknown_usage'}[failure]
+        if failure == 'cancel':
+            assert ran[0]['status'] == 'cancelled' and ran[0]['cleanup_confirmed']
+        if failure in ('unknown', 'cancel'):
+            assert len(calls) == 1 and not ran[0]['database']['writes']
+    with pytest.raises(FileExistsError):
+        await pilot.run_batch(out, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')

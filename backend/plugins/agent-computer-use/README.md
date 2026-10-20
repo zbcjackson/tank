@@ -541,6 +541,10 @@ Opaque readback keys never make checkbox targets semantically unique; collisions
 between a name annotation and page labels also remain ambiguous. An image selector
 can choose among the original bound candidates, without inventing a new action.
 Controls without a supported effect template are excluded.
+Controls inside native HTML table rows also include the row's visible text as
+`row` ancestor context when the row has no authored accessible name. Hidden text
+is excluded; repeated/empty context does not create a unique semantic identity.
+The existing ancestor size limit and DOM/reference freshness checks still apply.
 Completion requires `status:` facts; field values establish only local fill effects.
 Optional `outcomes` add conjunctive result conditions and acyclic `depends_on`
 references; they must all be verified as well as completion. No custom verification

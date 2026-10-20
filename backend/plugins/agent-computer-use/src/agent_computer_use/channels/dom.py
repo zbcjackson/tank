@@ -112,6 +112,10 @@ _READ = r"""nodes => {
         const ancestors = [];
         for (let parent = node.parentElement; parent; parent = parent.parentElement) {
             if (name(parent)) ancestors.push([parent.tagName.toLowerCase(), name(parent)]);
+            else if (parent.matches('tr') && parent.closest('table')) {
+                const rowText = text(parent.innerText);
+                if (rowText) ancestors.push(['row', rowText]);
+            }
         }
         if (ancestors.length > 8 || ancestors.some(a => a[1].length > 256)) complete = false;
         const controlled = (node.getAttribute('aria-controls') || '').trim();
