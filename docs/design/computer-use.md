@@ -1,6 +1,6 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-10-19（Jev图片真实计算器闭环小样本完成，图片增量/跨应用待验证，默认不变）。本文汇总自研
+更新：2026-10-20（原版linkding四项V/JT开发对照完成；图片增量与独立采用确认待验证，默认不变）。本文汇总自研
 `computer_use` 的现行行为；旧N2及其官方SDK、独立DesktopExecutor已移除。
 历史报告中的 N2 数据仅作为当时的实验记录。
 
@@ -50,6 +50,11 @@ Chromium模型图与复查图统一使用`visual_png`：通过constructable styl
 变化也会拒绝。加载中的文档标为不完整观察，不能提前生成动作。
 DOM新鲜度拒绝发`computer_use_freshness`阶段/观察/动作关联及必要图片hash，
 普通事件不含PNG或正文；即时图片仅由显式诊断配方保留。
+原版linkding1.47.0的[四项开发对照](../research/jev-linkding-route.md)完成：V/JT
+各2/2，完整耗时均值34.614/12.047秒，图片请求6/2。JT列表因重复语义直接读图，
+编辑页使用Jev文字；本批没有弃权后接管，也未测试Jev图片/Box。两臂共享额外
+真实DB/DOM业务事实，全部书签字段/schema、正确编辑/单POST/返回列表独立核验。
+仅两个开发任务，不作普遍排名或采用确认；原产品源/样式未改。
 文本TaskModel及普通Jev choose不接收图片；显式视觉profile或image-enabled Jev
 可接收截图，调用方数据范围仍可收窄。尚无合法候选的canvas/Box动作及真实系统收益未验证，生产
 默认未变。详见[插件边界](../../backend/plugins/agent-computer-use/README.md#bounded-generative-selection-and-jev-fallback-s3)
