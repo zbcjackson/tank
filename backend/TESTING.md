@@ -1271,6 +1271,9 @@ allocation; the real product/server/Chromium and real SDKs run with only externa
 model HTTP replaced. Tests cover all 12 tasks, one injected GET refusal/recovery,
 read-only database receipts, exactly one write, wrong-record non-completion,
 private-oracle isolation, unknown usage, cancellation and cleanup-stop denominators.
+They also verify per-family order balance on ordinary tasks and that another
+cancellation during cleanup still closes the app/browser and records a cancelled,
+unsuccessful task even when the database write already completed.
 Without that explicit environment the product qualification tests skip; production
 DOM regressions and managed-Chromium E2E do not require sqlite-web. They cover
 same-origin navigation, checked-state readback, URL spoof/malformed links, loading

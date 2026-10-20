@@ -2066,6 +2066,74 @@ def install_product_http(monkeypatch, failure=None):
     return calls, packets
 
 
+def test_real_product_schedule_balances_normal_family_order(monkeypatch, product_python):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    frozen = pilot.freeze_inputs(product_python)
+    first_arms = {row['case']: row['arm'] for row in reversed(frozen['schedule'])}
+    assert list(first_arms.values()).count('v') == list(first_arms.values()).count('jt') == 3
+    for kind in ('insert', 'update'):
+        normal = [first_arms[c['id']] for c in frozen['cases'] if c['kind'] == kind and not c['recovery']]
+        assert sorted(normal) == ['jt', 'v']
+
+
+@pytest.mark.parametrize('failure', [None, 'cancel'])
+async def test_real_product_cancellation_during_cleanup_closes_owned_resources(chromium_required, monkeypatch, tmp_path, product_python, failure):
+    import json
+    from tank_backend.agents.task_runtime import TaskRuntime
+    from agent_computer_use.channels.dom import ManagedChromiumChannel
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as pilot
+    install_product_http(monkeypatch, failure)
+    closing, release = asyncio.Event(), asyncio.Event()
+    runtimes, browsers, processes = [], [], []
+    original_close, original_init = TaskRuntime.aclose, ManagedChromiumChannel.__init__
+    original_spawn = asyncio.create_subprocess_exec
+    async def delayed_close(self):
+        runtimes.append(self)
+        closing.set()
+        await release.wait()
+        await original_close(self)
+    def remember_browser(self, config):
+        original_init(self, config)
+        browsers.append(self)
+    async def remember_process(*args, **kwargs):
+        process = await original_spawn(*args, **kwargs)
+        if args[0] == str(product_python):
+            processes.append(process)
+        return process
+    monkeypatch.setattr(TaskRuntime, 'aclose', delayed_close)
+    monkeypatch.setattr(ManagedChromiumChannel, '__init__', remember_browser)
+    monkeypatch.setattr(asyncio, 'create_subprocess_exec', remember_process)
+    frozen = pilot.prepare(tmp_path / 'cleanup-cancel', app_python=product_python)
+    worker = asyncio.create_task(pilot.run_task(frozen['cases'][0], 'jt', tmp_path / 'cleanup-cancel',
+        app_python=product_python, jev_credential='fixture', peer_credential='fixture'))
+    try:
+        await asyncio.wait_for(closing.wait(), 10)
+        worker.cancel()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await worker
+        assert processes and all(p.returncode is not None for p in processes)
+        assert browsers and all(b.closed and (b.browser is None or not b.browser.is_connected()) for b in browsers)
+        row = json.loads((tmp_path / 'cleanup-cancel' / (frozen['cases'][0]['id'] + '-jt') / 'row.json').read_text())
+        assert row['status'] == 'cancelled' and row['cleanup_confirmed']
+        assert not row['strict_completed'] and row['capped_completion_ms'] == 120000
+    finally:
+        release.set()
+        if not worker.done():
+            worker.cancel()
+        await asyncio.gather(worker, return_exceptions=True)
+        for runtime in runtimes:
+            await original_close(runtime)
+        for browser in browsers:
+            await browser.aclose()
+        for process in processes:
+            if process.returncode is None:
+                process.terminate()
+            await process.wait()
+
+
 @pytest.mark.parametrize('kind', ['insert', 'update'])
 @pytest.mark.parametrize('arm', ['v', 'jt'])
 async def test_real_product_actual_sdk_browser_database_recovery(chromium_required, monkeypatch, tmp_path, product_python, kind, arm):

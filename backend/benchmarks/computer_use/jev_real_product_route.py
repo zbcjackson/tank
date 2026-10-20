@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from collections.abc import Awaitable
 from contextlib import closing
 from importlib import metadata
 from pathlib import Path
@@ -71,7 +72,7 @@ def freeze_inputs(app_python: Path) -> dict:
     items = cases()
     f = {'revision': 'real-product-1', 'cases': items,
          'schedule': [{'id': c['id'] + '-' + arm, 'case': c['id'], 'arm': arm}
-                      for n, c in enumerate(items) for arm in (('v', 'jt') if n % 2 == 0 else ('jt', 'v'))],
+                      for c in items for arm in (('v', 'jt') if (c['order'] + (c['kind'] == 'update')) % 2 == 0 else ('jt', 'v'))],
          'app': app_manifest(app_python), 'source_sha256': {**base.sources(),
              str(Path(__file__).relative_to(ROOT)): hashlib.sha256(Path(__file__).read_bytes()).hexdigest()},
          'models': {'jev': base.JEV, 'peer': base.PEER}, 'record_only': True,
@@ -223,6 +224,18 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
     async def audit(record):
         with (path / 'audit.jsonl').open('a') as journal:
             journal.write(json.dumps(asdict(record)) + '\n')
+    cleanup_interrupted = False
+    async def finish_cleanup(operation: Awaitable[object]) -> None:
+        nonlocal cleanup_interrupted
+        pending = asyncio.ensure_future(operation)
+        while True:
+            try:
+                await asyncio.shield(pending)
+                return
+            except asyncio.CancelledError:
+                if pending.cancelled():
+                    raise
+                cleanup_interrupted = True
     try:
         app_log = (path / 'app.log').open('wb')
         process = await asyncio.create_subprocess_exec(str(app_python), str(Path(__file__)), '--serve',
@@ -263,22 +276,24 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
         errors = []
         for close in ([ctx.runtime.aclose] if ctx is not None else []) + ([channel.aclose] if channel is not None else []):
             try:
-                await close()
-            except BaseException as exc:
+                await finish_cleanup(close())
+            except (Exception, asyncio.CancelledError) as exc:
                 errors.append(type(exc).__name__)
-                if not isinstance(exc, Exception):
-                    raise
+                cleanup_interrupted |= isinstance(exc, asyncio.CancelledError)
         if process is not None:
             if process.returncode is None:
                 process.terminate()
             try:
-                await asyncio.wait_for(process.wait(), 5)
+                await finish_cleanup(asyncio.wait_for(process.wait(), 5))
             except TimeoutError:
                 process.kill()
-                await process.wait()
+                await finish_cleanup(process.wait())
                 errors.append('product_termination_timeout')
         if app_log is not None:
             app_log.close()
+        if cleanup_interrupted:
+            row['status'] = 'cancelled'
+            ledger.stop('cancelled')
         row['cleanup_confirmed'] = not errors and (process is None or process.returncode is not None) and (channel is None or channel.closed and (channel.browser is None or not channel.browser.is_connected()))
         row['cleanup_errors'] = errors
         row['database'] = database_state(database)
@@ -290,7 +305,7 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
         if 'result' in row:
             row['result']['cleanup'] = 'confirmed' if row['cleanup_confirmed'] else 'unknown'
         row['elapsed_ms'] = (time.monotonic() - started) * 1000
-        row['strict_completed'] = bool(row['cleanup_confirmed'] and row['app_unchanged'] and row['elapsed_ms'] <= 120000
+        row['strict_completed'] = bool(row['status'] == 'finished' and row['cleanup_confirmed'] and row['app_unchanged'] and row['elapsed_ms'] <= 120000
             and row.get('result', {}).get('status') == 'completed' and row['database']['records'] == case['oracle']['rows']
             and row['database']['schema'] == initial_schema and len(row['database']['writes']) == case['oracle']['writes']
             and all(w['operation'] == case['oracle']['operation'] for w in row['database']['writes'])
@@ -309,6 +324,8 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
         if own_ledger:
             ledger.close()
         (path / 'row.json').write_text(json.dumps(row, ensure_ascii=False, indent=2) + '\n')
+        if cleanup_interrupted:
+            raise asyncio.CancelledError
     return row
 
 
