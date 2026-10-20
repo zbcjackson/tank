@@ -1996,6 +1996,42 @@ def product_python():
     return Path(value)
 
 
+@pytest.fixture
+def linkding_root():
+    value = os.environ.get('TANK_LINKDING_ROOT')
+    if not value:
+        pytest.skip('Set TANK_LINKDING_ROOT to the qualified linkding 1.47.0 installation')
+    root = Path(value)
+    assert root.is_absolute() and (root / '.venv/bin/python').is_file()
+    return root
+
+
+def test_linkding_product_prepare_freezes_qualified_tasks_without_clients(monkeypatch, tmp_path, linkding_root):
+    import json
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    def forbidden(*args, **kwargs):
+        raise AssertionError('preparation allocated HTTP or a server')
+    monkeypatch.setattr(httpx.AsyncClient, '__init__', forbidden)
+    monkeypatch.setattr(httpx2.AsyncClient, '__init__', forbidden)
+    monkeypatch.setattr(asyncio, 'create_subprocess_exec', forbidden)
+    frozen = pilot.prepare(tmp_path / 'linkding', app_root=linkding_root)
+    assert len(frozen['cases']) == 2 and len(frozen['schedule']) == 4
+    assert [c['target'] for c in frozen['cases']] == [1, 2]
+    assert [s['arm'] for s in frozen['schedule']] == ['v', 'jt', 'jt', 'v']
+    assert len(frozen['app']['source_files']) == 446
+    assert frozen['app']['versions']['django'] == '6.0.7'
+    assert frozen['app']['environment_files'] and frozen['source_sha256']
+    assert pilot.load_freeze(tmp_path / 'linkding', frozen['sha256']) == frozen
+    with pytest.raises(FileExistsError):
+        pilot.prepare(tmp_path / 'linkding', app_root=linkding_root)
+    (tmp_path / 'linkding/freeze.json').write_text(json.dumps({**frozen, 'seconds_per_task': 121}))
+    with pytest.raises(ValueError):
+        pilot.load_freeze(tmp_path / 'linkding', frozen['sha256'])
+
+
 def test_real_product_prepare_has_no_clients_or_server(monkeypatch, tmp_path, product_python):
     import httpx
     import httpx2
