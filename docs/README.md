@@ -38,6 +38,7 @@
 | [research/jev-product-list-workflow.md](research/jev-product-list-workflow.md) | 调研 | 真实列表工作流开发实验完成 | 自主选记录、编辑并核验返回内容；一次图片接管再返回Jev，固定两行/次序非独立确认 |
 | [plans/done/jev-second-product-qualification.md](plans/done/jev-second-product-qualification.md) | 计划 | 已完成 | 第1轮独立审查通过；原版linkding原生脚本4/4，视觉资格仍被隐藏动画阻塞，声明式任务冻结/零模型 |
 | [research/jev-second-product-qualification.md](research/jev-second-product-qualification.md) | 调研 | 宿主阻塞已定位 | 32完整观察，列表16/16可读图、编辑页16/16拒绝；隐藏无限动画/5张同字节PNG，不是模型比较 |
+| [plans/active/dom-hidden-animation.md](plans/active/dom-hidden-animation.md) | 计划 | TDD修复中 | 排除可确认隐藏伪元素的transform/opacity动画；保持可见运动/PNG/ref拒绝并重验第二产品 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 第二产品资格阻塞已定位 | linkding隐藏动画使视觉准入失败，先TDD修复再做V/JT迁移；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
