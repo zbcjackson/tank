@@ -28,7 +28,7 @@
 | [research/dom-visual-freshness.md](research/dom-visual-freshness.md) | 调研 | 组件机制已解决 | 96次无模型检查、108即时PNG；通道拒绝6/16→0/16，其他守卫保持；首次加载波动未确定原因 |
 | [plans/done/jev-vision-route-followup.md](plans/done/jev-vision-route-followup.md) | 计划 | 已完成 | 修复后36任务/66调用，第2轮独立结果审查通过；两臂正例10/10、负例8/8，真实弃权兜底6/6，旧结果不重判 |
 | [research/jev-vision-route-followup.md](research/jev-vision-route-followup.md) | 调研 | 真实开发复测完成 | 原24项均通过；新增JT六项先弃权后同绑定图片接管，无猜选；三种已见手写布局非确认集 |
-| [plans/active/jev-real-product-route.md](plans/active/jev-real-product-route.md) | 计划 | 代码审查待执行 | 固定真实sqlite-web及合成数据库；准入修复、后端6408/E2E21通过，下一步审查后冻结12任务真实V/JT |
+| [plans/active/jev-real-product-route.md](plans/active/jev-real-product-route.md) | 计划 | 第1轮审查完成 | 固定真实sqlite-web及合成数据库；排程/取消清理修复，后端6411/E2E21通过，下一步新冻结12任务真实V/JT |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 真实弃权后接管已验证 | 下一步真实产品/新任务族、已知可恢复故障及独立确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
