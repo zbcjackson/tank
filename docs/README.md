@@ -32,6 +32,7 @@
 | [research/jev-real-product-route.md](research/jev-real-product-route.md) | 调研 | 真实单产品开发实验已执行 | JT少图但质量较低，封顶均值未提速；同图不同输出和逐列checkbox缺候选分别记录，未测列表/确认 |
 | [plans/done/jev-checkbox-grounding.md](plans/done/jev-checkbox-grounding.md) | 计划 | 已完成 | 第1轮独立审查通过；同页逐列候选0→3，12上下文36输入0模型，强列回执区分已写集合；新开发配方仅prepare |
 | [research/jev-checkbox-grounding.md](research/jev-checkbox-grounding.md) | 调研 | 无模型诊断完成 | 全选触及三列、仅选title触及一列；修复候选遗漏，不重判旧模型失败或推断模型收益 |
+| [plans/active/jev-checkbox-route-retest.md](plans/active/jev-checkbox-route-retest.md) | 计划 | 修复后真实复测准备中 | 已核验新冻结12项V/JT，保留value-only条件与全部13旧归档；一次批次不补跑 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 逐列候选修复已审查 | 下一步修复后真实开发对照，再跨页/第二产品及独立确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
