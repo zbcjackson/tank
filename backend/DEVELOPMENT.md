@@ -785,6 +785,10 @@ selects the record's Edit link and verifies the returned visible cells/path plus
 database/HTTP history. The additional editor-seen facts record actual previously
 observed DOM field values, independent of the goal/oracle; they preserve meaningful
 progress through the injected first-edit GET refusal without relaxing host guards.
+This recipe compares the default `id,title,notes` columns and the two fixture rows
+in their declared order. It does not normalize row order: identical records in a
+different display order fail the frozen list condition. Sorting, column changes,
+filtering and pagination are outside this development recipe.
 The original twelve-task form recipe remains the default. See
 [the list-workflow plan](../docs/plans/active/jev-product-list-workflow.md).
 
