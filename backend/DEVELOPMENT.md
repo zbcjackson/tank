@@ -789,4 +789,4 @@ SDK HTTP client construction is forbidden; source/recipe drift stops the next ap
 and cancelled tasks preserve their row after resource cleanup. A snapshot and exact
 source copy are retained for each diagnostic run. This is functional evidence,
 not model-quality or paid-route evidence. See
-[the checkbox plan](../docs/plans/active/jev-checkbox-grounding.md).
+[the checkbox plan](../docs/plans/done/jev-checkbox-grounding.md).
