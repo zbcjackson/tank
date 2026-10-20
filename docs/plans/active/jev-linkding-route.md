@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-20：动画重验32/32通过；Controller/fake HTTP专项20项通过，待完整验证/独立审查，尚未新增真实Jev/Gemini实验调用）。
+> 状态：进行中（2026-10-20：20专项、全后端6489/1跳过及E2E21/83通过；fake四项完整保存，待本轮第1次独立实现审查，真实四项对照未开始）。
 
 # linkding真实Controller与V/JT迁移对照
 
@@ -71,7 +71,23 @@ V为图片×3，JT为列表图片→Jev文字×2；没有收费选择/视觉API�
 模型准确率。错误记录、私有oracle投毒、真实终态DOM故障、非法已知回复、未知
 用量和取消/审计/关闭/fixture IO停批均有回归，全部四项分母保持。旧产品恢复/
 重复取消的6专项亦通过。4份改动Python pyright0错误/警告，相关ruff通过。
-完整新代码的全套验证及首次独立审查尚待执行；此前7d的全套不替代后续新验证。
+完整新代码后端6489 passed、1 skipped、21 warnings（768.97秒），同时强制两
+原版产品fixture及Chromium；E2E21场景/83步骤全部通过（177.583秒），含75项
+Chromium契约。web lint/tsc-b、backend/CLI ruff及改动benchmark、4份Python
+pyright0错误/警告、前后端重载日志空输出、docs83/diff通过。协议未变。
+
+独立保留的fake-v2四项4/4、12模拟SDK调用（8图片/4Jev文字）、120假tokens，
+35执行源/446产品源构建/4687环境文件固定，4清理。runtime digest
+`2b5d47b74bcc5c5e543a8e176a5568177b4fbf1a94ff7b5118359d46ed5394e2`。
+独立脚本未导入宿主评分器，物理before/after DB、全部表/schema、实际列表/
+编辑器URL历史、SDK实际事实/输入图片/合法choice/用量/账本逐项一致。
+
+fake-v1独立脚本漏装pytest自动提供的TypeSafe SDK HTTP边界：首V完成，首JT
+在Jev阶段记unknown，立即停批，保留4分母（2运行/2未运行）、5 SDK尝试及
+1 unknown。只传占位凭据，但不能把未拦截的未知尝试冒称为零网络或模型失败；
+没有真实有效凭据对照。已核对无代理变量；修正独立脚本复用sdk_http测试边界，
+另冻边界源hash/新目录fake-v2，不修改生产SDK默认HTTP行为或旧失败记录。
+fake结果与真实模型质量/速度分列，本轮真实四项对照仍待审查后新冻结执行。
 
 ## Verification Checklist（最终步骤）
 

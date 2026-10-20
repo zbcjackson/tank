@@ -39,7 +39,7 @@
 | [plans/done/jev-second-product-qualification.md](plans/done/jev-second-product-qualification.md) | 计划 | 已完成 | 第1轮独立审查通过；原版linkding原生脚本4/4，视觉资格仍被隐藏动画阻塞，声明式任务冻结/零模型 |
 | [research/jev-second-product-qualification.md](research/jev-second-product-qualification.md) | 调研 | 宿主阻塞已定位 | 32完整观察，列表16/16可读图、编辑页16/16拒绝；隐藏无限动画/5张同字节PNG，不是模型比较 |
 | [plans/active/dom-hidden-animation.md](plans/active/dom-hidden-animation.md) | 计划 | 修复/重验完成待审查 | 隐藏伪元素双重定义检查；新资格32/32及5归因通过，旧图字节保持 |
-| [plans/active/jev-linkding-route.md](plans/active/jev-linkding-route.md) | 计划 | 20专项通过待完整验证 | 固定两任务四项V/JT、实际业务回执与独立核验；真实选择/视觉模型调用待审查后执行 |
+| [plans/active/jev-linkding-route.md](plans/active/jev-linkding-route.md) | 计划 | 完整验证通过待首次审查 | 后端6489/1跳过、E2E21/83；fake-v2四项4/4、失败设置批次保留，真实四项待审查后执行 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 第二产品新资格已通过 | 动画修复/32资格通过，Controller配方20专项通过，真实迁移比较待验证审查；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
