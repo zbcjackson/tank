@@ -32,9 +32,9 @@
 | [research/jev-real-product-route.md](research/jev-real-product-route.md) | 调研 | 真实单产品开发实验已执行 | JT少图但质量较低，封顶均值未提速；同图不同输出和逐列checkbox缺候选分别记录，未测列表/确认 |
 | [plans/done/jev-checkbox-grounding.md](plans/done/jev-checkbox-grounding.md) | 计划 | 已完成 | 第1轮独立审查通过；同页逐列候选0→3，12上下文36输入0模型，强列回执区分已写集合；新开发配方仅prepare |
 | [research/jev-checkbox-grounding.md](research/jev-checkbox-grounding.md) | 调研 | 无模型诊断完成 | 全选触及三列、仅选title触及一列；修复候选遗漏，不重判旧模型失败或推断模型收益 |
-| [plans/active/jev-checkbox-route-retest.md](plans/active/jev-checkbox-route-retest.md) | 计划 | 真实复测完成，待结果审查 | V6/6、JT6/6，均时28.771/5.000秒，图片20/1；一次实际弃权接管并返回，保留13旧归档 |
+| [plans/done/jev-checkbox-route-retest.md](plans/done/jev-checkbox-route-retest.md) | 计划 | 已完成 | 第1轮独立结果审查通过；V6/6、JT6/6，均时28.771/5.000秒，图片20/1；一次实际弃权接管并返回，保留13旧归档 |
 | [research/jev-checkbox-route-retest.md](research/jev-checkbox-route-retest.md) | 调研 | 修复后真实开发复测完成 | 原失败此次选逐列title并完成；本批质量齐平且JT更快少图，单产品已知案例非独立采用确认 |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 修复后真实复测待审查 | 新V/JT各6/6，JT本批更快少图；下一步列表/跨页，再第二产品及独立确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 修复后真实复测已审查 | 新V/JT各6/6，JT本批更快少图；下一步列表/跨页，再第二产品及独立确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
