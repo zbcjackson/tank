@@ -2528,6 +2528,33 @@ async def test_calibration_editor_revocation_blocks_native_dispatch(chromium_req
 
 
 @pytest.mark.parametrize('product', ['sqlite-web', 'linkding'])
+@pytest.mark.parametrize('negative', ['missing', 'revoked'])
+async def test_calibration_negative_requires_full_task_envelope(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product, negative):
+    import copy
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    case = next(c for c in frozen['cases'] if c['product'] == product and c['negative'] == negative
+                and c['condition'] == 'cold')
+    row = await pilot.run_task(case, 'jt', tmp_path / 'calibration', frozen=frozen,
+                              jev_credential='fixture', peer_credential='fixture')
+    assert row['negative_passed']
+    for field, value in [('elapsed_ms', 120001), ('app_unchanged', False), ('trial_source_unchanged', False)]:
+        changed = copy.deepcopy(row)
+        changed[field] = value
+        async def altered_receipt(*args, **kwargs):
+            return changed
+        monkeypatch.setattr(pilot.shared, 'run_task', altered_receipt)
+        output = tmp_path / field
+        (output / row['id']).mkdir(parents=True)
+        checked = await pilot.run_task(case, 'jt', output, frozen=frozen,
+                                      jev_credential='fixture', peer_credential='fixture')
+        assert not checked['negative_passed'], field
+        assert not checked['calibration_success'], field
+
+
+@pytest.mark.parametrize('product', ['sqlite-web', 'linkding'])
 async def test_calibration_prewarm_is_owned_and_in_task_clock(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot

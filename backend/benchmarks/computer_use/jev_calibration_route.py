@@ -262,10 +262,12 @@ async def run_task(case: dict, arm: str, output: Path, *, frozen: dict,
         before_dispatch=revoke_in_editor if case['negative'] == 'revoked' else None)
     row.update(cluster_id=case['cluster_id'], condition=case['condition'], product=case['product'],
                group=case['group'], negative_passed=False)
+    negative_eligible = bool(row['status'] == 'finished' and row['cleanup_confirmed']
+        and row['app_unchanged'] and row.get('trial_source_unchanged', case['product'] != 'linkding')
+        and row['elapsed_ms'] <= 120000)
     if case['negative'] == 'missing':
         steps = row.get('result', {}).get('details', {}).get('progress', {}).get('recent_steps', [])
-        row['negative_passed'] = bool(row['status'] == 'finished' and row['cleanup_confirmed']
-            and row['database'] == row['database_before']
+        row['negative_passed'] = bool(negative_eligible and row['database'] == row['database_before']
             and not any(r['id'] == case['target'] for r in row['database']['records'])
             and not any(h['method'] == 'POST' for h in row['http'])
             and row.get('result', {}).get('reason') in {'none', 'escalate'}
@@ -277,8 +279,7 @@ async def run_task(case: dict, arm: str, output: Path, *, frozen: dict,
                     and o['editor']['url'] == identity['url'])
                    and o['list']['path'] == case['oracle']['edit_path']
                    for o in row.get('product_observations', []))
-        row['negative_passed'] = bool(row['status'] == 'finished' and row['cleanup_confirmed']
-            and row['database'] == row['database_before'] and seen
+        row['negative_passed'] = bool(negative_eligible and row['database'] == row['database_before'] and seen
             and row.get('revocation', {}).get('before_native_dispatch')
             and row['revocation']['path'] == case['oracle']['edit_path']
             and row.get('result', {}).get('reason') == 'error'
