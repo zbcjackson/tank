@@ -41,6 +41,7 @@
 | [plans/done/dom-hidden-animation.md](plans/done/dom-hidden-animation.md) | 计划 | 已完成 | 隐藏伪元素双重定义检查；资格32/32及5归因通过，同轮两次独立审查完成 |
 | [plans/done/jev-linkding-route.md](plans/done/jev-linkding-route.md) | 计划 | 已完成 | 同轮两次独立审查通过；真实V/JT各2/2，均时34.614/12.047秒，9741成员核验一致 |
 | [research/jev-linkding-route.md](research/jev-linkding-route.md) | 调研 | 两臂成功、本批JT更快少图 | 原版第二产品四项、12 SDK、107904已知tokens、4清理；非独立采用确认 |
+| [plans/active/jev-confirmation-preparation.md](plans/active/jev-confirmation-preparation.md) | 计划 | 准备中 | 24个新校准任务、无模型资格与样本量/请求量预览；不执行收费模型 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 第二产品结果审查通过 | 下一步未见任务独立采用确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
