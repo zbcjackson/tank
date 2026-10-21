@@ -41,9 +41,9 @@
 | [plans/done/dom-hidden-animation.md](plans/done/dom-hidden-animation.md) | 计划 | 已完成 | 隐藏伪元素双重定义检查；资格32/32及5归因通过，同轮两次独立审查完成 |
 | [plans/done/jev-linkding-route.md](plans/done/jev-linkding-route.md) | 计划 | 已完成 | 同轮两次独立审查通过；真实V/JT各2/2，均时34.614/12.047秒，9741成员核验一致 |
 | [research/jev-linkding-route.md](research/jev-linkding-route.md) | 调研 | 两臂成功、本批JT更快少图 | 原版第二产品四项、12 SDK、107904已知tokens、4清理；非独立采用确认 |
-| [plans/active/jev-confirmation-preparation.md](plans/active/jev-confirmation-preparation.md) | 计划 | 首轮修订待复核 | 24业务/104图通过，候选资格0/24；补全门继承及离散功效取整规则，无模型 |
+| [plans/done/jev-confirmation-preparation.md](plans/done/jev-confirmation-preparation.md) | 计划 | 已完成 | 两轮审查通过；24业务/104图通过，候选资格0/24，正式N与收费未准入 |
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 第二产品结果审查通过 | 下一步未见任务独立采用确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 确认准备审查通过 | 下一步修容量/完成事实及验收后再校准确认；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
