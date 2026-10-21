@@ -74,7 +74,7 @@ When('the isolated managed Chromium contract is exercised',
   async function (this: TankWorld) {
     const {stdout} = await promisify(execFile)('uv', [
       'run', '--no-sync', 'pytest', 'plugins/agent-computer-use/tests/test_dom.py', '-q',
-      '-k', 'browser_config_through_real_runner or controller_native_dispatch or stop_during or runner_candidate_strategy or goal_runner or runner_advisor_returns or vision_route_real_browser or dom_freshness_ignores_native_caret or route_followup_abstention or same_origin_link or checkbox_requires or navigation_fact_and_checkbox or loading_document or finite_css_transition or continuing_animation or same_named_checkbox or uses_authored_form_names or bound_facts_cannot or name_annotation_collision or table_row_context or hidden_pseudo_animation',
+      '-k', 'browser_config_through_real_runner or controller_native_dispatch or stop_during or runner_candidate_strategy or goal_runner or runner_advisor_returns or vision_route_real_browser or dom_freshness_ignores_native_caret or route_followup_abstention or same_origin_link or checkbox_requires or navigation_fact_and_checkbox or loading_document or finite_css_transition or continuing_animation or same_named_checkbox or uses_authored_form_names or bound_facts_cannot or name_annotation_collision or table_row_context or hidden_pseudo_animation or dom_aggregate or visible_text_limits or rendered_preformatted or explicit_candidate_budget or observe_navigation',
     ], {cwd: resolve(process.cwd(), '../backend'), timeout: 75000,
       env: {...process.env, TANK_REQUIRE_CHROMIUM: '1'}});
     results.set(this, stdout);
@@ -82,7 +82,7 @@ When('the isolated managed Chromium contract is exercised',
 
 Then('the managed Chromium contract passes without paid model calls or personal browser access',
   function (this: TankWorld) {
-    assert.match(results.get(this) ?? '', /75 passed/);
+    assert.match(results.get(this) ?? '', /82 passed/);
     assert.doesNotMatch(results.get(this) ?? '', /\d+ skipped/);
   });
 

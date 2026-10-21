@@ -160,6 +160,88 @@ class SelectOnlyCandidate:
         return DecisionResult(actions.binding, "candidate", actions.actions[0].id)
 
 
+async def test_dom_aggregate_visible_text_does_not_overflow_on_formatting(channel):
+    browser, ctx = channel
+    padding = "\n " * 1500
+    await browser.page.set_content(
+        '<ul role="list" aria-label="Records">'
+        + ''.join(f'<li>{padding}Record {n}{padding}</li>' for n in range(1, 5))
+        + '</ul>')
+    snapshot = await browser.observe("managed-page", ctx)
+    assert snapshot.complete
+    records = next(e for e in snapshot.elements if e.label == "Records")
+    assert records.value.splitlines() == [f'Record {n}' for n in range(1, 5)]
+
+
+async def test_dom_aggregate_labels_exclude_hidden_descendants(channel):
+    browser, ctx = channel
+    await browser.page.set_content(
+        '<ul role="list"><li>Visible record'
+        f'<span hidden>{"private-hidden" * 100}</span></li></ul>')
+    snapshot = await browser.observe("managed-page", ctx)
+    assert snapshot.complete
+    records = next(e for e in snapshot.elements if e.role == "list")
+    assert records.label == records.value == "Visible record"
+
+
+async def test_dom_visible_text_limits_keep_input_whitespace_exact(channel):
+    browser, ctx = channel
+    await browser.page.set_content(
+        '<label>Notes<textarea></textarea></label><ul role="list" aria-label="Records"></ul>')
+    value = "  Keep\n  these spaces  "
+    await browser.page.get_by_label('Notes').fill(value)
+    snapshot = await browser.observe("managed-page", ctx)
+    assert snapshot.complete
+    assert next(e.value for e in snapshot.elements if e.label == 'Notes') == value
+    await browser.page.locator('ul').evaluate("node => node.textContent = 'x'.repeat(4097)")
+    assert not (await browser.observe("managed-page", ctx)).complete
+
+
+async def test_dom_rendered_preformatted_status_keeps_visible_whitespace(channel):
+    browser, ctx = channel
+    value = '  first line\n second line  '
+    await browser.page.set_content(
+        f'<output aria-label="Report" style="white-space:pre">{value}</output>')
+    snapshot = await browser.observe("managed-page", ctx)
+    assert snapshot.complete
+    assert next(e.value for e in snapshot.elements if e.label == 'Report') == value
+
+
+async def test_dom_observe_navigation_discards_partial_read(channel, monkeypatch):
+    browser, ctx = channel
+    before = await browser.observe('managed-page', ctx)
+    actions = ActionBuilder().build('goal', 1, goal(), before)
+    original_read = browser.read
+    async def navigate_after_read(frame, context):
+        view = await original_read(frame, context)
+        await browser.page.goto(browser.config.url + 'goal/plain')
+        return view
+    with monkeypatch.context() as patch:
+        patch.setattr(browser, 'read', navigate_after_read)
+        unavailable = await browser.observe('managed-page', ctx)
+    assert not unavailable.ready and not unavailable.complete
+    assert not unavailable.elements and not unavailable.facts
+    receipt = await browser.dispatch(actions.binding, actions.actions[0], ctx)
+    assert receipt.status == 'not_sent'
+    fresh = await browser.observe('managed-page', ctx)
+    assert fresh.ready and fresh.complete
+    assert any(e.label == 'Personal info' for e in fresh.elements)
+
+
+@pytest.mark.parametrize('count', [38, 65])
+async def test_dom_explicit_candidate_budget_preserves_whole_action_set(channel, count):
+    browser, ctx = channel
+    await browser.page.set_content(''.join(
+        f'<a href="/record/{n}">Edit record {n}</a>' for n in range(count)))
+    snapshot = await browser.observe("managed-page", ctx)
+    default = ActionBuilder(visual=True).build('goal', 1, goal(), snapshot)
+    assert default.reason == 'candidate_limit' and not default.actions
+    declared = ActionBuilder(64, visual=True).build('goal', 1, goal(), snapshot)
+    assert declared.total_candidates == count
+    assert len(declared.actions) == (count if count <= 64 else 0)
+    assert (declared.reason == 'candidate_limit') == (count > 64)
+
+
 async def test_managed_chromium_fill_click_readback(site: str, chromium_required: None) -> None:
     from agent_computer_use.factory import create_subagent
 
@@ -2006,6 +2088,65 @@ def linkding_root():
     return root
 
 
+async def test_calibration_sql_initialization_drains_repeated_cancellation(monkeypatch, tmp_path, product_python):
+    import threading
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+    original = pilot.shared.create_database
+    def blocked(path, records):
+        entered.set()
+        release.wait(1)
+        original(path, records)
+        finished.set()
+    monkeypatch.setattr(pilot.shared, 'create_database', blocked)
+    case = {'seed': [{'id': n, 'title': 'Draft', 'notes': 'Keep'} for n in range(1, 5)]}
+    task = asyncio.create_task(pilot.SQLiteAdapter().initialize(tmp_path, product_python, case))
+    try:
+        await asyncio.sleep(.05)
+        assert entered.is_set() and not task.done()
+        task.cancel()
+        await asyncio.sleep(.01)
+        task.cancel()
+        assert not task.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert finished.is_set()
+        assert len(pilot.shared.database_state(tmp_path / 'fixture.db')['records']) == 4
+    finally:
+        release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+def test_calibration_prepare_freezes_complete_goals_and_96_trials(monkeypatch, tmp_path, linkding_root, product_python):
+    import json
+    import httpx
+    import httpx2
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    def forbidden(*args, **kwargs):
+        raise AssertionError('preparation allocated HTTP or a server')
+    monkeypatch.setattr(httpx.AsyncClient, '__init__', forbidden)
+    monkeypatch.setattr(httpx2.AsyncClient, '__init__', forbidden)
+    monkeypatch.setattr(asyncio, 'create_subprocess_exec', forbidden)
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    assert len(frozen['cases']) == 48 and len(frozen['schedule']) == 96
+    assert len({c['cluster_id'] for c in frozen['cases']}) == 24
+    assert frozen['max_candidates'] == 64 and frozen['formal_confirmation'] is False
+    for case in frozen['cases']:
+        keys = {f['key'] for f in case['goal']['completion']}
+        assert 'status:Records' in keys
+        assert ('status:List records' if case['product'] == 'linkding' else 'status:List rows') in keys
+        if case['negative'] == 'revoked':
+            records = json.loads(case['goal']['completion'][0]['value'])
+            assert next(r['title'] for r in records if r['id'] == case['target']) == case['goal']['inputs'][0]['value']
+    assert pilot.load_freeze(tmp_path / 'calibration', frozen['sha256']) == frozen
+    (tmp_path / 'calibration/freeze.json').write_text(json.dumps({**frozen, 'max_candidates': 65}))
+    with pytest.raises(ValueError):
+        pilot.load_freeze(tmp_path / 'calibration', frozen['sha256'])
+
+
 def test_linkding_product_prepare_freezes_qualified_tasks_without_clients(monkeypatch, tmp_path, linkding_root):
     import json
     import httpx
@@ -2071,6 +2212,22 @@ def install_product_http(monkeypatch, failure=None):
         selected = next((k for k, v in offered.items() if v['label'] == 'Retry'), None)
         if selected is None:
             selected = next((k for k, v in offered.items() if v['operation'] == 'fill'), None)
+        if packet['state']['goal']['goal_id'].startswith('cal-'):
+            import re
+            identity = packet['state']['goal']['outcomes'][0]['conditions'][0]['key'].removeprefix('status:Editor seen:')
+            target = identity.rsplit('/', 1)[-1]
+            if failure == 'wrong_record':
+                target = '1' if target != '1' else '4'
+            if selected is None:
+                selected = next((k for k, v in offered.items() if v['label'] == 'Allow updating this column. [name=chk_title]'
+                                 and v['current_value'] == 'false'), None)
+            if selected is None:
+                selected = next((k for k, v in offered.items() if v['role'] == 'button' and v['label'] in ('Update', 'Save')), None)
+            if selected is None:
+                selected = next((k for k, v in offered.items() if v['label'] == 'Edit' and (
+                    any(kind == 'row' and name.split()[0] == target for kind, name in v['ancestors'])
+                    or any(re.search(r'/bookmarks/' + target + r'/edit(?:\?|$)', f['value']) for f in v['effect']))), None)
+            offered = offered if selected is not None else {}
         if selected is None and packet['state']['goal']['scope'] == 'linkding':
             target = '2' if 'item-2' in intent else '1'
             if failure == 'wrong_record':
@@ -2116,6 +2273,303 @@ def install_product_http(monkeypatch, failure=None):
     monkeypatch.setattr(httpx2, 'AsyncHTTPTransport', lambda **kwargs: httpx2.MockTransport(
         lambda request: httpx2.Response(200, json=answer(json.loads(request.content)))))
     return calls, packets
+
+
+async def test_calibration_controller_completes_four_record_sql_list(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    calls, _ = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    case = next(c for c in frozen['cases'] if c['product'] == 'sqlite-web' and c['group'] == 'normal'
+                and c['target'] == 4 and c['condition'] == 'cold')
+    row = await pilot.run_task(case, 'jt', tmp_path / 'calibration', frozen=frozen,
+                              jev_credential='fixture', peer_credential='fixture')
+    assert row['strict_completed'] and row['cleanup_confirmed'], row
+    assert len(row['database']['records']) == 4
+    assert len(calls) == 4
+
+
+async def test_calibration_controller_recovers_first_sql_list_get(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    calls, _ = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    case = next(c for c in frozen['cases'] if c['product'] == 'sqlite-web' and c['fault_stage'] == 'list'
+                and c['target'] == 4 and c['condition'] == 'cold')
+    row = await pilot.run_task(case, 'jt', tmp_path / 'calibration', frozen=frozen,
+                              jev_credential='fixture', peer_credential='fixture')
+    assert row['strict_completed'] and row['recovery_completed'] and row['cleanup_confirmed'], row
+    assert sum(h['injected'] for h in row['http']) == 1
+    assert len(calls) == 5
+
+
+def test_calibration_cli_freezes_before_credential_access(monkeypatch, tmp_path, linkding_root, product_python, capsys):
+    import dotenv
+    import json
+    import sys
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    def forbidden(*args, **kwargs):
+        raise AssertionError('credentials read before approved executable freeze')
+    monkeypatch.setattr(dotenv, 'dotenv_values', forbidden)
+    output = tmp_path / 'cli-calibration'
+    monkeypatch.setattr(sys, 'argv', ['calibration', '--output', str(output), '--sql-python', str(product_python),
+                                    '--link-root', str(linkding_root)])
+    pilot.main()
+    assert json.loads(capsys.readouterr().out)['tasks'] == 96
+    monkeypatch.setattr(sys, 'argv', ['calibration', '--output', str(output), '--run', '--approved-sha256', 'wrong'])
+    with pytest.raises(ValueError):
+        pilot.main()
+
+
+async def test_calibration_all_96_trials_through_real_controller(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
+    import hashlib
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    calls, packets = install_product_http(monkeypatch)
+    output = tmp_path / 'calibration'
+    frozen = pilot.prepare(output, sql_python=product_python, link_root=linkding_root)
+    for name, digest in frozen['source_sha256'].items():
+        data = (Path(__file__).parents[3] / name).read_bytes()
+        assert hashlib.sha256(data).hexdigest() == digest
+        destination = output / 'source' / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+    result = await pilot.run_batch(output, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    assert result['completed'] and len(result['rows']) == 96
+    assert sum(r['strict_completed'] for r in result['rows']) == 80
+    assert sum(r['negative_passed'] for r in result['rows']) == 16
+    assert all(r['calibration_success'] and r['cleanup_confirmed'] for r in result['rows'])
+    assert all('oracle' not in json.dumps(packet) for packet in packets)
+    assert result['spend']['batch']['known_tokens'] == len(calls) * 10
+    assert not result['spend']['stop_reason']
+    with pytest.raises(FileExistsError):
+        await pilot.run_batch(output, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+
+
+@pytest.mark.parametrize('failure', ['cancel', 'audit', 'cleanup', 'fixture_io'])
+async def test_calibration_operational_stops_keep_all_96_trials(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, failure):
+    import json
+    from agent_computer_use.channels.dom import ManagedChromiumChannel
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    calls, _ = install_product_http(monkeypatch, 'cancel' if failure == 'cancel' else None)
+    if failure == 'cleanup':
+        original_close = ManagedChromiumChannel.aclose
+        async def failed_close(self):
+            await original_close(self)
+            raise RuntimeError('controlled cleanup failure')
+        monkeypatch.setattr(ManagedChromiumChannel, 'aclose', failed_close)
+    if failure == 'audit':
+        original_open = Path.open
+        def failed_open(path, *args, **kwargs):
+            if path.name == 'audit.jsonl':
+                raise OSError('controlled audit failure')
+            return original_open(path, *args, **kwargs)
+        monkeypatch.setattr(Path, 'open', failed_open)
+    if failure == 'fixture_io':
+        async def failed_initialize(*args, **kwargs):
+            raise OSError('controlled fixture failure')
+        monkeypatch.setattr(pilot.SQLiteAdapter, 'initialize', failed_initialize)
+        monkeypatch.setattr(pilot.LinkdingCalibrationAdapter, 'initialize', failed_initialize)
+    output = tmp_path / 'calibration'
+    frozen = pilot.prepare(output, sql_python=product_python, link_root=linkding_root)
+    if failure == 'cancel':
+        with pytest.raises(asyncio.CancelledError):
+            await pilot.run_batch(output, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+        result = json.loads((output / 'result.json').read_text())
+    else:
+        result = await pilot.run_batch(output, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+    assert not result['completed'] and len(result['rows']) == 96
+    assert result['spend']['stop_reason']
+    assert all(r['status'] == 'not_run' for r in result['rows'][1:])
+    if failure == 'fixture_io':
+        assert not calls and result['rows'][0]['database'] is None
+    if failure != 'cleanup':
+        assert result['rows'][0]['cleanup_confirmed']
+        assert not any(h['method'] == 'POST' for h in result['rows'][0]['http'])
+
+
+async def test_calibration_unknown_usage_keeps_all_96_trials(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    calls, _ = install_product_http(monkeypatch, 'unknown')
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    result = await pilot.run_batch(tmp_path / 'calibration', frozen['sha256'],
+                                  jev_credential='fixture', peer_credential='fixture')
+    assert len(result['rows']) == 96 and not result['completed']
+    assert result['spend']['stop_reason'] == 'unknown_usage'
+    assert sum(r['status'] == 'not_run' for r in result['rows']) == 95
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('failure', ['oracle', 'wrong_record', 'invalid'])
+async def test_calibration_private_labels_and_bad_choices_cannot_prove_success(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, failure):
+    import copy
+    import json
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    _, packets = install_product_http(monkeypatch, None if failure == 'oracle' else failure)
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    case = copy.deepcopy(next(c for c in frozen['cases'] if c['product'] == 'sqlite-web' and c['group'] == 'normal'
+                             and c['target'] == 4 and c['condition'] == 'cold'))
+    if failure == 'oracle':
+        case['oracle']['rows'][0]['title'] = 'private-oracle-poison'
+    row = await pilot.run_task(case, 'jt', tmp_path / 'calibration', frozen=frozen,
+                              jev_credential='fixture', peer_credential='fixture')
+    assert not row['strict_completed'] and row['cleanup_confirmed']
+    assert all('private-oracle-poison' not in json.dumps(packet) and 'oracle' not in packet['state'] for packet in packets)
+    if failure == 'oracle':
+        assert row['result']['status'] == 'completed'
+        assert next(r['title'] for r in row['database']['records'] if r['id'] == 4) == case['goal']['inputs'][0]['value']
+    if failure == 'invalid':
+        assert not any(h['method'] == 'POST' for h in row['http'])
+        assert row['usage']['unknown_calls'] == 0
+
+
+@pytest.mark.parametrize('product', ['sqlite-web', 'linkding'])
+async def test_calibration_correct_db_requires_current_returned_list(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product):
+    from playwright.async_api import Page
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    install_product_http(monkeypatch)
+    original = Page.evaluate
+    projection = pilot.link._PAGE_READ if product == 'linkding' else pilot.shared._LIST_READ
+    mutation = """() => {
+        for (const link of document.querySelectorAll('li[data-bookmark-id] .title a')) {
+            if (link.innerText.startsWith('Approved ')) link.textContent='Stale display';
+        }
+        const table=document.querySelector('table.cell-content');
+        if (table) {
+            const index=[...table.querySelectorAll('thead th')].findIndex(n=>n.dataset.col==='title');
+            for (const row of table.querySelectorAll('tbody tr')) {
+                if (row.cells[index]?.innerText.startsWith('Approved ')) row.cells[index].textContent='Stale display';
+            }
+        }
+    }"""
+    async def stale_visible_list(page, expression, arg=None):
+        if expression == projection:
+            await original(page, mutation)
+        return await original(page, expression, arg)
+    monkeypatch.setattr(Page, 'evaluate', stale_visible_list)
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    case = next(c for c in frozen['cases'] if c['product'] == product and c['group'] == 'normal'
+                and c['target'] == 4 and c['condition'] == 'cold')
+    row = await pilot.run_task(case, 'jt', tmp_path / 'calibration', frozen=frozen,
+                              jev_credential='fixture', peer_credential='fixture')
+    assert row['database']['records'] == case['oracle']['rows']
+    assert row['result']['status'] != 'completed'
+    assert not row['strict_completed'] and row['cleanup_confirmed']
+    assert sum(h['method'] == 'POST' for h in row['http']) == 1
+
+
+@pytest.mark.parametrize('product', ['sqlite-web', 'linkding', 'legacy-sqlite-web'])
+async def test_calibration_projection_cannot_mix_navigation_epochs(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product):
+    from playwright.async_api import Page
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    calls, _ = install_product_http(monkeypatch)
+    original = Page.evaluate
+    changed = False
+    projection = pilot.link._PAGE_READ if product == 'linkding' else pilot.shared._LIST_READ
+    async def reload_after_projection(page, expression, arg=None):
+        nonlocal changed
+        data = await original(page, expression, arg)
+        if expression == projection and not changed:
+            changed = True
+            await page.reload()
+        return data
+    monkeypatch.setattr(Page, 'evaluate', reload_after_projection)
+    if product == 'legacy-sqlite-web':
+        frozen = pilot.shared.prepare(tmp_path / 'calibration', app_python=product_python, workflow=True)
+        row = await pilot.shared.run_task(frozen['cases'][0], 'jt', tmp_path / 'calibration',
+            app_python=product_python, jev_credential='fixture', peer_credential='fixture')
+    else:
+        frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+        case = next(c for c in frozen['cases'] if c['product'] == product and c['group'] == 'normal'
+                    and c['target'] == 4 and c['condition'] == 'cold')
+        row = await pilot.run_task(case, 'jt', tmp_path / 'calibration', frozen=frozen,
+                                  jev_credential='fixture', peer_credential='fixture')
+    assert changed and row['strict_completed'] and row['cleanup_confirmed'], row
+    assert len(calls) == (3 if product == 'linkding' else 4)
+
+
+async def test_calibration_missing_record_is_exit_not_completion(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    case = next(c for c in frozen['cases'] if c['product'] == 'sqlite-web' and c['negative'] == 'missing'
+                and c['condition'] == 'cold')
+    row = await pilot.run_task(case, 'jt', tmp_path / 'calibration', frozen=frozen,
+                              jev_credential='fixture', peer_credential='fixture')
+    assert row['negative_passed'] and not row['strict_completed'] and row['cleanup_confirmed'], row
+    assert row['database'] == row['database_before']
+    assert not any(h['method'] == 'POST' for h in row['http'])
+    assert row['result']['reason'] == 'none'
+
+
+@pytest.mark.parametrize('product', ['sqlite-web', 'linkding'])
+async def test_calibration_editor_revocation_blocks_native_dispatch(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    case = next(c for c in frozen['cases'] if c['product'] == product and c['negative'] == 'revoked'
+                and c['condition'] == 'cold')
+    row = await pilot.run_task(case, 'jt', tmp_path / 'calibration', frozen=frozen,
+                              jev_credential='fixture', peer_credential='fixture')
+    assert row['negative_passed'] and not row['strict_completed'] and row['cleanup_confirmed'], row
+    assert row['revocation']['before_native_dispatch'] is True
+    assert row['database'] == row['database_before']
+    assert not any(h['method'] == 'POST' for h in row['http'])
+    assert row['result']['reason'] == 'error'
+
+
+@pytest.mark.parametrize('product', ['sqlite-web', 'linkding'])
+async def test_calibration_prewarm_is_owned_and_in_task_clock(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    case = next(c for c in frozen['cases'] if c['product'] == product and c['group'] == 'normal'
+                and c['target'] == 4 and c['condition'] == 'prewarmed')
+    row = await pilot.run_task(case, 'jt', tmp_path / 'calibration', frozen=frozen,
+                              jev_credential='fixture', peer_credential='fixture')
+    assert row['strict_completed'] and row['cleanup_confirmed'], row
+    assert row['prewarm']['path'] == ('/login/' if product == 'linkding' else '/')
+    assert row['prewarm']['status'] == 200
+    assert 0 <= row['prewarm']['elapsed_ms'] < row['elapsed_ms']
+    assert row['http'][0]['path'] == row['prewarm']['path']
+
+
+@pytest.mark.parametrize('fault_stage', [None, 'list', 'editor'])
+async def test_calibration_controller_four_record_linkding_get_recovery(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, fault_stage):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+    calls, _ = install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'calibration', sql_python=product_python, link_root=linkding_root)
+    case = next(c for c in frozen['cases'] if c['product'] == 'linkding' and c['fault_stage'] == fault_stage
+                and c['target'] == 4 and c['condition'] == 'cold')
+    row = await pilot.run_task(case, 'jt', tmp_path / 'calibration', frozen=frozen,
+                              jev_credential='fixture', peer_credential='fixture')
+    assert row['strict_completed'] and row['cleanup_confirmed'], row
+    assert row['recovery_completed'] == (fault_stage is not None)
+    assert len(calls) == (3 if fault_stage is None else 4)
+
+
+async def test_linkding_product_shuffled_seed_uses_record_identity(chromium_required, monkeypatch, tmp_path, linkding_root):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_linkding_route as pilot
+    install_product_http(monkeypatch)
+    frozen = pilot.prepare(tmp_path / 'shuffled-linkding', app_root=linkding_root)
+    case = frozen['cases'][0]
+    case['seed'] = list(reversed(case['seed']))
+    row = await pilot.run_task(case, 'jt', tmp_path / 'shuffled-linkding',
+                              app_python=Path(frozen['app']['python']),
+                              jev_credential='fixture', peer_credential='fixture')
+    assert row['strict_completed'] and row['cleanup_confirmed'], row
 
 
 @pytest.mark.parametrize('arm', ['v', 'jt'])
@@ -2863,7 +3317,13 @@ async def test_checkbox_diagnostic_host_enforces_column_receipt_without_models(c
     for row in result['rows']:
         assert row['value_success'] and row['cleanup_confirmed'] and row['input_attempts'] == 3
         assert row['captures'][0]['column_candidates'] == 3
-        assert row['captures'][0]['reason'] == 'jev_eligible'
+        assert row['captures'][0]['reason'] == 'visual_required'
+        criteria = row['captures'][0]['packet']['questions']['next_action']['criteria']
+        repeated = [value for value in criteria.values()
+                    if isinstance(value, dict) and value['label'] == 'work_items']
+        assert len(repeated) == 2
+        assert repeated[0]['current_value'] == repeated[1]['current_value'] == 'work_items'
+        assert repeated[0]['effect'] == repeated[1]['effect']
         if row['actor'] == 'host':
             assert row['host_result']['reason'] == ('goal_verified' if row['mode'] == 'title' else 'effect_unknown')
             assert row['column_success'] == (row['mode'] == 'title')

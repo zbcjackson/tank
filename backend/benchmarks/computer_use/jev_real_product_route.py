@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from contextlib import closing
 from importlib import metadata
 from pathlib import Path
@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
+    from agent_computer_use.contracts import Action, Binding, DispatchReceipt
+    from tank_backend.agents.subagent import SubAgentContext
 
 
 class ProductAdapter(Protocol):
@@ -233,7 +235,9 @@ def serve_product(database: Path, output: Path, fault_path: str | None) -> None:
 
 async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
                    jev_credential: str, peer_credential: str, ledger=None,
-                   adapter: ProductAdapter | None = None) -> dict:
+                   adapter: ProductAdapter | None = None, max_candidates: int = 32,
+                   prewarm_path: str | None = None,
+                   before_dispatch: Callable[[dict, ManagedChromiumChannel, Action, SubAgentContext], Awaitable[None]] | None = None) -> dict:
     import base64
     import os
     import time
@@ -277,7 +281,13 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
     class ProductChannel(ManagedChromiumChannel):
         async def observe(self, scope, context):
             snapshot = await super().observe(scope, context)
+            if not snapshot.ready or not snapshot.complete:
+                return snapshot
+            navigation = self.observed_navigation
             actual = await asyncio.to_thread(database_state, database)
+            self.check(context)
+            if navigation != self.navigation:
+                return self.unavailable_snapshot(scope)
             self.previous = replace(snapshot, facts=(*snapshot.facts, Fact(key='status:Records', value=encoded(actual['records']))))
             if case.get('workflow'):
                 context.check('desktop')
@@ -286,6 +296,8 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
                 editor = self.page.get_by_role('textbox', name='id', exact=True)
                 editor_id = await editor.input_value() if await editor.count() == 1 and await editor.is_visible() else ''
                 context.check('desktop')
+                if navigation != self.navigation:
+                    return self.unavailable_snapshot(scope)
                 if editor_id:
                     seen_editors.add(editor_id)
                 row['workflow_observations'].append({'observation_id': snapshot.observation_id,
@@ -297,6 +309,15 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
     class Observer:
         def on_event(self, kind, metadata):
             row['events'].append({'kind': kind, **metadata})
+    class GuardedExecutor:
+        async def is_current(self, binding: Binding, action: Action, context: SubAgentContext) -> bool:
+            assert channel is not None
+            return await channel.is_current(binding, action, context)
+
+        async def dispatch(self, binding: Binding, action: Action, context: SubAgentContext) -> DispatchReceipt:
+            assert channel is not None and before_dispatch is not None
+            await before_dispatch(row, channel, action, context)
+            return await channel.dispatch(binding, action, context)
     class Capture:
         async def request(self, call_id, request):
             item = {'call_id': call_id, 'request': request.parameters, 'images': []}
@@ -345,10 +366,32 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
                     raise RuntimeError('product process exited before ready')
                 await asyncio.sleep(.02)
         port = json.loads((path / 'ready.json').read_text())['port']
+        row['prewarm'] = None
+        if prewarm_path is not None:
+            def prewarm() -> dict:
+                import http.client
+                warm_started = time.monotonic()
+                connection = http.client.HTTPConnection('127.0.0.1', port, timeout=3)
+                try:
+                    connection.request('GET', prewarm_path)
+                    response = connection.getresponse()
+                    response.read()
+                    if not 200 <= response.status < 400:
+                        raise RuntimeError('product prewarm failed')
+                    return {'path': prewarm_path, 'status': response.status,
+                            'elapsed_ms': (time.monotonic() - warm_started) * 1000}
+                finally:
+                    connection.close()
+            warming = asyncio.create_task(asyncio.to_thread(prewarm))
+            await finish_cleanup(warming)
+            row['prewarm'] = warming.result()
+            if cleanup_interrupted:
+                raise asyncio.CancelledError
         config = BrowserConfig(scope=case['goal']['scope'], url=f'http://127.0.0.1:{port}' + case['start_path'])
         channel = ProductChannel(config) if adapter is None else adapter.channel(config, database, row)
         selector = base.VisionBaseline(channel) if arm == 'v' else VisualSelector(channel)
-        host = ComputerUseController(channel, channel, selector=selector)
+        executor = channel if before_dispatch is None else GuardedExecutor()
+        host = ComputerUseController(channel, executor, selector=selector, max_candidates=max_candidates)
         ctx = SubAgentContext(SubAgentAuthorization(frozenset({'desktop', 'network'})), SubAgentBudget(),
             asyncio.Event(), deadline=started + 120, max_actions=6, max_observations=24,
             model_data_scope=ModelDataScope(frozenset({'text', 'image'}), 32 * 1024 * 1024),

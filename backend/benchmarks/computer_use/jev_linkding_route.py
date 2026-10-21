@@ -220,10 +220,11 @@ def seed_product(app_root: Path, output: Path, seed_file: Path) -> None:
     (output / 'database-before.json').write_text(json.dumps(database_state(app_root / 'data/db.sqlite3'), indent=2) + '\n')
 
 
-def serve_product(app_root: Path, output: Path) -> None:
+def serve_product(app_root: Path, output: Path, fault_path: str | None = None) -> None:
     import os
     import time
     from socketserver import ThreadingMixIn
+    from threading import Lock
     from wsgiref.simple_server import WSGIServer, WSGIRequestHandler, make_server
     sys.path.insert(0, str(app_root))
     os.environ['DJANGO_SETTINGS_MODULE'] = 'bookmarks.settings'
@@ -231,18 +232,34 @@ def serve_product(app_root: Path, output: Path) -> None:
     StaticFilesHandler = importlib.import_module('django.contrib.staticfiles.handlers').StaticFilesHandler
     get_wsgi_application = importlib.import_module('django.core.wsgi').get_wsgi_application
     application = StaticFilesHandler(get_wsgi_application())
+    session_cookie = importlib.import_module('django.conf').settings.SESSION_COOKIE_NAME + '='
+    fault_lock = Lock()
+    failed = False
     class Server(ThreadingMixIn, WSGIServer):
         daemon_threads = True
     class Quiet(WSGIRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             pass
     def middleware(environ, start_response):
+        nonlocal failed
+        with fault_lock:
+            injected = bool(fault_path and not failed and environ['REQUEST_METHOD'] == 'GET'
+                and environ['PATH_INFO'] == fault_path
+                and any(part.strip().startswith(session_cookie)
+                        for part in environ.get('HTTP_COOKIE', '').split(';')))
+            if injected:
+                failed = True
         def status_line(status, headers, exc_info=None):
             with (output / 'http.jsonl').open('a') as journal:
                 journal.write(json.dumps({'method': environ['REQUEST_METHOD'], 'path': environ['PATH_INFO'],
-                    'query': environ.get('QUERY_STRING', ''), 'status': status, 'injected': False,
+                    'query': environ.get('QUERY_STRING', ''), 'status': status, 'injected': injected,
                     'at_monotonic': time.monotonic()}) + '\n')
             return start_response(status, headers, exc_info)
+        if injected:
+            body = b'<!doctype html><title>Diagnostic GET refusal</title><h1>Service unavailable</h1><p>This diagnostic GET was not forwarded. Retry to continue.</p><a href="?retry=1">Retry</a>'
+            status_line('503 Service Unavailable', [('Content-Type', 'text/html; charset=utf-8'),
+                                                    ('Content-Length', str(len(body)))])
+            return [body]
         return application(environ, status_line)
     (output / 'http.jsonl').touch(exist_ok=False)
     with make_server('127.0.0.1', 0, middleware, server_class=Server, handler_class=Quiet) as server:
@@ -324,11 +341,16 @@ class LinkdingAdapter:
                     self.authenticated = True
             async def observe(self, scope, context):
                 snapshot = await super().observe(scope, context)
+                if not snapshot.ready or not snapshot.complete:
+                    return snapshot
+                navigation = self.observed_navigation
                 actual = await asyncio.to_thread(database_state, database)
                 self.check(context)
                 assert self.page is not None
                 page = await self.page.evaluate(_PAGE_READ)
                 self.check(context)
+                if navigation != self.navigation:
+                    return self.unavailable_snapshot(scope)
                 editor = page['editor']
                 if editor is not None:
                     seen.add(editor['url'])
@@ -371,7 +393,7 @@ class LinkdingAdapter:
             and posts[0][1]['status'] == '302 Found'
             and any(i < j < posts[0][0] for i in lists for j in edits) and any(i > posts[0][0] for i in lists)
             and any(o['editor'] is not None and o['editor']['id'] == str(case['target'])
-                    and o['editor']['url'] == case['seed'][case['target'] - 1]['url']
+                    and o['editor']['url'] == next(r['url'] for r in case['seed'] if r['id'] == case['target'])
                     for o in row['product_observations']))
 
 
@@ -401,21 +423,26 @@ def main() -> None:
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--seed-file', type=Path)
     parser.add_argument('--approved-sha256')
+    parser.add_argument('--fault-path')
     args = parser.parse_args()
     if args.seed or args.serve:
         if args.app_root is None or args.approved_sha256:
             parser.error('internal fixture modes require app root, no approval digest')
         if args.seed and args.seed_file is None:
             parser.error('fixture seed requires input file')
+        if args.seed and args.fault_path:
+            parser.error('fault is only for internal server mode')
         if args.serve and args.seed_file:
             parser.error('server does not accept seed input')
         if args.seed and args.seed_file is not None:
             seed_product(args.app_root, args.output, args.seed_file)
         else:
-            serve_product(args.app_root, args.output)
+            serve_product(args.app_root, args.output, args.fault_path)
         return
     if args.seed_file:
         parser.error('seed input is only for internal initialization')
+    if args.fault_path:
+        parser.error('fault is only for internal server mode')
     if not args.run:
         if args.app_root is None or args.approved_sha256:
             parser.error('preparation requires app root, no approval digest')

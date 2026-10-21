@@ -106,9 +106,9 @@ _READ = r"""nodes => {
             .map(id => document.getElementById(id)?.textContent || '').join(' ');
         const label = text(labelled || node.getAttribute('aria-label') ||
             [...(node.labels || [])].map(e => e.textContent).join(' ') ||
-            (tag === 'input' && role === 'button' ? node.value : node.textContent));
+            (tag === 'input' && role === 'button' ? node.value : node.innerText ?? node.textContent));
         const value = tag === 'input' && node.type === 'checkbox' ? String(node.checked) :
-            role === 'textbox' ? node.value ?? node.textContent : node.textContent;
+            role === 'textbox' ? node.value ?? node.textContent : node.innerText ?? node.textContent;
         const ancestors = [];
         for (let parent = node.parentElement; parent; parent = parent.parentElement) {
             if (name(parent)) ancestors.push([parent.tagName.toLowerCase(), name(parent)]);
@@ -291,6 +291,15 @@ class ManagedChromiumChannel:
         self.check(context)
         return DOMView.model_validate(data)
 
+    def unavailable_snapshot(self, scope: str) -> Snapshot:
+        """Discard a read spanning documents; it grants no candidate references."""
+        self.generation += 1
+        snapshot = Snapshot(uuid4().hex, scope, self.generation, complete=False, ready=False)
+        self.previous, self.view = snapshot, None
+        self.visual_frame = None
+        self.observed_navigation = -1
+        return snapshot
+
     async def observe(self, scope: str, context: SubAgentContext) -> Snapshot:
         self.check(context)
         self.visual_frame = None
@@ -301,7 +310,7 @@ class ManagedChromiumChannel:
         navigation = self.navigation
         view = await self.read(frame, context)
         if navigation != self.navigation:
-            raise SubAgentStopped("navigation_changed")
+            return self.unavailable_snapshot(scope)
         elements = []
         checked_facts = []
         keys = Counter(f"{item.role}:{item.label}" for item in view.elements)
