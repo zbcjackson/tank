@@ -841,7 +841,7 @@ batch request/token/cost ceiling; unknown usage, operational/audit/cleanup failu
 stops the batch and retains all 96 rows. Started output cannot resume. The first
 reviewed calibration completed all 96 trials; it is not formal adoption evidence.
 See [the calibration report](../docs/research/jev-calibration-route.md) and
-[the calibration plan](../docs/plans/active/jev-calibration-readiness.md).
+[the calibration plan](../docs/plans/done/jev-calibration-readiness.md).
 
 `benchmarks.computer_use.jev_checkbox_diagnostics` runs only local scripted UI
 inputs, never real models. Use `--output <new-dir> --app-python <isolated-python>`;
