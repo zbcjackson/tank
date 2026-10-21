@@ -815,6 +815,33 @@ POST302 and returned DOM; automatic target `date_modified` may increase. This is
 final-value check, not a SQL-column/write-count claim. No product page is relabelled.
 See [the linkding plan](../docs/plans/done/jev-linkding-route.md).
 
+`benchmarks.computer_use.jev_calibration_route` prepares the reviewed four-record
+calibration inventory, not a confirmatory sample. Use a fresh absolute output path:
+`uv run --no-sync python -m benchmarks.computer_use.jev_calibration_route --output <new-absolute-dir> --sql-python <qualified-sqlite-web-python> --link-root <qualified-linkding-root>`.
+It verifies the immutable preparation/review inputs and both original products,
+then freezes 24 seed clusters, two local startup conditions and V/JT: 96 trials.
+Both arms explicitly use the existing 64-candidate interface; the browser factory
+default remains 32. No candidate is discarded to fit a limit. Goals require actual
+records, current returned list/path and observed editor identity. Acceptance matches
+public record IDs/URLs rather than seed position. SQL list order is normalized in
+this new recipe only; the original two-record workflows retain their old contract.
+
+Prewarm performs a read-only owned-server GET (`/` or `/login/`) before starting a
+fresh browser context, within the full task timer; provider caches are uncontrolled.
+Linkding's diagnostic middleware rejects only the first session-bearing matching
+GET, so authentication setup cannot consume the measured fault. POST is never
+injected or replayed. Declared negative cases distinguish absent-record abstention
+from authorization revoked before an editor action; correct exits are separate from
+positive strict completion. Shared setup/cleanup drains pending work on cancellation.
+
+Only after complete verification/review and a new executable freeze, use
+`--output <dir> --run --approved-sha256 <digest>` without product-path overrides.
+The CLI validates the freeze before reading credentials. Record-only has no fixed
+batch request/token/cost ceiling; unknown usage, operational/audit/cleanup failure
+stops the batch and retains all 96 rows. Started output cannot resume. This recipe
+is under validation; current status is in
+[the calibration plan](../docs/plans/active/jev-calibration-readiness.md).
+
 `benchmarks.computer_use.jev_checkbox_diagnostics` runs only local scripted UI
 inputs, never real models. Use `--output <new-dir> --app-python <isolated-python>`;
 add `--include-host` for Controller proposals with an additional actual written-

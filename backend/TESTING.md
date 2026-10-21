@@ -33,6 +33,18 @@ uv run pytest --cov=core/src/tank_backend --cov-report=html
 3. Refactor while keeping tests green
 4. Run the full suite before committing
 
+The four-record calibration coverage is in the existing Computer Use `test_dom.py`:
+actual applications/Chromium/SDK with fake model HTTP, all 96 scheduled trials,
+current-list completion, public-identity acceptance, authorization revocation and
+retained batch denominators. Set `TANK_REQUIRE_CHROMIUM=1`,
+`TANK_REAL_PRODUCT_PYTHON=<qualified-sqlite-web-python>` and
+`TANK_LINKDING_ROOT=<qualified-linkding-root>` for the full verification run.
+`test_calibration_all_96_trials_through_real_controller` is a wiring test, not
+real-model quality or latency evidence. Preserve its source freeze and raw output
+when using it as an implementation-review artifact. Browser-only contracts include
+rendered text/whitespace, explicit candidate budgets and real navigation during
+observation; stale references remain refused. No new feature file is needed.
+
 ## What to Mock
 
 Always mock:
