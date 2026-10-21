@@ -1,0 +1,60 @@
+{
+  "archive": "jev-confirmation-preparation-review-20261021.tar.gz",
+  "bytes": 1467822,
+  "sha256": "855182c90243b2a2ed0d3d2e09cdc73ab1802915513441f0faf4c640e1ab910f",
+  "original_archive_sha256": "9af2212aba1f931fdfbcb1ba4f4a262eb7a434eb4eb1183bb1f01ed4507a3ae0",
+  "reviewed_baseline": "7bf3ddbf",
+  "reviewed_head": "2c05061b",
+  "review_round": 1,
+  "model_execution_eligible": false,
+  "formal_N": null,
+  "actual_credentials_scanned": 21,
+  "credential_matches": 0,
+  "members": [
+    {
+      "name": "presentation/jev-confirmation-preparation.canvas.tsx",
+      "bytes": 2071771,
+      "sha256": "09d891fe9f6151667722bb89ec76afed839561b993268a41f5ab0bc1802e08fa"
+    },
+    {
+      "name": "review/evidence-check.json",
+      "bytes": 4484,
+      "sha256": "ceb325101d146b7f0589302b10acf6a00fd527cd0965f4a553a8d7c7f0b086db"
+    },
+    {
+      "name": "review/evidence-check.py",
+      "bytes": 7240,
+      "sha256": "21cc53591988f0e9b1b5e417765c039f51a708a3550d83c951a71e73e4f4dd7d"
+    },
+    {
+      "name": "review/independent-qualification.json",
+      "bytes": 37422,
+      "sha256": "333d41ffec171d7ab53e17b63dc94e3a511bc7269a14f4ecc9badab53d86db32"
+    },
+    {
+      "name": "review/math-check.json",
+      "bytes": 759,
+      "sha256": "4c5703cd6c01029456f113e70828870e2f3f5bb0a69b4528329173cc9662c699"
+    },
+    {
+      "name": "review/math-check.py",
+      "bytes": 2200,
+      "sha256": "1efff796ef8a62de5df17e245e429d6ba3e75f4bccbb3f71807cc08b152ea653"
+    },
+    {
+      "name": "review/package.py",
+      "bytes": 3342,
+      "sha256": "9596fe4d3c351470cc86339c45d97204c574d1fb94f5ffdb230aa6d4487eec94"
+    },
+    {
+      "name": "review/protocol-addendum.json",
+      "bytes": 6821,
+      "sha256": "21b64036ec052b605090675196daeecd8fdaf0274bf177984f30787688f22cda"
+    },
+    {
+      "name": "review/qualification-audit.py",
+      "bytes": 5964,
+      "sha256": "f959c64ebe92eaf1c93f9d1c68a66b2217944bdcaed5a77d76e67738191fa1dc"
+    }
+  ]
+}
