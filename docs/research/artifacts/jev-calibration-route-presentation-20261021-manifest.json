@@ -1,0 +1,65 @@
+{
+  "archive": "jev-calibration-route-presentation-20261021.tar.gz",
+  "bytes": 504654,
+  "sha256": "ec3a914f1e75e2ae012c8b97d57e1a00ccb67e54cf1cd79f9896169edcf41e8b",
+  "data_archive_sha256": "11d5c73c56b1637349fa5984d5e1243e0d08e9442654d9b0e3c3c80a2bb1a972",
+  "actual_credentials_scanned": 21,
+  "credential_matches": 0,
+  "members": [
+    {
+      "name": "presentation/generate.py",
+      "bytes": 14222,
+      "sha256": "5588e7dbe24254f419ac8c5fd1ab126b1b1dd504723197c03f5f4d4c15efd7d1"
+    },
+    {
+      "name": "presentation/jev-calibration-route.canvas.tsx",
+      "bytes": 222022,
+      "sha256": "5336ea8098c3313a642a845586845ecefb35279b1fd64ce1d89373345c377f51"
+    },
+    {
+      "name": "presentation/tsc-after.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "presentation/tsc-before.log",
+      "bytes": 318,
+      "sha256": "6f5ab7b492066ed285bdb630182dcc6d992e2ca8ffe4bf4243474f4a5512c82b"
+    },
+    {
+      "name": "presentation/type-fix.json",
+      "bytes": 396,
+      "sha256": "f027ca3eeb790dcd7124a6077e8004187529d7c517265322b199896427c7b854"
+    },
+    {
+      "name": "transport/original-gzip-member-manifest.json",
+      "bytes": 2492403,
+      "sha256": "945fd2cfb679baee97f5d849cdb11add7599320b0bcc842cc6dbc5dec55af25f"
+    },
+    {
+      "name": "transport/transcode.json",
+      "bytes": 921,
+      "sha256": "5ddc5a09810c9fddba964214b5095edcce7b719448fb04c8dd795899f2eb44ec"
+    },
+    {
+      "name": "transport/transcode.log",
+      "bytes": 875,
+      "sha256": "a864c5a38daaf510321f0ada68f358e62e08abd3ab8b4726d4fa87372cbd15fc"
+    },
+    {
+      "name": "transport/transcode.py",
+      "bytes": 2162,
+      "sha256": "21520bf13f55064bb16dec2ec121c3ab14663ed80e998e8e0f9a599fd5998c28"
+    },
+    {
+      "name": "verification/checks.json",
+      "bytes": 271,
+      "sha256": "9cc8d3264a140cf87551c05704b55babc09af5161daf4e6086653387ab27277a"
+    },
+    {
+      "name": "verification/package.py",
+      "bytes": 3829,
+      "sha256": "a47931dfc79ffd6977602dbdc844e6179e336b45f4612abea9eee20d8c87d3c1"
+    }
+  ]
+}

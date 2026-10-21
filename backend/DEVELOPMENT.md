@@ -838,8 +838,9 @@ Only after complete verification/review and a new executable freeze, use
 `--output <dir> --run --approved-sha256 <digest>` without product-path overrides.
 The CLI validates the freeze before reading credentials. Record-only has no fixed
 batch request/token/cost ceiling; unknown usage, operational/audit/cleanup failure
-stops the batch and retains all 96 rows. Started output cannot resume. This recipe
-is under validation; current status is in
+stops the batch and retains all 96 rows. Started output cannot resume. The first
+reviewed calibration completed all 96 trials; it is not formal adoption evidence.
+See [the calibration report](../docs/research/jev-calibration-route.md) and
 [the calibration plan](../docs/plans/active/jev-calibration-readiness.md).
 
 `benchmarks.computer_use.jev_checkbox_diagnostics` runs only local scripted UI

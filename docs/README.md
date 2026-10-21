@@ -43,7 +43,8 @@
 | [research/jev-linkding-route.md](research/jev-linkding-route.md) | 调研 | 两臂成功、本批JT更快少图 | 原版第二产品四项、12 SDK、107904已知tokens、4清理；非独立采用确认 |
 | [plans/done/jev-confirmation-preparation.md](plans/done/jev-confirmation-preparation.md) | 计划 | 已完成 | 两轮审查通过；24业务/104图通过，候选资格0/24，正式N与收费未准入 |
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
-| [plans/active/jev-calibration-readiness.md](plans/active/jev-calibration-readiness.md) | 计划 | 进行中 | 第1轮修复/复验完成，新资格24/104、96fake、后端6528/E2E21通过；真实校准待执行 |
+| [plans/active/jev-calibration-readiness.md](plans/active/jev-calibration-readiness.md) | 计划 | 进行中 | 真实96项80正例/16负例通过、96清理，独立复算一致；待第2轮结果审查 |
+| [research/jev-calibration-route.md](research/jev-calibration-route.md) | 调研 | 校准完成、待结果审查 | 两臂各40/40及8/8；整体JT均时28.074对37.773秒，收益主要来自linkding，正式N待设计 |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 校准准备复验通过 | 四行修复R1及新资格/fake/完整验证通过，下一步96项真实校准；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
