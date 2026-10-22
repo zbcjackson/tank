@@ -48,12 +48,12 @@
 | [plans/done/jev-confirmation-design.md](plans/done/jev-confirmation-design.md) | 计划 | 已完成 | 第1轮审查无可操作问题；10240+2048簇仅条件方案，正式N未准入，后续资格由主计划承接 |
 | [plans/done/jev-confirmation-qualification.md](plans/done/jev-confirmation-qualification.md) | 计划 | 已完成 | 第1轮审查结案；原生96通过、模拟第2项失败/190未运行，观察一致性修复交回主计划 |
 | [plans/done/jev-navigation-observation.md](plans/done/jev-navigation-observation.md) | 计划 | 已完成 | 第1轮独立审查无遗留；两层TDD修复及96原生/192模拟通过，远端ASR复测移交条件backlog |
-| [plans/active/jev-benchmark-scoring.md](plans/active/jev-benchmark-scoring.md) | 计划 | 进行中 | 接入离线配对簇统计与门槛报告；缺失/未知保留，不执行模型 |
-| [research/jev-benchmark-scoring.md](research/jev-benchmark-scoring.md) | 调研 | 实现及验证通过、待审查 | 真实96/fake192只读复算，原速度比/区间一致；完整逐行审计缺失仍报unknown |
+| [plans/done/jev-benchmark-scoring.md](plans/done/jev-benchmark-scoring.md) | 计划 | 已完成 | 离线配对簇评分及版本校验修复；36定向/6573后端、E2E22/87及第2轮修复自检通过 |
+| [research/jev-benchmark-scoring.md](research/jev-benchmark-scoring.md) | 调研 | 评分及审查修复结案 | 真实96/fake192只读复算一致；完整逐行审计缺失仍报unknown，正式N未准入 |
 | [research/jev-navigation-observation.md](research/jev-navigation-observation.md) | 调研 | 修复及第1轮审查结案 | 96原生/192模拟及6537后端/本地ASR E2E21通过；独立28+8回归及归档/物理审计一致，远端ASR未认证 |
 | [research/jev-confirmation-qualification.md](research/jev-confirmation-qualification.md) | 调研 | 调查及审查结案、资格未通过 | 原生96/96及416图通过；模拟第2项Retry后无动作停批，190未运行；1次假凭据认证失败外发保留 |
 | [research/jev-confirmation-design.md](research/jev-confirmation-design.md) | 调研 | 条件设计及审查结案 | 全部门联合功效/新任务隔离与资源预览；最弱MC下界81.78%，非实测功效，正式N保持null |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 观察修复及资格已审查、确认准备中 | 下一步统计评分器接线及独立补充校准预注册，正式N未准入；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 评分接线已审查、确认准备中 | 下一步独立补充校准预注册，正式N未准入；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
