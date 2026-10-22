@@ -46,6 +46,7 @@
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
 | [research/jev-calibration-route.md](research/jev-calibration-route.md) | 调研 | 校准及两轮审查完成 | 两臂各40/40及8/8；整体JT均时28.074对37.773秒，收益主要来自linkding，正式N待设计 |
 | [plans/done/jev-confirmation-design.md](plans/done/jev-confirmation-design.md) | 计划 | 已完成 | 第1轮审查无可操作问题；10240+2048簇仅条件方案，正式N未准入，后续资格由主计划承接 |
+| [plans/active/jev-confirmation-qualification.md](plans/active/jev-confirmation-qualification.md) | 计划 | 进行中 | 新库全量结构与固定96目标原生/192任务fake资格；正式N仍未准入 |
 | [research/jev-confirmation-design.md](research/jev-confirmation-design.md) | 调研 | 条件设计及审查结案 | 全部门联合功效/新任务隔离与资源预览；最弱MC下界81.78%，非实测功效，正式N保持null |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 离线设计结案、正式N未准入 | 真实校准及离线设计经审查结案，下一步新库/执行器资格与补充校准准备；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
