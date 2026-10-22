@@ -1,0 +1,106 @@
+{
+  "archive": "jev-navigation-observation-review-20261022.tar.xz",
+  "bytes": 22512,
+  "sha256": "07849c14bf461dcdeb3e1c16cf9e37425265ff92d2fb739ff15206cb2c9d557e",
+  "members": [
+    {
+      "name": "artifact-verification.json",
+      "bytes": 785,
+      "sha256": "ceaee8d2c3663010efa1362090585f2d09fa5bcb1bc2345b4736200fa98cfd53"
+    },
+    {
+      "name": "artifact-verification.log",
+      "bytes": 741,
+      "sha256": "f01939013b043eb288e0f1eebb6dea8b351f27bac0ba58f65c21ea6e7f4ef715"
+    },
+    {
+      "name": "audit_fake.py",
+      "bytes": 6024,
+      "sha256": "09a635f2196d9976fb530596176a95fecb1ccf38603937d4ce90ac310cce542d"
+    },
+    {
+      "name": "audit_native.py",
+      "bytes": 5475,
+      "sha256": "4bcb469ff25ab2c4d1e063eab2f14a3ad61860f1e711bcf4b45396e3fbe70bf8"
+    },
+    {
+      "name": "docs-prepublication.log",
+      "bytes": 38,
+      "sha256": "bf58483a2f0a62f34bdfbbf7315623d32960a8b67f55b7f7647a7d624dbf169a"
+    },
+    {
+      "name": "fake-audit.log",
+      "bytes": 419,
+      "sha256": "60dc5456d4597bdf3a8e4b4df1ec4c8af468a3236b4ae502e7ddac2e08900a1a"
+    },
+    {
+      "name": "fake-independent.json",
+      "bytes": 41001,
+      "sha256": "4dc29647958ff38ac7c383e0d0b5d66c62d2b5a646d09fb7cffc8c113f267b14"
+    },
+    {
+      "name": "native-audit.log",
+      "bytes": 405,
+      "sha256": "e05d09d772d5ffe3f323e733441cceee7f3b46833c516acaa73760d8165124ad"
+    },
+    {
+      "name": "native-independent.json",
+      "bytes": 149215,
+      "sha256": "9a902413f93dfa50934e1a4b0a3446e7b4e18243c0b20b27452e06a765a11728"
+    },
+    {
+      "name": "package_review.py",
+      "bytes": 2281,
+      "sha256": "3cd893c89fef330ea0e5ebc25c28e43ebeab3f6ff8db9c42b7b2a54886d41e9a"
+    },
+    {
+      "name": "pyright.log",
+      "bytes": 37,
+      "sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+    },
+    {
+      "name": "research-tests.log",
+      "bytes": 99,
+      "sha256": "50a5b180ed9dd8e2875e47bc661c0b4aefb2f350d0c69ce0a9201b0882932f74"
+    },
+    {
+      "name": "review.json",
+      "bytes": 2487,
+      "sha256": "bcd0048c2263bd77c03a71978062d808619acbe1b10643ea872a644679a5fcf7"
+    },
+    {
+      "name": "ruff-overscope-historical-reports.log",
+      "bytes": 316640,
+      "sha256": "151cfa6b10e84be4edd24d2be89a69accf6f73ba0d78a2c7e771d1bb37ce6a8b"
+    },
+    {
+      "name": "ruff.log",
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "name": "targeted-tests.log",
+      "bytes": 116,
+      "sha256": "044a09fc0dbe40c2298b6e6432a2c173cbc89e097099b0cae0e5adbc35772afb"
+    },
+    {
+      "name": "verify_artifacts.py",
+      "bytes": 4340,
+      "sha256": "e9d8a14b6c44193e71e0d878d296cae0fe4fd41fe0ecbf0151543c992ed17c8b"
+    }
+  ],
+  "review_mode": "review-and-refactor",
+  "round": 1,
+  "reviewed_head": "2d077cd3",
+  "task_baseline": "1ec85dae",
+  "source_changes_by_reviewer": false,
+  "independent_targeted_tests": 28,
+  "independent_research_tests": 8,
+  "original_archive_unchanged": true,
+  "actual_credential_values_scanned": 21,
+  "matches": 0,
+  "real_model_or_ASR_calls_by_reviewer": 0,
+  "historical_overscope_lint_failure_retained": true,
+  "remote_ASR_profile_certified": false,
+  "formal_N": null
+}

@@ -1,10 +1,10 @@
-> 状态：进行中（2026-10-22：两层TDD修复及96原生/192模拟通过，后端6537和本地ASR配置E2E21/83通过，待第1轮审查；原ElevenLabs复测自动审批拒绝，限制保留）。
+> 状态：已完成（2026-10-22：两层TDD修复及96原生/192模拟通过，第1轮独立审查无可操作或遗留问题；后端6537和本地ASR配置E2E21/83通过。原ElevenLabs复测限制已移交backlog）。
 
 # Retry导航后的观察一致性
 
 ## 目标和范围
 
-承接[主计划](computer-use-jev-vision.md)及[资格失败证据](../../research/jev-confirmation-qualification.md)。
+承接[主计划](../active/computer-use-jev-vision.md)及[资格失败证据](../../research/jev-confirmation-qualification.md)。
 修复新URL/编辑器事实与旧Retry节点混合，确保DOM、URL、投影、候选和图片绑定
 同一就绪文档。仅最小修改DOM通道和必要产品投影；不改模型、提示、阈值或原版
 应用。旧证据、认证失败unknown_usage及外发记录保持。真实模型调用不在本轮范围。
@@ -43,10 +43,15 @@ E2E计数82→88修复已提交；原配置ElevenLabs语音commit超时保留，
 复测被自动审批拒绝（外发WAV/认证信息）；未绕过拒绝。用真实本地Sherpa及回环
 LLM fixture、隔离DB完成同套E2E，实际配置断言/外联审计保留，原服务已恢复。
 本地通过不证明远端链路健康；这一限制须在最终交接及后续登记明确。
-本任务从第1轮独立review-and-refactor开始，不沿用上一任务轮次。
+第1轮独立review-and-refactor已完成，无可操作或遗留问题，按规则停止；未改运行源/测试。
+审查员独立重跑28项导航/投影/多布局及8项研究/SDK测试，准确范围ruff和五文件
+pyright通过；物理审计与原96/192结果一致，归档6836成员/1601 PNG、21凭据
+零命中、46旧文件与基线Git blob及36源逐项核对通过。结案文案为审查员自检。
+统计评分器及补充校准准备留在主计划；原ElevenLabs链路复测须明确授权外发测试
+WAV和认证信息，已移交[backlog](../../backlog.md)，不是本次离线修复的通过声明。
 归档6836成员、52694856字节，SHA256
 `47cb50e9ae696951d1832bb44f5dc012df32ad7fc36cf67daa897165e0aa84cb`；
-21实际凭据零命中、旧46工件不变，193份应用源去重。待第1轮审查。
+21实际凭据零命中、旧46工件不变，193份应用源去重。独立审查补充证据见[报告](../../research/jev-navigation-observation.md)。
 
 ## Verification Checklist（最终步骤）
 

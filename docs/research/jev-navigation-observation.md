@@ -1,4 +1,4 @@
-> 日期：2026-10-22。结论状态：open（修复、完整资格及离线全验证通过，待独立审查；原ElevenLabs语音复测受审批限制）。
+> 日期：2026-10-22。结论状态：resolved（修复、完整资格及离线验证通过，第1轮独立审查无遗留；原ElevenLabs语音复测限制移交backlog）。
 
 # Retry观察一致性修复
 
@@ -34,7 +34,7 @@ SQLite校准、Linkding和旧SQLite工作流三路均失败；原来只比较导
 
 ## 冻结与独立证据
 
-基线1ec85dae。最终运行源digest为
+基线1ec85dae。最终执行配方digest（含运行源、应用及配方）为
 `dde7db9a13a2e4f5f32cc1b9914b184fcbc76ecdad917d5d55f47430600bf901`，
 资格freeze为`096472b203217a388dc5cec6f4fad001851156be0699d15b670a5fdd2ccd5026`。
 36运行源中只有DOM通道和三份产品投影benchmark变化；两应用manifest、原48簇
@@ -65,7 +65,15 @@ ElevenLabs commit未及时返回；不能把它说成本次DOM修复导致或已
 文件未写入，临时进程关闭后原服务已恢复。此结果不认证ElevenLabs原配置链路，
 其远端commit超时及未获准复测仍是验证限制，不能用本地结果覆盖。
 
-本任务第1轮独立review-and-refactor尚待完成。完整检查记录在
+本任务第1轮独立review-and-refactor已完成，无可操作或遗留问题，未修改运行源
+和测试。审查员独立重跑28项真实Chromium导航/停止/投影/多布局（36.74秒）及
+8项研究/SDK隔离测试（29.00秒），准确范围ruff及五文件pyright通过；96/192
+物理审计逐字段一致。归档6836成员逐hash、全部1601张PNG解码、21实际凭据
+零命中、46旧文件与基线Git blob、36运行源及与旧资格相同96目标/192顺序均通过。
+源未变，全套后端和离线E2E复用已核实日志，不重复称为本轮重跑。结案文案由
+审查员自检。额外扩大到整个benchmarks的Ruff扫描发现历史reports的587项格式/
+导入问题，日志保留；未改冻结历史源，规定范围及本次三份benchmark另行通过。
+完整检查记录在
 `full-verification.json`，含两次中断的旧全套日志、失败E2E、审批拒绝及离线配置
 断言/外联审计；不以资格通过替代项目必需验证，不将不同配置的结果混称。
 
@@ -78,6 +86,15 @@ ElevenLabs commit未及时返回；不能把它说成本次DOM修复导致或已
 完整读回保留。21实际凭据值扫描零命中，旧46工件保持。manifest的真实模型输出
 0限于Jev/视觉资格，不是整个任务零ASR或零外部流量声明，发布元数据已明确此
 范围；归档字节及旧回执未改。
+
+[第1轮独立审查补充归档](artifacts/jev-navigation-observation-review-20261022.tar.xz)及
+[manifest](artifacts/jev-navigation-observation-review-20261022-manifest.json)保留重跑日志、
+物理重算、逐成员校验脚本/结果和额外历史Ruff失败日志。17成员、22512字节，
+SHA256 `07849c14bf461dcdeb3e1c16cf9e37425265ff92d2fb739ff15206cb2c9d557e`；
+21实际凭据零命中，原6836成员归档未改。
+
+原ElevenLabs配置复测已交[backlog](../backlog.md)：须明确授权测试WAV及认证
+信息的外发，不将本地通过解释为远端链路通过。
 正式N仍未准入，后续按[主计划](../plans/active/computer-use-jev-vision.md)衔接统计
 评分器接线及独立补充校准预注册；本次修复不替换旧真实校准统计，也不构成新的
 Jev/视觉速度或准确率比较。可选760+152信息目标仍由既有backlog登记承接。
