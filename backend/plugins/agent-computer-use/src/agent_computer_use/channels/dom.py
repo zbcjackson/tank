@@ -306,7 +306,23 @@ class ManagedChromiumChannel:
         if scope != self.config.scope:
             raise SubAgentStopped("scope_mismatch")
         await self.start(context)
+        from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
         frame = self.bound_frame()
+        # A navigation may commit its URL before the destination DOM is usable.
+        pending = asyncio.create_task(frame.wait_for_load_state("domcontentloaded", timeout=500))
+        try:
+            while not pending.done():
+                await asyncio.wait({pending}, timeout=.01)
+                self.check(context)
+            pending.result()
+        except PlaywrightTimeoutError:
+            self.check(context)
+            return self.unavailable_snapshot(scope)
+        finally:
+            pending.cancel()
+            await asyncio.gather(pending, return_exceptions=True)
+        self.check(context)
         navigation = self.navigation
         view = await self.read(frame, context)
         if navigation != self.navigation:

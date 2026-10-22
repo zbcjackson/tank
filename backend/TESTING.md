@@ -1267,6 +1267,12 @@ when observers raise. The no-model diagnostic tests forbid HTTP model clients an
 check all 48 scheduled checks, 54 immediate PNGs, stable DOM and six cleanups.
 The managed Chromium cucumber entry includes the native-caret regression.
 
+The same entry's `observe_navigation` filter includes a controlled streamed HTTP
+response: observation waits for DOMContentLoaded after both a changed URL and a
+same-URL reload. A withheld body verifies timeout refusal and invalidation of old
+capture/dispatch references; cancellation, revocation and the original deadline
+interrupt the wait. These tests use real Chromium and no model clients.
+
 The route follow-up tests in `test_dom.py` cover optional 36-task preparation while
 preserving the default 24-task recipe, real-SDK text abstention then same-binding
 visual fallback/return, reply-before-fallback evidence, unknown usage with no

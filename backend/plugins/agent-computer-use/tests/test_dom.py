@@ -83,7 +83,13 @@ def profile_html(layout: str) -> str:
 
 
 @pytest.fixture
-async def site(profile_store: dict[str, str]) -> AsyncIterator[str]:
+def navigation_gate() -> tuple[asyncio.Event, asyncio.Event]:
+    return asyncio.Event(), asyncio.Event()
+
+
+@pytest.fixture
+async def site(profile_store: dict[str, str],
+               navigation_gate: tuple[asyncio.Event, asyncio.Event]) -> AsyncIterator[str]:
     html = b'''<form onsubmit="event.preventDefault()"><label>Name <input id="name"></label>
         <button onclick="document.querySelector('[role=status]').textContent =
         document.querySelector('input').value">Save</button>
@@ -102,8 +108,8 @@ async def site(profile_store: dict[str, str]) -> AsyncIterator[str]:
             profile_store["saves"] = str(int(profile_store["saves"]) + 1)
             body = json.dumps(profile_store).encode()
         if request.startswith(b"GET /multilayout/"):
-            path = request.split(b" ", 2)[1].decode()
-            _, _, layout, scenario = path.split("/")
+            layout_path = request.split(b" ", 2)[1].decode()
+            _, _, layout, scenario = layout_path.split("/")
             body = multilayout_html(layout, scenario).encode()
         if request.startswith(b"GET /frame"):
             child = html.decode()
@@ -113,8 +119,18 @@ async def site(profile_store: dict[str, str]) -> AsyncIterator[str]:
                     + '"></iframe>').encode()
             if b"/frame-duplicate" in request.splitlines()[0]:
                 body += body
+        prefix = b''
+        if path.path == '/deferred':
+            prefix = b'<!doctype html><body>'
+            body = b'<label>Title<input value="New document"></label></body>'
         writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n"
-                     + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode() + body)
+                     + f"Content-Length: {len(prefix) + len(body)}\r\nConnection: close\r\n\r\n".encode())
+        if prefix:
+            writer.write(prefix)
+            await writer.drain()
+            navigation_gate[0].set()
+            await navigation_gate[1].wait()
+        writer.write(body)
         await writer.drain()
         writer.close()
         await writer.wait_closed()
@@ -123,6 +139,7 @@ async def site(profile_store: dict[str, str]) -> AsyncIterator[str]:
     try:
         yield f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}/"
     finally:
+        navigation_gate[1].set()
         server.close()
         await server.wait_closed()
 
@@ -226,6 +243,90 @@ async def test_dom_observe_navigation_discards_partial_read(channel, monkeypatch
     fresh = await browser.observe('managed-page', ctx)
     assert fresh.ready and fresh.complete
     assert any(e.label == 'Personal info' for e in fresh.elements)
+
+
+@pytest.mark.parametrize('same_url', [False, True])
+async def test_dom_observe_navigation_waits_for_committed_document(channel, navigation_gate, same_url):
+    browser, ctx = channel
+    if same_url:
+        navigation_gate[1].set()
+        await browser.page.goto(browser.config.url + 'deferred')
+        navigation_gate[0].clear()
+        navigation_gate[1].clear()
+    await browser.page.set_content('<a href="/deferred">Retry</a>')
+    before = await browser.observe('managed-page', ctx)
+    retry = next(e for e in before.elements if e.label == 'Retry')
+    if same_url:
+        await browser.page.reload(wait_until='commit')
+    else:
+        await browser.page.goto(browser.config.url + 'deferred', wait_until='commit')
+    await navigation_gate[0].wait()
+    observing = asyncio.create_task(browser.observe('managed-page', ctx))
+    try:
+        done, _ = await asyncio.wait({observing}, timeout=.05)
+        assert not done, 'A committed document is still loading, so it cannot be published yet'
+        navigation_gate[1].set()
+        snapshot = await asyncio.wait_for(observing, 2)
+        assert snapshot.ready and snapshot.complete
+        assert next(e.value for e in snapshot.elements if e.label == 'Title') == 'New document'
+        assert all(e.ref != retry.ref for e in snapshot.elements)
+        assert next(f.value for f in snapshot.facts if f.key == 'status:Page URL').endswith('/deferred')
+    finally:
+        navigation_gate[1].set()
+        await asyncio.gather(observing, return_exceptions=True)
+
+
+async def test_dom_observe_navigation_timeout_discards_references(channel, navigation_gate):
+    from tank_backend.agents.subagent import SubAgentStopped
+
+    browser, ctx = channel
+    before = await browser.observe('managed-page', ctx)
+    actions = ActionBuilder().build('goal', 1, goal(), before)
+    await browser.page.goto(browser.config.url + 'deferred', wait_until='commit')
+    await navigation_gate[0].wait()
+    try:
+        snapshot = await browser.observe('managed-page', ctx)
+        assert not snapshot.ready and not snapshot.complete
+        assert not snapshot.elements and not snapshot.facts
+        assert (await browser.dispatch(actions.binding, actions.actions[0], ctx)).status == 'not_sent'
+        with pytest.raises(SubAgentStopped):
+            await browser.capture(before, ctx)
+    finally:
+        navigation_gate[1].set()
+    await browser.page.wait_for_load_state('domcontentloaded')
+    assert (await browser.observe('managed-page', ctx)).complete
+
+
+@pytest.mark.parametrize('stop', ['cancel', 'revoke', 'deadline'])
+async def test_dom_observe_navigation_wait_respects_task_stop(channel, navigation_gate, stop):
+    import time
+    from dataclasses import replace
+    from tank_backend.agents.subagent import SubAgentStopped
+
+    browser, ctx = channel
+    await browser.page.goto(browser.config.url + 'deferred', wait_until='commit')
+    await navigation_gate[0].wait()
+    if stop == 'deadline':
+        ctx = replace(ctx, deadline=time.monotonic() + .05)
+        ctx.runtime.bind('dom-task')
+    observing = asyncio.create_task(browser.observe('managed-page', ctx))
+    await asyncio.wait({observing}, timeout=.02)
+    if stop == 'cancel':
+        ctx.cancel.set()
+        expected = asyncio.CancelledError
+    elif stop == 'revoke':
+        ctx.authorization.revoke()
+        expected = SubAgentStopped
+    else:
+        expected = TimeoutError
+    try:
+        with pytest.raises(expected, match='subagent deadline' if stop == 'deadline' else None):
+            await asyncio.wait_for(observing, .2)
+    finally:
+        navigation_gate[1].set()
+        await asyncio.gather(observing, return_exceptions=True)
+        if stop == 'deadline':
+            await ctx.runtime.aclose()
 
 
 @pytest.mark.parametrize('count', [38, 65])
