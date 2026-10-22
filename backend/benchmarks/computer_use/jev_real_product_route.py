@@ -283,10 +283,9 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
             snapshot = await super().observe(scope, context)
             if not snapshot.ready or not snapshot.complete:
                 return snapshot
-            navigation = self.observed_navigation
             actual = await asyncio.to_thread(database_state, database)
             self.check(context)
-            if navigation != self.navigation:
+            if not await self.is_snapshot_current(snapshot, context):
                 return self.unavailable_snapshot(scope)
             self.previous = replace(snapshot, facts=(*snapshot.facts, Fact(key='status:Records', value=encoded(actual['records']))))
             if case.get('workflow'):
@@ -296,7 +295,7 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
                 editor = self.page.get_by_role('textbox', name='id', exact=True)
                 editor_id = await editor.input_value() if await editor.count() == 1 and await editor.is_visible() else ''
                 context.check('desktop')
-                if navigation != self.navigation:
+                if not await self.is_snapshot_current(self.previous, context):
                     return self.unavailable_snapshot(scope)
                 if editor_id:
                     seen_editors.add(editor_id)

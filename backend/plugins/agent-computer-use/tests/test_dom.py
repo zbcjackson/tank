@@ -2566,7 +2566,8 @@ async def test_calibration_correct_db_requires_current_returned_list(chromium_re
 
 
 @pytest.mark.parametrize('product', ['sqlite-web', 'linkding', 'legacy-sqlite-web'])
-async def test_calibration_projection_cannot_mix_navigation_epochs(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product):
+@pytest.mark.parametrize('change', ['reload', 'dom'])
+async def test_calibration_projection_cannot_mix_navigation_epochs(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product, change):
     from playwright.async_api import Page
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
@@ -2579,7 +2580,10 @@ async def test_calibration_projection_cannot_mix_navigation_epochs(chromium_requ
         data = await original(page, expression, arg)
         if expression == projection and not changed:
             changed = True
-            await page.reload()
+            if change == 'reload':
+                await page.reload()
+            else:
+                await original(page, "document.body.dataset.projectionRace = 'changed'")
         return data
     monkeypatch.setattr(Page, 'evaluate', reload_after_projection)
     if product == 'legacy-sqlite-web':

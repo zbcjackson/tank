@@ -343,13 +343,12 @@ class LinkdingAdapter:
                 snapshot = await super().observe(scope, context)
                 if not snapshot.ready or not snapshot.complete:
                     return snapshot
-                navigation = self.observed_navigation
                 actual = await asyncio.to_thread(database_state, database)
                 self.check(context)
                 assert self.page is not None
                 page = await self.page.evaluate(_PAGE_READ)
                 self.check(context)
-                if navigation != self.navigation:
+                if not await self.is_snapshot_current(snapshot, context):
                     return self.unavailable_snapshot(scope)
                 editor = page['editor']
                 if editor is not None:

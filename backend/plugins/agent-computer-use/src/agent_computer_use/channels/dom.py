@@ -300,6 +300,14 @@ class ManagedChromiumChannel:
         self.observed_navigation = -1
         return snapshot
 
+    async def is_snapshot_current(self, snapshot: Snapshot, context: SubAgentContext) -> bool:
+        """Revalidate DOM after an adapter's asynchronous business readback."""
+        self.check(context)
+        if snapshot != self.previous or self.observed_navigation != self.navigation:
+            return False
+        current = await self.read(self.bound_frame(), context)
+        return current == self.view and self.observed_navigation == self.navigation
+
     async def observe(self, scope: str, context: SubAgentContext) -> Snapshot:
         self.check(context)
         self.visual_frame = None

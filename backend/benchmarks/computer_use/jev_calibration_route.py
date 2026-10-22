@@ -186,7 +186,6 @@ class SQLiteAdapter:
                 snapshot = await super().observe(scope, context)
                 if not snapshot.ready or not snapshot.complete:
                     return snapshot
-                navigation = self.observed_navigation
                 actual = await asyncio.to_thread(shared.database_state, database)
                 self.check(context)
                 assert self.page is not None
@@ -194,7 +193,7 @@ class SQLiteAdapter:
                 identity = self.page.get_by_role('textbox', name='id', exact=True)
                 editor_id = await identity.input_value() if await identity.count() == 1 and await identity.is_visible() else ''
                 self.check(context)
-                if navigation != self.navigation:
+                if not await self.is_snapshot_current(snapshot, context):
                     return self.unavailable_snapshot(scope)
                 if editor_id:
                     seen.add(editor_id)

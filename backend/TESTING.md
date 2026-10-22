@@ -1272,6 +1272,9 @@ response: observation waits for DOMContentLoaded after both a changed URL and a
 same-URL reload. A withheld body verifies timeout refusal and invalidation of old
 capture/dispatch references; cancellation, revocation and the original deadline
 interrupt the wait. These tests use real Chromium and no model clients.
+Real-product projection regressions additionally mutate DOM revision without
+navigation during business readback, covering both products and the legacy SQLite
+workflow. A changed view is discarded before selection, then safely observed again.
 
 The route follow-up tests in `test_dom.py` cover optional 36-task preparation while
 preserving the default 24-task recipe, real-SDK text abstention then same-binding
