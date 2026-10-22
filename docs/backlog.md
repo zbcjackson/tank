@@ -39,6 +39,7 @@ live 新实验预算按该计划 §8 逐批授权执行。
 
 | 项目 | 触发条件 | 背景/前置 | 来源 |
 |---|---|---|---|
+| V/JT补充校准的0.5%零事件信息目标 | 后续预注册明确选择“零事件时双侧95%上界≤0.5%”作为信息目标，并完成新bank/执行器资格与对应执行审查 | 760正例+152负例（3648次）只是解析736经步长40重算的候选，不是强制样本量、零错误保证或付费许可。使用新的校准namespace/master/数据，不消耗确认保留库，不按结果追加到过门；确定的资格及补充校准准备由现行主计划承担 | [离线设计结案](plans/done/jev-confirmation-design.md)、[条件设计结果](research/jev-confirmation-design.md)、[主计划](plans/active/computer-use-jev-vision.md) |
 | Chromium首次导航间歇超时调查 | 隔离Chromium在首次观察返回前再次出现Page.goto超时或其后TargetClosedError | DOM光标修复的前两轮全回归出现3/2例加载失败，未改超时/断言；专项146次导航及最终6380后端/E2E21通过，未确定该加载波动原因。再现时保留导航请求/响应/load与现场状态，不默认归因光标或增加重试 | [DOM新鲜度记录](research/dom-visual-freshness.md) |
 | 多浏览器可见启动与现有会话接管 | **需求已确认**（2026-09-30 用户要求，允许后续实现）；待后续排期，确定逐浏览器接入及会话身份方案后立项 | 分别支持启动可见浏览器和接管用户正在使用的浏览器，授权范围内复用页签/登录态；不局限于 Headless Chromium。评估 Chrome、Edge、Firefox、Safari 等的实际支持范围与接入方式；验收身份绑定、用户操作冲突、撤权/取消、断连及清理所有权，原有浏览器仅解除附着。尚未实现，不改变已验收的S2及该S0–S6计划范围 | [策略阶梯计划 §9](plans/done/computer-use-strategy-ladder.md#9-还需依据实际执行调整的点)；2026-09-30 用户后续需求 |
 | 客户端 token 携带（web/cli/device 连接时发 `?token=`） | 远程部署启动 | P0-2 只落地了服务端校验，三端客户端从未实现携带；需与 token 分发方式一并设计 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) P0-2 |
