@@ -47,6 +47,7 @@
 | [research/jev-calibration-route.md](research/jev-calibration-route.md) | 调研 | 校准及两轮审查完成 | 两臂各40/40及8/8；整体JT均时28.074对37.773秒，收益主要来自linkding，正式N待设计 |
 | [plans/done/jev-confirmation-design.md](plans/done/jev-confirmation-design.md) | 计划 | 已完成 | 第1轮审查无可操作问题；10240+2048簇仅条件方案，正式N未准入，后续资格由主计划承接 |
 | [plans/done/jev-confirmation-qualification.md](plans/done/jev-confirmation-qualification.md) | 计划 | 已完成 | 第1轮审查结案；原生96通过、模拟第2项失败/190未运行，观察一致性修复交回主计划 |
+| [plans/active/jev-navigation-observation.md](plans/active/jev-navigation-observation.md) | 计划 | 进行中 | TDD修复Retry后的文档/观察一致性，再新冻结完整原生/fake资格 |
 | [research/jev-confirmation-qualification.md](research/jev-confirmation-qualification.md) | 调研 | 调查及审查结案、资格未通过 | 原生96/96及416图通过；模拟第2项Retry后无动作停批，190未运行；1次假凭据认证失败外发保留 |
 | [research/jev-confirmation-design.md](research/jev-confirmation-design.md) | 调研 | 条件设计及审查结案 | 全部门联合功效/新任务隔离与资源预览；最弱MC下界81.78%，非实测功效，正式N保持null |
 | [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 资格调查结案、Controller资格未通过 | 下一步TDD修复Retry观察一致性并新冻结全资格，正式N未准入；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
