@@ -355,7 +355,8 @@ def _audit_valid(
     except (TypeError, ValueError):
         result_hash = None
     if (
-        audit.get("schema_version") != 1
+        type(audit.get("schema_version")) is not int
+        or audit["schema_version"] != 1
         or audit.get("freeze_sha256") != frozen["sha256"]
         or result_hash is None
         or audit.get("result_sha256") != result_hash

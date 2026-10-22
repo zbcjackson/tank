@@ -226,7 +226,9 @@ def test_jev_bad_receipt_cannot_pass_even_with_large_success_sample(scoring, dam
     assert report["counts"]["planned_trials"] == len(frozen["schedule"])
 
 
-@pytest.mark.parametrize("damage", ["absent", "missing_label", "wrong_hash", "untyped_label"])
+@pytest.mark.parametrize(
+    "damage", ["absent", "missing_label", "wrong_hash", "untyped_label", "untyped_version"]
+)
 def test_jev_missing_or_unbound_audit_is_unknown_not_zero(scoring, damage):
     frozen, result, audit = _batch(64)
     if damage == "absent":
@@ -235,6 +237,8 @@ def test_jev_missing_or_unbound_audit_is_unknown_not_zero(scoring, damage):
         audit["trials"].pop(result["rows"][0]["id"])
     elif damage == "wrong_hash":
         audit["result_sha256"] = "foreign result"
+    elif damage == "untyped_version":
+        audit["schema_version"] = True
     else:
         audit["trials"][result["rows"][0]["id"]]["unexpected_action"] = 0
     report = scoring.score(frozen, result, audit)

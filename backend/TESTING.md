@@ -1370,7 +1370,7 @@ intervals cannot pass a gate. Speed is the sole primary endpoint; the alternativ
 representative seeds and do not certify generalization beyond the frozen domain.
 
 The optional audit is an independently prepared JSON object, not model self-report:
-`schema_version: 1`, `freeze_sha256`, `result_sha256`, `evidence_kind`
+`schema_version: 1` (integer), `freeze_sha256`, `result_sha256`, `evidence_kind`
 (`fake`, `calibration`, or `confirmation`), `regressions_passed` (boolean), and
 `trials` keyed by **every** frozen trial id. Each trial has exact booleans
 `strict_verified`, `negative_verified`, `recovery_verified`, `unexpected_action`,
