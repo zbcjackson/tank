@@ -1344,3 +1344,55 @@ DOM cannot become strict success. Unknown usage, cancellation, failed audit/clea
 and fixture IO retain all four scheduled rows; known invalid choices never dispatch.
 Application tampering is rejected before clients, and repeated cancellation drains
 an in-flight source copy. These are wiring/governance tests, not real model scores.
+
+## Jev offline benchmark scoring
+
+`benchmarks/computer_use/jev_scoring.py` reads frozen V/JT schedules and receipts;
+it does not import model clients, change execution policy, or run tasks. Run from
+`backend/` with the existing dev dependencies:
+
+```bash
+uv run --no-sync python benchmarks/computer_use/jev_scoring.py \
+  --freeze /absolute/freeze.json --result /absolute/result.json \
+  --audit /absolute/audit.json --output /absolute/new-score-directory
+```
+
+It accepts inline frozen cases or a sibling `cases.json` whose byte digest is in
+`freeze.files`. The output directory must be new. `score.json` contains input byte
+hashes, estimates, all twelve fixed gates, evidence issues and separate negative
+exits; `score.md` is a short companion. Missing/duplicate/misbound rows remain in
+the frozen denominator as failures. Failed/unrun positive tasks cost 120 seconds.
+Cold/prewarmed conditions are averaged within each paired seed; ten balanced
+product/family strata retain equal weight. The fixed method is bounded-seed
+Chernoff-KL and stratified paired BCa with 20,000 resamples, seed 20261021. Undefined
+intervals cannot pass a gate. Speed is the sole primary endpoint; the alternative
+1.05 time noninferiority branch is not used. The methods assume independent,
+representative seeds and do not certify generalization beyond the frozen domain.
+
+The optional audit is an independently prepared JSON object, not model self-report:
+`schema_version: 1`, `freeze_sha256`, `result_sha256`, `evidence_kind`
+(`fake`, `calibration`, or `confirmation`), `regressions_passed` (boolean), and
+`trials` keyed by **every** frozen trial id. Each trial has exact booleans
+`strict_verified`, `negative_verified`, `recovery_verified`, `unexpected_action`,
+plus nonnegative integer `critical_events`. These labels must come from the full
+goal/constraint/path/cleanup and governance audit. Merely copying runner flags
+does not establish independent verification. The audit result hash uses canonical
+JSON (`ensure_ascii=False`, sorted keys, separators `(',', ':')`, no NaN), exposed
+by `digest()`; it is distinct from a file byte hash. Success requires both runner
+and independent verification; discrepancies block acceptance. Missing/invalid
+audit makes safety, extra actions and regressions unknown, never measured zero.
+
+Known request usage is reconciled against trial and batch totals. Unknown or
+estimated usage, unreleased reservations, early stop and evidence gaps prevent
+`all_gates_passed`. Unpriced cost remains unpriced. Negative exit errors use a
+separate seed denominator and one-sided 95% bound, without inventing a new cutoff.
+Numerical gate passage alone never authorizes execution/adoption: the output
+always retains `model_execution_eligible: false`; fake/calibration is not formal
+confirmation.
+
+`core/tests/test_jev_scoring.py` covers pairing, denominators, boundary equality,
+degeneracy, independent SciPy BCa, identity/audit/usage corruption and read-only
+CLI output. Its CLI subprocess denies socket connections and model imports. The
+existing `chat.feature` `scoring` example runs that subprocess contract through
+Cucumber. Existing calibration and fake receipts are only replayed offline;
+these checks do not add live model-performance evidence.
