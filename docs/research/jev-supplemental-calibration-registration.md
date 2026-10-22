@@ -1,4 +1,4 @@
-> 日期：2026-10-22；结论状态：open（预注册协议/新库已离线冻结和核验，待独立审查；尚未测量模型）。
+> 日期：2026-10-22；结论状态：resolved（预注册/新库离线冻结及第1轮独立审查结案；尚未测量模型）。
 
 # V/JT独立补充校准预注册
 
@@ -126,4 +126,18 @@ extra action指额外/错误业务变更请求或越出允许before/after状态�
 [逐成员摘要](artifacts/jev-supplemental-calibration-registration-20261022-manifest.json)
 保留协议、公开master、全任务库、槽位顺序、生成/复核脚本、版本记录、红绿
 日志和源码/环境绑定。54份原工件逐字节保持基线3c2a980a一致。
-独立审查仍在进行中。
+
+## 独立审查结案
+
+code-reviewer第1轮review-and-refactor审阅完整3c2a980a至8f8ef1c7差异，未发现
+可操作或遗留问题，立即结束，没有修改仓库或登记协议。独立重跑4测试（2.14秒）
+和原验证器；43成员/14冻结文件、54旧工件Git blob及SHA、37源绑定一致。
+另行核验全部目标/私有验收、HMAC身份/标签/order、96配平格、48seed/96目标/
+192槽资格前缀、3648唯一槽和旧库零交集，并以Decimal80和独立资源算术复核。
+在新目录重建的6份注册输出逐字节一致；docs98、任务完整diff及两提交签名通过。
+
+[审查证据归档](artifacts/jev-supplemental-calibration-registration-review-20261022.tar.xz)和
+[逐成员摘要](artifacts/jev-supplemental-calibration-registration-review-20261022-manifest.json)
+保留review.json、独立验证、重建材料和日志。协调者已核对结论及证据；计划移档/
+索引等收尾为协调者自检。新库原生/模拟执行资格、执行适配和独立审计生产器仍
+由[主计划](../plans/active/computer-use-jev-vision.md)接续，正式N及执行许可未改变。
