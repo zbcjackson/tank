@@ -48,6 +48,7 @@
 | [plans/done/jev-confirmation-design.md](plans/done/jev-confirmation-design.md) | 计划 | 已完成 | 第1轮审查无可操作问题；10240+2048簇仅条件方案，正式N未准入，后续资格由主计划承接 |
 | [plans/done/jev-confirmation-qualification.md](plans/done/jev-confirmation-qualification.md) | 计划 | 已完成 | 第1轮审查结案；原生96通过、模拟第2项失败/190未运行，观察一致性修复交回主计划 |
 | [plans/done/jev-navigation-observation.md](plans/done/jev-navigation-observation.md) | 计划 | 已完成 | 第1轮独立审查无遗留；两层TDD修复及96原生/192模拟通过，远端ASR复测移交条件backlog |
+| [plans/active/jev-benchmark-scoring.md](plans/active/jev-benchmark-scoring.md) | 计划 | 进行中 | 接入离线配对簇统计与门槛报告；缺失/未知保留，不执行模型 |
 | [research/jev-navigation-observation.md](research/jev-navigation-observation.md) | 调研 | 修复及第1轮审查结案 | 96原生/192模拟及6537后端/本地ASR E2E21通过；独立28+8回归及归档/物理审计一致，远端ASR未认证 |
 | [research/jev-confirmation-qualification.md](research/jev-confirmation-qualification.md) | 调研 | 调查及审查结案、资格未通过 | 原生96/96及416图通过；模拟第2项Retry后无动作停批，190未运行；1次假凭据认证失败外发保留 |
 | [research/jev-confirmation-design.md](research/jev-confirmation-design.md) | 调研 | 条件设计及审查结案 | 全部门联合功效/新任务隔离与资源预览；最弱MC下界81.78%，非实测功效，正式N保持null |
