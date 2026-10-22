@@ -50,6 +50,7 @@
 | [plans/done/jev-navigation-observation.md](plans/done/jev-navigation-observation.md) | 计划 | 已完成 | 第1轮独立审查无遗留；两层TDD修复及96原生/192模拟通过，远端ASR复测移交条件backlog |
 | [plans/done/jev-benchmark-scoring.md](plans/done/jev-benchmark-scoring.md) | 计划 | 已完成 | 离线配对簇评分及版本校验修复；36定向/6573后端、E2E22/87及第2轮修复自检通过 |
 | [plans/done/jev-supplemental-calibration-registration.md](plans/done/jev-supplemental-calibration-registration.md) | 计划 | 已完成 | 760正例/152负例预注册及新库，第1轮独立审查无遗留；执行资格由主计划接续 |
+| [plans/active/jev-supplemental-calibration-qualification.md](plans/active/jev-supplemental-calibration-qualification.md) | 计划 | 进行中 | 新库冻结与独立审计接线，96无模型真实应用/192假SDK资格，保留预注册样本与顺序 |
 | [research/jev-supplemental-calibration-registration.md](research/jev-supplemental-calibration-registration.md) | 调研 | 预注册及独立审查结案 | 912新seed/1824目标/3648计划槽，条件理论上界0.4842%；模型测量尚未开始 |
 | [research/jev-benchmark-scoring.md](research/jev-benchmark-scoring.md) | 调研 | 评分及审查修复结案 | 真实96/fake192只读复算一致；完整逐行审计缺失仍报unknown，正式N未准入 |
 | [research/jev-navigation-observation.md](research/jev-navigation-observation.md) | 调研 | 修复及第1轮审查结案 | 96原生/192模拟及6537后端/本地ASR E2E21通过；独立28+8回归及归档/物理审计一致，远端ASR未认证 |
