@@ -46,10 +46,10 @@
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
 | [research/jev-calibration-route.md](research/jev-calibration-route.md) | 调研 | 校准及两轮审查完成 | 两臂各40/40及8/8；整体JT均时28.074对37.773秒，收益主要来自linkding，正式N待设计 |
 | [plans/done/jev-confirmation-design.md](plans/done/jev-confirmation-design.md) | 计划 | 已完成 | 第1轮审查无可操作问题；10240+2048簇仅条件方案，正式N未准入，后续资格由主计划承接 |
-| [plans/active/jev-confirmation-qualification.md](plans/active/jev-confirmation-qualification.md) | 计划 | 进行中 | 新库全量结构与固定96目标原生/192任务fake资格；正式N仍未准入 |
-| [research/jev-confirmation-qualification.md](research/jev-confirmation-qualification.md) | 调研 | 执行器资格未通过 | 原生96/96及416图通过；模拟第2项Retry后无动作停批，190未运行；1次假凭据认证失败外发保留 |
+| [plans/done/jev-confirmation-qualification.md](plans/done/jev-confirmation-qualification.md) | 计划 | 已完成 | 第1轮审查结案；原生96通过、模拟第2项失败/190未运行，观察一致性修复交回主计划 |
+| [research/jev-confirmation-qualification.md](research/jev-confirmation-qualification.md) | 调研 | 调查及审查结案、资格未通过 | 原生96/96及416图通过；模拟第2项Retry后无动作停批，190未运行；1次假凭据认证失败外发保留 |
 | [research/jev-confirmation-design.md](research/jev-confirmation-design.md) | 调研 | 条件设计及审查结案 | 全部门联合功效/新任务隔离与资源预览；最弱MC下界81.78%，非实测功效，正式N保持null |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 离线设计结案、正式N未准入 | 真实校准及离线设计经审查结案，下一步新库/执行器资格与补充校准准备；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 资格调查结案、Controller资格未通过 | 下一步TDD修复Retry观察一致性并新冻结全资格，正式N未准入；生产默认不变；[真实配方](../backend/benchmarks/computer_use/fixtures/jev-image-native/README.md) |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
