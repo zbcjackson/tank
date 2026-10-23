@@ -408,6 +408,71 @@ def test_execution_cli_refuses_before_reading_credentials(execution, tmp_path, m
     assert not (tmp_path / "live").exists()
 
 
+@pytest.mark.parametrize(
+    ("kind", "field", "invalid"),
+    [
+        ("positive", "strict_completed", 1),
+        ("negative", "negative_passed", 1),
+        ("recovery", "recovery_completed", 1),
+        ("negative", "strict_completed", 0),
+        ("positive", "negative_passed", 0),
+        ("positive", "recovery_completed", 0),
+    ],
+)
+def test_execution_admission_requires_boolean_success_receipts(
+    execution, prepared, tmp_path, monkeypatch, kind, field, invalid
+):
+    frozen = json.loads((prepared / "freeze.json").read_text())
+    prefix = json.loads((prepared / "qualification-freeze.json").read_text())
+    case = next(
+        c
+        for c in prefix["cases"]
+        if (
+            bool(c["negative"])
+            if kind == "negative"
+            else not c["negative"] and bool(c["recovery"]) == (kind == "recovery")
+        )
+    )
+    identity = case["id"] + "-v"
+    row = {
+        "id": identity,
+        "case": case["id"],
+        "attempted": True,
+        "status": "finished",
+        "strict_completed": not bool(case["negative"]),
+        "negative_passed": bool(case["negative"]),
+        "recovery_completed": bool(case["recovery"]),
+    }
+    audit = {
+        "trials": {
+            identity: {
+                "strict_verified": row["strict_completed"],
+                "negative_verified": row["negative_passed"],
+                "recovery_verified": row["recovery_completed"],
+                "critical_events": 0,
+                "unexpected_action": False,
+            }
+        }
+    }
+    output = tmp_path / "fake"
+    output.mkdir()
+    (output / "audit.json").write_text(json.dumps(audit))
+    result = {"completed": True, "qualified": True, "spend": {"stop_reason": None}, "rows": [row]}
+    result_path = output / "result.json"
+    result_path.write_text(json.dumps(result))
+    monkeypatch.setattr(execution, "load_freeze", lambda *args, **kwargs: frozen)
+    monkeypatch.setattr(execution, "verify_checks", lambda *args, **kwargs: None)
+    monkeypatch.setattr(execution, "body", lambda *args, **kwargs: prefix)
+    monkeypatch.setattr(execution, "build_audit", lambda *args, **kwargs: audit)
+    verification = tmp_path / "verification.json"
+    verification.write_text("{}")
+    assert execution.preflight(tmp_path, frozen["sha256"], verification)["ready_for_authorization"]
+    row[field] = invalid
+    result_path.write_text(json.dumps(result))
+    with pytest.raises(ValueError):
+        execution.preflight(tmp_path, frozen["sha256"], verification)
+
+
 @pytest.mark.parametrize("damage", ["source", "proof", "budget"])
 def test_execution_input_tamper_is_rejected(execution, prepared, tmp_path, damage):
     import shutil

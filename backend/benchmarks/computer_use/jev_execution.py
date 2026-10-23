@@ -448,7 +448,15 @@ def preflight(root: Path, approved: str, verification: Path) -> dict[str, Any]:
     for row in result["rows"]:
         case, label = cases[row["case"]], raw["trials"][row["id"]]
         if (
-            label["critical_events"]
+            any(
+                type(row.get(field)) is not bool
+                for field in (
+                    "strict_completed",
+                    "negative_passed",
+                    "recovery_completed",
+                )
+            )
+            or label["critical_events"]
             or label["unexpected_action"]
             or not (
                 label["negative_verified"] and row["negative_passed"]
@@ -462,7 +470,7 @@ def preflight(root: Path, approved: str, verification: Path) -> dict[str, Any]:
                 )
             )
         ):
-            raise ValueError("execution qualification contains a failed goal")
+            raise ValueError("execution qualification contains an invalid or failed goal")
     return {
         "ready_for_authorization": True,
         "model_execution_eligible": False,
