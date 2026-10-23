@@ -329,6 +329,120 @@ async def test_dom_observe_navigation_wait_respects_task_stop(channel, navigatio
             await ctx.runtime.aclose()
 
 
+async def test_dom_observe_busy_navigation_waits_for_css_and_new_body(channel):
+    browser, ctx = channel
+    await browser.page.set_content('<a href="/old-retry">Retry</a>')
+    before = await browser.observe('managed-page', ctx)
+    old_actions = ActionBuilder().build('goal', 1, goal(), before)
+    requested, release = asyncio.Event(), asyncio.Event()
+
+    async def pending_css(route):
+        requested.set()
+        await release.wait()
+        await route.fulfill(content_type='text/css', body='input {color: black}')
+
+    await browser.page.route('**/pending-navigation.css', pending_css)
+    await browser.page.evaluate("""() => {
+        history.pushState({}, '', '/busy-editor');
+        document.documentElement.setAttribute('aria-busy', 'true');
+        const link = document.createElement('link');
+        link.rel = 'stylesheet'; link.href = '/pending-navigation.css';
+        link.onload = () => {
+            document.body.innerHTML = '<label>Title<input value="New editor"></label>';
+            document.documentElement.removeAttribute('aria-busy');
+        };
+        document.head.append(link);
+    }""")
+    await requested.wait()
+    assert await browser.page.evaluate('document.readyState') == 'complete'
+    observing = asyncio.create_task(browser.observe('managed-page', ctx))
+    try:
+        done, _ = await asyncio.wait({observing}, timeout=.05)
+        assert not done, 'A busy SPA must not pair its new URL with the old Retry DOM'
+        assert (await browser.dispatch(old_actions.binding, old_actions.actions[0], ctx)).status == 'not_sent'
+        assert browser.page.url.endswith('/busy-editor')
+        release.set()
+        snapshot = await asyncio.wait_for(observing, 2)
+        assert snapshot.ready and snapshot.complete
+        assert next(e.value for e in snapshot.elements if e.label == 'Title') == 'New editor'
+        assert all(e.ref != before.elements[0].ref for e in snapshot.elements)
+        assert ctx.budget.total_tokens == 0
+    finally:
+        release.set()
+        await asyncio.gather(observing, return_exceptions=True)
+
+
+async def test_dom_observe_busy_clear_waits_for_finite_teardown(channel):
+    browser, ctx = channel
+    await browser.page.set_content('''<style>
+        @keyframes finish {from {opacity: 1} to {opacity: 0}}
+        </style><div id="progress">Loading</div><label>Name<input value="Ready"></label>''')
+    await browser.page.evaluate("document.documentElement.setAttribute('aria-busy', 'true')")
+    observing = asyncio.create_task(browser.observe('managed-page', ctx))
+    try:
+        await asyncio.wait({observing}, timeout=.02)
+        await browser.page.evaluate("""() => {
+            const progress = document.getElementById('progress');
+            progress.addEventListener('animationend', () => progress.remove(), {once: true});
+            progress.style.animation = 'finish 120ms linear forwards';
+            document.documentElement.removeAttribute('aria-busy');
+        }""")
+        done, _ = await asyncio.wait({observing}, timeout=.03)
+        assert not done, 'Busy clearance does not finish the finite DOM teardown'
+        snapshot = await asyncio.wait_for(observing, 2)
+        assert snapshot.ready and snapshot.complete
+        assert await browser.page.locator('#progress').count() == 0
+        actions = ActionBuilder().build('goal', 1, goal(), snapshot)
+        assert await browser.is_current(actions.binding, actions.actions[0], ctx)
+    finally:
+        await asyncio.gather(observing, return_exceptions=True)
+
+
+async def test_dom_observe_busy_timeout_discards_old_references(channel):
+    from tank_backend.agents.subagent import SubAgentStopped
+
+    browser, ctx = channel
+    before = await browser.observe('managed-page', ctx)
+    actions = ActionBuilder().build('goal', 1, goal(), before)
+    await browser.page.evaluate("document.documentElement.setAttribute('aria-busy', 'true')")
+    snapshot = await browser.observe('managed-page', ctx)
+    assert not snapshot.ready and not snapshot.complete
+    assert not snapshot.elements and not snapshot.facts
+    assert (await browser.dispatch(actions.binding, actions.actions[0], ctx)).status == 'not_sent'
+    with pytest.raises(SubAgentStopped):
+        await browser.capture(before, ctx)
+
+
+@pytest.mark.parametrize('stop', ['cancel', 'revoke', 'deadline'])
+async def test_dom_observe_busy_wait_respects_task_stop(channel, stop):
+    import time
+    from dataclasses import replace
+    from tank_backend.agents.subagent import SubAgentStopped
+
+    browser, ctx = channel
+    await browser.page.evaluate("document.documentElement.setAttribute('aria-busy', 'true')")
+    if stop == 'deadline':
+        ctx = replace(ctx, deadline=time.monotonic() + .05)
+        ctx.runtime.bind('dom-task')
+    observing = asyncio.create_task(browser.observe('managed-page', ctx))
+    await asyncio.wait({observing}, timeout=.02)
+    if stop == 'cancel':
+        ctx.cancel.set()
+        expected = asyncio.CancelledError
+    elif stop == 'revoke':
+        ctx.authorization.revoke()
+        expected = SubAgentStopped
+    else:
+        expected = TimeoutError
+    try:
+        with pytest.raises(expected, match='subagent deadline' if stop == 'deadline' else None):
+            await asyncio.wait_for(observing, .2)
+    finally:
+        await asyncio.gather(observing, return_exceptions=True)
+        if stop == 'deadline':
+            await ctx.runtime.aclose()
+
+
 @pytest.mark.parametrize('count', [38, 65])
 async def test_dom_explicit_candidate_budget_preserves_whole_action_set(channel, count):
     browser, ctx = channel
@@ -3526,12 +3640,27 @@ async def test_dom_visual_capture_waits_for_finite_css_transition(channel):
     assert await browser.is_current(offered.binding, offered.actions[0], ctx)
 
 
+async def _observe_before_continuing_motion(browser, ctx):
+    unavailable = await browser.observe('managed-page', ctx)
+    assert not unavailable.ready and not unavailable.complete
+    await browser.page.evaluate('''async () => {
+        const animations = document.getAnimations();
+        animations.forEach(animation => animation.pause());
+        await Promise.all(animations.map(animation => animation.ready));
+    }''')
+    snapshot = await browser.observe('managed-page', ctx)
+    assert snapshot.ready and snapshot.complete
+    # Starting existing animations through their API changes no DOM revision.
+    await browser.page.evaluate('document.getAnimations().forEach(animation => animation.play())')
+    return snapshot
+
+
 async def test_dom_visual_capture_refuses_continuing_animation(channel):
     from tank_backend.agents.subagent import SubAgentStopped
     browser, ctx = channel
     await browser.page.set_content('''<style>@keyframes pulse{to{opacity:.1}}
       button{animation:pulse .1s infinite alternate}</style><button>Save</button>''')
-    snapshot = await browser.observe('managed-page', ctx)
+    snapshot = await _observe_before_continuing_motion(browser, ctx)
     with pytest.raises(SubAgentStopped, match='unstable_visual_frame'):
         await browser.capture(snapshot, ctx)
     assert browser.visual_frame is None
@@ -3579,7 +3708,7 @@ async def test_dom_hidden_pseudo_animation_admission_stays_conservative(channel,
       i::after{content:"";display:block;width:16px;height:16px;
         background:red;animation:spin .1s infinite linear}
       ''' + css + '</style><i><span>Child</span></i><button>Save</button>')
-    snapshot = await browser.observe('managed-page', ctx)
+    snapshot = await _observe_before_continuing_motion(browser, ctx)
     with pytest.raises(SubAgentStopped, match='unstable_visual_frame'):
         await browser.capture(snapshot, ctx)
     assert browser.visual_frame is None
@@ -3616,7 +3745,7 @@ async def test_dom_hidden_pseudo_animation_does_not_bypass_freshness(channel, ch
     if change != 'reference':
         assert any(e['stage'] == 'frame_scene' for e in events)
     if change == 'pseudo_visible':
-        snapshot = await browser.observe('managed-page', ctx)
+        snapshot = await _observe_before_continuing_motion(browser, ctx)
         with pytest.raises(SubAgentStopped, match='unstable_visual_frame'):
             await browser.capture(snapshot, ctx)
 
@@ -3666,7 +3795,7 @@ async def test_dom_hidden_pseudo_animation_unknown_sources_remain_active(channel
             {duration:100, iterations:Infinity, pseudoElement:'::after'});
           new Animation(effect, document.timeline).play();
         }''')
-    snapshot = await browser.observe('managed-page', ctx)
+    snapshot = await _observe_before_continuing_motion(browser, ctx)
     with pytest.raises(SubAgentStopped, match='unstable_visual_frame'):
         await browser.capture(snapshot, ctx)
     assert browser.visual_frame is None

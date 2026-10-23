@@ -82,7 +82,8 @@ _ENGINE = r"""({
 _READ = r"""nodes => {
     const state = globalThis[NAMESPACE];
     state.refs.clear();
-    let complete = nodes.length <= 4096 && document.readyState !== 'loading';
+    let complete = nodes.length <= 4096 && document.readyState !== 'loading' &&
+        document.documentElement?.getAttribute('aria-busy') !== 'true';
     const elements = [];
     const text = value => (value || '').replace(/\s+/g, ' ').trim();
     const name = node => text((node.getAttribute('aria-labelledby') || '').split(/\s+/)
@@ -170,6 +171,56 @@ _HIDE_CARET = r"""namespace => {
     if (!document.adoptedStyleSheets.includes(state.caretSheet))
         document.adoptedStyleSheets = [...document.adoptedStyleSheets, state.caretSheet];
 }"""
+
+
+_SETTLE = """async () => {
+            const hiddenPaint = animation => {
+                const effect = animation.effect;
+                if (!(animation instanceof CSSAnimation) || !(effect instanceof KeyframeEffect) ||
+                    !(effect.target instanceof Element) ||
+                    !['::before', '::after'].includes(effect.pseudoElement)) return false;
+                const style = getComputedStyle(effect.target, effect.pseudoElement);
+                // Empty generated content has no text/marker descendants that can override visibility.
+                if (style.visibility !== 'hidden' || style.content !== '\"\"' ||
+                    style.display.includes('list-item')) return false;
+                const frames = effect.getKeyframes();
+                const allowed = ['offset', 'computedOffset', 'easing', 'composite', 'transform', 'opacity'];
+                if (!frames.some(f => 'transform' in f || 'opacity' in f) ||
+                    !frames.every(f => Object.keys(f).every(k => allowed.includes(k)))) return false;
+                // Chromium omits custom properties from getKeyframes(); also inspect CSS definitions.
+                const properties = [];
+                let remaining = 4096;
+                const scan = rules => {
+                    for (const rule of rules) {
+                        if (--remaining < 0) throw new Error('css_rule_limit');
+                        if (rule instanceof CSSKeyframesRule) {
+                            if (rule.name !== animation.animationName) continue;
+                            for (const keyframe of rule.cssRules) {
+                                if (--remaining < 0) throw new Error('css_rule_limit');
+                                properties.push(...keyframe.style);
+                            }
+                        } else if (rule instanceof CSSImportRule) scan(rule.styleSheet.cssRules);
+                        else if (rule.cssRules) scan(rule.cssRules);
+                    }
+                };
+                try {
+                    for (const sheet of [...document.styleSheets, ...document.adoptedStyleSheets])
+                        scan(sheet.cssRules);
+                } catch (_) { return false; }
+                return properties.length > 0 && properties.every(p => ['transform', 'opacity'].includes(p));
+            };
+            const active = () => document.getAnimations().filter(a =>
+                (a.pending || a.playState === 'running') && !hiddenPaint(a));
+            const animations = active();
+            if (!animations.length) return true;
+            let timer;
+            await Promise.race([
+                Promise.all(animations.map(a => a.finished.catch(() => {}))),
+                new Promise(resolve => { timer = setTimeout(resolve, 250); })
+            ]);
+            clearTimeout(timer);
+            return active().length === 0;
+        }"""
 
 
 class ManagedChromiumChannel:
@@ -317,14 +368,24 @@ class ManagedChromiumChannel:
         from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
         frame = self.bound_frame()
-        # A navigation may commit its URL before the destination DOM is usable.
-        pending = asyncio.create_task(frame.wait_for_load_state("domcontentloaded", timeout=500))
+        # Full and SPA navigation can publish their URL before the DOM settles.
+        async def ready() -> bool:
+            async with asyncio.timeout(.5):
+                await frame.wait_for_load_state("domcontentloaded", timeout=0)
+                await frame.wait_for_function(
+                    "() => document.documentElement?.getAttribute('aria-busy') !== 'true'",
+                    timeout=0,
+                )
+                return await frame.evaluate(_SETTLE)
+
+        pending = asyncio.create_task(ready())
         try:
             while not pending.done():
                 await asyncio.wait({pending}, timeout=.01)
                 self.check(context)
-            pending.result()
-        except PlaywrightTimeoutError:
+            if pending.result() is not True:
+                return self.unavailable_snapshot(scope)
+        except (PlaywrightTimeoutError, TimeoutError):
             self.check(context)
             return self.unavailable_snapshot(scope)
         finally:
@@ -333,7 +394,9 @@ class ManagedChromiumChannel:
         self.check(context)
         navigation = self.navigation
         view = await self.read(frame, context)
-        if navigation != self.navigation:
+        if (navigation != self.navigation
+                or view != await self.read(frame, context)
+                or navigation != self.navigation):
             return self.unavailable_snapshot(scope)
         elements = []
         checked_facts = []
@@ -394,54 +457,7 @@ class ManagedChromiumChannel:
             context.observe("computer_use_freshness", channel="dom", stage="capture_precheck",
                             observation_id=snapshot.observation_id)
             raise SubAgentStopped("visual_frame_unavailable")
-        settled = await frame.evaluate("""async () => {
-            const hiddenPaint = animation => {
-                const effect = animation.effect;
-                if (!(animation instanceof CSSAnimation) || !(effect instanceof KeyframeEffect) ||
-                    !(effect.target instanceof Element) ||
-                    !['::before', '::after'].includes(effect.pseudoElement)) return false;
-                const style = getComputedStyle(effect.target, effect.pseudoElement);
-                // Empty generated content has no text/marker descendants that can override visibility.
-                if (style.visibility !== 'hidden' || style.content !== '\"\"' ||
-                    style.display.includes('list-item')) return false;
-                const frames = effect.getKeyframes();
-                const allowed = ['offset', 'computedOffset', 'easing', 'composite', 'transform', 'opacity'];
-                if (!frames.some(f => 'transform' in f || 'opacity' in f) ||
-                    !frames.every(f => Object.keys(f).every(k => allowed.includes(k)))) return false;
-                // Chromium omits custom properties from getKeyframes(); also inspect CSS definitions.
-                const properties = [];
-                let remaining = 4096;
-                const scan = rules => {
-                    for (const rule of rules) {
-                        if (--remaining < 0) throw new Error('css_rule_limit');
-                        if (rule instanceof CSSKeyframesRule) {
-                            if (rule.name !== animation.animationName) continue;
-                            for (const keyframe of rule.cssRules) {
-                                if (--remaining < 0) throw new Error('css_rule_limit');
-                                properties.push(...keyframe.style);
-                            }
-                        } else if (rule instanceof CSSImportRule) scan(rule.styleSheet.cssRules);
-                        else if (rule.cssRules) scan(rule.cssRules);
-                    }
-                };
-                try {
-                    for (const sheet of [...document.styleSheets, ...document.adoptedStyleSheets])
-                        scan(sheet.cssRules);
-                } catch (_) { return false; }
-                return properties.length > 0 && properties.every(p => ['transform', 'opacity'].includes(p));
-            };
-            const active = () => document.getAnimations().filter(a =>
-                (a.pending || a.playState === 'running') && !hiddenPaint(a));
-            const animations = active();
-            if (!animations.length) return true;
-            let timer;
-            await Promise.race([
-                Promise.all(animations.map(a => a.finished.catch(() => {}))),
-                new Promise(resolve => { timer = setTimeout(resolve, 250); })
-            ]);
-            clearTimeout(timer);
-            return active().length === 0;
-        }""")
+        settled = await frame.evaluate(_SETTLE)
         self.check(context)
         if not settled:
             context.observe("computer_use_freshness", channel="dom", stage="capture_motion",

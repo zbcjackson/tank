@@ -47,9 +47,10 @@ Chromium模型图与复查图统一使用`visual_png`：通过constructable styl
 且报告关键帧与全部可读CSS定义均只含transform/opacity。CSS扫描包含import/
 嵌套/adopted sheet，最多4096规则；未知/自定义属性、不可读来源、普通元素及
 程序动画仍保守纳入。后续派发仍比较精确PNG，CSSOM无DOM修订的可见性/像素
-变化也会拒绝。观察前最多500ms等待绑定frame的DOMContentLoaded，同时检查
-原任务的撤权、取消、期限及预算；超时丢弃为无元素/事实的不可用快照，失效
-旧引用。就绪后才读取DOM并记录导航代次，读取过程中发生导航仍丢弃。等待不
+变化也会拒绝。观察前最多500ms等待绑定frame的DOMContentLoaded、文档根声明的
+`aria-busy`清除及上述相同的250ms有限动画收尾，同时检查原任务的撤权、取消、
+期限及预算；超时或仍在运动时丢弃为无元素/事实的不可用快照，失效旧引用。
+就绪后须前后DOMView一致才冻结；节点、值、焦点、修订或导航代次变化均丢弃。等待不
 重放点击或POST；即便URL相同，重载后的新文档也不能继承旧节点引用。
 DOM新鲜度拒绝发`computer_use_freshness`阶段/观察/动作关联及必要图片hash，
 普通事件不含PNG或正文；即时图片仅由显式诊断配方保留。

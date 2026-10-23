@@ -34,6 +34,7 @@ EXTRA_SOURCES = tuple(
 AMENDED_SOURCES = {
     "benchmarks/computer_use/jev_real_product_route.py",
     "benchmarks/computer_use/jev_calibration_route.py",
+    "plugins/agent-computer-use/src/agent_computer_use/channels/dom.py",
 }
 
 
@@ -183,7 +184,7 @@ def _body(root: Path, registered: dict[str, Any], *, candidate: bool) -> dict[st
         if sources[name] != value
     }
     frozen = {
-        "revision": "supplemental-execution-v2",
+        "revision": "supplemental-execution-v3",
         "kind": "calibration-candidate" if candidate else "qualification-only",
         "registration_sha256": REGISTRATION_SHA,
         "formal_N": None,
@@ -191,10 +192,10 @@ def _body(root: Path, registered: dict[str, Any], *, candidate: bool) -> dict[st
         "model_execution_eligible": False,
         "amendment": {
             "parent": REGISTRATION_SHA,
-            "prior_qualification_sha256": "cf402dd6334144db156b7eefc99ac6bd65b55bd9d1cd9b3d6de4e03cd200a11b",
+            "prior_qualification_sha256": "647574930ed78a803b875b476dfc315ebe4410811af389957695518e5e2e0da0",
             "runtime_changes": changed,
             "new_sources": list(EXTRA_SOURCES),
-            "reason": "Review R1/R2: reconcile row/event/ledger/fake HTTP before each next slot; preserve cancellation after native cleanup. No real models.",
+            "reason": "Execution review R2: bound document-declared SPA busy and finite teardown before observation, retaining exact freshness and acceptance. Prior usage/cancellation amendments remain. New current-host native qualification required; no real models.",
         },
         "cases": cases,
         "schedule": schedule,

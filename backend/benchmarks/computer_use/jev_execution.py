@@ -23,6 +23,13 @@ PROOF_ARCHIVE = (
 PROOF_SHA = "5b9a0f40c8c0dd7a7b7cf59f98d8eb009b99ab1b1a5782b6343167dba1a03930"
 QUALIFIED_SHA = "647574930ed78a803b875b476dfc315ebe4410811af389957695518e5e2e0da0"
 CANDIDATE_SHA = "a650e4f726ec0a25b4f5585f8dc241623b5e342e387b778eb608abb62596e4a5"
+PRIOR_HOST = "qualification-final-r1/freeze.json"
+HOST_AMENDMENTS = frozenset(
+    {
+        "plugins/agent-computer-use/src/agent_computer_use/channels/dom.py",
+        "benchmarks/computer_use/jev_qualification.py",
+    }
+)
 BUDGET = {
     "record_only": True,
     "request_limit": None,
@@ -51,7 +58,7 @@ def prior_proof() -> dict[str, Any]:
     """Read trusted receipts, without extracting or importing archived code."""
     if qualification.sha(PROOF_ARCHIVE) != PROOF_SHA:
         raise ValueError("prior qualification archive changed")
-    wanted = {"postrun-independent-check.json", "final-bindings-check.json"}
+    wanted = {"postrun-independent-check.json", "final-bindings-check.json", PRIOR_HOST}
     receipts = {}
     with tarfile.open(PROOF_ARCHIVE, "r|xz") as archive:
         for member in archive:
@@ -64,6 +71,13 @@ def prior_proof() -> dict[str, Any]:
                     break
     if set(receipts) != wanted:
         raise ValueError("missing prior qualification receipts")
+    prior = receipts[PRIOR_HOST]
+    if (
+        prior.get("sha256") != QUALIFIED_SHA
+        or qualification.digest({k: v for k, v in prior.items() if k != "sha256"})
+        != QUALIFIED_SHA
+    ):
+        raise ValueError("prior host freeze differs")
     result = receipts["postrun-independent-check.json"]
     expected = {
         "sha256": QUALIFIED_SHA,
@@ -103,15 +117,33 @@ def prior_proof() -> dict[str, Any]:
 
 
 def body(root: Path, *, fake: bool) -> dict[str, Any]:
-    """Recompute executable inputs, retaining the qualified host unchanged."""
+    """Bind the explicit current-host amendment; the old proof is provenance only."""
+    candidate = json.loads((root / "qualified-input/execution-freeze.json").read_text())
+    host = json.loads((root / "qualified-input/freeze.json").read_text())
     parent = qualification.load_freeze(
         root / "qualified-input",
-        CANDIDATE_SHA,
+        candidate["sha256"],
         candidate=True,
     )
-    qualification.load_freeze(root / "qualified-input", QUALIFIED_SHA)
+    qualification.load_freeze(root / "qualified-input", host["sha256"])
     if qualification.sha(PROOF_ARCHIVE) != PROOF_SHA:
         raise ValueError("prior qualification archive changed")
+    prior = json.loads((root / "prior-proof.json").read_text())["receipts"][PRIOR_HOST]
+    if qualification.digest({k: v for k, v in prior.items() if k != "sha256"}) != QUALIFIED_SHA:
+        raise ValueError("prior host source baseline differs")
+    old_sources = prior["source_sha256"]
+    current_sources = parent["source_sha256"]
+    changes = {
+        name: {"before": old_sources.get(name), "after": value}
+        for name, value in current_sources.items()
+        if old_sources.get(name) != value
+    }
+    if (
+        len(old_sources) != 41
+        or set(current_sources) != set(old_sources)
+        or set(changes) != HOST_AMENDMENTS
+    ):
+        raise ValueError("only the two explicit current-host amendments are allowed")
     sources = {**parent["source_sha256"], SOURCE: qualification.sha(BACKEND / SOURCE)}
     files = {"prior-proof.json": qualification.sha(root / "prior-proof.json")}
     for name, value in sources.items():
@@ -125,15 +157,23 @@ def body(root: Path, *, fake: bool) -> dict[str, Any]:
         else (parent["cases"], parent["schedule"])
     )
     frozen = {
-        "revision": "supplemental-calibration-execution-v1",
+        "revision": "supplemental-calibration-execution-v2",
         "kind": "execution-qualification" if fake else "calibration-execution",
         "formal_N": None,
         "formal_confirmation": False,
         "requires_explicit_approval": True,
         "registration_sha256": qualification.REGISTRATION_SHA,
-        "qualified_host_sha256": QUALIFIED_SHA,
+        "qualified_host_sha256": host["sha256"],
+        "prior_qualified_host_sha256": QUALIFIED_SHA,
         "prior_candidate_sha256": CANDIDATE_SHA,
+        "current_candidate_sha256": parent["sha256"],
         "prior_archive_sha256": PROOF_SHA,
+        "host_amendment": {
+            "runtime_changes": changes,
+            "unchanged_prior_sources": 39,
+            "current_native_goals_required": 96,
+            "prior_native_is_current_qualification": False,
+        },
         "cases": cases,
         "schedule": schedule,
         "source_sha256": sources,
@@ -193,6 +233,68 @@ def load_freeze(root: Path, approved: str, *, fake: bool = False) -> dict[str, A
         return stored
     except (OSError, KeyError, TypeError) as error:
         raise ValueError("missing or invalid execution freeze") from error
+
+
+def verify_native(root: Path, frozen: dict) -> dict[str, Any]:
+    """Re-audit the current host's fixed 96 goals; never fall back to old receipts."""
+    from benchmarks.computer_use import jev_audit as audit
+
+    try:
+        host = qualification.load_freeze(root / "qualified-input", frozen["qualified_host_sha256"])
+        output = root / "qualified-input/native"
+        result_path = output / "result.json"
+        result = json.loads(result_path.read_text())
+        cases, rows = host["cases"], result["rows"]
+        if (
+            not isinstance(rows, list)
+            or any(not isinstance(row, dict) for row in rows)
+            or len(cases) != 96
+            or result.get("sha256") != host["sha256"]
+            or result.get("completed") is not True
+            or result.get("stop_reason") is not None
+            or type(result.get("model_calls")) is not int
+            or result["model_calls"] != 0
+            or [row.get("id") for row in rows] != [case["id"] for case in cases]
+        ):
+            raise ValueError("current native qualification is incomplete or misbound")
+        raw = {}
+        for case, row in zip(cases, rows):
+            path = output / case["id"]
+            saved = json.loads((path / "row.json").read_text())
+            proof = json.loads((path / "native-proof.json").read_text())
+            if not isinstance(saved, dict) or not isinstance(proof, dict):
+                raise ValueError("invalid native row or evidence seal")
+            if (
+                row.get("attempted") is not True
+                or any(
+                    receipt.get("status") != "finished"
+                    or receipt.get("qualified") is not True
+                    or receipt.get("cleanup") is not True
+                    or type(receipt.get("model_calls")) is not int
+                    or receipt["model_calls"] != 0
+                    for receipt in (row, saved)
+                )
+                or saved.get("id") != case["id"]
+                or any(row.get(key) != value for key, value in saved.items())
+                or not isinstance(proof.get("files"), dict)
+                or set(proof["files"])
+                != {"before.db", "after.db", "http.jsonl", "final.html", "events.json", "observations.json"}
+                or audit.audit_native_trial(case, row, path) is not True
+            ):
+                raise ValueError("invalid or failed current native goal: " + case["id"])
+            raw[case["id"]] = {
+                "row_sha256": qualification.sha(path / "row.json"),
+                "proof_sha256": qualification.sha(path / "native-proof.json"),
+            }
+        result_sha = qualification.sha(result_path)
+        return {
+            "current_host_sha256": host["sha256"],
+            "native_goals": 96,
+            "native_result_sha256": result_sha,
+            "native_raw_proof_sha256": qualification.digest({"result": result_sha, "trials": raw}),
+        }
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        raise ValueError("missing or invalid current native qualification: " + str(error)) from error
 
 
 def audit_usage(row: dict, spend: Mapping[str, Any], path: Path) -> None:
@@ -307,6 +409,7 @@ def build_audit(
     try:
         frozen = load_freeze(root, approved, fake=fake)
         verify_checks(frozen, verification)
+        native = verify_native(root, frozen)
         output = root / ("fake" if fake else "live")
 
         def receipt(name: str) -> Any:
@@ -410,6 +513,7 @@ def build_audit(
             "trials": labels,
             "verification_sha256": qualification.sha(verification),
             "usage_evidence": "sealed SDK completion capture; additionally fake HTTP in fake mode",
+            **native,
         }
     except (OSError, KeyError, TypeError, ValueError) as error:
         if isinstance(error, audit.EvidenceError):
@@ -478,6 +582,9 @@ def preflight(root: Path, approved: str, verification: Path) -> dict[str, Any]:
         "qualification_sha256": prefix["sha256"],
         "qualification_audit_sha256": qualification.digest(raw),
         "verification_sha256": qualification.sha(verification),
+        **{key: raw[key] for key in (
+            "current_host_sha256", "native_goals", "native_result_sha256", "native_raw_proof_sha256"
+        )},
         "planned_trials": len(frozen["schedule"]),
         "condition_goals": len(frozen["cases"]),
         "seed_clusters": len({c["cluster_id"] for c in frozen["cases"]}),
@@ -505,6 +612,8 @@ async def run_batch(
     from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit
 
     frozen = load_freeze(root, approved, fake=fake)
+    if fake:
+        verify_native(root, frozen)
     if not fake:
         if (
             verification is None
@@ -749,6 +858,8 @@ def main(argv: list[str] | None = None) -> int:
             summary = {
                 "execution_sha256": frozen["sha256"],
                 "qualification_sha256": prefix["sha256"],
+                "current_host_sha256": frozen["qualified_host_sha256"],
+                "current_native_goals_required": 96,
                 "planned_trials": len(frozen["schedule"]),
                 "budget": frozen["budget"],
                 "model_execution_eligible": False,

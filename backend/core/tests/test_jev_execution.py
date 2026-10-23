@@ -54,6 +54,10 @@ def test_prepare_freezes_full_execution_and_distinct_offline_prefix(execution, p
     assert len(frozen["cases"]) == 1824 and len(frozen["schedule"]) == 3648
     assert len(frozen["source_sha256"]) == 42
     assert frozen["formal_N"] is None and frozen["formal_confirmation"] is False
+    assert frozen["qualified_host_sha256"] != execution.QUALIFIED_SHA
+    assert frozen["host_amendment"]["unchanged_prior_sources"] == 39
+    assert frozen["host_amendment"]["prior_native_is_current_qualification"] is False
+    assert set(frozen["host_amendment"]["runtime_changes"]) == execution.HOST_AMENDMENTS
     assert frozen["budget"] == {
         "record_only": True,
         "request_limit": None,
@@ -182,6 +186,7 @@ async def test_batch_completion_and_hard_stop_preserve_denominators(
     monkeypatch.setattr(calibration, "run_task", task)
     monkeypatch.setattr(audit, "audit_trial", label)
     monkeypatch.setattr(execution, "load_freeze", load)
+    monkeypatch.setattr(execution, "verify_native", lambda *args: {})
     if failure == "cancel":
         with pytest.raises(asyncio.CancelledError):
             await execution.run_batch(root, frozen["sha256"], fake=True)
@@ -322,6 +327,7 @@ def test_closed_nonattempt_audit_cannot_admit_live_execution(
     execution,
     prepared,
     tmp_path,
+    monkeypatch,
 ):
     import shutil
 
@@ -371,6 +377,7 @@ def test_closed_nonattempt_audit_cannot_admit_live_execution(
         (output / name).write_text(json.dumps(value))
     (output / "transport.jsonl").write_text("")
     verification, _ = verification_receipt(tmp_path, frozen)
+    monkeypatch.setattr(execution, "verify_native", lambda *args: {})
     audit = execution.build_audit(root, frozen["sha256"], verification, fake=True)
     assert audit["evidence_kind"] == "fake" and audit["regressions_passed"] is True
     assert len(audit["trials"]) == 192
@@ -444,6 +451,10 @@ def test_execution_admission_requires_boolean_success_receipts(
         "recovery_completed": bool(case["recovery"]),
     }
     audit = {
+        "current_host_sha256": frozen["qualified_host_sha256"],
+        "native_goals": 96,
+        "native_result_sha256": "0" * 64,
+        "native_raw_proof_sha256": "1" * 64,
         "trials": {
             identity: {
                 "strict_verified": row["strict_completed"],
@@ -502,6 +513,14 @@ def test_new_runtime_source_drift_is_rejected(execution, prepared, tmp_path, mon
         execution.load_freeze(prepared, frozen["sha256"])
 
 
+def test_current_host_amendment_cannot_change_a_third_source(execution, prepared, monkeypatch):
+    candidate = json.loads((prepared / "qualified-input/execution-freeze.json").read_text())
+    candidate["source_sha256"]["core/pyproject.toml"] = "0" * 64
+    monkeypatch.setattr(execution.qualification, "load_freeze", lambda *args, **kwargs: candidate)
+    with pytest.raises(ValueError, match="only the two explicit"):
+        execution.body(prepared, fake=False)
+
+
 @pytest.mark.asyncio
 async def test_transport_admission_failure_retains_zero_attempts_and_stop_reason(
     execution,
@@ -517,6 +536,7 @@ async def test_transport_admission_failure_retains_zero_attempts_and_stop_reason
     shutil.copytree(prepared, root)
     frozen = json.loads((root / "qualification-freeze.json").read_text())
     monkeypatch.setattr(execution, "load_freeze", lambda *args, **kwargs: frozen)
+    monkeypatch.setattr(execution, "verify_native", lambda *args: {})
 
     def fail(*args, **kwargs):
         raise OSError("cannot open offline transport evidence")
@@ -530,3 +550,110 @@ async def test_transport_admission_failure_retains_zero_attempts_and_stop_reason
     assert result["logical_sdk_calls"] == 0
     closed = json.loads((root / "fake/closed.json").read_text())
     assert closed["fake_http_context_ended"] is False
+
+
+@pytest.mark.parametrize(
+    "damage",
+    ["missing", "old_host", "order", "attempted", "qualified", "cleanup", "model_calls",
+     "completed", "batch_model_calls", "stop", "row", "proof", "evidence",
+     "stored_qualified", "stored_model_calls"],
+)
+def test_current_native_proof_requires_complete_typed_ordered_raw_evidence(
+    execution, tmp_path, monkeypatch, damage
+):
+    from benchmarks.computer_use import jev_audit as audit
+
+    host = {"sha256": "current-host", "cases": [{"id": f"native-{n}"} for n in range(96)]}
+    frozen = {"qualified_host_sha256": host["sha256"]}
+    native = tmp_path / "qualified-input/native"
+    native.mkdir(parents=True)
+    rows = []
+    for case in host["cases"]:
+        path = native / case["id"]
+        path.mkdir()
+        files = {}
+        for name in (
+            "before.db", "after.db", "http.jsonl", "final.html", "events.json", "observations.json"
+        ):
+            (path / name).write_text("raw evidence is checked by the reused independent auditor")
+            files[name] = hashlib.sha256((path / name).read_bytes()).hexdigest()
+        (path / "native-proof.json").write_text(json.dumps({"files": files}))
+        row = {
+            "id": case["id"], "status": "finished", "qualified": True,
+            "cleanup": True, "model_calls": 0,
+        }
+        (path / "row.json").write_text(json.dumps(row))
+        rows.append({**row, "attempted": True})
+    result = {"sha256": host["sha256"], "completed": True, "model_calls": 0, "rows": rows}
+    result_path = native / "result.json"
+    result_path.write_text(json.dumps(result))
+    monkeypatch.setattr(execution.qualification, "load_freeze", lambda *args, **kwargs: host)
+    audited = []
+
+    def verify(case, row, path):
+        audited.append(case["id"])
+        return True
+
+    monkeypatch.setattr(audit, "audit_native_trial", verify)
+    binding = execution.verify_native(tmp_path, frozen)
+    assert audited == [case["id"] for case in host["cases"]]
+    assert binding["current_host_sha256"] == host["sha256"]
+    assert binding["native_goals"] == 96
+    assert len(binding["native_raw_proof_sha256"]) == 64
+    if damage == "missing":
+        result_path.unlink()
+    elif damage == "old_host":
+        result["sha256"] = "prior-host"
+    elif damage == "order":
+        result["rows"] = list(reversed(rows))
+    elif damage in {"attempted", "qualified", "cleanup"}:
+        rows[0][damage] = 1
+    elif damage == "model_calls":
+        rows[0][damage] = False
+    elif damage == "completed":
+        result["completed"] = 1
+    elif damage == "batch_model_calls":
+        result["model_calls"] = False
+    elif damage == "stop":
+        result["stop_reason"] = "operational_error"
+    elif damage == "row":
+        (native / rows[0]["id"] / "row.json").write_text('{"id":"other"}')
+    elif damage == "proof":
+        (native / rows[0]["id"] / "native-proof.json").write_text('{"files":{}}')
+    elif damage.startswith("stored_"):
+        path = native / rows[0]["id"] / "row.json"
+        saved = json.loads(path.read_text())
+        saved[damage.removeprefix("stored_")] = 1 if damage == "stored_qualified" else False
+        path.write_text(json.dumps(saved))
+    else:
+        def invalid(*args):
+            raise audit.EvidenceError("physical native evidence changed")
+        monkeypatch.setattr(audit, "audit_native_trial", invalid)
+    if damage != "missing":
+        result_path.write_text(json.dumps(result))
+    with pytest.raises(ValueError):
+        execution.verify_native(tmp_path, frozen)
+
+
+@pytest.mark.asyncio
+async def test_current_native_proof_is_required_before_fake_output(
+    execution, tmp_path, monkeypatch
+):
+    from benchmarks.computer_use import jev_calibration_route as calibration
+
+    frozen = {
+        "qualified_host_sha256": "current-host",
+        "schedule": [{"id": "case-v", "case": "case", "arm": "v"}],
+        "cases": [{"id": "case"}],
+    }
+    monkeypatch.setattr(execution, "load_freeze", lambda *args, **kwargs: frozen)
+    calls = []
+
+    async def forbidden(*args, **kwargs):
+        calls.append(True)
+        raise AssertionError("task started before current native qualification")
+
+    monkeypatch.setattr(calibration, "run_task", forbidden)
+    with pytest.raises(ValueError):
+        await execution.run_batch(tmp_path, "qualification", fake=True)
+    assert not calls and not (tmp_path / "fake").exists()
