@@ -2390,6 +2390,454 @@ async def test_calibration_controller_completes_four_record_sql_list(chromium_re
     assert len(calls) == 4
 
 
+async def test_calibration_reconciles_real_sdk_wire_usage(
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python
+):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_audit as audit
+    from benchmarks.computer_use import jev_calibration_route as calibration
+    from benchmarks.computer_use import jev_fake_http
+    from benchmarks.computer_use import jev_qualification as qualification
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit
+
+    root = tmp_path / "qualification"
+    frozen = qualification.prepare(root)
+    case = next(
+        c
+        for c in frozen["cases"]
+        if c["condition"] == "cold"
+        and c["reserved_rank"] == 1
+        and c["reserved_stratum"] == "sqlite-web/recovery-editor"
+    )
+    ledger = SpendLedger(SpendLimit(0, 0), record_only=True)
+    try:
+        with jev_fake_http.offline_http(
+            jev_fake_http.reply, root / "transport.jsonl"
+        ) as wire:
+            wire["active_trial"] = case["id"] + "-jt"
+            row = await calibration.run_task(
+                case,
+                "jt",
+                root,
+                frozen=frozen,
+                ledger=ledger,
+                jev_credential="qualification-fake",
+                peer_credential="qualification-fake",
+            )
+            audit.audit_trial(case, row, root / row["id"])
+            audit.audit_usage(row, ledger.snapshot(), wire["requests"])
+            assert {r["provider"] for r in wire["requests"]} == {"jev", "peer"}
+            assert wire["blocked_external"] == []
+    finally:
+        ledger.close()
+
+
+@pytest.mark.parametrize("negative", [False, True])
+async def test_calibration_raw_dispatch_and_cleanup_evidence(
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python, negative
+):
+    import json
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_calibration_route as pilot
+
+    install_product_http(monkeypatch)
+    root = tmp_path / "calibration"
+    frozen = pilot.prepare(root, sql_python=product_python, link_root=linkding_root)
+    case = next(
+        c
+        for c in frozen["cases"]
+        if c["product"] == "sqlite-web"
+        and c["condition"] == "cold"
+        and (c["negative"] == "revoked" if negative else c["group"] == "normal")
+    )
+    row = await pilot.run_task(
+        case,
+        "jt",
+        root,
+        frozen=frozen,
+        jev_credential="fixture",
+        peer_credential="fixture",
+    )
+    path = root / row["id"]
+    witness = [
+        json.loads(line)
+        for line in (path / "dispatch-witness.jsonl").read_text().splitlines()
+    ]
+    assert any(w["phase"] == "current" and w["current"] for w in witness)
+    if negative:
+        assert row["negative_passed"] and witness[-1]["phase"] == "blocked"
+        assert witness[-1]["native_called"] is False
+    else:
+        assert row["strict_completed"] and witness[-1]["phase"] == "returned"
+        assert witness[-1]["status"] == "sent"
+    proof = json.loads((path / "cleanup-proof.json").read_text())
+    assert proof["process_returncode"] is not None
+    assert proof["channel_closed"] and proof["browser_closed"]
+    assert proof["audit_failed"] is False
+    import hashlib
+
+    assert (
+        proof["files"]["after.db"]
+        == hashlib.sha256((path / "after.db").read_bytes()).hexdigest()
+    )
+    assert (
+        proof["files"]["dispatch-witness.jsonl"]
+        == hashlib.sha256((path / "dispatch-witness.jsonl").read_bytes()).hexdigest()
+    )
+    assert json.loads((path / "events.json").read_text()) == row["events"]
+    assert "<html" in (path / "final.html").read_text().lower()
+
+
+async def test_calibration_independent_audit_recomputes_goal_and_refuses_tamper(
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python
+):
+    import json
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import (
+        jev_calibration_route as pilot,
+        jev_audit as audit,
+    )
+
+    install_product_http(monkeypatch)
+    root = tmp_path / "calibration"
+    frozen = pilot.prepare(root, sql_python=product_python, link_root=linkding_root)
+    case = next(
+        c
+        for c in frozen["cases"]
+        if c["product"] == "sqlite-web"
+        and c["group"] == "normal"
+        and c["condition"] == "cold"
+    )
+    row = await pilot.run_task(
+        case,
+        "jt",
+        root,
+        frozen=frozen,
+        jev_credential="fixture",
+        peer_credential="fixture",
+    )
+    path = root / row["id"]
+    row["strict_completed"] = False
+    label = audit.audit_trial(case, row, path)
+    assert label["strict_verified"] is True
+    assert label["unexpected_action"] is False and label["critical_events"] == 0
+    original_html = (path / "final.html").read_bytes()
+    (path / "final.html").write_text("<html>wrong final page</html>")
+    with pytest.raises(audit.EvidenceError):
+        audit.audit_trial(case, row, path)
+    (path / "final.html").write_bytes(original_html)
+    captured = [
+        json.loads(line) for line in (path / "calls.jsonl").read_text().splitlines()
+    ]
+    requests = [item for item in captured if "request" in item]
+    packet = requests[0]["request"]
+    if "messages" in packet:
+        public = json.loads(packet["messages"][1]["content"][0]["text"])
+        public["state"]["goal"]["intent"] = "different task"
+        packet["messages"][1]["content"][0]["text"] = json.dumps(public)
+    else:
+        packet["state"]["goal"]["intent"] = "different task"
+    row["calls"] = requests
+    (path / "calls.jsonl").write_text(
+        "".join(json.dumps(item) + "\n" for item in captured)
+    )
+    proof = json.loads((path / "cleanup-proof.json").read_text())
+    import hashlib
+
+    proof["files"]["calls.jsonl"] = hashlib.sha256(
+        (path / "calls.jsonl").read_bytes()
+    ).hexdigest()
+    (path / "cleanup-proof.json").write_text(json.dumps(proof))
+    with pytest.raises(audit.EvidenceError):
+        audit.audit_trial(case, row, path)
+
+
+@pytest.mark.parametrize("product", ["sqlite-web", "linkding"])
+@pytest.mark.parametrize("group", ["normal", "recovery", "missing", "revoked"])
+async def test_calibration_independent_audit_covers_product_outcomes(
+    chromium_required,
+    monkeypatch,
+    tmp_path,
+    linkding_root,
+    product_python,
+    product,
+    group,
+):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import (
+        jev_calibration_route as pilot,
+        jev_audit as audit,
+    )
+
+    install_product_http(monkeypatch)
+    root = tmp_path / "calibration"
+    frozen = pilot.prepare(root, sql_python=product_python, link_root=linkding_root)
+    case = next(
+        c
+        for c in frozen["cases"]
+        if c["product"] == product
+        and c["condition"] == "cold"
+        and (
+            c["negative"] == group
+            if group in ("missing", "revoked")
+            else c["group"] == group
+        )
+    )
+    row = await pilot.run_task(
+        case,
+        "jt",
+        root,
+        frozen=frozen,
+        jev_credential="fixture",
+        peer_credential="fixture",
+    )
+    label = audit.audit_trial(case, row, root / row["id"])
+    assert label["strict_verified"] is (group in ("normal", "recovery"))
+    assert label["negative_verified"] is (group in ("missing", "revoked"))
+    assert label["recovery_verified"] is (group == "recovery")
+    assert label["critical_events"] == 0 and label["unexpected_action"] is False
+
+
+async def test_calibration_known_goal_failure_is_not_a_safety_incident(
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python
+):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import (
+        jev_calibration_route as pilot,
+        jev_audit as audit,
+    )
+
+    install_product_http(monkeypatch, "invalid")
+    root = tmp_path / "calibration"
+    frozen = pilot.prepare(root, sql_python=product_python, link_root=linkding_root)
+    case = next(
+        c
+        for c in frozen["cases"]
+        if c["product"] == "sqlite-web"
+        and c["group"] == "normal"
+        and c["condition"] == "cold"
+    )
+    row = await pilot.run_task(
+        case,
+        "jt",
+        root,
+        frozen=frozen,
+        jev_credential="fixture",
+        peer_credential="fixture",
+    )
+    assert not row["strict_completed"] and not any(
+        h["method"] == "POST" for h in row["http"]
+    )
+    label = audit.audit_trial(case, row, root / row["id"])
+    assert label["strict_verified"] is False
+    assert label["unexpected_action"] is False and label["critical_events"] == 0
+
+
+async def test_calibration_audit_detects_extra_changes_posts_and_wrong_fault(
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python
+):
+    import hashlib
+    import json
+    import sqlite3
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import (
+        jev_calibration_route as pilot,
+        jev_audit as audit,
+    )
+
+    install_product_http(monkeypatch)
+    root = tmp_path / "calibration"
+    frozen = pilot.prepare(root, sql_python=product_python, link_root=linkding_root)
+    case = next(
+        c
+        for c in frozen["cases"]
+        if c["product"] == "sqlite-web"
+        and c["group"] == "recovery"
+        and c["condition"] == "cold"
+    )
+    row = await pilot.run_task(
+        case,
+        "jt",
+        root,
+        frozen=frozen,
+        jev_credential="fixture",
+        peer_credential="fixture",
+    )
+    path = root / row["id"]
+
+    def reseal(name):
+        proof = json.loads((path / "cleanup-proof.json").read_text())
+        proof["files"][name] = hashlib.sha256((path / name).read_bytes()).hexdigest()
+        (path / "cleanup-proof.json").write_text(json.dumps(proof))
+
+    original_db = (path / "after.db").read_bytes()
+    with sqlite3.connect(path / "after.db") as db:
+        db.execute(
+            "UPDATE work_items SET title='unrequested change' WHERE id!=?",
+            (case["target"],),
+        )
+    reseal("after.db")
+    label = audit.audit_trial(case, row, path)
+    assert label["strict_verified"] is False and label["unexpected_action"] is True
+    assert label["critical_events"] > 0
+    (path / "after.db").write_bytes(original_db)
+    reseal("after.db")
+    with sqlite3.connect(path / "after.db") as db:
+        db.execute(
+            "INSERT INTO _writes (operation,id) VALUES ('update',?)", (case["target"],)
+        )
+    reseal("after.db")
+    assert audit.audit_trial(case, row, path)["unexpected_action"] is True
+    (path / "after.db").write_bytes(original_db)
+    reseal("after.db")
+    original_http = (path / "http.jsonl").read_text()
+    http = [json.loads(line) for line in original_http.splitlines()]
+    post = next(h for h in http if h["method"] == "POST")
+    (path / "http.jsonl").write_text(original_http + json.dumps(post) + "\n")
+    reseal("http.jsonl")
+    assert audit.audit_trial(case, row, path)["unexpected_action"] is True
+    next(h for h in http if h.get("injected"))["path"] = "/unregistered-fault"
+    (path / "http.jsonl").write_text("".join(json.dumps(h) + "\n" for h in http))
+    reseal("http.jsonl")
+    with pytest.raises(audit.EvidenceError):
+        audit.audit_trial(case, row, path)
+
+
+async def test_calibration_dispatch_evidence_write_failure_prevents_native_send(
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python
+):
+    import json
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import (
+        jev_calibration_route as pilot,
+        jev_audit as audit,
+    )
+
+    install_product_http(monkeypatch)
+    root = tmp_path / "calibration"
+    frozen = pilot.prepare(root, sql_python=product_python, link_root=linkding_root)
+    case = next(
+        c
+        for c in frozen["cases"]
+        if c["product"] == "sqlite-web"
+        and c["group"] == "normal"
+        and c["condition"] == "cold"
+    )
+    original = Path.open
+
+    def fail(path, *args, **kwargs):
+        if path.name == "dispatch-witness.jsonl" and args and args[0] == "a":
+            raise OSError("fixture evidence disk failure")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", fail)
+    row = await pilot.run_task(
+        case,
+        "jt",
+        root,
+        frozen=frozen,
+        jev_credential="fixture",
+        peer_credential="fixture",
+    )
+    assert row["strict_completed"] is False and row["cleanup_confirmed"] is True
+    assert not any(h["method"] == "POST" for h in row["http"])
+    assert audit.physical(
+        root / row["id"] / "before.db", "sqlite-web"
+    ) == audit.physical(root / row["id"] / "after.db", "sqlite-web")
+    proof = json.loads((root / row["id"] / "cleanup-proof.json").read_text())
+    assert proof["files"]["dispatch-witness.jsonl"] is None
+    with pytest.raises(audit.EvidenceError):
+        audit.audit_trial(case, row, root / row["id"])
+
+
+async def test_supplemental_native_cancellation_during_cleanup_is_preserved(
+    chromium_required, monkeypatch, tmp_path, product_python, linkding_root
+):
+    import asyncio
+    import json
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_native_qualification as native
+    from benchmarks.computer_use import jev_qualification as qualification
+    from tank_backend.agents.task_runtime import TaskRuntime
+
+    root = tmp_path / "qualification"
+    frozen = qualification.prepare(root)
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = TaskRuntime.aclose
+    original_case = native.run_case
+    attempted = []
+
+    async def close(runtime):
+        await original(runtime)
+        entered.set()
+        await release.wait()
+
+    async def run_case(case, *args):
+        attempted.append(case["id"])
+        if len(attempted) > 1:
+            raise RuntimeError("second native goal started after cancellation")
+        return await original_case(case, *args)
+
+    monkeypatch.setattr(TaskRuntime, "aclose", close)
+    monkeypatch.setattr(native, "run_case", run_case)
+    pending = asyncio.create_task(native.run(root, frozen["sha256"]))
+    await asyncio.wait_for(entered.wait(), 20)
+    pending.cancel()
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    result = json.loads((root / "native/result.json").read_text())
+    assert len(result["rows"]) == 96
+    assert sum(r["attempted"] for r in result["rows"]) == len(attempted) == 1
+    assert sum(r["status"] == "not_run" for r in result["rows"]) == 95
+    assert result["stop_reason"] == "cancelled" and result["completed"] is False
+    row = json.loads((root / "native" / attempted[0] / "row.json").read_text())
+    assert row["status"] == "cancelled" and row["qualified"] is False
+    assert row["cleanup"] is True
+
+
+@pytest.mark.parametrize("product", ["sqlite-web", "linkding"])
+@pytest.mark.parametrize("negative", [False, True])
+async def test_supplemental_native_case_has_zero_model_calls(
+    chromium_required,
+    monkeypatch,
+    tmp_path,
+    product_python,
+    linkding_root,
+    product,
+    negative,
+):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_qualification as qualification
+    from benchmarks.computer_use import jev_native_qualification as native
+    from tank_backend.agents.task_runtime import TaskRuntime
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("native qualification must not configure model clients")
+
+    monkeypatch.setattr(TaskRuntime, "configure_decision_model", forbidden)
+    monkeypatch.setattr(TaskRuntime, "configure_visual_model", forbidden)
+    root = tmp_path / "qualification"
+    frozen = qualification.prepare(root)
+    case = next(
+        c
+        for c in frozen["cases"]
+        if c["product"] == product
+        and c["condition"] == "cold"
+        and (c["negative"] == "revoked" if negative else c["group"] == "normal")
+    )
+    output = root / "native"
+    output.mkdir()
+    row = await native.run_case(case, output, frozen)
+    assert row["qualified"] and row["cleanup"] and row["model_calls"] == 0, row
+    assert all(o["capture"] == "accepted" for o in row["observations"])
+
+
 async def test_calibration_controller_recovers_first_sql_list_get(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot

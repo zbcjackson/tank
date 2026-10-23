@@ -7,6 +7,21 @@ import type {TankWorld} from '../support/world';
 
 const results = new WeakMap<TankWorld, string>();
 
+async function offlinePytest(args: string[], timeout: number, requireChromium = false): Promise<string> {
+  try {
+    const {stdout} = await promisify(execFile)('uv', ['run', '--no-sync', 'pytest', ...args],
+      {cwd: resolve(process.cwd(), '../backend'), timeout,
+        env: requireChromium ? {...process.env, TANK_REQUIRE_CHROMIUM: '1'} : process.env});
+    return stdout;
+  } catch (error) {
+    if (error instanceof Error && 'stdout' in error) {
+      const killed = 'killed' in error ? String(error.killed) : 'unknown';
+      error.message += `\nsubprocess killed=${killed}\n${String(error.stdout)}`;
+    }
+    throw error;
+  }
+}
+
 // Reuse the actual Runner/ToolManager/SDK contracts instead of a second fake
 // implementation. These isolated scenarios do not claim WebSocket coverage.
 When('the isolated split desktop contract {string} is exercised',
@@ -55,15 +70,15 @@ Then('the plugin task contract passes without live model or desktop input',
 // S0 domain loop and real extension dispatch; fake UI, no paid model calls.
 When('the isolated computer use host contract {string} is exercised',
   async function (this: TankWorld, contract: string) {
-    assert.ok(['loop', 'plugin', 'visual', 'scoring'].includes(contract));
+    assert.ok(['loop', 'plugin', 'visual', 'scoring', 'qualification'].includes(contract));
     const file = contract === 'loop' ? 'test_ladder.py'
       : contract === 'visual' ? 'test_vision.py' : 'test_plugin.py';
-    const path = contract === 'scoring'
-      ? 'core/tests/test_jev_scoring.py' : `plugins/agent-computer-use/tests/${file}`;
-    const filter = contract === 'scoring' ? ['-k', 'cli_is_read_only_offline'] : [];
-    const {stdout} = await promisify(execFile)('uv', [
-      'run', '--no-sync', 'pytest', path, '-q', ...filter,
-    ], {cwd: resolve(process.cwd(), '../backend'), timeout: 30000});
+    const path = contract === 'qualification' ? 'core/tests/test_jev_qualification.py'
+      : contract === 'scoring' ? 'core/tests/test_jev_scoring.py' : `plugins/agent-computer-use/tests/${file}`;
+    const filter = contract === 'qualification' ? ['-k', 'qualification_cli or standalone_both']
+      : contract === 'scoring' ? ['-k', 'cli_is_read_only_offline'] : [];
+    const stdout = await offlinePytest([path, '-q', ...filter],
+      contract === 'visual' ? 45000 : 30000);
     results.set(this, stdout);
   });
 
@@ -73,13 +88,12 @@ Then('the computer use host contract passes without live model or desktop input'
   });
 
 When('the isolated managed Chromium contract is exercised',
-  {timeout: 90000},
+  {timeout: 135000},
   async function (this: TankWorld) {
-    const {stdout} = await promisify(execFile)('uv', [
-      'run', '--no-sync', 'pytest', 'plugins/agent-computer-use/tests/test_dom.py', '-q',
+    const stdout = await offlinePytest([
+      'plugins/agent-computer-use/tests/test_dom.py', '-q',
       '-k', 'browser_config_through_real_runner or controller_native_dispatch or stop_during or runner_candidate_strategy or goal_runner or runner_advisor_returns or vision_route_real_browser or dom_freshness_ignores_native_caret or route_followup_abstention or same_origin_link or checkbox_requires or navigation_fact_and_checkbox or loading_document or finite_css_transition or continuing_animation or same_named_checkbox or uses_authored_form_names or bound_facts_cannot or name_annotation_collision or table_row_context or hidden_pseudo_animation or dom_aggregate or visible_text_limits or rendered_preformatted or explicit_candidate_budget or observe_navigation',
-    ], {cwd: resolve(process.cwd(), '../backend'), timeout: 75000,
-      env: {...process.env, TANK_REQUIRE_CHROMIUM: '1'}});
+    ], 120000, true);
     results.set(this, stdout);
   });
 

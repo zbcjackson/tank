@@ -309,14 +309,38 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
         def on_event(self, kind, metadata):
             row['events'].append({'kind': kind, **metadata})
     class GuardedExecutor:
+        def witness(self, phase: str, binding: Binding, action: Action, **details) -> None:
+            with (path / 'dispatch-witness.jsonl').open('a') as journal:
+                journal.write(json.dumps({'phase': phase, 'binding': asdict(binding),
+                    'action': asdict(action), **details}) + '\n')
+
         async def is_current(self, binding: Binding, action: Action, context: SubAgentContext) -> bool:
             assert channel is not None
-            return await channel.is_current(binding, action, context)
+            current = await channel.is_current(binding, action, context)
+            self.witness('current', binding, action, current=current)
+            return current
 
         async def dispatch(self, binding: Binding, action: Action, context: SubAgentContext) -> DispatchReceipt:
-            assert channel is not None and before_dispatch is not None
-            await before_dispatch(row, channel, action, context)
-            return await channel.dispatch(binding, action, context)
+            assert channel is not None
+            try:
+                if before_dispatch is not None:
+                    await before_dispatch(row, channel, action, context)
+                context.check('desktop')
+            except (Exception, asyncio.CancelledError) as error:
+                self.witness('blocked', binding, action, native_called=False,
+                             authorization_active=context.authorization.active,
+                             error_type=type(error).__name__)
+                raise
+            self.witness('authorized', binding, action,
+                         authorization_active=context.authorization.active)
+            try:
+                receipt = await channel.dispatch(binding, action, context)
+            except (Exception, asyncio.CancelledError) as error:
+                self.witness('error', binding, action, native_called=True,
+                             error_type=type(error).__name__)
+                raise
+            self.witness('returned', binding, action, native_called=True, status=receipt.status)
+            return receipt
     class Capture:
         async def request(self, call_id, request):
             item = {'call_id': call_id, 'request': request.parameters, 'images': []}
@@ -389,7 +413,7 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
         config = BrowserConfig(scope=case['goal']['scope'], url=f'http://127.0.0.1:{port}' + case['start_path'])
         channel = ProductChannel(config) if adapter is None else adapter.channel(config, database, row)
         selector = base.VisionBaseline(channel) if arm == 'v' else VisualSelector(channel)
-        executor = channel if before_dispatch is None else GuardedExecutor()
+        executor = GuardedExecutor()
         host = ComputerUseController(channel, executor, selector=selector, max_candidates=max_candidates)
         ctx = SubAgentContext(SubAgentAuthorization(frozenset({'desktop', 'network'})), SubAgentBudget(),
             asyncio.Event(), deadline=started + 120, max_actions=6, max_observations=24,
@@ -402,6 +426,7 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
         row['status'] = 'finished'
         if channel.page is not None:
             row['final_url'] = channel.page.url
+            (path / 'final.html').write_text(await channel.page.content(), encoding='utf-8')
             if case.get('workflow'):
                 row['list_readback'] = await channel.page.evaluate(_LIST_READ)
             if adapter is not None:
@@ -457,6 +482,20 @@ async def run_task(case: dict, arm: str, output: Path, *, app_python: Path,
         row['usage'] = ctx.budget.snapshot() if ctx is not None else {}
         if 'result' in row:
             row['result']['cleanup'] = 'confirmed' if row['cleanup_confirmed'] else 'unknown'
+        (path / 'events.json').write_text(json.dumps(row['events']) + '\n')
+        (path / 'cleanup-proof.json').write_text(json.dumps({
+            'process_pid': process.pid if process is not None else None,
+            'process_returncode': process.returncode if process is not None else None,
+            'channel_closed': channel.closed if channel is not None else False,
+            'browser_closed': bool(channel is not None and
+                                   (channel.browser is None or not channel.browser.is_connected())),
+            'audit_failed': ctx.runtime.audit_failed if ctx is not None else True,
+            'cleanup_errors': errors,
+            'files': {name: hashlib.sha256((path / name).read_bytes()).hexdigest()
+                      if (path / name).is_file() else None for name in (
+                          'before.db', 'after.db', 'audit.jsonl', 'dispatch-witness.jsonl',
+                          'events.json', 'final.html', 'http.jsonl', 'calls.jsonl')},
+            'elapsed_ms': (time.monotonic() - started) * 1000}) + '\n')
         row['elapsed_ms'] = (time.monotonic() - started) * 1000
         execution_completed = bool(row['status'] == 'finished' and row['cleanup_confirmed'] and row['app_unchanged']
             and row['elapsed_ms'] <= 120000 and row.get('result', {}).get('status') == 'completed')

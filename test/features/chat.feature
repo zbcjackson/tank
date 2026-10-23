@@ -63,6 +63,7 @@ Feature: Chat mode
       | plugin   |
       | visual   |
       | scoring  |
+      | qualification |
 
   @managed-chromium
   Scenario: Managed Chromium preserves configuration, stop, fallback, Advisor, same-task resume and goal-driven actions
