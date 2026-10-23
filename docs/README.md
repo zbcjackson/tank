@@ -51,7 +51,8 @@
 | [plans/done/jev-benchmark-scoring.md](plans/done/jev-benchmark-scoring.md) | 计划 | 已完成 | 离线配对簇评分及版本校验修复；36定向/6573后端、E2E22/87及第2轮修复自检通过 |
 | [plans/done/jev-supplemental-calibration-registration.md](plans/done/jev-supplemental-calibration-registration.md) | 计划 | 已完成 | 760正例/152负例预注册及新库，第1轮独立审查无遗留；执行资格由主计划接续 |
 | [plans/done/jev-supplemental-calibration-qualification.md](plans/done/jev-supplemental-calibration-qualification.md) | 计划 | 已完成 | R1/R2修复及两轮审查结案；原生96/模拟192、后端6622/E2E23通过，旧故障移交条件backlog |
-| [plans/active/jev-supplemental-calibration-live.md](plans/active/jev-supplemental-calibration-live.md) | 计划 | 进行中 | 按已审阅6830e2d7执行3648槽真实校准；固定record-only预算/数据范围，硬停止保留全部分母 |
+| [plans/active/jev-supplemental-calibration-live.md](plans/active/jev-supplemental-calibration-live.md) | 计划 | 停批、待归档 | 真实6/3648因unknown_usage停止；6清理，完整审计拒绝，保留未知与全部未运行分母 |
+| [research/jev-supplemental-calibration-live.md](research/jev-supplemental-calibration-live.md) | 调研 | 停批、比较未完成 | 14 SDK调用/13已知共156643 tokens、1视觉未知；4正例完成/1负例通过，余3642未运行 |
 | [plans/done/jev-supplemental-calibration-execution.md](plans/done/jev-supplemental-calibration-execution.md) | 计划 | 已完成 | 3648槽执行入口与record-only冻结；R1/R2修复及当前96/192、九项验证和两轮审查通过 |
 | [research/jev-supplemental-calibration-execution.md](research/jev-supplemental-calibration-execution.md) | 调研 | 准备结案、真实模型未运行 | 当前42源/96原生/192模拟、6671后端/E2E24及两轮审查通过；完整证据归档，历史Save因果条件交接 |
 | [research/jev-supplemental-calibration-qualification.md](research/jev-supplemental-calibration-qualification.md) | 调研 | 资格及审查归档结案 | 新模拟192/672假请求/556图、完整审计通过；五数值门未过，无真实模型测量 |
