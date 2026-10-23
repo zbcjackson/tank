@@ -44,7 +44,8 @@
 | [plans/done/jev-confirmation-preparation.md](plans/done/jev-confirmation-preparation.md) | 计划 | 已完成 | 两轮审查通过；24业务/104图通过，候选资格0/24，正式N与收费未准入 |
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
-| [plans/active/jev-calibration-route-analysis.md](plans/active/jev-calibration-route-analysis.md) | 计划 | 进行中 | 离线拆解已有96项真实任务的路由、SDK与其余耗时，形成准入假设；无新模型调用 |
+| [plans/active/jev-calibration-route-analysis.md](plans/active/jev-calibration-route-analysis.md) | 计划 | 复算完成、待审查 | 已有96项离线路由/开销，336判定/337调用核对；不改运行源码 |
+| [research/jev-calibration-route-analysis.md](research/jev-calibration-route-analysis.md) | 调研 | 待审查归档 | 全局重复候选限制文字准入；linkding编辑/Retry有收益信号，SQLite净差受直接视觉跨度影响 |
 | [research/jev-calibration-route.md](research/jev-calibration-route.md) | 调研 | 校准及两轮审查完成 | 两臂各40/40及8/8；整体JT均时28.074对37.773秒，收益主要来自linkding，正式N待设计 |
 | [plans/done/jev-confirmation-design.md](plans/done/jev-confirmation-design.md) | 计划 | 已完成 | 第1轮审查无可操作问题；10240+2048簇仅条件方案，正式N未准入，后续资格由主计划承接 |
 | [plans/done/jev-confirmation-qualification.md](plans/done/jev-confirmation-qualification.md) | 计划 | 已完成 | 第1轮审查结案；原生96通过、模拟第2项失败/190未运行，观察一致性修复交回主计划 |
