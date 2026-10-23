@@ -1396,3 +1396,74 @@ CLI output. Its CLI subprocess denies socket connections and model imports. The
 existing `chat.feature` `scoring` example runs that subprocess contract through
 Cucumber. Existing calibration and fake receipts are only replayed offline;
 these checks do not add live model-performance evidence.
+
+## Supplemental V/JT execution qualification
+
+`benchmarks/computer_use/jev_qualification.py` validates the reviewed registration
+archive and creates a full 3648-slot calibration candidate plus its fixed
+96-goal/192-slot qualification prefix. The prefix preserves registered slot order.
+Both freezes bind product manifests, SDK versions, execution parameters, current
+sources and saved source bytes. Runtime amendments link to the original registration;
+the original bank and archives are unchanged. There is no live-model CLI command.
+
+Run from `backend/`, using the qualified original sqlite-web and linkding paths
+recorded in the registration. Every output directory must be new:
+
+```bash
+uv run --no-sync python -m benchmarks.computer_use.jev_qualification prepare --root /absolute/new-run
+# Use the qualification sha256 printed by prepare for all following commands.
+uv run --no-sync python -m benchmarks.computer_use.jev_qualification native \
+  --root /absolute/new-run --approved-sha QUALIFICATION_SHA
+uv run --no-sync python -m benchmarks.computer_use.jev_qualification fake \
+  --root /absolute/new-run --approved-sha QUALIFICATION_SHA
+uv run --no-sync python -m benchmarks.computer_use.jev_qualification audit \
+  --root /absolute/new-run --approved-sha QUALIFICATION_SHA \
+  --verification /absolute/verification.json
+```
+
+`native` scripts the actual products, captures candidates and 1280×720 PNGs, and
+does not configure model clients. `fake` runs the real Controller and both official
+SDKs with explicit fake HTTP and an external Python socket deny guard. It uses
+literal fake credentials. A separate subprocess test forbids DNS and checks both
+SDKs without pytest transport fixtures. This qualifies wiring, not model quality.
+
+Before admitting the next trial, the driver independently audits physical
+before/after SQLite business tables and schema, raw final HTML, HTTP paths and
+fault/retry order, execution journals, guarded dispatch, bound SDK PNGs and cleanup.
+Known goal failures continue; critical events, unknown effects/usage, remaining
+reservations, drift, missing evidence or unconfirmed cleanup stop the batch. All
+planned rows remain, including unrun rows; a started batch cannot resume.
+
+The v2 execution amendment also reconciles each explicit row budget and raw
+completion event with the ledger's trial/call IDs and the fake transport's goal,
+provider, PNGs, canonical request SHA and raw usage before another slot starts.
+Missing usage fields and boolean counts remain unresolved; zero-call rows require
+explicit integer-zero receipts. Full audit production repeats this reconciliation.
+Native qualification preserves cancellation received during shielded cleanup:
+resources close, the cancelled receipt is saved, and cancellation is re-raised
+without starting the next goal. The fixed 96-goal denominator remains intact.
+Business acceptance preserves the registered field values, schema and single
+correct POST. It does not prove that SQL touched only the title column: writing
+an unchanged id/notes value remains indistinguishable in `_writes`. Strong column
+scope belongs to the separately frozen checkbox diagnostic, not this registration.
+
+`audit` writes `fake/audit.json` only when raw evidence, batch closure and a
+verification receipt bind the current freeze and result. The receipt contains
+`source_sha256` equal to the freeze and `checks` keyed by `backend_pytest`,
+`backend_ruff`, `pyright`, `web_lint`, `web_tsc_b`, `cli_ruff`, `dev_logs`, `e2e`,
+and `docs`. Each has an integer `exit_code`, a `log` path relative to the receipt,
+and that log's byte `sha256`. Missing evidence remains unresolved. Feed the
+qualification freeze, `fake/result.json`, and `fake/audit.json` to the existing
+offline scorer. Fake evidence retains `formal_N: null` and
+`model_execution_eligible: false` regardless of numerical gates.
+
+`core/tests/test_jev_qualification.py` covers bank/freeze integrity, ordered
+denominators, interruption and hard stops, complete sidecar proof and standalone
+SDK/CLI isolation. `test_dom.py` covers actual product evidence, independent audit
+and scripted zero-model cases. Existing `chat.feature` includes the offline
+`qualification` SDK/CLI contract.
+
+Run browser-heavy verification and qualification batches sequentially on one host.
+The E2E visual suite and managed Chromium subprocess have 45/120 second test
+watchdogs (the managed Cucumber step allows 135 seconds); failures retain pytest
+output. These watchdogs do not change the experiment's 120-second task limit.
