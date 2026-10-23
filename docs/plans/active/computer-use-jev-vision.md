@@ -639,10 +639,10 @@ record-only，unpriced不等于免费。新增入口为第42源；必要验证�
 
 同日用户授权[真实校准执行](jev-supplemental-calibration-live.md)，按完整摘要
 `6830e2d759bb9ee9db83b03d75f0afabb4886be0298e6994f13e802f95c2d494`
-运行3648槽真实校准，再独立审计及评分，保留已知失败和全部计划分母；新的精确摘要
-授权仍是启动条件。接收方固定TypeSafe Jev1.14文字/结构与OpenRouter Gemini3.8 Flash
-合成1280×720 PNG，不含Jev图片/Box。本片没有运行真实模型；模拟五个数值门未过
-不作为采用判断，正式N须经真实校准后冻结。
+启动计划3648槽的单次真实校准，再独立审计及评分，保留已知失败和全部计划分母；
+新的精确摘要授权仍是启动条件。接收方固定TypeSafe Jev1.14文字/结构与OpenRouter
+Gemini3.8 Flash合成1280×720 PNG，不含Jev图片/Box。执行准备片未运行真实模型；
+模拟五个数值门未过不作为采用判断，正式N须经真实校准后冻结。
 
 本轮[真实校准记录](../../research/jev-supplemental-calibration-live.md)：用户具体许可后已运行，
 第6槽视觉调用无完成捕获/用量未知即停批。四正例完成、一负例通过，另一个负例未完成；
