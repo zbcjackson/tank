@@ -70,12 +70,14 @@ Then('the plugin task contract passes without live model or desktop input',
 // S0 domain loop and real extension dispatch; fake UI, no paid model calls.
 When('the isolated computer use host contract {string} is exercised',
   async function (this: TankWorld, contract: string) {
-    assert.ok(['loop', 'plugin', 'visual', 'scoring', 'qualification'].includes(contract));
+    assert.ok(['loop', 'plugin', 'visual', 'scoring', 'qualification', 'execution'].includes(contract));
     const file = contract === 'loop' ? 'test_ladder.py'
       : contract === 'visual' ? 'test_vision.py' : 'test_plugin.py';
-    const path = contract === 'qualification' ? 'core/tests/test_jev_qualification.py'
+    const path = contract === 'execution' ? 'core/tests/test_jev_execution.py'
+      : contract === 'qualification' ? 'core/tests/test_jev_qualification.py'
       : contract === 'scoring' ? 'core/tests/test_jev_scoring.py' : `plugins/agent-computer-use/tests/${file}`;
-    const filter = contract === 'qualification' ? ['-k', 'qualification_cli or standalone_both']
+    const filter = contract === 'execution' ? ['-k', 'execution_cli']
+      : contract === 'qualification' ? ['-k', 'qualification_cli or standalone_both']
       : contract === 'scoring' ? ['-k', 'cli_is_read_only_offline'] : [];
     const stdout = await offlinePytest([path, '-q', ...filter],
       contract === 'visual' ? 45000 : 30000);
