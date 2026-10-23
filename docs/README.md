@@ -51,7 +51,8 @@
 | [plans/done/jev-benchmark-scoring.md](plans/done/jev-benchmark-scoring.md) | 计划 | 已完成 | 离线配对簇评分及版本校验修复；36定向/6573后端、E2E22/87及第2轮修复自检通过 |
 | [plans/done/jev-supplemental-calibration-registration.md](plans/done/jev-supplemental-calibration-registration.md) | 计划 | 已完成 | 760正例/152负例预注册及新库，第1轮独立审查无遗留；执行资格由主计划接续 |
 | [plans/done/jev-supplemental-calibration-qualification.md](plans/done/jev-supplemental-calibration-qualification.md) | 计划 | 已完成 | R1/R2修复及两轮审查结案；原生96/模拟192、后端6622/E2E23通过，旧故障移交条件backlog |
-| [plans/active/jev-supplemental-calibration-execution.md](plans/active/jev-supplemental-calibration-execution.md) | 计划 | 进行中 | 完整3648槽执行入口、准入和record-only预算冻结；本片仅假HTTP，不启动真实模型 |
+| [plans/done/jev-supplemental-calibration-execution.md](plans/done/jev-supplemental-calibration-execution.md) | 计划 | 已完成 | 3648槽执行入口与record-only冻结；R1/R2修复及当前96/192、九项验证和两轮审查通过 |
+| [research/jev-supplemental-calibration-execution.md](research/jev-supplemental-calibration-execution.md) | 调研 | 准备结案、真实模型未运行 | 当前42源/96原生/192模拟、6671后端/E2E24及两轮审查通过；完整证据归档，历史Save因果条件交接 |
 | [research/jev-supplemental-calibration-qualification.md](research/jev-supplemental-calibration-qualification.md) | 调研 | 资格及审查归档结案 | 新模拟192/672假请求/556图、完整审计通过；五数值门未过，无真实模型测量 |
 | [research/jev-supplemental-calibration-registration.md](research/jev-supplemental-calibration-registration.md) | 调研 | 预注册及独立审查结案 | 912新seed/1824目标/3648计划槽，条件理论上界0.4842%；模型测量尚未开始 |
 | [research/jev-benchmark-scoring.md](research/jev-benchmark-scoring.md) | 调研 | 评分及审查修复结案 | 真实96/fake192只读复算一致；完整逐行审计缺失仍报unknown，正式N未准入 |

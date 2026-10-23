@@ -1467,3 +1467,81 @@ Run browser-heavy verification and qualification batches sequentially on one hos
 The E2E visual suite and managed Chromium subprocess have 45/120 second test
 watchdogs (the managed Cucumber step allows 135 seconds); failures retain pytest
 output. These watchdogs do not change the experiment's 120-second task limit.
+
+## Supplemental calibration execution admission
+
+`benchmarks/computer_use/jev_execution.py` adds the full registered 3648-slot
+entry point. Its current-host amendment records changes to the DOM channel and
+qualification module; the other 39 prior host sources, products, SDKs and limits
+must remain byte-identical. The driver is the 42nd runtime source. The immutable
+prior review is provenance only: current qualification requires fresh 96-goal
+native evidence plus this driver's fixed 192-slot fake-HTTP batch. Old native or
+fake success cannot qualify the changed host or loop.
+
+Observation now waits boundedly for DOMContentLoaded, document-root `aria-busy`
+clearance and the same conservative finite-animation settlement used by capture.
+The readiness wait is capped at 500 ms, including the unchanged 250 ms animation
+policy, remains cancellable and checks a consistent DOM read before freezing.
+Timeout or continuing motion yields no usable observation. Exact revision, image,
+reference, dispatch and business acceptance checks remain active. Deterministic
+Chromium tests cover delayed same-origin CSS/body replacement, finite teardown,
+timeouts and task stops. Motion tests additionally resume animations after a valid
+snapshot to retain independent coverage of the original capture refusal.
+
+From `backend/`, prepare a new absolute directory, then use the two different
+digests printed by preparation:
+
+```bash
+uv run --no-sync python -m benchmarks.computer_use.jev_execution prepare --root /absolute/new-study
+uv run --no-sync python -m benchmarks.computer_use.jev_qualification native \
+  --root /absolute/new-study/qualified-input --approved-sha CURRENT_HOST_SHA
+uv run --no-sync python -m benchmarks.computer_use.jev_execution fake \
+  --root /absolute/new-study --approved-sha QUALIFICATION_SHA
+uv run --no-sync python -m benchmarks.computer_use.jev_execution audit --fake \
+  --root /absolute/new-study --approved-sha QUALIFICATION_SHA --verification /absolute/checks.json
+uv run --no-sync python -m benchmarks.computer_use.jev_execution check \
+  --root /absolute/new-study --approved-sha EXECUTION_SHA --verification /absolute/checks.json
+```
+
+Preparation also prints `current_host_sha256`, used for the native command.
+Both fake startup and admission independently re-read all 96 current native
+receipts, original DB/HTML/HTTP/PNG/events and cleanup proofs. Missing/old-host,
+misordered, malformed or failed evidence is rejected, without falling back to the
+old archive. Audit and preview expose `current_host_sha256`,
+`native_result_sha256` and `native_raw_proof_sha256` to bind the current raw proof.
+Success claims must be strict booleans, including inactive false claims.
+
+The verification receipt requires integer `schema_version: 1`, the freeze's exact
+42-entry `source_sha256`, and the same nine byte-bound successful checks described
+above. Check logs must be closed before hashing. `check` re-reads all raw evidence
+and the saved typed audit, verifies every qualified goal, and prints a data/budget
+preview. Preparation, fake mode, audit and check do not read model credentials.
+
+Only after review and new authorization of the exact full execution digest:
+
+```bash
+caffeinate -is uv run --no-sync python -m benchmarks.computer_use.jev_execution run \
+  --root /absolute/new-study --approved-sha EXECUTION_SHA --verification /absolute/checks.json
+```
+
+`run` checks admission before reading credentials, and the batch API rechecks
+before dispatch. It reads `TYPESAFE_API_KEY` and `OPENROUTER_API_KEY` using the
+existing environment/.env convention. There are no subset, reorder or resume
+options. Known goal failures remain in the data; unknown effects/usage, critical
+events, reservations, drift, runtime/evidence failures or unconfirmed cleanup stop
+the next slot. Cancellation preserves partial receipts and all unrun rows.
+
+The registered record-only policy has no fixed batch request/token/currency cap.
+Currency remains unpriced, not free; unknown usage and pending reservations still
+stop admission. The 120-second task deadline and 6/24/64 action/observation/candidate
+limits and zero SDK retries remain unchanged. Provider cache state is uncontrolled.
+The temporary AC-only `caffeinate -is` wrapper prevents observed maintenance sleep
+for the owned run and releases its assertions on exit; it changes no global setting.
+
+Live usage reconciliation reads sealed request/completion SDK captures, task events
+and ledger IDs/totals. It does not certify physical HTTP send counts. Fake mode
+additionally checks actual fake-transport payload/usage and denies external Python
+DNS/socket attempts. Final independent audit uses `audit` without `--fake` for live
+data and writes `live/audit.json`; the existing scorer accepts its `calibration`
+evidence kind. Statistical gates and formal N are unchanged. See
+[the execution preparation plan](../docs/plans/done/jev-supplemental-calibration-execution.md).
