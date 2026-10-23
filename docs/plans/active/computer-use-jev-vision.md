@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-23：已授权真实校准在第6槽因unknown_usage停批；6/6清理、3642未运行、完整audit未通过，不能作模型比较。下一步离线补足SDK失败诊断证据，不重放本次请求；正式N未冻结，默认不变。）
+> 状态：进行中（2026-10-23：真实尝试第6槽unknown_usage停批并审查归档；6/6清理、3642未运行，完整校准未完成。下一步离线补SDK失败观测和原始错误传播，不重放本次请求；正式N未冻结，默认不变。）
 
 # Computer Use：Jev结构化/图片能力与视觉兜底
 
@@ -637,7 +637,7 @@ record-only，unpriced不等于免费。新增入口为第42源；必要验证�
 全部失败及冻结。历史Save前dom_state拒绝的确切因果仍未定，已交接
 [条件backlog](../../backlog.md)，不以未重现认定解决。
 
-同日用户授权[真实校准执行](jev-supplemental-calibration-live.md)，按完整摘要
+同日用户授权[真实校准执行](../done/jev-supplemental-calibration-live.md)，按完整摘要
 `6830e2d759bb9ee9db83b03d75f0afabb4886be0298e6994f13e802f95c2d494`
 启动计划3648槽的单次真实校准，再独立审计及评分，保留已知失败和全部计划分母；
 新的精确摘要授权仍是启动条件。接收方固定TypeSafe Jev1.14文字/结构与OpenRouter

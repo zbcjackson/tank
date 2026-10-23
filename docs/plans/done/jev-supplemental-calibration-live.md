@@ -1,11 +1,11 @@
-> 状态：进行中（2026-10-23：真实批次在第6槽因unknown_usage停批，6/6清理、3642未运行；原始物理/已知用量复核通过，但完整audit拒绝，待审查归档。完整3648槽校准未完成，源码未改。）
+> 状态：已完成（2026-10-23：本轮单次真实执行尝试停批结案，6尝试/3642未运行、6清理；unknown用量保留，完整audit拒绝，两轮审查完成。完整3648槽校准未完成，运行源码未改。）
 
 # V/JT补充真实校准
 
 ## 范围与验收
 
-承接[执行准备结案](../done/jev-supplemental-calibration-execution.md)及
-[主计划](computer-use-jev-vision.md)，不修改运行源码、注册目标、顺序、产品、
+承接[执行准备结案](jev-supplemental-calibration-execution.md)及
+[主计划](../active/computer-use-jev-vision.md)，不修改运行源码、注册目标、顺序、产品、
 SDK或统计门。精确执行SHA为
 `6830e2d759bb9ee9db83b03d75f0afabb4886be0298e6994f13e802f95c2d494`；
 资格SHA `1ea452def8851be240155b401055d5bb82f18b81032171adfc202c3e6e87cb81`，
@@ -60,6 +60,19 @@ token/金额无固定上限，unpriced不等于免费；未知用量和未释放
 无未决UI效果。独立raw复核与旧64工件SHA检查通过。完整audit退出2且未出证明，
 不带audit的scorer仅作缺口诊断、全部证据门为false；完整校准与采用判断未完成。
 详见[研究记录](../../research/jev-supplemental-calibration-live.md)。
+
+## 交付与未完成范围
+
+本轮一次执行尝试已闭合并封存；6个物理包、13 known/1 unknown、3642未运行、
+42源/九日志/64旧工件及closed副本字节均复核一致。两轮审查完成，R1文案歧义以
+63ee3159签名修正，第2轮为修复者自检，无新增可操作问题；计划c339cd22及
+结果3073c695亦签名G。完整audit未通过不计成功，scorer仅作缺口诊断。
+[研究与新归档](../../research/jev-supplemental-calibration-live.md)保留全过程。
+
+完整3648槽校准、底层SDK/提供方原因和未知用量仍未解决。未知账单/用量凭关联
+提供方证据对账，已交接[backlog](../../backlog.md)；离线补失败观测/原始错误传播
+由[主计划](../active/computer-use-jev-vision.md)直接承接，不重放本次调用或续跑目录。
+父代理的生命周期/归档文字另作docs-only检查，不改raw、账本或九日志。
 
 ## Tests
 

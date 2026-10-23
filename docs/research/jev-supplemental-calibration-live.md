@@ -1,8 +1,8 @@
-> 日期：2026-10-23；结论状态：open（真实批次在第6槽因unknown_usage停批，已完成清理和部分原始复核；完整3648槽校准未完成，待审查及归档）。
+> 日期：2026-10-23；结论状态：resolved（本轮单次真实尝试停批归档结案；完整3648槽校准未完成，未知用量与底层原因未解，已交接后续。）
 
 # V/JT补充真实校准：首批停批记录
 
-承接[本轮计划](../plans/active/jev-supplemental-calibration-live.md)、
+承接[本轮计划](../plans/done/jev-supplemental-calibration-live.md)、
 [执行准备](jev-supplemental-calibration-execution.md)和
 [主计划](../plans/active/computer-use-jev-vision.md)。本轮确实调用了真实模型，
 执行源码、注册银行、产品、SDK、门槛与顺序保持准备结案版本，不续跑或重放。
@@ -84,4 +84,15 @@ independent_audit/complete_batch/usage_reconciled均false，issues含未知请�
 closed-live原始包、audit拒绝、无audit评分、独立复核及绑定输入。evidence-chain.json
 固定前次准备归档SHA `41aec9afb80b3f60927ff53b7b9e2bb4b2d8d1973bf82972baa26581ffe74622`，
 可在其`review/study-v3`叠加本轮closed-live还原，不改旧64工件。
-待完成独立审查后补新归档与清单。
+两轮review-and-refactor完成：第1轮R1修正文案混淆“准备片/本轮真实调用”和
+“计划/完成槽数”，签名提交63ee3159；第2轮为修复者自行复核，无新增可操作问题。
+计划c339cd22、结果3073c695及修正文案提交均核验G，没有改签名配置或推送。
+docs104、全diff、6物理/13known+1unknown/3642未运行、42源/九日志/64旧工件和
+closed副本与原live全树3505文件/56431132字节均通过核对；这些通过不取代完整audit。
+
+新证据见[归档](artifacts/jev-supplemental-calibration-live-20261023.tar.xz)与
+[逐文件清单](artifacts/jev-supplemental-calibration-live-20261023-manifest.json)。
+包括所有授权/审批记录、原始closed-live、绑定输入、audit拒绝、缺口评分、
+独立复算脚本/失败与通过日志、审查报告和签名证据；前置准备包按evidence-chain还原。
+归档SHA256为`9b9f6d6e5933fb5222d333f9aea9e9a2542a532e006e1517f4ea981b75101a55`，共3610成员、5056616字节，逐成员/硬链接摘要已核验。
+父代理生命周期/指针文字另作docs-only核验，不覆盖raw、未知账本、原评分或九份绑定日志。
