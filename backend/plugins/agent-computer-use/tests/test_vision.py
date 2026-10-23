@@ -1161,8 +1161,9 @@ async def test_repeated_state_visual_recovery_stays_bounded_with_advisor(monkeyp
         await ctx.runtime.aclose()
 
 
-@pytest.mark.parametrize("failure", [None, "visual_required", "repeat", "stale_image", "window", "revoked", "unknown", "unknown_visual", "missing_image", "denied", "invalid", "abstain", "effect_unknown", "bounds"])
-async def test_same_task_jev_image_jev_loop(monkeypatch, shared_world, failure):  # noqa: F811
+@pytest.mark.parametrize("strategy", ["current", "action_admission"])
+@pytest.mark.parametrize("failure", [None, "mixed_unique", "visual_required", "repeat", "stale_image", "window", "revoked", "unknown", "unknown_visual", "missing_image", "denied", "invalid", "abstain", "effect_unknown", "bounds"])
+async def test_same_task_jev_image_jev_loop(monkeypatch, shared_world, failure, strategy):  # noqa: F811
     import json
     import httpx
     from agent_computer_use.channels.native import NativeAXChannel, NativeConfig
@@ -1226,6 +1227,13 @@ async def test_same_task_jev_image_jev_loop(monkeypatch, shared_world, failure):
         shared_world.buttons.append(replace(
             shared_world.button, index=3, frame=(60, 10, 20, 20),
             element=AXElementRef(object(), False, 80)))
+    elif failure == "mixed_unique":
+        from dataclasses import replace
+        from tank_backend.tools.computer_ax import AXElementRef
+        shared_world.buttons.extend(replace(
+            shared_world.button, index=i, title="Navigate", identifier=f"nav{i}",
+            frame=(40 + (i - 3) * 20, 40, 15, 15),
+            element=AXElementRef(object(), False, 80)) for i in (3, 4))
     elif failure == "repeat":
         press = shared_world.press
         cycled = False
@@ -1255,14 +1263,16 @@ async def test_same_task_jev_image_jev_loop(monkeypatch, shared_world, failure):
             return replace(captured, bounds=tuple((ref, (90, 10, 20, 20))
                                                   for ref, _ in captured.bounds))
         monkeypatch.setattr(channel, "capture", outside)
-    controller = ComputerUseController(channel, channel, selector=VisualSelector(channel),
+    from benchmarks.computer_use.jev_action_admission import ActionAdmissionSelector
+    selector_type = ActionAdmissionSelector if strategy == "action_admission" else VisualSelector
+    controller = ComputerUseController(channel, channel, selector=selector_type(channel),
                                        completion_keys=channel.completion_keys)
     task = goal().model_dump(mode="json")
     task["completion"][0]["value"] = "2" if failure == "repeat" else "3"
     deadline, budget, runtime = ctx.deadline, ctx.budget, ctx.runtime
     try:
         result = await controller.run(SubAgentRequest("Increment three times", "", "task", task), ctx)
-        if failure not in {None, "visual_required", "repeat"}:
+        if failure not in {None, "mixed_unique", "visual_required", "repeat"}:
             reasons = {"stale_image": "stale_reference", "window": "stale_reference",
                        "revoked": "error", "unknown": "invalid_decision", "unknown_visual": "unknown_usage",
                        "missing_image": "invalid_visual_frame", "denied": "model_data_denied",
@@ -1282,6 +1292,12 @@ async def test_same_task_jev_image_jev_loop(monkeypatch, shared_world, failure):
                 assert "messages" in requests[-1]
             return
         assert result.status == "completed", result
+        if failure == "mixed_unique":
+            kinds = ["jev" if "questions" in p else "visual" for p in requests]
+            assert kinds == (["jev", "jev", "visual", "jev"]
+                             if strategy == "action_admission" else ["visual"] * 3)
+            assert len(shared_world.sent) == 3 and ctx.runtime is runtime and ctx.budget is budget
+            return
         if failure in {"visual_required", "repeat"}:
             assert any("messages" in p for p in requests)
             if failure == "visual_required":
@@ -1754,3 +1770,193 @@ async def test_box_crop_runs_two_real_sdks_with_complete_denominators(monkeypatc
         assert sum(r['status'] == 'invalid' for r in report['rows']) == int(fault == 'invalid_ui')
         assert report['spend']['batch']['known_tokens'] == 840
         assert all(r['cleanup_confirmed'] for r in report['rows'])
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+async def test_action_admission_keeps_duplicate_navigation_and_accepts_unique_save(monkeypatch, reverse):
+    import json
+    from dataclasses import replace
+
+    import httpx
+    from agent_computer_use.action_builder import ActionBuilder
+    from agent_computer_use.contracts import Element
+    from benchmarks.computer_use.jev_action_admission import ActionAdmissionSelector
+    from .test_jev import reply, selection, setup
+
+    async def respond(request):
+        criteria = json.loads(request.content)["questions"]["next_action"]["criteria"]
+        choice = next(key for key, value in criteria.items()
+                      if isinstance(value, dict) and value["label"] == "保存")
+        return httpx.Response(200, json=reply(request, choice))
+
+    class Source:
+        async def capture(self, snapshot, context):
+            raise AssertionError("unique text choice must not capture an image")
+
+    goal, snapshot, _ = selection()
+    navigation = Element("nav1", "link", "work_items", ("click",), click_observable=True)
+    snapshot = replace(snapshot, elements=(*snapshot.elements, navigation,
+                                         replace(navigation, ref="nav2")))
+    if reverse:
+        snapshot = replace(snapshot, elements=snapshot.elements[::-1])
+    actions = ActionBuilder(visual=True).build("goal", 1, goal, snapshot)
+    assert actions.reason == "visual_required"
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    try:
+        decision = await ActionAdmissionSelector(Source()).choose(goal, snapshot, actions, ctx)
+        assert decision.binding == actions.binding
+        assert decision.candidate_id == next(a.id for a in actions.actions if a.target_ref == "save")
+        assert len(sent) == 1
+        payload = json.loads(sent[0].content)
+        assert len(payload["state"]["snapshot"]["elements"]) == 4
+        assert set(payload["questions"]["next_action"]["criteria"]) == {
+            "c1", "c2", "c3", "c4", "none", "ambiguous", "need_more_context", "escalate"}
+        assert payload["state"]["binding"]["candidate_set_id"] == actions.binding.candidate_set_id
+        assert actions.reason == "visual_required" and len(actions.actions) == 4
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("choice,labels", [
+    ("c3", ("work_items", "work_items")),
+    ("c4", ("work_items", "work_items")),
+    ("checkbox", ("Flag", "Flag")),
+    ("direct", ("work_items", "work_items")),
+    ("direct", ("", "link")),
+    ("c3", ("", "different")),
+    ("c3", ("link", "different")),
+    *[(control, ("work_items", "work_items"))
+      for control in ("none", "ambiguous", "need_more_context", "escalate")],
+])
+async def test_action_admission_selected_duplicate_uses_visual_with_full_candidates(
+    monkeypatch, choice, labels,
+):
+    import json
+    from dataclasses import replace
+
+    import httpx
+    from agent_computer_use.action_builder import ActionBuilder
+    from agent_computer_use.contracts import Element, Fact
+    from agent_computer_use.visual_selector import VisualFrame
+    from benchmarks.computer_use.jev_action_admission import ActionAdmissionSelector
+    from tank_backend.llm.model_data import ModelDataScope
+    from tank_backend.llm.profile import LLMProfile
+    from .test_jev import reply, selection, setup
+
+    async def respond(request):
+        if "questions" in json.loads(request.content):
+            return httpx.Response(200, json=reply(request, "c3" if choice == "checkbox" else choice))
+        return httpx.Response(200, json={
+            "id": "visual", "object": "chat.completion", "created": 1, "model": "vision",
+            "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                "role": "assistant", "content": '{"choice":"c1"}'}}],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10}})
+
+    goal, snapshot, _ = selection()
+    navigation = Element("nav1", "link", labels[0], ("click",), click_observable=True)
+    snapshot = replace(snapshot, elements=(*snapshot.elements, navigation,
+                                         replace(navigation, ref="nav2", label=labels[1])))
+    if choice == "checkbox":
+        snapshot = replace(snapshot, elements=(*snapshot.elements[:2], *(
+            replace(element, role="checkbox", click_effect=(
+                Fact(key=f"dom:checked:{element.ref}", value="true"),))
+            for element in snapshot.elements[2:])))
+    if choice == "direct":
+        snapshot = replace(snapshot, elements=snapshot.elements[2:])
+    actions = ActionBuilder(visual=True).build("goal", 1, goal, snapshot)
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    events = []
+    object.__setattr__(ctx, "observer", SimpleNamespace(
+        on_event=lambda kind, data: events.append({"kind": kind, **data})))
+    object.__setattr__(ctx, "model_data_scope", ModelDataScope(frozenset({"text", "image"})))
+    ctx.runtime.configure_visual_model("task", LLMProfile(
+        "visual", "key", "vision", "https://offline.invalid/v1", max_tokens=128))
+
+    class Source:
+        async def capture(self, snapshot, context):
+            buf = io.BytesIO()
+            Image.new("RGB", (100, 80), "white").save(buf, "PNG")
+            frame, png = Observation.capture(buf.getvalue(), session_id=context.runtime.task_id,
+                                             display_id=1)
+            return VisualFrame(snapshot.observation_id, frame, png, tuple(
+                (element.ref, (5.0 + i * 20, 10.0, 10.0, 10.0))
+                for i, element in enumerate(snapshot.elements)))
+
+    selector = ActionAdmissionSelector(Source())
+    selector.register(ctx)
+    try:
+        decision = await selector.choose(goal, snapshot, actions, ctx)
+        if choice == "direct":
+            assert len(sent) == 1 and ctx.budget.total_tokens == 10
+            assert "messages" in json.loads(sent[0].content)
+            assert decision.candidate_id == actions.actions[0].id
+            return
+        assert len(sent) == 2, "ambiguous text proposal must not be accepted or retried"
+        assert decision.binding == actions.binding
+        assert decision.candidate_id == actions.actions[0].id
+        packets = [json.loads(request.content) for request in sent]
+        text = packets[0]
+        visual = json.loads(packets[1]["messages"][1]["content"][0]["text"])
+        assert text["state"] == visual["state"]
+        assert text["questions"] == visual["questions"]
+        assert set(visual["image_candidates"]) == {"c1", "c2", "c3", "c4"}
+        assert ctx.budget.total_tokens == 22
+        assert [e["purpose"] for e in events
+                if e["kind"] == "model_call" and e["phase"] == "started"] == [
+                    "computer_use.jev", "computer_use.visual"]
+        admission = next(e for e in events if e["kind"] == "computer_use_action_admission")
+        assert admission["accepted"] is False
+        assert admission["next_route"] == "visual_fallback"
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("failure", [
+    "not_ready", "incomplete", "truncated", "generation", "scope", "missing_details",
+    "duplicate_detail_id", "foreign_detail_id", "missing_user_value", "revoked",
+])
+async def test_action_admission_preserves_pre_call_hard_gates(monkeypatch, failure):
+    from dataclasses import replace
+
+    from agent_computer_use.contracts import GoalInput
+    from benchmarks.computer_use.jev_action_admission import ActionAdmissionSelector
+    from tank_backend.agents.subagent import SubAgentStopped
+    from .test_jev import selection, setup
+
+    async def respond(request):
+        raise AssertionError("hard gate must stop before either model")
+
+    class Source:
+        async def capture(self, snapshot, context):
+            raise AssertionError("hard gate must stop before capture")
+
+    goal, snapshot, actions = selection()
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    if failure == "not_ready":
+        snapshot = replace(snapshot, ready=False)
+    elif failure == "incomplete":
+        snapshot = replace(snapshot, complete=False)
+    elif failure == "truncated":
+        actions = replace(actions, truncated=True)
+    elif failure == "generation":
+        snapshot = replace(snapshot, generation=snapshot.generation + 1)
+    elif failure == "scope":
+        snapshot = replace(snapshot, scope="other")
+    elif failure == "missing_details":
+        actions = replace(actions, details=actions.details[:-1])
+    elif failure == "duplicate_detail_id":
+        actions = replace(actions, details=(actions.details[0], actions.details[0]))
+    elif failure == "foreign_detail_id":
+        actions = replace(actions, details=(actions.details[0],
+                          replace(actions.details[1], action_id="foreign")))
+    elif failure == "missing_user_value":
+        goal = goal.model_copy(update={"inputs": (
+            GoalInput(key="title", purpose="User title", value=None, source="user"),)})
+    else:
+        ctx.authorization.revoke()
+    try:
+        with pytest.raises(SubAgentStopped):
+            await ActionAdmissionSelector(Source()).choose(goal, snapshot, actions, ctx)
+        assert not sent
+    finally:
+        await ctx.runtime.aclose()
