@@ -290,6 +290,13 @@ admission uses the existing visual path. See the [plugin configuration example](
 for controlled development setup. It adds no benchmark database facts, changes no
 default and establishes no new real-model quality claim.
 
+For explicit browser business readback, `browser.readback_tables: true` enables
+bounded, page-URL-bound simple-table result facts after a fresh GET. Construct the
+whole expected public table with `dom_table_fact()` as shown in the plugin README.
+It reuses the ordinary completion/submit contract, preserves default behavior and
+does not use database facts. Forms with enabled editable textboxes, ambiguous/hidden/merged data and
+oversized tables supply no result; the fact covers only the declared visible page.
+
 `DecisionModel` can also be used by a core caller without a task context. Its
 `choose(state=..., instructions=..., options=...)` returns `ChoiceResult` including
 choice, confidence, probabilities and optional input/output token counts. A

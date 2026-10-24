@@ -192,6 +192,58 @@ There is still a browser/host race after any check: uncertain effects remain
 unknown and are never replayed. Readback may confirm an effect even if its reply
 was lost. Runtime quotas remain shared across observations and actions.
 
+### Explicit table result readback
+
+Trusted browser configuration can set `readback_tables: true` (default `false`).
+This supplies a `status:DOM table:<JSON columns>` fact for a unique simple HTML
+table on the bound page. Its value includes the actual frame URL, all named header
+columns and every body row, in displayed order. Cell text uses collapsed rendered
+whitespace. Unnamed action/selection columns are excluded. The existing goal,
+submit-effect and completion checks compare the entire declared fact exactly.
+
+```yaml
+browser:
+  scope: development-page
+  url: http://127.0.0.1:8765/work_items/update/WzFd/
+  readback_tables: true
+```
+
+Build a completion condition from the approved public goal and observed public
+values that must remain unchanged, using the same URL as the returned result page:
+
+```python
+from agent_computer_use.channels.dom import dom_table_fact
+
+result = dom_table_fact(
+    "http://127.0.0.1:8765/work_items/content/",
+    ("id", "title", "notes"),
+    (("1", "Miro", "Keep A"), ("2", "Tavi", "Keep B")),
+)
+task_input["completion"] = [result.model_dump()]
+```
+
+The channel reads only the page, with no database or expected-result adapter.
+Before emitting a table fact, it leaves the document and performs a fresh GET of
+the same URL, then repeats the original settled/current DOM observation. This
+avoids `reload()` resubmitting a POST document and discards optimistic display-only
+edits. At most one such GET occurs per observation, within the original deadline;
+all old references are invalidated. A page with an enabled editable textbox in a visible form emits no
+table result and is not refreshed. This mode is for result pages, with transient
+page state replaced by the GET response.
+
+Tables require one header row, unique nonempty column names and no nested tables,
+footers or merged cells. Duplicate visible header signatures withhold their facts,
+including when another matching table has editable data. Hidden, busy, transparent
+or editable data is not used. Limits are 32 named columns, 64 body rows, a 128-character
+fact key and a 4096-character value. Unsupported/oversized tables supply no partial
+fact; incomplete observations cannot complete a task. The namespace is reserved:
+page-authored status text cannot impersonate it, including with the option off.
+
+The fact proves the declared page's returned DOM values. It does not certify
+unshown pages/columns or database durability. Callers must declare every visible
+field/row they intend to protect; URL arrival or an edited textbox alone does not
+replace the result condition. This option changes no selector or model profile.
+
 Ordinary pytest explicitly skips browser tests when the optional dependency or
 Chromium executable is absent. `TANK_REQUIRE_CHROMIUM=1` makes either absence a
 failure; the dedicated manual Backend CI job uses it. The existing chat.feature

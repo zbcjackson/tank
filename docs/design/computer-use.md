@@ -1,8 +1,20 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-10-22（导航后观察先等待文档就绪；四行列表真实校准已完成，独立采用确认待验证，默认不变）。本文汇总自研
+更新：2026-10-24（新增显式DOM表格GET读回，默认关闭；原始DOM真实模型验收尚未完成）。本文汇总自研
 `computer_use` 的现行行为；旧N2及其官方SDK、独立DesktopExecutor已移除。
 历史报告中的 N2 数据仅作为当时的实验记录。
+
+可信browser配置`readback_tables: true`在普通DOM通道提供有界简单表格结果事实。
+`dom_table_fact(url, columns, rows)`生成现有GoalContract的完整期望事实，值绑定
+实际frame URL、唯一表头和全部可见命名列/正文行；submit效果、进展与完成沿原
+等值核验，不读取数据库。条件应来自公开目标及需保护的公开观察值。
+发出事实前先离开文档再GET原URL，重新执行原完整/就绪/一致读，防止POST重放或
+把临时编辑值当保存；每观察最多一次GET，原期限和引用失效规则保持。
+表单存在启用的可编辑文本字段时不刷新/不供事实；重复签名、合并/嵌套、隐藏/忙碌/可编辑或超限数据
+不产生部分结果。上限32命名列、64行、128字符键/4096字符值，单元格压缩显示空白。
+该事实仅证明声明页的DOM结果，不证明隐藏页/列或数据库持久性。默认false，保留
+原始观测及其他选择器；Jev/视觉profile不变。配置/示例见
+[插件说明](../../backend/plugins/agent-computer-use/README.md#explicit-table-result-readback)。
 
 本次后续离线切片将SDK固定为0.7.5，增加显式Jev profile `images: true`准入及
 原任务的图片Choice/Box证据接口。普通文本接口仍拒绝图片。准入/capture包含
