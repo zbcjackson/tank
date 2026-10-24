@@ -81,11 +81,3 @@ live 新实验预算按该计划 §8 逐批授权执行。
 | 子代理链路历史压缩机制 | 长任务 routinely 触顶 token 预算（M6 长历史两轮均 300k 处受控停止，27/17 步远未到步数/时限上限），且需要子代理完成更长流程 | M6 第 4 项发现：ContextManager/Compactor 只存在于主助手语音路径，自研子代理链路（SubAgentDriver → AgentRunner → LLMAgent → chat_stream）无压缩；长历史行为验收（当前图引用/失败恢复）已通过，机制引入未做 | [M6 长历史报告](../backend/benchmarks/computer_use/reports/20260924-m6-longhistory/README.md) |
 
 
-### 动作级实验配置的中性命名拒绝边界
-
-- **触发条件**：准备在动作级实验配置中验证负例泛化、或扩大到真实用户写入前，立项
-  中性命名/误导词存在的目标反例；新计划承接时移除此条。
-- **背景/前置**：24次边界开发实测JA8/8正例、4/4负例通过，但负例标题含Absent/Shared
-  提示词。原始冻结和分数保留，只支持受控开发接线，不构成中性命名拒绝或真实写入安全认证。
-- **来源**：[边界实测研究](research/jev-action-boundary.md)、
-  [主计划](plans/active/computer-use-jev-vision.md)。不自动追加收费批次。
