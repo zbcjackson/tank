@@ -107,6 +107,14 @@ async def site(profile_store: dict[str, str],
             profile_store["name"] = parse_qs(path.query)["name"][0]
             profile_store["saves"] = str(int(profile_store["saves"]) + 1)
             body = json.dumps(profile_store).encode()
+        if path.path == "/table-readback":
+            profile_store["table_reads"] = str(int(profile_store.get("table_reads", "0")) + 1)
+            profile_store["table_methods"] = profile_store.get("table_methods", "") + request.split(b" ", 1)[0].decode() + ","
+            body = ('<!doctype html><table><thead><tr><th>id</th><th>title</th><th>notes</th>'
+                    '</tr></thead><tbody><tr><td>1</td><td>' + profile_store["name"]
+                    + '</td><td>Keep A</td></tr><tr><td>2</td><td>Tavi</td><td>Keep B</td>'
+                    '</tr></tbody></table>').encode()
+            body = profile_store.get("table_html", body.decode()).encode()
         if request.startswith(b"GET /multilayout/"):
             layout_path = request.split(b" ", 2)[1].decode()
             _, _, layout, scenario = layout_path.split("/")
@@ -163,6 +171,162 @@ def context() -> SubAgentContext:
                           SubAgentBudget(), asyncio.Event())
     ctx.runtime.bind("dom-task")
     return ctx
+
+
+async def test_dom_table_readback_emits_complete_page_bound_result_after_get(
+    site, profile_store, chromium_required,
+):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel, dom_table_fact
+
+    ctx = context()
+    url = site + "table-readback"
+    browser = ManagedChromiumChannel(BrowserConfig(
+        scope="managed-page", url=url, readback_tables=True))
+    try:
+        snapshot = await browser.observe("managed-page", ctx)
+        expected = dom_table_fact(url, ("id", "title", "notes"),
+                                  (("1", "Bob", "Keep A"), ("2", "Tavi", "Keep B")))
+        assert snapshot.ready and snapshot.complete
+        assert expected in snapshot.facts
+        assert profile_store["table_reads"] == "2"
+        assert await browser.is_snapshot_current(snapshot, ctx)
+    finally:
+        await browser.aclose()
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("markup", [
+    '<th></th><th>id</th><th>title</th></tr></thead><tbody>'
+    '<tr><td colspan="2">ignored</td><td>1</td><td>Miro</td></tr>',
+    '<th>id<span aria-hidden="true">hidden-key</span></th><th>title</th></tr></thead>'
+    '<tbody><tr><td>1</td><td>Miro</td></tr>',
+])
+async def test_dom_table_readback_rejects_ambiguous_cell_geometry_and_hidden_headers(
+    site, profile_store, chromium_required, markup,
+):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
+
+    profile_store["table_html"] = '<table><thead><tr>' + markup + '</tbody></table>'
+    ctx = context()
+    browser = ManagedChromiumChannel(BrowserConfig(
+        scope="managed-page", url=site + "table-readback", readback_tables=True))
+    try:
+        snapshot = await browser.observe("managed-page", ctx)
+        assert not any(f.key.startswith("status:DOM table:") for f in snapshot.facts)
+    finally:
+        await browser.aclose()
+        await ctx.runtime.aclose()
+
+
+_READBACK_TABLE = ('<table><thead><tr><th>id</th><th>title</th></tr></thead>'
+                   '<tbody><tr><td>1</td><td>Miro</td></tr></tbody></table>')
+
+
+@pytest.mark.parametrize("markup", [
+    _READBACK_TABLE.replace('<th>title</th>', '<th>id</th>'),
+    _READBACK_TABLE + _READBACK_TABLE,
+    _READBACK_TABLE + _READBACK_TABLE.replace('Miro', '<input value="Miro">'),
+    _READBACK_TABLE.replace('<td>Miro</td>', '<td hidden>Miro</td>'),
+    _READBACK_TABLE.replace('<tbody><tr>', '<tbody><tr hidden>'),
+    _READBACK_TABLE.replace('Miro', '<input value="Miro">'),
+    _READBACK_TABLE.replace('<tbody>', '<tbody aria-busy="true">'),
+    _READBACK_TABLE.replace('<table>', '<table style="opacity:0">'),
+    '<table><tr><td>' + _READBACK_TABLE + '</td></tr></table>',
+    _READBACK_TABLE.replace('Miro', 'x' * 4097),
+    _READBACK_TABLE.replace('<tr><td>1</td><td>Miro</td></tr>',
+                            '<tr><td>1</td><td>Miro</td></tr>' * 65),
+])
+async def test_dom_table_readback_withholds_partial_editable_ambiguous_or_oversized_tables(
+    site, profile_store, chromium_required, markup,
+):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
+
+    profile_store["table_html"] = markup
+    ctx = context()
+    browser = ManagedChromiumChannel(BrowserConfig(
+        scope="managed-page", url=site + "table-readback", readback_tables=True))
+    try:
+        snapshot = await browser.observe("managed-page", ctx)
+        assert not any(f.key.startswith("status:DOM table:") for f in snapshot.facts)
+    finally:
+        await browser.aclose()
+        await ctx.runtime.aclose()
+
+
+async def test_dom_table_readback_ignores_unsaved_display_and_never_reposts(
+    site, profile_store, chromium_required,
+):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel, dom_table_fact
+
+    ctx = context()
+    url = site + "table-readback"
+    browser = ManagedChromiumChannel(BrowserConfig(
+        scope="managed-page", url=url, readback_tables=True))
+    try:
+        await browser.observe("managed-page", ctx)
+        assert browser.page is not None
+        await browser.page.locator('tbody tr').first.locator('td').nth(1).evaluate(
+            "node => node.textContent = 'Miro'")
+        snapshot = await browser.observe("managed-page", ctx)
+        assert dom_table_fact(url, ("id", "title", "notes"),
+                              (("1", "Bob", "Keep A"), ("2", "Tavi", "Keep B"))) in snapshot.facts
+        assert not any('Miro' in f.value for f in snapshot.facts)
+        await browser.page.evaluate("""() => {
+            const form = document.createElement('form');
+            form.method = 'post'; form.action = location.href;
+            document.body.append(form); form.submit();
+        }""")
+        await browser.page.wait_for_url(url, wait_until="load")
+        snapshot = await browser.observe("managed-page", ctx)
+        assert snapshot.complete
+        assert profile_store["table_methods"].endswith("POST,GET,")
+        assert profile_store["table_methods"].count("POST,") == 1
+    finally:
+        await browser.aclose()
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+async def test_dom_table_readback_reserves_namespace_and_preserves_default(
+    site, profile_store, chromium_required, enabled,
+):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel, dom_table_fact
+
+    url = site + "table-readback"
+    expected = dom_table_fact(url, ("id",), (("1",),))
+    profile_store["table_html"] = f"<output aria-label='{expected.key}'>{expected.value}</output>"
+    ctx = context()
+    browser = ManagedChromiumChannel(BrowserConfig(
+        scope="managed-page", url=url, readback_tables=enabled))
+    try:
+        snapshot = await browser.observe("managed-page", ctx)
+        assert not any(f.key.startswith("status:DOM table:") for f in snapshot.facts)
+        assert profile_store["table_reads"] == "1"
+    finally:
+        await browser.aclose()
+        await ctx.runtime.aclose()
+
+
+async def test_dom_table_readback_does_not_discard_an_editable_form(
+    site, profile_store, chromium_required,
+):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
+
+    profile_store["table_html"] = _READBACK_TABLE + '<form><label>Notes<input value="Old"></label></form>'
+    ctx = context()
+    browser = ManagedChromiumChannel(BrowserConfig(
+        scope="managed-page", url=site + "table-readback", readback_tables=True))
+    try:
+        await browser.start(ctx)
+        assert browser.page is not None
+        await browser.page.get_by_label('Notes').fill('Uncommitted')
+        snapshot = await browser.observe("managed-page", ctx)
+        assert not any(f.key.startswith("status:DOM table:") for f in snapshot.facts)
+        assert await browser.page.get_by_label('Notes').input_value() == 'Uncommitted'
+        assert profile_store["table_reads"] == "1"
+    finally:
+        await browser.aclose()
+        await ctx.runtime.aclose()
 
 
 def goal() -> GoalContract:
@@ -4689,3 +4853,158 @@ def test_boundary_completion_requires_complete_visible_returned_list():
     assert not list_reached(rows, {"path": "/work_items/update/WzFd/", "columns": [], "rows": []}, "sqlite-web")
     assert not list_reached(rows, {"path": "/work_items/content/", "columns": ["id", "title", "notes"],
                                    "rows": [["1", "Saved", "Wrong"]]}, "sqlite-web")
+
+
+@pytest.mark.parametrize('scenario', [
+    'save', 'fill-only', 'navigate-only', 'wrong-row', 'protected-field', 'other-record',
+])
+async def test_table_readback_real_product_runner_verifies_saved_rows(
+    monkeypatch, tmp_path, product_python, chromium_required, scenario,
+):
+    import json
+    from unittest.mock import MagicMock
+
+    import httpx
+    from agent_computer_use.channels.dom import dom_table_fact
+    from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
+    from tank_backend.agents.definition import parse_agent_file
+    from tank_backend.agents.resources import DesktopResource
+    from tank_backend.agents.runner import AgentRunner
+    from tank_backend.config.app_config import AppConfig
+    from tank_backend.pipeline.bus import Bus
+    from tank_backend.plugin.manifest import read_manifest_from_yaml
+    from tank_backend.plugin.registry import ExtensionRegistry
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as product
+
+    seed = [{'id': 1, 'title': 'Nora', 'notes': 'Keep A'},
+            {'id': 2, 'title': 'Tavi', 'notes': 'Keep B'}]
+    database = tmp_path / 'fixture.db'
+    product.create_database(database, seed)
+    before = product.database_state(database)
+    calls, events = [], []
+
+    class Observer:
+        def on_event(self, kind, metadata):
+            events.append((kind, metadata))
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            payload = json.loads(request.content)
+            calls.append(payload)
+            native = 'questions' in payload
+            packet = payload if native else json.loads(payload['messages'][1]['content'][0]['text'])
+            criteria = packet['questions']['next_action']['criteria']
+            facts = {f['key']: f['value'] for f in packet['state']['snapshot']['facts']}
+            chosen = 'none'
+            for key, candidate in criteria.items():
+                if not isinstance(candidate, dict):
+                    continue
+                label = candidate.get('label', '')
+                if scenario == 'navigate-only' and label == 'Content':
+                    chosen = key
+                    break
+                if scenario != 'navigate-only':
+                    if 'chk_title' in label and candidate.get('current_value') == 'false':
+                        chosen = key
+                        break
+                    if candidate.get('operation') == 'fill' and label == 'title':
+                        chosen = key
+                        break
+                    if scenario != 'fill-only' and label == 'Update' and facts.get('textbox:title') == 'Miro':
+                        if scenario in {'protected-field', 'other-record'}:
+                            def concurrent_change():
+                                import sqlite3
+                                from contextlib import closing
+
+                                with closing(sqlite3.connect(database)) as db:
+                                    db.execute('UPDATE work_items SET notes=? WHERE id=?',
+                                               ('Changed', 1 if scenario == 'protected-field' else 2))
+                                    db.commit()
+                            await asyncio.to_thread(concurrent_change)
+                        chosen = key
+                        break
+            if native:
+                return httpx.Response(200, json={'model': 'jev-1.14.0', 'answers': {'next_action': {
+                    'type': 'choice', 'choice': chosen, 'confidence': 1,
+                    'probabilities': {k: int(k == chosen) for k in criteria}}},
+                    'usage': {'input_tokens': 12, 'output_tokens': 0}})
+            return httpx.Response(200, json={'id': 'fixture', 'object': 'chat.completion', 'created': 1,
+                'model': 'fixture-vision', 'choices': [{'index': 0, 'finish_reason': 'stop',
+                'message': {'role': 'assistant', 'content': json.dumps({'choice': chosen})}}],
+                'usage': {'prompt_tokens': 10, 'completion_tokens': 2, 'total_tokens': 12}})
+
+    monkeypatch.setattr(httpx, 'AsyncHTTPTransport', HTTP)
+    monkeypatch.setenv('RAW_TABLE_TEST_KEY', 'fixture-only')
+    with (tmp_path / 'server.log').open('w') as log:
+        server = await asyncio.create_subprocess_exec(
+            str(product_python), str(Path(product.__file__)), '--serve', '--database', str(database),
+            '--output', str(tmp_path), env={'PATH': os.environ.get('PATH', '')},
+            stdout=log, stderr=asyncio.subprocess.STDOUT)
+        try:
+            async with asyncio.timeout(10):
+                while not (tmp_path / 'ready.json').is_file():
+                    assert server.returncode is None
+                    await asyncio.sleep(.05)
+            origin = 'http://127.0.0.1:' + str(json.loads((tmp_path / 'ready.json').read_text())['port'])
+            expected = dom_table_fact(origin + '/work_items/content/', ('id', 'title', 'notes'),
+                                      (('1', 'Miro', 'Keep A'), ('2', 'Tavi', 'Keep B')))
+            task = {'schema_version': 2, 'goal_id': scenario, 'scope': 'raw-table',
+                'authorization_ref': 'current_task', 'allowed_operations': ['click', 'fill'],
+                'intent': 'Change only record 1 title Nora to Miro, save and verify; keep notes and all other records.',
+                'objective': 'Verify the saved record and unchanged public fields on the returned list.',
+                'inputs': [{'key': 'title', 'purpose': 'Requested title', 'field_label': 'title', 'value': 'Miro'}],
+                'completion': [expected.model_dump()]}
+            definition_path = tmp_path / 'agent.md'
+            definition_path.write_text('---\nname: raw-table\nextension: agent-computer-use:agent\nmodel: default\ndecision-model: jev\nvisual-model: vision\n---\nUse the goal.\n')
+            definition = parse_agent_file(definition_path)
+            manifest = read_manifest_from_yaml(Path(__file__).parents[1] / 'plugin.yaml')
+            registry = ExtensionRegistry()
+            for extension in manifest.extensions:
+                registry.register(manifest.plugin_name, extension)
+            edit_path = '/work_items/update/' + ('WzJd/' if scenario == 'wrong-row' else 'WzFd/')
+            config = AppConfig.from_raw_dict({
+                'llm': {'default': {'api_key': 'fixture-only', 'model': 'fixture-text', 'base_url': 'https://offline.invalid/v1'},
+                        'vision': {'api_key': 'fixture-only', 'model': 'fixture-vision', 'base_url': 'https://offline.invalid/v1', 'max_tokens': 128}},
+                'decision_models': {'jev': {'url': 'https://offline.invalid/v1/systemone', 'model': 'jev-1.14.0', 'credential_env': 'RAW_TABLE_TEST_KEY'}},
+                'subagents': {'agent-computer-use:agent': {'config': {'selector': 'jev-action-vision',
+                    'browser': {'scope': 'raw-table', 'url': origin + edit_path, 'readback_tables': True}}}}})
+            runner = AgentRunner(MagicMock(), MagicMock(), Bus(), ToolApprovalPolicy(computer_mode='allow'),
+                PendingToolCallStore(), {definition.name: definition}, registry=registry,
+                app_config=config, desktop_resource=DesktopResource())
+            outputs = [o async for o in runner.run_agent(definition, [], task_id=scenario,
+                task_input=task, authorization=SubAgentAuthorization(frozenset({'desktop', 'network'})),
+                observer=Observer(), max_actions=6, max_observations=24)]
+            result = next(o.metadata['task_result'] for o in outputs if 'task_result' in o.metadata)
+            after = product.database_state(database)
+            assert result['cleanup'] == 'confirmed' and after['schema'] == before['schema']
+            assert (result['status'] == 'completed') == (scenario == 'save'), result
+            if scenario == 'save':
+                assert not result['details']['pending_effect']
+            if scenario in {'save', 'wrong-row', 'protected-field', 'other-record'}:
+                target = 2 if scenario == 'wrong-row' else 1
+                wanted = [{**r, 'title': 'Miro'} if r['id'] == target else dict(r) for r in seed]
+                if scenario in {'protected-field', 'other-record'}:
+                    wanted[0 if scenario == 'protected-field' else 1]['notes'] = 'Changed'
+                assert after['records'] == wanted
+                assert len(after['writes']) == (2 if scenario in {'protected-field', 'other-record'} else 1)
+                http = [json.loads(line) for line in (tmp_path / 'http.jsonl').read_text().splitlines()]
+                posts = [i for i, record in enumerate(http) if record['method'] == 'POST']
+                assert len(posts) == 1
+                assert sum(r['method'] == 'GET' and r['path'] == '/work_items/content/' for r in http[posts[0]+1:]) >= 2
+            else:
+                assert after['records'] == seed and after['writes'] == []
+            if scenario == 'save':
+                assert len(calls) == 3 and all('questions' in p for p in calls)
+                assert len(result['details']['receipts']) == 3
+                assert all(m['status'] == 'returned' for k, m in events
+                           if k == 'model_call' and m['phase'] == 'finished')
+        finally:
+            if server.returncode is None:
+                server.terminate()
+            try:
+                await asyncio.wait_for(server.wait(), 5)
+            except TimeoutError:
+                server.kill()
+                await server.wait()

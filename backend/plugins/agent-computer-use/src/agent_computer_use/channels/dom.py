@@ -16,6 +16,24 @@ from tank_backend.agents.subagent import SubAgentContext, SubAgentStopped
 
 from ..contracts import Action, Binding, DispatchReceipt, Element, Fact, Snapshot
 
+DOM_TABLE_PREFIX = "status:DOM table:"
+
+
+def dom_table_fact(
+    url: str, columns: tuple[str, ...], rows: tuple[tuple[str, ...], ...],
+) -> Fact:
+    """Exact public results on one page, not evidence about unobserved storage."""
+    BrowserConfig.validate_url(url)
+    if (not 1 <= len(columns) <= 32 or len(set(columns)) != len(columns)
+            or any(not column.strip() for column in columns) or len(rows) > 64
+            or any(len(row) != len(columns) for row in rows)):
+        raise ValueError("A bounded table with unique named columns is required")
+    return Fact(
+        key=DOM_TABLE_PREFIX + json.dumps(columns, ensure_ascii=False, separators=(",", ":")),
+        value=json.dumps({"url": url, "columns": columns, "rows": rows},
+                         ensure_ascii=False, separators=(",", ":")),
+    )
+
 if TYPE_CHECKING:
     from playwright.async_api import Browser, Frame, Locator, Page, Playwright, Route
     from ..visual_selector import VisualFrame
@@ -26,6 +44,7 @@ class BrowserConfig(BaseModel):
     scope: str = Field(min_length=1, max_length=256)
     url: str = Field(max_length=4096)
     frame_name: str | None = Field(default=None, min_length=1, max_length=256)
+    readback_tables: bool = False
 
     @field_validator("url")
     @classmethod
@@ -57,6 +76,7 @@ class DOMView(BaseModel):
     elements: list[DOMElement]
     complete: bool
     revision: int
+    tables: tuple[Fact, ...] = ()
 
 
 # The selector registry stores actual DOM objects, not text/index selectors that
@@ -156,7 +176,43 @@ _READ = r"""nodes => {
             control_name: tag === 'input' && node.type === 'checkbox' && node.name.length <= 128 ? node.name : ''});
         if (elements.length >= 256) { complete = false; break; }
     }
-    return {elements, complete, revision: state.revision};
+    const tables = [];
+    const signatures = [];
+    const visible = node => {
+        if (!node.getClientRects().length || getComputedStyle(node).visibility !== 'visible' ||
+            node.closest('[aria-hidden="true"], [hidden], [inert]')) return false;
+        for (let parent = node; parent; parent = parent.parentElement)
+            if (getComputedStyle(parent).opacity === '0') return false;
+        return true;
+    };
+    const editing = elements.some(e => e.editable && e.enabled && state.refs.get(e.ref).closest('form'));
+    if (TABLE_READBACK && complete && !editing) for (const table of nodes.filter(n => n.tagName === 'TABLE')) {
+        if (!visible(table) || table.parentElement?.closest('table') || table.querySelector('table') || table.tHead?.rows.length !== 1 ||
+            table.tFoot?.rows.length) continue;
+        const headers = [...table.tHead.rows[0].cells];
+        const named = headers.map((cell, index) => ({cell, index, name: text(cell.innerText)}))
+            .filter(h => h.name);
+        const columns = named.map(h => h.name);
+        const key = 'status:DOM table:' + JSON.stringify(columns);
+        signatures.push(key);
+        if (!named.length || named.length > 32 ||
+            table.closest('[aria-busy="true"]') || table.querySelector('[aria-busy="true"]') ||
+            new Set(named.map(h => h.name)).size !== named.length ||
+            headers.some(c => !visible(c) || c.colSpan !== 1 || c.rowSpan !== 1 ||
+                [...c.querySelectorAll('*')].some(child => !visible(child)))) continue;
+        const body = [...table.tBodies].flatMap(section => [...section.rows]);
+        if (body.length > 64 || body.some(row => !visible(row) || row.cells.length !== headers.length ||
+            [...row.cells].some(c => c.colSpan !== 1 || c.rowSpan !== 1))) continue;
+        const cells = body.flatMap(row => named.map(h => row.cells[h.index]));
+        if (cells.some(c => c.colSpan !== 1 || c.rowSpan !== 1 || !visible(c) ||
+            c.querySelector('input,textarea,select,button,[contenteditable]:not([contenteditable="false"]),[role="textbox"]') ||
+            [...c.querySelectorAll('*')].some(child => !visible(child)))) continue;
+        const rows = body.map(row => named.map(h => text(row.cells[h.index].innerText)));
+        const value = JSON.stringify({url: location.href, columns, rows});
+        if (key.length <= 128 && value.length <= 4096) tables.push({key, value});
+    }
+    return {elements, complete, revision: state.revision,
+        tables: tables.filter(t => signatures.filter(key => key === t.key).length === 1)};
 }"""
 
 
@@ -337,7 +393,8 @@ class ManagedChromiumChannel:
     async def read(self, frame: Frame, context: SubAgentContext) -> DOMView:
         self.check(context)
         script = (_READ.replace("NAMESPACE", json.dumps(self.namespace))
-                  .replace("PREFIX", json.dumps(self.namespace)))
+                  .replace("PREFIX", json.dumps(self.namespace))
+                  .replace("TABLE_READBACK", json.dumps(self.config.readback_tables)))
         data = await frame.locator(f"{self.engine}=*").evaluate_all(script)
         self.check(context)
         return DOMView.model_validate(data)
@@ -360,6 +417,11 @@ class ManagedChromiumChannel:
         return current == self.view and self.observed_navigation == self.navigation
 
     async def observe(self, scope: str, context: SubAgentContext) -> Snapshot:
+        return await self._observe(scope, context, refreshed=False)
+
+    async def _observe(
+        self, scope: str, context: SubAgentContext, *, refreshed: bool,
+    ) -> Snapshot:
         self.check(context)
         self.visual_frame = None
         if scope != self.config.scope:
@@ -398,6 +460,16 @@ class ManagedChromiumChannel:
                 or view != await self.read(frame, context)
                 or navigation != self.navigation):
             return self.unavailable_snapshot(scope)
+        if view.tables and not refreshed:
+            # Leaving the document guarantees a fresh GET even for fragment URLs.
+            # reload() can resubmit a POST document and must not be used here.
+            url = frame.url
+            self.check(context)
+            await frame.goto("about:blank", wait_until="load", timeout=5000)
+            self.check(context)
+            await frame.goto(url, wait_until="load", timeout=5000)
+            self.check(context)
+            return await self._observe(scope, context, refreshed=True)
         elements = []
         checked_facts = []
         keys = Counter(f"{item.role}:{item.label}" for item in view.elements)
@@ -432,11 +504,13 @@ class ManagedChromiumChannel:
                       Fact(key=key, value=item.value) for item in view.elements
                       if item.label and len(key := f"{item.role}:{item.label}") <= 128
                       and key != "status:Page URL" and not key.startswith("dom:checked:")
+                      and not key.startswith(DOM_TABLE_PREFIX)
                       and keys[key] == 1)
         facts += tuple(Fact(key=f"visible:{item.role}:{item.label}", value="true")
                        for item in view.elements if item.role in {"region", "dialog"}
                        and item.label and len(f"visible:{item.role}:{item.label}") <= 128
                        and keys[f"{item.role}:{item.label}"] == 1)
+        facts += view.tables
         self.generation += 1
         snapshot = Snapshot(uuid4().hex, scope, self.generation, tuple(elements), facts,
                             complete=view.complete)
