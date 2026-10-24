@@ -579,3 +579,201 @@ async def test_chat_sdk_uses_private_snapshot_across_capture_await(revoke):
                 assert sent == [True] and ctx.budget.total_tokens == 9
         finally:
             await ctx.runtime.aclose()
+
+
+async def test_benchmark_diagnostics_keeps_sdk_error_before_unknown_settlement(
+    tmp_path,
+):
+    import json
+
+    import httpx
+    from benchmarks.computer_use.jev_sdk_diagnostics import sdk_diagnostics
+
+    from tank_backend.benchmarks.model_policy import BenchmarkModelPolicy
+    from tank_backend.benchmarks.spend_ledger import (
+        SpendLedger,
+        SpendLimit,
+        SpendLimitExceeded,
+    )
+
+    ledger = SpendLedger(SpendLimit(0, 0), record_only=True)
+    ledger.start_trial("trial", SpendLimit(0, 0))
+
+    class StopOnUnknown(BenchmarkModelPolicy):
+        def settle(self, call_id, inputs, outputs):
+            super().settle(call_id, inputs, outputs)
+            self.check()
+
+    ctx, calls, request = setup(model_policy=StopOnUnknown(ledger, ()))
+    count = 0
+
+    async def invoke():
+        nonlocal count
+        count += 1
+        raise httpx.ReadTimeout(
+            "DO-NOT-RECORD-SECRET",
+            request=httpx.Request("POST", "https://test.invalid"),
+        )
+
+    path = tmp_path / "diagnostics.jsonl"
+    try:
+        with sdk_diagnostics(path), pytest.raises(SpendLimitExceeded, match="unknown_usage"):
+            await calls.run(request, invoke)
+        events = [json.loads(line) for line in path.read_text().splitlines()]
+        assert count == 1
+        assert [e["phase"] for e in events] == [
+            "invoke_started",
+            "invoke_error",
+            "call_error",
+        ]
+        assert events[1]["error_type"] == "ReadTimeout"
+        assert events[2]["error_type"] == "SpendLimitExceeded"
+        assert events[0]["call_id"] == events[1]["call_id"] == events[2]["call_id"]
+        assert events[2]["usage_status"] == "unknown"
+        assert events[2]["stop_reason"] == "unknown_usage"
+        assert events[2]["reservation_status"] == "unknown"
+        assert "DO-NOT-RECORD-SECRET" not in path.read_text()
+        assert ctx.budget.unknown_calls
+    finally:
+        await calls.aclose()
+        ledger.finish_trial()
+        ledger.close()
+
+
+def test_benchmark_diagnostics_ignores_untrusted_diagnostic_fields():
+    from benchmarks.computer_use.jev_sdk_diagnostics import error_fields
+
+    class UntrustedError(RuntimeError):
+        diagnostics = {"error_type": "SECRET-BODY", "cause_type": "SECRET-BODY"}
+
+    error = UntrustedError("SECRET-BODY")
+    assert "SECRET-BODY" not in str(error_fields(error))
+
+
+async def test_benchmark_diagnostic_write_failure_stops_before_sdk(
+    tmp_path, monkeypatch
+):
+    from pathlib import Path
+
+    from benchmarks.computer_use.jev_sdk_diagnostics import sdk_diagnostics
+
+    from tank_backend.benchmarks.model_policy import BenchmarkModelPolicy
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit
+    from tank_backend.llm.model_call import ModelCaptureError
+
+    ledger = SpendLedger(SpendLimit(0, 0), record_only=True)
+    ledger.start_trial("trial", SpendLimit(0, 0))
+    ctx, calls, request = setup(model_policy=BenchmarkModelPolicy(ledger, ()))
+    attempted = []
+
+    async def invoke():
+        attempted.append(True)
+        return Result()
+
+    class BrokenWriter:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def write(self, text):
+            raise OSError("disk full")
+
+        def flush(self):
+            pass
+
+    original = Path.open
+    path = tmp_path / "broken.jsonl"
+    monkeypatch.setattr(
+        Path,
+        "open",
+        lambda self, *a, **kw: (
+            BrokenWriter() if self == path else original(self, *a, **kw)
+        ),
+    )
+    try:
+        with sdk_diagnostics(path), pytest.raises(ModelCaptureError):
+            await calls.run(request, invoke)
+        assert not attempted
+        assert ledger.snapshot()["stop_reason"] == "diagnostic_failed"
+    finally:
+        await calls.aclose()
+        ledger.finish_trial()
+        ledger.close()
+
+
+@pytest.mark.parametrize(
+    "mode", ["known", "unknown", "before_send", "cancelled", "deadline"]
+)
+async def test_benchmark_diagnostics_preserves_runner_result_and_restores_patch(
+    tmp_path, mode
+):
+    import json
+    import time
+
+    from benchmarks.computer_use.jev_sdk_diagnostics import sdk_diagnostics
+
+    from tank_backend.benchmarks.model_policy import BenchmarkModelPolicy
+    from tank_backend.benchmarks.spend_ledger import (
+        SpendLedger,
+        SpendLimit,
+        SpendLimitExceeded,
+    )
+    from tank_backend.llm.model_data import ModelDataScope
+
+    original = TaskModelCallRunner.run
+    ledger = SpendLedger(SpendLimit(0, 0), record_only=True)
+    ledger.start_trial("trial", SpendLimit(0, 0))
+    ctx, calls, request = setup(model_policy=BenchmarkModelPolicy(ledger, ()))
+    attempts = []
+    if mode == "before_send":
+        object.__setattr__(ctx, "model_data_scope", ModelDataScope(max_request_bytes=1))
+    if mode == "deadline":
+        object.__setattr__(ctx, "deadline", time.monotonic() + 0.02)
+
+    async def invoke():
+        attempts.append(True)
+        if mode == "cancelled":
+            raise asyncio.CancelledError
+        if mode == "deadline":
+            await asyncio.sleep(10)
+        return Result(None, None) if mode == "unknown" else Result()
+
+    path = tmp_path / "diagnostics.jsonl"
+    try:
+        with sdk_diagnostics(path):
+            if mode == "known":
+                result = await calls.run(request, invoke)
+                assert result == (Result() if mode == "known" else Result(None, None))
+            else:
+                error = {
+                    "before_send": SubAgentStopped,
+                    "cancelled": asyncio.CancelledError,
+                    "deadline": TimeoutError,
+                    "unknown": SpendLimitExceeded,
+                }[mode]
+                with pytest.raises(error):
+                    await calls.run(request, invoke)
+        assert TaskModelCallRunner.run is original
+        records = [json.loads(line) for line in path.read_text().splitlines()]
+        final = records[-1]
+        assert final["usage_status"] == (
+            "known"
+            if mode == "known"
+            else "not_started"
+            if mode == "before_send"
+            else "unknown"
+        )
+        assert len(attempts) == (0 if mode == "before_send" else 1)
+        assert len(records) == (1 if mode == "before_send" else 3)
+        if mode == "deadline":
+            assert final["task_deadline_elapsed"] is True
+        assert ctx.budget.total_tokens == (9 if mode == "known" else 0)
+        assert bool(ctx.budget.unknown_calls) == (
+            mode in {"unknown", "cancelled", "deadline"}
+        )
+    finally:
+        await calls.aclose()
+        ledger.finish_trial()
+        ledger.close()
