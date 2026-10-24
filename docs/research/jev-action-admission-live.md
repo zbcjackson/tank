@@ -1,8 +1,8 @@
-> 日期：2026-10-24；结论状态：resolved（36/36真实试验通过；动作级正例均时4.76秒，原JT30.30秒、V41.72秒；负例动作级21.07秒，开发信号不作正式采用结论）。
+> 日期：2026-10-24；结论状态：resolved（36/36真实试验、两轮独立审查及第3轮修复/文档自检完成，无遗留问题；动作级正例均时4.76秒，负例21.07秒，开发信号不作正式采用结论）。
 
 # 动作级文字准入的三臂开发实测
 
-承接[计划](../plans/active/jev-action-admission-live.md)及[前轮原型](jev-action-admission.md)。
+承接[已完成计划](../plans/done/jev-action-admission-live.md)及[前轮原型](jev-action-admission.md)。
 用户要求“开始直到完成实测”。本片包括最小SDK故障记录、新冻结小批与实际执行，
 不重新运行旧3648槽，也不释放或重放旧unknown调用。
 
@@ -125,6 +125,13 @@ derived-v1/包含36试次、9策略/产品汇总、12配对的JSON/CSV与100调�
 independent_results.py不导入study/analyzer，独立重读SQL/HTML、原始响应用量、
 封存SHA、图片SHA、所有汇总/CSV/配对；36试次及100调用检查通过。
 交互面板的内嵌数据来自同一派生JSON，支持产品/启动条件/正负例筛选，副本一并封存。
+
+累计第1轮实测前和第2轮实测后均由未参与原实现的审查者评审。第2轮发现离线独立
+脚本的负例检查使用不存在的`sent`见证阶段，已改查`authorized`或`native_called=True`；
+旧脚本误接受authorized、returned/native_called及error/native_called三种注入，修复后
+均拒绝。真实12个负例的可选见证文件均未生成且封存哈希为null；官方`_safety`另按正确
+阶段核验，无原生派发。修复后重跑36试次复算通过，8份派生输出逐字节一致，真实数据及
+结论未变。第3轮由同一审查者自检此修复及结案文档，无遗留问题；这次自检不称独立评审。
 
 [完整证据包](artifacts/jev-action-admission-live-20261024.tar.xz)及
 [逐成员SHA清单](artifacts/jev-action-admission-live-20261024-manifest.json)保留代码、资格、
