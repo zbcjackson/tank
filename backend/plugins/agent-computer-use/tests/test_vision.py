@@ -1102,7 +1102,8 @@ def test_development_source_drift_requires_a_new_freeze(monkeypatch, tmp_path):
         dev.load_freeze(tmp_path / "dev", frozen["sha256"])
 
 
-async def test_repeated_state_visual_recovery_stays_bounded_with_advisor(monkeypatch):
+@pytest.mark.parametrize("strategy", ["current", "action_admission"])
+async def test_repeated_state_visual_recovery_stays_bounded_with_advisor(monkeypatch, strategy):
     import json
     import httpx
     from agent_computer_use.contracts import AdvisorResult
@@ -1149,10 +1150,12 @@ async def test_repeated_state_visual_recovery_stays_bounded_with_advisor(monkeyp
     object.__setattr__(ctx, "model_data_scope", ModelDataScope(frozenset({"text", "image"})))
     ctx.runtime.configure_visual_model("task", LLMProfile(
         "visual", "key", "vision", "https://offline.invalid/v1", max_tokens=128))
+    from agent_computer_use.action_admission import ActionAdmissionSelector
+    selector_type = ActionAdmissionSelector if strategy == "action_admission" else VisualSelector
     world, advisor = World(), Advisor()
     try:
         result = await ComputerUseController(
-            world, world, selector=VisualSelector(world), advisor=advisor).run(wandering_request(), ctx)
+            world, world, selector=selector_type(world), advisor=advisor).run(wandering_request(), ctx)
         assert result.reason == "advisor_unable", result
         assert ["jev" if "questions" in p else "visual" for p in requests] == [
             "jev", "jev", "visual", "visual"]
@@ -1263,7 +1266,7 @@ async def test_same_task_jev_image_jev_loop(monkeypatch, shared_world, failure, 
             return replace(captured, bounds=tuple((ref, (90, 10, 20, 20))
                                                   for ref, _ in captured.bounds))
         monkeypatch.setattr(channel, "capture", outside)
-    from benchmarks.computer_use.jev_action_admission import ActionAdmissionSelector
+    from agent_computer_use.action_admission import ActionAdmissionSelector
     selector_type = ActionAdmissionSelector if strategy == "action_admission" else VisualSelector
     controller = ComputerUseController(channel, channel, selector=selector_type(channel),
                                        completion_keys=channel.completion_keys)
@@ -1772,21 +1775,31 @@ async def test_box_crop_runs_two_real_sdks_with_complete_denominators(monkeypatc
         assert all(r['cleanup_confirmed'] for r in report['rows'])
 
 
+@pytest.fixture(params=["benchmark", "runtime"])
+def action_admission_type(request):
+    if request.param == "runtime":
+        from agent_computer_use.action_admission import ActionAdmissionSelector
+    else:
+        from benchmarks.computer_use.jev_action_admission import ActionAdmissionSelector
+    return ActionAdmissionSelector
+
+
+@pytest.mark.parametrize("selected_label", ["保存", "Nora", "Absent requested"])
 @pytest.mark.parametrize("reverse", [False, True])
-async def test_action_admission_keeps_duplicate_navigation_and_accepts_unique_save(monkeypatch, reverse):
+async def test_action_admission_keeps_duplicate_navigation_and_accepts_unique_save(monkeypatch, reverse, action_admission_type, selected_label):
     import json
     from dataclasses import replace
 
     import httpx
     from agent_computer_use.action_builder import ActionBuilder
     from agent_computer_use.contracts import Element
-    from benchmarks.computer_use.jev_action_admission import ActionAdmissionSelector
+    ActionAdmissionSelector = action_admission_type
     from .test_jev import reply, selection, setup
 
     async def respond(request):
         criteria = json.loads(request.content)["questions"]["next_action"]["criteria"]
         choice = next(key for key, value in criteria.items()
-                      if isinstance(value, dict) and value["label"] == "保存")
+                      if isinstance(value, dict) and value["label"] == selected_label)
         return httpx.Response(200, json=reply(request, choice))
 
     class Source:
@@ -1794,6 +1807,8 @@ async def test_action_admission_keeps_duplicate_navigation_and_accepts_unique_sa
             raise AssertionError("unique text choice must not capture an image")
 
     goal, snapshot, _ = selection()
+    snapshot = replace(snapshot, elements=tuple(replace(e, label=selected_label) if e.ref == "save" else e
+                                               for e in snapshot.elements))
     navigation = Element("nav1", "link", "work_items", ("click",), click_observable=True)
     snapshot = replace(snapshot, elements=(*snapshot.elements, navigation,
                                          replace(navigation, ref="nav2")))
@@ -1819,6 +1834,7 @@ async def test_action_admission_keeps_duplicate_navigation_and_accepts_unique_sa
 
 @pytest.mark.parametrize("choice,labels", [
     ("c3", ("work_items", "work_items")),
+    ("c3", ("Nora", "Nora")),
     ("c4", ("work_items", "work_items")),
     ("checkbox", ("Flag", "Flag")),
     ("direct", ("work_items", "work_items")),
@@ -1829,7 +1845,7 @@ async def test_action_admission_keeps_duplicate_navigation_and_accepts_unique_sa
       for control in ("none", "ambiguous", "need_more_context", "escalate")],
 ])
 async def test_action_admission_selected_duplicate_uses_visual_with_full_candidates(
-    monkeypatch, choice, labels,
+    monkeypatch, choice, labels, action_admission_type,
 ):
     import json
     from dataclasses import replace
@@ -1838,7 +1854,7 @@ async def test_action_admission_selected_duplicate_uses_visual_with_full_candida
     from agent_computer_use.action_builder import ActionBuilder
     from agent_computer_use.contracts import Element, Fact
     from agent_computer_use.visual_selector import VisualFrame
-    from benchmarks.computer_use.jev_action_admission import ActionAdmissionSelector
+    ActionAdmissionSelector = action_admission_type
     from tank_backend.llm.model_data import ModelDataScope
     from tank_backend.llm.profile import LLMProfile
     from .test_jev import reply, selection, setup
@@ -1915,11 +1931,11 @@ async def test_action_admission_selected_duplicate_uses_visual_with_full_candida
     "not_ready", "incomplete", "truncated", "generation", "scope", "missing_details",
     "duplicate_detail_id", "foreign_detail_id", "missing_user_value", "revoked",
 ])
-async def test_action_admission_preserves_pre_call_hard_gates(monkeypatch, failure):
+async def test_action_admission_preserves_pre_call_hard_gates(monkeypatch, failure, action_admission_type):
     from dataclasses import replace
 
     from agent_computer_use.contracts import GoalInput
-    from benchmarks.computer_use.jev_action_admission import ActionAdmissionSelector
+    ActionAdmissionSelector = action_admission_type
     from tank_backend.agents.subagent import SubAgentStopped
     from .test_jev import selection, setup
 

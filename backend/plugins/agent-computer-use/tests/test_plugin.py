@@ -247,3 +247,34 @@ async def test_intake_is_explicit_and_macos_only():
 def test_intake_configuration_requires_llm_on_macos(config):
     with pytest.raises(ValueError):
         create_subagent(config)
+
+
+@pytest.mark.parametrize("channel_config", [
+    {"browser": {"scope": "development-page", "url": "http://127.0.0.1:1"}},
+    {"macos": {}},
+])
+async def test_action_vision_factory_is_explicit_and_does_not_start_resources(monkeypatch, channel_config):
+    import httpx
+    import httpx2
+    from agent_computer_use.visual_selector import VisualSelector
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("factory must not allocate SDK or browser resources")
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", forbidden)
+    monkeypatch.setattr(httpx2.AsyncClient, "__init__", forbidden)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", forbidden)
+    experimental = create_subagent({**channel_config, "selector": "jev-action-vision"})
+    from agent_computer_use.action_admission import ActionAdmissionSelector
+    default = create_subagent(channel_config)
+    existing = create_subagent({**channel_config, "selector": "jev-vision"})
+    try:
+        assert type(experimental.controller.selector) is ActionAdmissionSelector
+        assert experimental.controller.selector.source is experimental.controller.source
+        assert experimental.controller.selector.__class__.__module__ == "agent_computer_use.action_admission"
+        assert default.controller.selector is None
+        assert type(existing.controller.selector) is VisualSelector
+    finally:
+        await experimental.aclose()
+        await default.aclose()
+        await existing.aclose()

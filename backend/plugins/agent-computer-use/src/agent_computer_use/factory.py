@@ -31,7 +31,7 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
         if (set(config) - {"browser", "macos", "selector", "advisor", "intake"}
                 or len(set(config) & {"browser", "macos"}) != 1
                 or ("selector" in config and config["selector"] not in (
-                    "jev", "llm", "jev-fallback", "jev-vision", "jev-image"))
+                    "jev", "llm", "jev-fallback", "jev-vision", "jev-action-vision", "jev-image"))
                 or ("advisor" in config and config["advisor"] not in ("llm", "jev-image"))
                 or config.get("advisor") == "jev-image" and config.get("selector") != "jev-image"
                 or ("intake" in config and (config["intake"] != "llm" or "macos" not in config))):
@@ -66,6 +66,10 @@ def create_subagent(config: dict[str, object]) -> ComputerUseSubAgent:
             from .jev_image_selector import JevImageSelector
 
             selector = JevImageSelector(channel)
+        elif config.get("selector") == "jev-action-vision":
+            from .action_admission import ActionAdmissionSelector
+
+            selector = ActionAdmissionSelector(channel)
         elif config.get("selector") == "jev-vision":
             from .visual_selector import VisualSelector
 
