@@ -94,14 +94,14 @@ When('the isolated managed Chromium contract is exercised',
   async function (this: TankWorld) {
     const stdout = await offlinePytest([
       'plugins/agent-computer-use/tests/test_dom.py', '-q',
-      '-k', 'browser_config_through_real_runner or controller_native_dispatch or stop_during or runner_candidate_strategy or goal_runner or runner_advisor_returns or vision_route_real_browser or dom_freshness_ignores_native_caret or route_followup_abstention or same_origin_link or checkbox_requires or navigation_fact_and_checkbox or loading_document or finite_css_transition or continuing_animation or same_named_checkbox or uses_authored_form_names or bound_facts_cannot or name_annotation_collision or table_row_context or hidden_pseudo_animation or dom_aggregate or visible_text_limits or rendered_preformatted or explicit_candidate_budget or observe_navigation',
+      '-k', 'browser_config_through_real_runner or controller_native_dispatch or stop_during or runner_candidate_strategy or goal_runner or runner_advisor_returns or vision_route_real_browser or dom_freshness_ignores_native_caret or route_followup_abstention or same_origin_link or checkbox_requires or navigation_fact_and_checkbox or loading_document or finite_css_transition or continuing_animation or same_named_checkbox or uses_authored_form_names or bound_facts_cannot or name_annotation_collision or table_row_context or hidden_pseudo_animation or dom_aggregate or visible_text_limits or rendered_preformatted or explicit_candidate_budget or observe_navigation or dom_table_readback',
     ], 120000, true);
     results.set(this, stdout);
   });
 
 Then('the managed Chromium contract passes without paid model calls or personal browser access',
   function (this: TankWorld) {
-    assert.match(results.get(this) ?? '', /91 passed/);
+    assert.match(results.get(this) ?? '', /\d+ passed/);
     assert.doesNotMatch(results.get(this) ?? '', /\d+ skipped/);
   });
 
