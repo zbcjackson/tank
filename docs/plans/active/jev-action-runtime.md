@@ -31,6 +31,9 @@ visual-model继续声明图片接收方，调用者可用text-only scope拒绝�
 
 ## Tests
 
+TDD工厂用例先因未知selector失败2项，接入后2项通过。最终定向96项通过，
+470项未选；全部5个改动Python文件的pyright为0错误。完整回归与审查待完成。
+
 在现有test_plugin.py、test_dom.py、test_vision.py增量覆盖，无新feature文件。
 实际SDK仅替换外部HTTP；原生OS边界按既有fixture替换，DOM用实际Chromium。
 检查工厂无副作用、旧默认不变、完整候选、被选动作区分、同绑定视觉接管、缺输入/

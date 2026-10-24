@@ -415,9 +415,60 @@ both services. The visual profile declaration allows screenshots to that named
 recipient; a supplied text-only `ModelDataScope` still refuses before capture.
 Jev remains text-only. Default configuration is unchanged.
 
+Explicit experimental `selector: jev-action-vision` uses action-level text
+admission instead of requiring every candidate to be text-distinguishable. It
+sends the whole original candidate set to Jev, then accepts its chosen action only
+if that action has a unique semantic identity and a nonblank, nongeneric label.
+Duplicate controls elsewhere do not exclude an otherwise distinguishable action.
+A control output or a chosen action that fails this check takes the existing
+visual path with the same candidate binding; if no action qualifies, that path is
+used directly. `computer_use_action_admission` records the selected ID, acceptance
+and next route. Hard stops and repeated-state recovery keep their existing limits.
+This mechanical check establishes distinguishability, not action correctness.
+
+For a controlled development page, explicitly configure the extension in the host
+configuration (serve your owned page at the example loopback URL):
+
+```yaml
+subagents:
+  agent-computer-use:agent:
+    config:
+      selector: jev-action-vision
+      browser:
+        scope: development-page
+        url: http://127.0.0.1:8765/
+```
+
+The extension agent's Markdown frontmatter must name existing approved profiles:
+
+```yaml
+---
+name: development-computer
+extension: agent-computer-use:agent
+model: default
+decision-model: jev-dev
+visual-model: approved-vision
+---
+```
+
+`jev-dev` and `approved-vision` are example profile names, not profiles installed
+by this option. The Jev 1.14.0 decision path is covered by the wiring tests; the
+visual profile remains replaceable. `visual-model` explicitly declares the image
+recipient; `model` alone does not grant a visual fallback. Task image restrictions
+still apply. Construction starts no browser or model client. The native channel
+also accepts this selector with the existing `macos: {}` configuration.
+
+This option is for controlled development and changes no default or model profile.
+It uses ordinary production DOM/AX observations and independent readback, without
+the benchmark's database records or completion/progress augmentation. Existing
+candidate limits remain 32 for browser and 64 for native. Fake-HTTP tests cover
+neutral/misleading labels as wiring cases, not model accuracy or refusal
+generalization; that real-model validation remains deferred. It does not use Jev
+image/Box calls or introduce coordinate execution.
+
 Complete observations and non-truncated executable candidates are required.
-Unlabelled/generic labels or duplicate semantic identities bypass Jev text;
-otherwise Jev gets the text question first. A valid Jev control output may take
+For `jev-vision`, unlabelled/generic labels or duplicate semantic identities bypass
+Jev text; otherwise Jev gets the text question first. A valid Jev control output may take
 over with a bound PNG and candidate image rectangles. Each repeated semantic
 state permits one additional visual recovery. After verified effects, the next
 host step reevaluates rules/text eligibility. Missing user facts, unavailable

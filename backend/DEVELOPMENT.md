@@ -283,6 +283,13 @@ without image scope the visual path stops before capture. No production profile
 or default is changed. See the plugin README for the finite-candidate and
 main-frame/native-window limits and fake-model test boundary.
 
+The explicit experimental `selector: jev-action-vision` reuses those same profiles
+and visual controls but admits Jev's selected text-distinguishable action even when
+other candidates are duplicates. The whole candidate set is retained; failed
+admission uses the existing visual path. See the [plugin configuration example](plugins/agent-computer-use/README.md)
+for controlled development setup. It adds no benchmark database facts, changes no
+default and establishes no new real-model quality claim.
+
 `DecisionModel` can also be used by a core caller without a task context. Its
 `choose(state=..., instructions=..., options=...)` returns `ChoiceResult` including
 choice, confidence, probabilities and optional input/output token counts. A

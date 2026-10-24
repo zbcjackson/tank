@@ -1024,6 +1024,15 @@ purpose/capture/call-ID correlation. The Runner candidate-strategy test in
 `test_dom.py` also runs `jev-vision` through real Chromium and independent page
 readback. The existing chat.feature covers visual host and managed-browser paths.
 No paid calls, model accuracy measurements or Box capability are involved.
+The explicit `jev-action-vision` factory option is checked for browser/native
+assembly without resource startup, while default and `jev-vision` assembly remain
+unchanged. The existing Runner test also runs this option through actual Chromium:
+text-only success, valid Jev control followed by visual fallback, and a missing
+explicit visual profile that stops before image capture. Native hybrid/recovery
+cases use the production action-admission class; shared contracts run against both
+the frozen benchmark prototype and production implementation. Neutral/misleading
+labels test admission wiring only. No benchmark record/completion augmentation is
+provided to production observations.
 `test_s5_paired.py` checks failed intake attempts, SDK invocation identity,
 not-started policy/capture/data refusals, incomplete-trace missingness and both
 summary harnesses' frozen metric-source tamper detection.
