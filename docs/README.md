@@ -44,8 +44,8 @@
 | [plans/done/jev-confirmation-preparation.md](plans/done/jev-confirmation-preparation.md) | 计划 | 已完成 | 两轮审查通过；24业务/104图通过，候选资格0/24，正式N与收费未准入 |
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
-| [plans/active/jev-action-admission-live.md](plans/active/jev-action-admission-live.md) | 计划 | 进行中 | SDK诊断及36模拟资格、6725后端/E2E24/95通过；冻结448323962cc5…待审查实测 |
-| [research/jev-action-admission-live.md](research/jev-action-admission-live.md) | 调研 | 待审查实测 | 全检及36模拟资格通过，45源/新内容冻结；保留旧unknown与70工件 |
+| [plans/active/jev-action-admission-live.md](plans/active/jev-action-admission-live.md) | 计划 | 实测通过待结案 | 36/36三臂实测，正例4.76秒vs30.30/41.72秒；待结果审查归档 |
+| [research/jev-action-admission-live.md](research/jev-action-admission-live.md) | 调研 | 实测结论 | 三策略各8/8正例、4/4负例；动作级图片4次vs24/32，负例退出较慢；不作采用结论 |
 | [plans/done/jev-action-admission.md](plans/done/jev-action-admission.md) | 计划 | 已完成 | 隔离原型、6710后端/1跳过及E2E24/95；1轮独立审查无发现，221成员归档 |
 | [research/jev-action-admission.md](research/jev-action-admission.md) | 调研 | 已审查归档 | 336状态/5576完整候选；旧JT的110视觉步骤中106旧选择可通过新文字守卫，非新模型结果 |
 | [plans/done/jev-calibration-route-analysis.md](plans/done/jev-calibration-route-analysis.md) | 计划 | 已完成 | 96项离线路由/开销、742成员归档及两轮审查完成；无新模型请求或运行变更 |
