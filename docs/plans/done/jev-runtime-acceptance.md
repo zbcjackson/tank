@@ -1,10 +1,10 @@
-> 状态：进行中（2026-10-24：原始DOM及三项真实Runner诊断完成，业务完成/效果证据缺口已复现；真实实测0/6，未准入；独立审查待完成。）
+> 状态：已完成（2026-10-24：资格阻塞诊断结案；第1轮独立审查无发现，缺口未修复、真实实测0/6未准入；实测前置及中性命名验证交backlog。）
 
 # 动作级实验配置的原始DOM闭环验收
 
 ## 目标与范围
 
-承接[主计划](computer-use-jev-vision.md)、[已完成接线](../done/jev-action-runtime.md)
+承接[主计划](../active/computer-use-jev-vision.md)、[已完成接线](jev-action-runtime.md)
 和[边界研究](../../research/jev-action-boundary.md)。使用一个已有真实产品的隔离副本，
 六项固定任务各一次，通过真实AgentRunner及显式jev-action-vision工厂。
 生产源码、默认配置、模型profile及历史工件保持不变；临时配方与原始证据封存到研究工件。
@@ -48,6 +48,12 @@ completion被提前拒绝；URL弱化条件可在0写入时满足，不能用作
 生产缺口未修复；后续应先接通公开DOM业务谓词与保存后核验，再重新资格六任务。
 实测与中性命名验证移交[backlog](../../backlog.md)，本片不继续扩为生产行为修改。
 仓库仅docs改动，执行docs-only检查；默认配置及原74工件SHA不变。
+
+第1轮review-and-refactor独立审查无可操作或遗留发现、无修复，按规则结束。
+审查者独立核对268归档成员、75源码、654环境文件、原始DB、三项Runner、调用及签名，
+五组断言、115文档与完整diff检查通过；3个端口明确ECONNREFUSED。
+原始审查全文及SHA绑定至工件manifest；归档字节不变。协调者仅自检结案状态/链接，
+不把该闭合称为新增独立审查。步骤3条件未满足，六任务留在backlog，未补跑付费批次。
 
 ## Verification Checklist（最终步骤）
 
