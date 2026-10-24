@@ -4274,3 +4274,257 @@ async def test_real_product_workflow_batch_preserves_denominator(chromium_requir
             assert len(calls) == 1 and not ran[0]['database']['writes']
     with pytest.raises(FileExistsError):
         await pilot.run_batch(out, frozen['sha256'], jev_credential='fixture', peer_credential='fixture')
+
+
+def test_action_live_prepare_has_balanced_three_arms_without_clients(
+    tmp_path,
+    product_python,
+    linkding_root,
+    monkeypatch,
+):
+    import collections
+    import copy
+    import httpx
+    import httpx2
+    from benchmarks.computer_use import jev_action_live as pilot
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("preparation must remain offline")
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", forbidden)
+    monkeypatch.setattr(httpx2.AsyncClient, "__init__", forbidden)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", forbidden)
+    frozen = pilot.prepare(
+        tmp_path / "study",
+        sql_python=product_python,
+        link_root=linkding_root,
+        namespace="action-test-36",
+    )
+    assert len(frozen["cases"]) == len(frozen["schedule"]) == 36
+    assert collections.Counter(s["policy"] for s in frozen["schedule"]) == {
+        "v": 12,
+        "jt": 12,
+        "ja": 12,
+    }
+    assert len({c["cluster_id"] for c in frozen["cases"]}) == 6
+    for product in ("sqlite-web", "linkding"):
+        for condition in ("cold", "prewarmed"):
+            slots = [
+                s
+                for s in frozen["schedule"]
+                if s["product"] == product and s["condition"] == condition
+            ]
+            for position in range(3):
+                assert {s["policy"] for s in slots if s["position"] == position} == {
+                    "v",
+                    "jt",
+                    "ja",
+                }
+    pairs = collections.defaultdict(list)
+    for case in frozen["cases"]:
+        goal = copy.deepcopy(case["goal"])
+        goal.pop("goal_id")
+        pairs[case["pair_id"]].append(goal)
+        assert case["goal"]["goal_id"] == case["id"]
+        assert not any(
+            x in case["goal"]["goal_id"]
+            for x in ("missing", "same-title", "unique", "-ja")
+        )
+    assert len(pairs) == 12 and all(
+        len(g) == 3 and g[0] == g[1] == g[2] for g in pairs.values()
+    )
+    assert pilot.load_freeze(tmp_path / "study", frozen["sha256"]) == frozen
+    with pytest.raises(FileExistsError):
+        pilot.prepare(
+            tmp_path / "study",
+            sql_python=product_python,
+            link_root=linkding_root,
+            namespace="action-test-36",
+        )
+
+
+async def test_action_live_all_36_trials_use_real_controller_and_sdk(
+    tmp_path,
+    product_python,
+    linkding_root,
+    channel,
+):
+    import collections
+    import json
+    from benchmarks.computer_use import jev_action_live as pilot
+    from agent_computer_use.visual_selector import VisualSelector
+
+    original = pilot.jev_action_admission.VisualSelector
+    assert VisualSelector is original
+    frozen = pilot.prepare(
+        tmp_path / "study",
+        sql_python=product_python,
+        link_root=linkding_root,
+        namespace="action-admission-dev-20261024",
+    )
+    result = await pilot.run_batch(tmp_path / "study", frozen["sha256"], mode="fake")
+    assert result["completed"] and result["spend"]["stop_reason"] is None
+    assert len(result["rows"]) == 36 and all(
+        r["attempted"] and r["cleanup_confirmed"] for r in result["rows"]
+    )
+    assert all(
+        r["labels"]["negative_verified" if r["negative"] else "strict_verified"]
+        for r in result["rows"]
+    )
+    assert result["fake_external_requests"] == 0
+    from agent_computer_use import visual_selector
+
+    assert visual_selector.VisualSelector is original
+    report = pilot.audit_study(tmp_path / "study", frozen["sha256"])
+    assert report["complete"] and report["planned"] == 36
+    live = pilot.prepare(
+        tmp_path / "live",
+        sql_python=product_python,
+        link_root=linkding_root,
+        namespace=frozen["namespace"],
+    )
+    assert live["sha256"] == frozen["sha256"]
+    with pytest.raises(ValueError, match="readiness"):
+        await pilot.run_batch(
+            tmp_path / "live",
+            live["sha256"],
+            mode="live",
+            qualification=tmp_path / "study",
+        )
+    assert not (tmp_path / "live/started.json").exists()
+    counts = collections.defaultdict(collections.Counter)
+    for row in result["rows"]:
+        for call in row["calls"]:
+            counts[row["policy"]][
+                "visual" if "messages" in call["request"] else "text"
+            ] += 1
+    assert counts["v"]["text"] == 0 and counts["ja"]["text"] > counts["jt"]["text"]
+    assert counts["ja"]["visual"] < counts["jt"]["visual"]
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "study/sdk-diagnostics.jsonl").read_text().splitlines()
+    ]
+    assert len(records) == 3 * sum(len(r["calls"]) for r in result["rows"])
+    with pytest.raises(FileExistsError):
+        await pilot.run_batch(tmp_path / "study", frozen["sha256"], mode="fake")
+
+
+@pytest.mark.parametrize("tamper", ["freeze", "saved_source"])
+def test_action_live_rejects_tampered_freeze(
+    tmp_path, product_python, linkding_root, tamper
+):
+    import json
+    from benchmarks.computer_use import jev_action_live as pilot
+
+    root = tmp_path / "study"
+    frozen = pilot.prepare(
+        root,
+        sql_python=product_python,
+        link_root=linkding_root,
+        namespace="action-tamper",
+    )
+    if tamper == "freeze":
+        value = json.loads((root / "freeze.json").read_text())
+        value["max_actions"] += 1
+        (root / "freeze.json").write_text(json.dumps(value))
+    else:
+        (root / "source/benchmarks/computer_use/jev_action_live.py").write_text(
+            "tampered"
+        )
+    with pytest.raises(ValueError):
+        pilot.load_freeze(root, frozen["sha256"])
+
+
+async def test_action_live_without_readiness_never_starts(
+    tmp_path,
+    product_python,
+    linkding_root,
+    monkeypatch,
+):
+    import httpx
+    from benchmarks.computer_use import jev_action_live as pilot
+
+    root = tmp_path / "study"
+    frozen = pilot.prepare(
+        root,
+        sql_python=product_python,
+        link_root=linkding_root,
+        namespace="action-no-ready",
+    )
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("live gate created a client")
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", forbidden)
+    with pytest.raises(ValueError, match="readiness"):
+        await pilot.run_batch(root, frozen["sha256"], mode="live")
+    assert not (root / "started.json").exists()
+
+
+async def test_action_live_unknown_usage_stops_and_retains_all_36_slots(
+    tmp_path,
+    product_python,
+    linkding_root,
+    monkeypatch,
+    channel,
+):
+    import json
+    from agent_computer_use import visual_selector
+    from benchmarks.computer_use import jev_action_live as pilot, jev_fake_http
+
+    root = tmp_path / "study"
+    frozen = pilot.prepare(
+        root,
+        sql_python=product_python,
+        link_root=linkding_root,
+        namespace="action-unknown",
+    )
+    reply = jev_fake_http.reply
+
+    def unknown(payload):
+        data = reply(payload)
+        data.pop("usage", None)
+        return data
+
+    original = visual_selector.VisualSelector
+    monkeypatch.setattr(jev_fake_http, "reply", unknown)
+    result = await pilot.run_batch(root, frozen["sha256"], mode="fake")
+    assert not result["completed"] and result["spend"]["stop_reason"] == "unknown_usage"
+    assert (
+        len(result["rows"]) == 36 and sum(r["attempted"] for r in result["rows"]) == 1
+    )
+    assert sum(r["status"] == "not_run" for r in result["rows"]) == 35
+    assert visual_selector.VisualSelector is original
+    records = [
+        json.loads(line)
+        for line in (root / "sdk-diagnostics.jsonl").read_text().splitlines()
+    ]
+    assert records[-1]["usage_status"] == "unknown"
+    assert records[-1]["stop_reason"] == "unknown_usage"
+    assert len(result["spend"]["requests"]) == 1
+    with pytest.raises(ValueError):
+        pilot.audit_study(root, frozen["sha256"])
+
+
+async def test_action_live_cancel_restores_partial_receipt(
+    tmp_path, product_python, linkding_root, monkeypatch,
+):
+    import json
+    from benchmarks.computer_use import jev_action_live as pilot
+    root = tmp_path / "study"
+    frozen = pilot.prepare(root, sql_python=product_python, link_root=linkding_root,
+                           namespace="action-cancel")
+    async def cancelled(case, slot, output, *args):
+        path = output / slot["id"]
+        path.mkdir()
+        (path / "row.json").write_text(json.dumps({
+            "cleanup_confirmed": True, "status": "cancelled", "partial_receipt_marker": True}))
+        raise asyncio.CancelledError
+    monkeypatch.setattr(pilot, "run_trial", cancelled)
+    with pytest.raises(asyncio.CancelledError):
+        await pilot.run_batch(root, frozen["sha256"], mode="fake")
+    result = json.loads((root / "result.json").read_text())
+    assert len(result["rows"]) == 36 and sum(r["attempted"] for r in result["rows"]) == 1
+    assert result["rows"][0]["cleanup_confirmed"] is True
+    assert result["rows"][0]["partial_receipt_marker"] is True
+    assert result["spend"]["stop_reason"] == "cancelled"
