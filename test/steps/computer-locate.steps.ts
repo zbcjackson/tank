@@ -101,7 +101,7 @@ When('the isolated managed Chromium contract is exercised',
 
 Then('the managed Chromium contract passes without paid model calls or personal browser access',
   function (this: TankWorld) {
-    assert.match(results.get(this) ?? '', /88 passed/);
+    assert.match(results.get(this) ?? '', /91 passed/);
     assert.doesNotMatch(results.get(this) ?? '', /\d+ skipped/);
   });
 
