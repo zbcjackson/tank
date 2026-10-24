@@ -44,7 +44,8 @@
 | [plans/done/jev-confirmation-preparation.md](plans/done/jev-confirmation-preparation.md) | 计划 | 已完成 | 两轮审查通过；24业务/104图通过，候选资格0/24，正式N与收费未准入 |
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
-| [plans/active/jev-runtime-acceptance.md](plans/active/jev-runtime-acceptance.md) | 计划 | 进行中 | 原始DOM真实Runner六任务验收；先资格，已知宿主阻塞不花真实模型调用 |
+| [plans/active/jev-runtime-acceptance.md](plans/active/jev-runtime-acceptance.md) | 计划 | 资格阻塞、待审查 | 原始DOM完成证据缺口已复现；六任务真实实测0/6，未准入 |
+| [research/jev-runtime-acceptance.md](research/jev-runtime-acceptance.md) | 调研 | 宿主阻塞已定位 | 三项真实Runner/假HTTP诊断；保存已成功但effect_unknown，URL不足以证明业务完成 |
 | [plans/done/jev-action-runtime.md](plans/done/jev-action-runtime.md) | 计划 | 已完成 | 显式动作级实验selector；6769后端/1跳过、E2E24/95及第1轮独立审查通过，默认不变，无收费实测 |
 | [plans/done/jev-action-boundary.md](plans/done/jev-action-boundary.md) | 计划 | 已完成 | 12任务两臂24试次、第1轮独立审查无发现；文档结案自检，受控开发配置另片承接 |
 | [research/jev-action-boundary.md](research/jev-action-boundary.md) | 调研 | 已审查结案 | JA8/8正例、4/4负例，V7/8；均时5.86/47.65秒，6730后端/1跳过及E2E24/95通过，负例提示限制保留 |

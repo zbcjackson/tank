@@ -80,4 +80,14 @@ live 新实验预算按该计划 §8 逐批授权执行。
 | 受控遮罩误点后盖住目标窗口 | pair-1/2/3 配对 core trial 开跑前，或再次观察到“窗口消失/全黑”导致的 `launch_app` 重试 | A-control 单轮首次批量点击落到始终置顶的受控黑背景（归一化 x≈850 → 屏幕 x≈1632，窗口右缘约 1270），随后目标窗口被遮罩盖住，模型需 3 次 `launch_app` 才恢复；材料层已加派发前窗口门禁（窗外点击零派发并记 `gate_blocked`），后续 M5 core/M6/M7 各批遮罩陷阱未再发生；但门禁属 launcher 材料而非生产代码，移除材料或生产环境复现时仍需对策 | [A-control 单轮证据](../backend/benchmarks/computer_use/reports/20260924-m5-a-control-pumped-pilot/README.md)、[门禁材料](../backend/benchmarks/computer_use/reports/20260924-m5-pixels-unified-ready/README.md) |
 | 子代理链路历史压缩机制 | 长任务 routinely 触顶 token 预算（M6 长历史两轮均 300k 处受控停止，27/17 步远未到步数/时限上限），且需要子代理完成更长流程 | M6 第 4 项发现：ContextManager/Compactor 只存在于主助手语音路径，自研子代理链路（SubAgentDriver → AgentRunner → LLMAgent → chat_stream）无压缩；长历史行为验收（当前图引用/失败恢复）已通过，机制引入未做 | [M6 长历史报告](../backend/benchmarks/computer_use/reports/20260924-m6-longhistory/README.md) |
 
+### 原始DOM闭环实测与中性命名拒绝边界
 
+- **触发条件**：生产具备公开DOM可验证的目标/字段业务谓词及保存后效果/完成读回，
+  并通过正确保存、只填未保存、只回列表、错误行及保护字段等资格后，重新立项六任务；
+  自然视觉需求先资格，不强迫Jev弃权。准备扩大真实用户写入前也必须完成该验证。
+- **背景/前置**：六项真实实测0/6；原版sqlite-web参考保存已成功，但生产DOM仅URL
+  有受支持status事实，真实Runner正确保存后仍effect_unknown，textbox条件被拒绝。
+  旧24次边界负例含Absent/Shared提示，本片中性名称及误导词存在目标仍未实测，
+  不能据此作拒绝泛化或真实写入认证。生产核验能力的修复应先于该收费实测。
+- **来源**：[原始DOM资格研究](research/jev-runtime-acceptance.md)、
+  [主计划](plans/active/computer-use-jev-vision.md)。触发进入新计划时移除此条。
