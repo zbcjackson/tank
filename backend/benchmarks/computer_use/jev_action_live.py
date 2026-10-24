@@ -13,7 +13,7 @@ from pathlib import Path
 
 from agent_computer_use.contracts import GoalContract
 from benchmarks.computer_use import jev_calibration_route as calibration
-from benchmarks.computer_use import jev_action_admission, jev_sdk_diagnostics
+from benchmarks.computer_use import jev_action_admission, jev_action_boundary, jev_sdk_diagnostics
 from benchmarks.computer_use.jev_image_dev import digest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,7 +33,7 @@ def sources() -> dict[str, str]:
         names = list(json.load(stream)["original_registered_source_sha256"])
     names += [
         str(Path(inspect.getfile(module)).relative_to(ROOT))
-        for module in (jev_action_admission, jev_sdk_diagnostics)
+        for module in (jev_action_admission, jev_sdk_diagnostics, jev_action_boundary)
     ]
     names += [str(Path(__file__).relative_to(ROOT))]
     return {
@@ -116,9 +116,9 @@ def study_cases(namespace: str) -> tuple[list[dict], list[dict]]:
     return result, schedule
 
 
-def freeze_inputs(sql_python: Path, link_root: Path, namespace: str) -> dict:
+def freeze_inputs(sql_python: Path, link_root: Path, namespace: str, *, boundary: bool = False) -> dict:
     original = calibration.freeze_inputs(sql_python, link_root)
-    cases, schedule = study_cases(namespace)
+    cases, schedule = (jev_action_boundary.study_cases(namespace) if boundary else study_cases(namespace))
     result = {
         "revision": "action-admission-live-1",
         "namespace": namespace,
@@ -145,14 +145,25 @@ def freeze_inputs(sql_python: Path, link_root: Path, namespace: str) -> dict:
         "authorization_origin": "user: 开始直到完成实测; digest binds integrity, not a user-quoted new hash",
         "sample_scope": "6 new-content seeds in known product/template families; 36 development trials, not holdout confirmation",
     }
+    if boundary:
+        result.update(
+            revision="action-admission-boundary-1",
+            policies=["v", "ja"],
+            qualification_known_stops=[{"policy": "v", "family": "schema-title",
+                                        "reason": "visual_target_unavailable", "sdk_calls": 0}],
+            completion_readback="Actual unique public predicate, requested inputs and complete returned list; no private target oracle",
+            authorization_origin="user: 继续执行到得出结论",
+            sample_scope="12 new task instances in known products, new pages/fields/semantic boundaries; 24 cold two-policy development trials",
+        )
     result["sha256"] = digest(result)
     return result
 
 
-def prepare(output: Path, *, sql_python: Path, link_root: Path, namespace: str) -> dict:
+def prepare(output: Path, *, sql_python: Path, link_root: Path, namespace: str,
+            boundary: bool = False) -> dict:
     if not output.is_absolute():
         raise ValueError("absolute new output directory required")
-    frozen = freeze_inputs(sql_python, link_root, namespace)
+    frozen = freeze_inputs(sql_python, link_root, namespace, boundary=boundary)
     output.mkdir(exist_ok=False)
     for name, expected in frozen["source_sha256"].items():
         data = (ROOT / name).read_bytes()
@@ -250,6 +261,10 @@ def eligible_aliases(packet: dict) -> set[str]:
 def audit_policy(row: dict, path: Path) -> dict:
     from collections import defaultdict
 
+    if not (path / "calls.jsonl").exists():
+        if row.get("calls") or any(e["kind"] == "model_call" for e in row["events"]):
+            raise ValueError("model-call capture missing")
+        return {"text_calls": 0, "visual_calls": 0, "logical_fallbacks": 0}
     responses = {
         r["call_id"]: r["response"]
         for r in map(json.loads, (path / "calls.jsonl").read_text().splitlines())
@@ -360,7 +375,9 @@ async def run_trial(
         else nullcontext()
     )
     with context:
-        row = await calibration.run_task(
+        runner = (jev_action_boundary.run_task if frozen["revision"] == "action-admission-boundary-1"
+                  else calibration.run_task)
+        row = await runner(
             case,
             slot["arm"],
             output,
@@ -467,8 +484,11 @@ async def run_batch(
             row.update(json.loads(path.read_text()))
 
     persist()
+    boundary = frozen["revision"] == "action-admission-boundary-1"
+    auditor = jev_action_boundary.audit_trial if boundary else audit.audit_trial
     transport_context = (
-        jev_fake_http.offline_http(jev_fake_http.reply, output / "fake-http.jsonl")
+        jev_fake_http.offline_http(jev_action_boundary.reply if boundary else jev_fake_http.reply,
+                                  output / "fake-http.jsonl")
         if mode == "fake"
         else nullcontext(None)
     )
@@ -507,7 +527,7 @@ async def run_batch(
                                 if t["trial_id"] == row["id"]
                             ],
                         )
-                    row["labels"] = audit.audit_trial(cases[row["case"]], row, path)
+                    row["labels"] = auditor(cases[row["case"]], row, path)
                     row["policy_metrics"] = audit_policy(row, path)
                     if (
                         row["labels"]["critical_events"]
@@ -580,14 +600,16 @@ def audit_study(output: Path, approved: str) -> dict:
             "logical_fallbacks": 0,
             "critical_events": 0,
         }
-        for p in POLICIES
+        for p in frozen.get("policies", POLICIES)
     }
     for row, slot in zip(rows, frozen["schedule"]):
         if any(row[k] != slot[k] for k in slot):
             raise ValueError("planned row identity drift")
         path = output / "trials" / row["id"]
         execution.audit_usage(row, result["spend"], path)
-        labels = audit.audit_trial(cases[row["case"]], row, path)
+        auditor = (jev_action_boundary.audit_trial if frozen["revision"] == "action-admission-boundary-1"
+                   else audit.audit_trial)
+        labels = auditor(cases[row["case"]], row, path)
         metrics = audit_policy(row, path)
         if labels != row["labels"] or metrics != row["policy_metrics"]:
             raise ValueError("saved labels or policy metrics differ from raw evidence")
@@ -639,6 +661,9 @@ def audit_study(output: Path, approved: str) -> dict:
 def check_live_ready(
     output: Path, frozen: dict, qualification: Path | None, readiness: Path | None
 ) -> None:
+    if frozen["revision"] == "action-admission-boundary-1":
+        jev_action_boundary.check_readiness(output, frozen, qualification, readiness)
+        return
     if (
         qualification is None
         or readiness is None
@@ -725,6 +750,7 @@ def main() -> None:
     parser.add_argument("--sql-python", type=Path)
     parser.add_argument("--link-root", type=Path)
     parser.add_argument("--namespace")
+    parser.add_argument("--boundary", action="store_true")
     parser.add_argument("--approved-sha256")
     parser.add_argument("--qualification", type=Path)
     parser.add_argument("--readiness", type=Path)
@@ -742,12 +768,13 @@ def main() -> None:
             sql_python=args.sql_python,
             link_root=args.link_root,
             namespace=args.namespace,
+            boundary=args.boundary,
         )
         print(
             json.dumps({"sha256": frozen["sha256"], "trials": len(frozen["schedule"])})
         )
         return
-    if not args.approved_sha256 or args.sql_python or args.link_root or args.namespace:
+    if not args.approved_sha256 or args.sql_python or args.link_root or args.namespace or args.boundary:
         parser.error("execution/audit uses only the frozen digest and inputs")
     if args.command == "audit":
         report = audit_study(args.output, args.approved_sha256)

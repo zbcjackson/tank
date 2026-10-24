@@ -4528,3 +4528,149 @@ async def test_action_live_cancel_restores_partial_receipt(
     assert result["rows"][0]["cleanup_confirmed"] is True
     assert result["rows"][0]["partial_receipt_marker"] is True
     assert result["spend"]["stop_reason"] == "cancelled"
+
+
+def test_boundary_goal_verification_requires_unique_target_and_full_state():
+    import copy
+    from benchmarks.computer_use.jev_action_boundary import goal_reached
+
+    before = [
+        {"id": 1, "title": "Keep", "notes": "left"},
+        {"id": 2, "title": "Target", "notes": "right"},
+    ]
+    after = copy.deepcopy(before)
+    after[1]["notes"] = "Requested note"
+    assert goal_reached(before, after, {"title": "Target"}, {"notes": "Requested note"})
+    after[0]["title"] = "Unrequested change"
+    assert not goal_reached(before, after, {"title": "Target"}, {"notes": "Requested note"})
+    assert not goal_reached(before, before, {"title": "Absent"}, {"notes": "Requested note"})
+    ambiguous = copy.deepcopy(before)
+    ambiguous[0]["title"] = "Target"
+    after = copy.deepcopy(ambiguous)
+    after[1]["notes"] = "Requested note"
+    assert not goal_reached(ambiguous, after, {"title": "Target"}, {"notes": "Requested note"})
+
+
+def test_boundary_prepare_freezes_twelve_new_tasks_and_twentyfour_slots(
+    tmp_path, product_python, linkding_root, monkeypatch
+):
+    import collections
+    import copy
+    import httpx
+    import httpx2
+    from benchmarks.computer_use import jev_action_live as pilot
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("offline preparation allocated external client/process")
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", forbidden)
+    monkeypatch.setattr(httpx2.AsyncClient, "__init__", forbidden)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", forbidden)
+    frozen = pilot.prepare(tmp_path / "boundary", sql_python=product_python,
+                           link_root=linkding_root, namespace="boundary-freeze", boundary=True)
+    assert len(frozen["cases"]) == len(frozen["schedule"]) == 24
+    assert frozen["revision"] == "action-admission-boundary-1"
+    assert collections.Counter(s["policy"] for s in frozen["schedule"]) == {"v": 12, "ja": 12}
+    assert {s["condition"] for s in frozen["schedule"]} == {"cold"}
+    assert len({s["pair_id"] for s in frozen["schedule"]}) == 12
+    for product in ("sqlite-web", "linkding"):
+        slots = [s for s in frozen["schedule"] if s["product"] == product]
+        assert collections.Counter(s["policy"] for s in slots if s["position"] == 0) == {"v": 3, "ja": 3}
+    goals = collections.defaultdict(list)
+    for c in frozen["cases"]:
+        goal = copy.deepcopy(c["goal"])
+        assert goal.pop("goal_id") == c["id"]
+        assert goal["completion"] == [{"key": "status:Requested changes verified", "value": "true"}]
+        assert goal["outcomes"][0] == {"id": "requested-editor", "conditions": [{"key": "status:Requested editor observed", "value": "true"}]}
+        goals[c["pair_id"]].append(goal)
+    assert all(len(g) == 2 and g[0] == g[1] for g in goals.values())
+    assert any(c["start_path"] == "/work_items/" for c in frozen["cases"])
+    assert any("/work_items/row/" in c["start_path"] for c in frozen["cases"])
+    assert any("?details=" in c["start_path"] for c in frozen["cases"])
+    assert any(len(c["goal"]["inputs"]) == 2 for c in frozen["cases"])
+    assert {c["negative"] for c in frozen["cases"] if c["negative"]} == {"missing", "ambiguous"}
+    assert pilot.load_freeze(tmp_path / "boundary", frozen["sha256"]) == frozen
+
+
+async def test_boundary_all_twentyfour_trials_use_real_products_and_independent_labels(
+    tmp_path, product_python, linkding_root, channel
+):
+    from benchmarks.computer_use import jev_action_live as pilot
+
+    out = tmp_path / "boundary"
+    frozen = pilot.prepare(out, sql_python=product_python, link_root=linkding_root,
+                           namespace="action-boundary-dev-20261024", boundary=True)
+    result = await pilot.run_batch(out, frozen["sha256"], mode="fake")
+    assert result["completed"], [(r["status"], r.get("error_type")) for r in result["rows"]]
+    assert result["fake_external_requests"] == 0
+    assert len(result["rows"]) == 24 and all(r["cleanup_confirmed"] for r in result["rows"])
+    cases = {c["id"]: c for c in frozen["cases"]}
+    for r in result["rows"]:
+        if r["policy"] == "v" and cases[r["case"]]["family"] == "schema-title":
+            assert not r["labels"]["strict_verified"] and not r["calls"]
+            assert r["result"]["reason"] == "visual_target_unavailable"
+        else:
+            assert r["labels"]["negative_verified" if r["negative"] else "strict_verified"], r["id"]
+    report = pilot.audit_study(out, frozen["sha256"])
+    assert report["planned"] == 24 and set(report["policies"]) == {"v", "ja"}
+    assert report["policies"]["ja"]["positive_passed"] == 8
+    assert report["policies"]["v"]["positive_passed"] == 7
+    assert all(p["negative_passed"] == 4 for p in report["policies"].values())
+
+    # A valid receipt seal must not make an unrequested business write acceptable.
+    import hashlib
+    import json
+    import sqlite3
+    from benchmarks.computer_use import jev_action_boundary as boundary
+    sample = next(r for r in result["rows"] if r["product"] == "sqlite-web" and
+                  r["policy"] == "ja" and cases[r["case"]]["family"] == "multi-field")
+    folder = out / "trials" / sample["id"]
+    database, proof_path = folder / "after.db", folder / "cleanup-proof.json"
+    original_db, original_proof = database.read_bytes(), proof_path.read_bytes()
+    try:
+        with sqlite3.connect(database) as db:
+            db.execute("UPDATE work_items SET notes='Unrequested' WHERE id=1")
+        proof = json.loads(original_proof)
+        proof["files"]["after.db"] = hashlib.sha256(database.read_bytes()).hexdigest()
+        proof_path.write_text(json.dumps(proof))
+        labels = boundary.audit_trial(cases[sample["case"]], sample, folder)
+        assert not labels["strict_verified"] and labels["critical_events"] > 0
+    finally:
+        database.write_bytes(original_db)
+        proof_path.write_bytes(original_proof)
+    assert pilot.audit_study(out, frozen["sha256"]) == report
+
+
+def test_boundary_missing_readiness_and_missing_capture_refuse_before_send(
+    tmp_path, product_python, linkding_root, monkeypatch
+):
+    import httpx
+    import httpx2
+    from benchmarks.computer_use import jev_action_live as pilot
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("readiness rejection allocated SDK")
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", forbidden)
+    monkeypatch.setattr(httpx2.AsyncClient, "__init__", forbidden)
+    out = tmp_path / "boundary"
+    frozen = pilot.prepare(out, sql_python=product_python, link_root=linkding_root,
+                           namespace="boundary-no-send", boundary=True)
+    with pytest.raises(ValueError, match="readiness"):
+        pilot.check_live_ready(out, frozen, None, None)
+    assert not (out / "started.json").exists()
+    assert pilot.audit_policy({"calls": [], "events": []}, out) == {
+        "text_calls": 0, "visual_calls": 0, "logical_fallbacks": 0}
+    with pytest.raises(ValueError, match="capture"):
+        pilot.audit_policy({"calls": [], "events": [{"kind": "model_call"}]}, out)
+
+
+def test_boundary_completion_requires_complete_visible_returned_list():
+    from benchmarks.computer_use.jev_action_boundary import list_reached
+
+    rows = [{"id": 1, "title": "Saved", "notes": "Keep"}]
+    assert list_reached(rows, {"path": "/work_items/content/", "columns": ["id", "title", "notes"],
+                               "rows": [["1", "Saved", "Keep"]]}, "sqlite-web")
+    assert not list_reached(rows, {"path": "/work_items/update/WzFd/", "columns": [], "rows": []}, "sqlite-web")
+    assert not list_reached(rows, {"path": "/work_items/content/", "columns": ["id", "title", "notes"],
+                                   "rows": [["1", "Saved", "Wrong"]]}, "sqlite-web")
