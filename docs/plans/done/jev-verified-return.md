@@ -1,10 +1,10 @@
-> 状态：审查中（2026-10-25：完整后端6844通过/1跳过、E2E24/95及静态检查通过；原版离线3Jev/1图片、3正确动作，待独立审查，零真实模型。）
+> 状态：已完成（2026-10-25：完整后端6844通过/1跳过、E2E24/95及静态检查通过；原版离线3Jev/1图片、3正确动作，第1轮独立审查无发现，零真实模型。）
 
 # 已核验返回状态中的Jev准入
 
 ## 目标与边界
 
-承接[像素实测](../../research/jev-pixel-handoff.md)和[主计划](computer-use-jev-vision.md)。
+承接[像素实测](../../research/jev-pixel-handoff.md)和[主计划](../active/computer-use-jev-vision.md)。
 原版Edit→Cancel两个效果已核验，但返回列表命中repeated_state，唯一文字Keep仍
 直接交图片。现有visited已保存每次访问时verified_actions数量，可用于识别期间
 确有已核验动作；这不证明目标进展，也不能为循环增加重试或动作额度。
@@ -41,7 +41,10 @@
 1跳过、21 warnings；E2E24场景95步骤，前后端reload空且原服务恢复health200；
 静态/类型检查通过。原版同任务新冻9bc0ee0552f8…的假HTTP为3Jev/1图、3正确
 原引用动作，零POST/书签业务表变化、清理确认。81历史工件/默认保持，真实调用0。
-[研究记录](../../research/jev-verified-return.md)与1728成员原始包待独立审查。
+[研究记录](../../research/jev-verified-return.md)及原始包经第1轮独立审查，无可操作或
+遗留问题、无审查修改；独立40项定向测试通过。完整原证据1727项SHA保持，追加
+原审查报告/日志后1733成员封包自检。新的真实质量/速度/用量验证交回
+[主计划](../active/computer-use-jev-vision.md)与[backlog](../../backlog.md)，本片不追加。
 
 ## Tests
 

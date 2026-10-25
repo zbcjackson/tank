@@ -1,4 +1,4 @@
-> 日期：2026-10-25；结论状态：open（最小实现、完整回归及原版产品离线资格通过，待独立审查；零真实模型请求。）
+> 日期：2026-10-25；结论状态：resolved（最小实现、完整回归及原版产品离线资格通过，第1轮独立审查无发现并归档；零真实模型请求，真实净收益未测。）
 
 # 已核验返回：同一恢复额度内重新Jev准入
 
@@ -83,12 +83,15 @@ Web lint、tsc -b --noEmit、后端/CLI ruff、全部3改动Python的pyright通�
 
 ## 审查与证据
 
-当前等待项目review-and-refactor；不以未完成审查代替通过。[原始归档](artifacts/jev-verified-return-20261025.tar.xz)包含TDD/边界失败及最终完整运行日志、所有
-检查/源收据、E2E生命周期、原版产品资格与完整假HTTP/执行/HTTP/业务DB/清理证据。
-当前封包1728普通成员，SHA256为
-de2398284071f124b2be8fb87d4fd77c5faaef156ec16acbbc0a1c5dcc5d3958。
+项目review-and-refactor第1轮通过，无可操作或遗留问题，无审查修改。审查者独立
+复跑40项返回/循环/硬停止测试，核对完整任务差异、原归档、当前源/完整检查绑定、
+原产品446文件与81历史工件、离线审计及签名。[原始归档](artifacts/jev-verified-return-20261025.tar.xz)包含TDD/边界失败及最终完整运行日志、所有
+检查/源收据、E2E生命周期、原版产品资格与完整假HTTP/执行/HTTP/业务DB/清理证据，
+以及review.md原报告、两份独立复核日志、review-closure.json和pre-review-manifest.json。
+原1727项证据SHA保持；追加审查记录后的封包为1733普通成员，SHA256为
+7024571159f4936d5f847fae33d9a1f887be273a25a33894bcb55e1a2f9a4b48。
 verify.py仅离线检查，不重放任务或创建模型；可用当前项目venv的Python在解包后复核。
 
 下一项真实净收益验证交回[主计划](../plans/active/computer-use-jev-vision.md)与
 [backlog](../backlog.md)，需另冻同任务，保留失败且不凭假HTTP挑成功或宣称省时。
-[实现计划](../plans/active/jev-verified-return.md)定义本片的有界改动与完整检查。
+[实现计划](../plans/done/jev-verified-return.md)已完成本片的有界改动与完整检查。
