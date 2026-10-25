@@ -44,6 +44,7 @@
 | [plans/done/jev-confirmation-preparation.md](plans/done/jev-confirmation-preparation.md) | 计划 | 已完成 | 两轮审查通过；24业务/104图通过，候选资格0/24，正式N与收费未准入 |
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
+| [plans/active/jev-runtime-smoke.md](plans/active/jev-runtime-smoke.md) | 计划 | 执行中 | 原版sqlite-web两项真实Runner/真实模型闭环，先假HTTP资格，不作模型排序 |
 | [plans/done/dom-table-readback.md](plans/done/dom-table-readback.md) | 计划 | 已完成 | 显式表格GET读回；38定向、6801后端/1跳过、E2E24/95及审查通过，已签名，默认不变 |
 | [plans/done/jev-runtime-acceptance.md](plans/done/jev-runtime-acceptance.md) | 计划 | 资格阻塞结案 | 第1轮独立审查无发现；宿主缺口未修复、六任务真实实测0/6，交backlog |
 | [research/jev-runtime-acceptance.md](research/jev-runtime-acceptance.md) | 调研 | 已审查结案 | 三项真实Runner/假HTTP诊断；保存已成功但effect_unknown，URL不足以证明业务完成 |
