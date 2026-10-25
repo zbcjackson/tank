@@ -45,6 +45,7 @@
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
 | [research/jev-verified-return.md](research/jev-verified-return.md) | 调研 | 已审查结案 | 原一次恢复内Jev再准入；原版假HTTP 3Jev/1图，完整检查/独立40项及1733成员归档通过 |
+| [plans/active/jev-verified-return-live.md](plans/active/jev-verified-return-live.md) | 计划 | 进行中 | 同一原版只读任务的新源资格/冻结准备，单次验证返回后真实Jev选择及完整开销，尚无真实请求 |
 | [plans/done/jev-verified-return.md](plans/done/jev-verified-return.md) | 计划 | 已完成 | 最小修复/边界、原版离线及完整后端6844/1跳过、E2E24/95通过，第1轮审查无发现，零真实模型 |
 | [research/jev-pixel-handoff.md](research/jev-pixel-handoff.md) | 调研 | 已结案 | 原版像素需求下自然接管并返回Jev，2Jev/2图片、3正确动作；独立结果核验/归档完成 |
 | [plans/done/jev-pixel-handoff.md](plans/done/jev-pixel-handoff.md) | 计划 | 已完成 | 单次真实像素接管/返回及审查归档完成，额外重复状态图片交backlog |
