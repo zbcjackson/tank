@@ -29,6 +29,11 @@ App名称白名单或事先为每类任务指定模型。可用证据包括控�
 特征选择下一验证样本见[进行中计划](../plans/active/jev-interface-routing.md)；计划内容
 与待执行项不放在本节。原`jev-vision`及其他选择器各自准入逻辑保持。
 
+[空间目标实测](../research/jev-interface-routing.md)中，Jev与图片服务选中了相同正确
+链接；重复身份守卫仍要求图片。当前文字投影缺少区域/几何，而图片请求包含图框，
+所以守卫拒绝不能等同Jev选择错误，也不能据此认定像素必要。当前准入未因这次结果
+放宽，文字视图尚未增加位置；当前图片接管仍使用同绑定原动作。
+
 ## 公开结果与图片能力
 
 可信browser配置`readback_tables: true`在普通DOM通道提供有界简单表格结果事实。
@@ -45,7 +50,7 @@ frame文档提供此读回，srcdoc等保留普通观察且不刷新。重复签
 原始观测及其他选择器；Jev/视觉profile不变。配置/示例见
 [插件说明](../../backend/plugins/agent-computer-use/README.md#explicit-table-result-readback)。
 
-本次后续离线切片将SDK固定为0.7.5，增加显式Jev profile `images: true`准入及
+现行SDK固定为0.7.5，提供显式Jev profile `images: true`准入及
 原任务的图片Choice/Box证据接口。普通文本接口仍拒绝图片。准入/capture包含
 参数JSON、图片引用/实验头与独立文件字节；限额不冒称HTTP线级大小。插件
 `JevImageProbe`只读，规范化方向/尺寸/补边、保留原帧逆映射并在响应后复核帧；
@@ -161,11 +166,11 @@ AX 独立分支：适配一体+宿主还原（B-combined）在 calc-open 上是�
 没有稳定净收益的采用证据。两个150项批次保持各6finished/144not_run及确认未完成，
 不因研究结案补判H1–H4，不追加同配置试验，也不改变原评分、unknown预留或预算。
 
-G1–G3按现行可信适配器范围具备治理验收证据，不代替模型质量。Jev图片/Box、替代
-驱动和条件性观察优化仍未启用。图片/Box已按用户追加要求纳入
+G1–G3按现行可信适配器范围具备治理验收证据，不代替模型质量。默认配置未启用
+Jev图片/Box；现行显式能力见上文，替代驱动和条件性观察优化仍待触发。图片/Box纳入
 [混合计划](../plans/active/computer-use-jev-vision.md)，其余条件项保留在[backlog](../backlog.md)。
 当前具体失败链未建立缺图原因，但这不阻止新视觉场景的能力试验；计划区分版本、
-图片、Box和路由增量，尚未升级现行SDK/模型或开启图片。
+图片、Box和路由增量；旧S5测量配置保持，现行显式图片能力见上文。
 完整证据和未完成试验处置见[主计划S5正式处置](../plans/done/computer-use-strategy-ladder.md)。
 S6已交付现行可信API 3的已验收治理与显式能力范围，计划完成评审并归档至done/；
 原确认仍incomplete，后续扩展保持backlog触发条件，生产配置没有变更。
@@ -175,8 +180,8 @@ S6已交付现行可信API 3的已验收治理与显式能力范围，计划完�
 兜底并可返回」的混合策略；默认A保留也不是其效果已改善的证据。DOM的24/24各含
 18个完成＋6个合理退出，长任务34/40共同入口失败，不能用于计算Jev总体操作准确率。
 当前链路、评估缺口及待验证提案见[复审报告](../research/computer-use-hybrid-review.md)；
-后续最小接线/新对照见[混合计划](../plans/active/computer-use-jev-vision.md)。提案尚未实现，
-Jev直接图片/Box仍按原backlog独立处理。
+后续切片见[混合计划](../plans/active/computer-use-jev-vision.md)。该复审提出的接管已有
+显式实现，现行能力见上文；本段旧H/J采用处置保持，图片/Box后续测量按各自证据门。
 
 ## 截图到点击：默认 legacy 转换
 
