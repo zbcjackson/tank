@@ -44,6 +44,7 @@
 | [plans/done/jev-confirmation-preparation.md](plans/done/jev-confirmation-preparation.md) | 计划 | 已完成 | 两轮审查通过；24业务/104图通过，候选资格0/24，正式N与收费未准入 |
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
+| [plans/active/jev-spatial-evidence.md](plans/active/jev-spatial-evidence.md) | 计划 | 执行中 | 有界DOM位置证据与显式空间提示，TDD/全套验证及单次真实导航 |
 | [research/jev-interface-routing.md](research/jev-interface-routing.md) | 调研 | 已审查结案 | Jev原选择正确、重复守卫转图后正确导航；像素必要性未证，第1轮审查无发现 |
 | [plans/done/jev-interface-routing.md](plans/done/jev-interface-routing.md) | 计划 | 已完成 | 原版空间任务自然接管成功，独立审查及446成员归档通过，后续优先区域资格 |
 | [research/jev-target-boundary.md](research/jev-target-boundary.md) | 调研 | 已审查结案 | Jev需上下文→Gemini none→stopped，零动作/写入，第1轮审查无发现 |
