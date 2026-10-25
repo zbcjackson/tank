@@ -227,14 +227,19 @@ Before emitting a table fact, it leaves the document and performs a fresh GET of
 the same URL, then repeats the original settled/current DOM observation. This
 avoids `reload()` resubmitting a POST document and discards optimistic display-only
 edits. At most one such GET occurs per observation, within the original deadline;
-all old references are invalidated. A page with an enabled editable textbox in a visible form emits no
-table result and is not refreshed. This mode is for result pages, with transient
+all old references are invalidated. A page with a visible, enabled editable textbox
+associated with a form emits no table result and is not refreshed, including controls associated by the `form`
+attribute. Only HTTP(S) frame documents support this readback; `srcdoc` and other
+non-HTTP documents retain ordinary observation without table facts or refresh.
+This mode is for result pages, with transient
 page state replaced by the GET response.
 
 Tables require one header row, unique nonempty column names and no nested tables,
-footers or merged cells. Duplicate visible header signatures withhold their facts,
-including when another matching table has editable data. Hidden, busy, transparent
-or editable data is not used. Limits are 32 named columns, 64 body rows, a 128-character
+footers or merged cells. Duplicate visible first-row header signatures withhold
+their facts, including when a matching table has editable data, extra header rows,
+a footer or nesting. Hidden, busy, transparent
+or editable headers/data is not used, including inherited `contenteditable`.
+Limits are 32 named columns, 64 body rows, a 128-character
 fact key and a 4096-character value. Unsupported/oversized tables supply no partial
 fact; incomplete observations cannot complete a task. The namespace is reserved:
 page-authored status text cannot impersonate it, including with the option off.

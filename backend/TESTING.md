@@ -1067,7 +1067,8 @@ for configuration, supported DOM semantics and the limits of page-fact verificat
 
 The existing `test_dom.py` adds opt-in table-readback contracts: fresh GET and
 POST non-replay, optimistic display rejection, unchanged default, reserved status
-namespace, editable-form preservation, unique headers/table signatures, hidden,
+namespace, nested/externally associated editable-form preservation, non-HTTP frame
+preservation, editable headers/inherited contenteditable, unique headers/table signatures, hidden,
 busy, transparent, nested, merged and oversized data. Its real sqlite-web Runner
 cases use the production factory and Jev SDK with fake HTTP: correct save completes;
 fill-only, navigation-only, wrong-row and concurrent protected-field/other-row
