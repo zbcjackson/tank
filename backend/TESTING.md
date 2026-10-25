@@ -1033,6 +1033,26 @@ cases use the production action-admission class; shared contracts run against bo
 the frozen benchmark prototype and production implementation. Neutral/misleading
 labels test admission wiring only. No benchmark record/completion augmentation is
 provided to production observations.
+Spatial admission tests additionally exercise explicit relative hints with all
+original candidates, four directions and candidate permutations. Missing hints,
+overlap, absent/out-of-viewport/invalid geometry and mixed native sources keep
+the visual path; nonfinite metadata stops before SDK/image use. Real Chromium
+checks default/main-frame bounds and rejects CSSOM/scroll/viewport drift without
+DOM mutations. The original sqlite-web Runner case chooses the sidebar link from
+the actual published geometry with one fake Jev call and no image model. The
+existing managed Chromium Cucumber contract includes these DOM geometry cases.
+
+Legacy calibration admission tests explicitly use recorded source/product
+fingerprints via `core/tests/legacy_qualification.py`; these unit fixtures are
+not current-host qualification. Real behavioral tests still use the normal
+installed code/products. The separate current-host drift test confirms that
+production source changes cannot reuse the old registration. No production
+amendment allowlist or old paid-batch admission is relaxed for regression tests.
+Two-product legacy calibration cases also request an explicit product-fingerprint
+fixture. It verifies current dependency versions and installed code bytes against
+the recorded product, while treating generated RECORD/venv bootstrap metadata
+as a test-environment detail. These fixtures do not qualify rebuilt environments;
+standalone current-host smoke runs always fingerprint their real environment.
 `test_s5_paired.py` checks failed intake attempts, SDK invocation identity,
 not-started policy/capture/data refusals, incomplete-trace missingness and both
 summary harnesses' frozen metric-source tamper detection.

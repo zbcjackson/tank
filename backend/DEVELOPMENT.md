@@ -297,6 +297,16 @@ It reuses the ordinary completion/submit contract, preserves default behavior an
 does not use database facts. Forms with enabled editable textboxes, ambiguous/hidden/merged data and
 oversized tables supply no result; the fact covers only the declared visible page.
 
+For declared relative-position tasks, `browser.observe_bounds: true` adds current
+main-frame renderer boxes and viewport CSS-pixel metadata. An optional goal
+`spatial_hint: {role: link, label: work_items, relation: leftmost}` permits one
+otherwise equivalent DOM candidate only when its whole box is separated along
+that axis from every peer. Rightmost/topmost/bottommost are also supported.
+Default observations and native AX retain their existing coordinate behavior;
+no hint means no geometric relaxation. This does not parse arbitrary user prose
+or introduce coordinate execution. CSS-only layout/scroll/resize changes invalidate
+the observed geometry before dispatch. See the plugin README for the full boundary.
+
 `DecisionModel` can also be used by a core caller without a task context. Its
 `choose(state=..., instructions=..., options=...)` returns `ChoiceResult` including
 choice, confidence, probabilities and optional input/output token counts. A

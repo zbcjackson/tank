@@ -483,6 +483,34 @@ used directly. `computer_use_action_admission` records the selected ID, acceptan
 and next route. Hard stops and repeated-state recovery keep their existing limits.
 This mechanical check establishes distinguishability, not action correctness.
 
+For an explicit spatial task, `browser.observe_bounds: true` observes renderer
+bounding boxes in the owned main frame. `state.snapshot.geometry` declares
+`main_frame_viewport_css_pixels` and `[width,height]` viewport size; element
+`bounds` are `[x,y,width,height]`, origin top-left, x right and y down. Bounds and
+viewport are part of the consistent observation and dispatch freshness checks,
+including CSS-only movement, scrolling and resize. The option defaults to false;
+child frames and native AX do not acquire this coordinate contract.
+
+An optional public goal declaration enables only a narrow extra admission:
+
+```json
+"spatial_hint": {"role": "link", "label": "work_items", "relation": "leftmost"}
+```
+
+Relations are `leftmost`, `rightmost`, `topmost` and `bottommost`; supported roles
+are button/link/checkbox. This is a relative target hint, not an action grant or
+an automatic interpretation of natural language. Among at least two otherwise
+equivalent matching DOM candidates, all boxes must be finite, positive and fully
+inside the current viewport. Only a candidate entirely on the declared side of
+every peer may receive extra text admission. Overlapping projections, missing
+geometry, mixed sources or an absent/mismatched hint add no admission. Different
+coordinates alone never make all duplicate controls acceptable. Original unique
+text candidates, full candidate sets, visual fallback and hard stops remain.
+No screenshot is required for the geometry observation; models still select
+original action references, not coordinate operations. Existing model payloads
+omit this optional hint/geometry when unused. This omission uses the plugin's
+declared Pydantic 2.12 minimum; the existing locked runtime version is unchanged.
+
 For a controlled development page, explicitly configure the extension in the host
 configuration (serve your owned page at the example loopback URL):
 
