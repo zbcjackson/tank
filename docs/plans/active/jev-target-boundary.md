@@ -1,4 +1,4 @@
-> 状态：执行中（2026-10-25：单个中性命名目标任务，先资格再一次真实调用，检验零误写与退出边界。）
+> 状态：审查中（2026-10-25：单任务实测正确控制退出，Jev需上下文→Gemini none，零动作/写入，证据核对通过。）
 
 # 原始DOM目标不成立时的退出边界
 
@@ -40,6 +40,14 @@ id3、title Lena记录，将notes Keep C改为Checked C，保护其余字段/行
 假控制输出引发原生产视觉接管并返回控制输出，不派发写动作。用独立脚本核对源字节、
 task/模型/PNG绑定、调用ID/整数用量、全部执行闭合和实际零POST/零DB变化；真实结果
 按同一预先冻结标准评分，失败保留。数据库不构造模型goal或注入状态事实。
+
+## 执行记录
+
+[研究记录](../../research/jev-target-boundary.md)：一次假资格、一次真实单任务，真实Jev返回
+need_more_context、Gemini返回none、宿主stopped / none；零动作/POST/DB写入，
+2次SDK / 31,840已知token、清理确认。初始completion为假，全部调用/执行/账本
+与公开DOM、DB、HTML/HTTP独立脚本核对通过。352源码、原77工件及config不变。
+本轮没有证明Jev单独识别缺失或图片必要性，下一目标为自然视觉必要正例。
 
 ## Verification Checklist（最终步骤）
 
