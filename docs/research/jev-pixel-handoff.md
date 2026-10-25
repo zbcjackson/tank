@@ -1,4 +1,4 @@
-> 日期：2026-10-25；结论状态：resolved（唯一真实任务成功：像素接管后返回Jev；2Jev/2图片、3正确动作，待新增结果收尾审查。）
+> 日期：2026-10-25；结论状态：resolved（唯一真实任务成功：像素接管后返回Jev；2Jev/2图片、3正确动作，第3轮新增结果审查完成，已签名归档。）
 
 # 原版预览图的像素需求与返回Jev
 
@@ -96,6 +96,14 @@ verify-evidence.py离线重核fake/live、图/proposal/回执/来源、业务DB�
 其初稿对dict使用Counter时错误统计值，修正为keys后通过，原稿/失败保留，未改模型原始
 证据或三项冻结脚本。80旧工件/默认配置、354运行源及446原产品源仍保持。
 
+## 最终审查
+
+先行第1轮R1候选数/R2图片绑定审计已修，第2轮为修复者自检；第3轮独立复核
+新增真实证据、7047成员包及签名旧包原6559项，确认未改变既有内容。仅索引及计划
+资格历史的两行状态文案修正（4f68ef2c），由评审者自检，未再次独立复审。
+原始报告review-before-live.md、review-after-live.md和离线日志随包保存；协调者核查
+报告/diff后，仅做本次计划/文档、画布与封包结案自检，不开启第4轮。
+
 ## 验证与证据
 
 本片只改docs与归档，不修改生产代码/测试/协议。check.py核对并明确复用前轮当前
@@ -106,7 +114,9 @@ reload/文档日志均通过；唯一旧skip仍为ToolManager requires full conf
 
 [原始归档](artifacts/jev-pixel-handoff-20261025.tar.xz)保存全部准备失败、像素交换
 PNG/原DOM/模型投影、最终冻结与源、假HTTP请求/原引用轨迹/HTTP/DB/账本/清理、
-审计器与六项反例、前轮已闭合检查日志。逐文件manifest核对；追加真实原始证据与离线复核后封包为7047普通成员，SHA256为
-b454cabb99568467715ca125c1eeedaf06caa5cbc328a8569f98244122d21ed9。
-[子计划](../plans/active/jev-pixel-handoff.md)与[主计划](../plans/active/computer-use-jev-vision.md)
+审计器与六项反例、前轮已闭合检查日志。逐文件manifest核对；最终封包为7053普通成员，SHA256为
+6fc35bf942916e7ea509b4e767e09087f06204ac9b6b85d7045a2f68ec0f877b。
+原审查版7046项内容SHA保持，仅追加原始收尾报告/日志、画布及结案收据；
+末次封包/文档/画布由协调者自检，不作新的独立审查。
+[子计划](../plans/done/jev-pixel-handoff.md)与[主计划](../plans/active/computer-use-jev-vision.md)
 约束本片范围。真实仅此一次4请求，不把假模拟路线当作真实模型结论。
