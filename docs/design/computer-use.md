@@ -25,9 +25,9 @@ App名称白名单或事先为每类任务指定模型。可用证据包括控�
 
 原始生产DOM[两项正例](../research/jev-runtime-smoke.md)共7次Jev、零图片并完成；
 [中性命名反例](../research/jev-target-boundary.md)为Jev需上下文→Gemini none→停止，
-零动作/写入。这是有限路径证据，未确认拒绝泛化、图片必要性或默认采用。按界面
-特征选择下一验证样本见[进行中计划](../plans/active/jev-interface-routing.md)；计划内容
-与待执行项不放在本节。原`jev-vision`及其他选择器各自准入逻辑保持。
+零动作/写入。这是有限路径证据，未确认拒绝泛化、图片必要性或默认采用。当前验证边界与后续项见
+[主计划](../plans/active/computer-use-jev-vision.md)。原`jev-vision`及其他选择器各自
+准入逻辑保持。
 
 [空间目标实测](../research/jev-interface-routing.md)中，Jev与图片服务选中了相同正确
 链接；重复身份守卫仍要求图片。当前文字投影缺少区域/几何，而图片请求包含图框，
