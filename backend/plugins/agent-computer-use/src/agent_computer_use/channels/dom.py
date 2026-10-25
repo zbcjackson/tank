@@ -185,27 +185,33 @@ _READ = r"""nodes => {
             if (getComputedStyle(parent).opacity === '0') return false;
         return true;
     };
-    const editing = elements.some(e => e.editable && e.enabled && state.refs.get(e.ref).closest('form'));
-    if (TABLE_READBACK && complete && !editing) for (const table of nodes.filter(n => n.tagName === 'TABLE')) {
-        if (!visible(table) || table.parentElement?.closest('table') || table.querySelector('table') || table.tHead?.rows.length !== 1 ||
-            table.tFoot?.rows.length) continue;
+    const editable = node => node.isContentEditable || node.matches('[role="textbox"]') ||
+        node.querySelector('input,textarea,select,button,[contenteditable]:not([contenteditable="false"]),[role="textbox"]');
+    const editing = elements.some(e => {
+        const node = state.refs.get(e.ref);
+        return e.editable && e.enabled && (node.form || node.closest('form'));
+    });
+    if (TABLE_READBACK && complete && !editing && ['http:', 'https:'].includes(location.protocol))
+    for (const table of nodes.filter(n => n.tagName === 'TABLE')) {
+        if (!visible(table) || !table.tHead?.rows.length) continue;
         const headers = [...table.tHead.rows[0].cells];
         const named = headers.map((cell, index) => ({cell, index, name: text(cell.innerText)}))
             .filter(h => h.name);
         const columns = named.map(h => h.name);
         const key = 'status:DOM table:' + JSON.stringify(columns);
         signatures.push(key);
-        if (!named.length || named.length > 32 ||
+        if (!named.length || named.length > 32 || table.tHead.rows.length !== 1 ||
+            table.parentElement?.closest('table') || table.querySelector('table') || table.tFoot?.rows.length ||
             table.closest('[aria-busy="true"]') || table.querySelector('[aria-busy="true"]') ||
             new Set(named.map(h => h.name)).size !== named.length ||
+            named.some(h => editable(h.cell)) ||
             headers.some(c => !visible(c) || c.colSpan !== 1 || c.rowSpan !== 1 ||
                 [...c.querySelectorAll('*')].some(child => !visible(child)))) continue;
         const body = [...table.tBodies].flatMap(section => [...section.rows]);
         if (body.length > 64 || body.some(row => !visible(row) || row.cells.length !== headers.length ||
             [...row.cells].some(c => c.colSpan !== 1 || c.rowSpan !== 1))) continue;
         const cells = body.flatMap(row => named.map(h => row.cells[h.index]));
-        if (cells.some(c => c.colSpan !== 1 || c.rowSpan !== 1 || !visible(c) ||
-            c.querySelector('input,textarea,select,button,[contenteditable]:not([contenteditable="false"]),[role="textbox"]') ||
+        if (cells.some(c => c.colSpan !== 1 || c.rowSpan !== 1 || !visible(c) || editable(c) ||
             [...c.querySelectorAll('*')].some(child => !visible(child)))) continue;
         const rows = body.map(row => named.map(h => text(row.cells[h.index].innerText)));
         const value = JSON.stringify({url: location.href, columns, rows});

@@ -226,9 +226,15 @@ _READBACK_TABLE = ('<table><thead><tr><th>id</th><th>title</th></tr></thead>'
     _READBACK_TABLE.replace('<th>title</th>', '<th>id</th>'),
     _READBACK_TABLE + _READBACK_TABLE,
     _READBACK_TABLE + _READBACK_TABLE.replace('Miro', '<input value="Miro">'),
+    _READBACK_TABLE + _READBACK_TABLE.replace('</table>', '<tfoot><tr><td>1</td><td>Total</td></tr></tfoot></table>'),
+    _READBACK_TABLE + '<table><tr><td>' + _READBACK_TABLE + '</td></tr></table>',
+    _READBACK_TABLE + _READBACK_TABLE.replace('</thead>', '<tr><th>more</th><th>headers</th></tr></thead>'),
     _READBACK_TABLE.replace('<td>Miro</td>', '<td hidden>Miro</td>'),
     _READBACK_TABLE.replace('<tbody><tr>', '<tbody><tr hidden>'),
     _READBACK_TABLE.replace('Miro', '<input value="Miro">'),
+    _READBACK_TABLE.replace('<td>Miro</td>', '<td contenteditable="true">Miro</td>'),
+    '<section contenteditable="true">' + _READBACK_TABLE + '</section>',
+    _READBACK_TABLE.replace('<th>title</th>', '<th>title<input value="Uncommitted"></th>'),
     _READBACK_TABLE.replace('<tbody>', '<tbody aria-busy="true">'),
     _READBACK_TABLE.replace('<table>', '<table style="opacity:0">'),
     '<table><tr><td>' + _READBACK_TABLE + '</td></tr></table>',
@@ -307,12 +313,17 @@ async def test_dom_table_readback_reserves_namespace_and_preserves_default(
         await ctx.runtime.aclose()
 
 
+@pytest.mark.parametrize("form", [
+    '<form><label>Notes<input value="Old"></label></form>',
+    '<form id="editor"><button>Save</button></form>'
+    '<label>Notes<input form="editor" value="Old"></label>',
+])
 async def test_dom_table_readback_does_not_discard_an_editable_form(
-    site, profile_store, chromium_required,
+    site, profile_store, chromium_required, form,
 ):
     from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
 
-    profile_store["table_html"] = _READBACK_TABLE + '<form><label>Notes<input value="Old"></label></form>'
+    profile_store["table_html"] = _READBACK_TABLE + form
     ctx = context()
     browser = ManagedChromiumChannel(BrowserConfig(
         scope="managed-page", url=site + "table-readback", readback_tables=True))
@@ -323,6 +334,27 @@ async def test_dom_table_readback_does_not_discard_an_editable_form(
         snapshot = await browser.observe("managed-page", ctx)
         assert not any(f.key.startswith("status:DOM table:") for f in snapshot.facts)
         assert await browser.page.get_by_label('Notes').input_value() == 'Uncommitted'
+        assert profile_store["table_reads"] == "1"
+    finally:
+        await browser.aclose()
+        await ctx.runtime.aclose()
+
+
+async def test_dom_table_readback_preserves_a_non_http_named_frame(
+    site, profile_store, chromium_required,
+):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
+
+    markup = html_module.escape(_READBACK_TABLE, quote=True)
+    profile_store["table_html"] = f'<iframe name="bound" srcdoc="{markup}"></iframe>'
+    ctx = context()
+    browser = ManagedChromiumChannel(BrowserConfig(
+        scope="managed-page", url=site + "table-readback", frame_name="bound", readback_tables=True))
+    try:
+        snapshot = await browser.observe("managed-page", ctx)
+        assert snapshot.complete and snapshot.ready
+        assert browser.frame is not None and browser.frame.url == "about:srcdoc"
+        assert not any(f.key.startswith("status:DOM table:") for f in snapshot.facts)
         assert profile_store["table_reads"] == "1"
     finally:
         await browser.aclose()
@@ -3322,7 +3354,8 @@ async def test_calibration_projection_cannot_mix_navigation_epochs(chromium_requ
         if expression == projection and not changed:
             changed = True
             if change == 'reload':
-                await page.reload()
+                # Navigation must not inherit the channel's 500 ms locator timeout.
+                await page.reload(timeout=5000)
             else:
                 await original(page, "document.body.dataset.projectionRace = 'changed'")
         return data
