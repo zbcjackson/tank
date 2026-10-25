@@ -44,6 +44,7 @@
 | [plans/done/jev-confirmation-preparation.md](plans/done/jev-confirmation-preparation.md) | 计划 | 已完成 | 两轮审查通过；24业务/104图通过，候选资格0/24，正式N与收费未准入 |
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
+| [plans/active/jev-interface-routing.md](plans/active/jev-interface-routing.md) | 计划 | 执行中 | 界面证据驱动、先Jev后视觉；原版重复链接空间目标资格及单次闭环 |
 | [research/jev-target-boundary.md](research/jev-target-boundary.md) | 调研 | 已审查结案 | Jev需上下文→Gemini none→stopped，零动作/写入，第1轮审查无发现 |
 | [plans/done/jev-target-boundary.md](plans/done/jev-target-boundary.md) | 计划 | 已完成 | 单任务真实控制退出，31,840已知token，审查及413成员归档通过 |
 | [research/jev-runtime-smoke.md](research/jev-runtime-smoke.md) | 调研 | 已审查结案 | 两个原始DOM正例均goal_verified，7次Jev/0图片，第1轮独立审查无发现 |
@@ -77,7 +78,7 @@
 | [research/jev-navigation-observation.md](research/jev-navigation-observation.md) | 调研 | 修复及第1轮审查结案 | 96原生/192模拟及6537后端/本地ASR E2E21通过；独立28+8回归及归档/物理审计一致，远端ASR未认证 |
 | [research/jev-confirmation-qualification.md](research/jev-confirmation-qualification.md) | 调研 | 调查及审查结案、资格未通过 | 原生96/96及416图通过；模拟第2项Retry后无动作停批，190未运行；1次假凭据认证失败外发保留 |
 | [research/jev-confirmation-design.md](research/jev-confirmation-design.md) | 调研 | 条件设计及审查结案 | 全部门联合功效/新任务隔离与资源预览；最弱MC下界81.78%，非实测功效，正式N保持null |
-| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 新冻结资格通过、旧失败保留 | R1/R2修复后原生96/模拟192及代码验证通过；旧unknown根因未认定解决，正式N与真实测量未准入 |
+| [plans/active/computer-use-jev-vision.md](plans/active/computer-use-jev-vision.md) | 计划 | 界面证据路由验证中 | 原始DOM正例/控制退出已结案；启动布局空间目标，旧unknown及正式N不改 |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；复用已有 benchmark，后续聚焦效果改进 |
