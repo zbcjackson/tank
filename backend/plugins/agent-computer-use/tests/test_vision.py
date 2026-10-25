@@ -1976,3 +1976,192 @@ async def test_action_admission_preserves_pre_call_hard_gates(monkeypatch, failu
         assert not sent
     finally:
         await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("relation", ["leftmost", "rightmost", "topmost", "bottommost"])
+async def test_spatial_hint_accepts_only_separated_duplicate_without_image(monkeypatch, reverse, relation):
+    import json
+    from dataclasses import replace
+
+    import httpx
+    from agent_computer_use.action_admission import ActionAdmissionSelector
+    from agent_computer_use.action_builder import ActionBuilder
+    from agent_computer_use.contracts import Element, Fact, GoalContract
+    from .test_jev import reply, selection, setup
+
+    selected_ref = "nav-left" if relation in {"leftmost", "bottommost"} else "nav-right"
+
+    async def respond(request):
+        payload = json.loads(request.content)
+        key = next(k for k, value in payload["questions"]["next_action"]["criteria"].items()
+                   if isinstance(value, dict) and value["target_ref"] == selected_ref)
+        return httpx.Response(200, json=reply(request, key))
+
+    class Source:
+        async def capture(self, snapshot, context):
+            raise AssertionError("explicit separated spatial target must not require an image")
+
+    goal, snapshot, _ = selection()
+    goal = GoalContract.from_input({**goal.model_dump(mode="json"),
+        "intent": f"Open the {relation} work_items link", "objective": "Open destination",
+        "allowed_operations": ["click"],
+        "completion": [{"key": "status:Page URL", "value": "https://owned.test/table/"}],
+        "spatial_hint": {"role": "link", "label": "work_items", "relation": relation}})
+    left = Element("nav-left", "link", "work_items", ("click",), source="dom",
+        bounds=(20, 140, 120, 30),
+        click_effect=(Fact(key="status:Page URL", value="https://owned.test/table/"),))
+    right = replace(left, ref="nav-right", bounds=(260, 20, 120, 30))
+    snapshot = replace(snapshot, elements=(*snapshot.elements, left, right), viewport=(1280, 720))
+    if reverse:
+        snapshot = replace(snapshot, elements=snapshot.elements[::-1])
+    actions = ActionBuilder(visual=True).build("goal", 1, goal, snapshot)
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    try:
+        decision = await ActionAdmissionSelector(Source()).choose(goal, snapshot, actions, ctx)
+        assert decision.candidate_id == next(a.id for a in actions.actions if a.target_ref == selected_ref)
+        assert len(sent) == 1
+        packet = json.loads(sent[0].content)
+        assert packet["state"]["goal"]["spatial_hint"] == {
+            "role": "link", "label": "work_items", "relation": relation}
+        assert packet["state"]["snapshot"]["geometry"] == {
+            "coordinate_space": "main_frame_viewport_css_pixels", "viewport_size": [1280, 720]}
+        assert len([c for c in packet["questions"]["next_action"]["criteria"].values()
+                    if isinstance(c, dict)]) == 4
+    finally:
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("failure", [
+    "no_hint", "wrong_label", "wrong_role", "opposite", "overlap", "same_x", "missing_box",
+    "missing_viewport", "outside", "negative_position", "zero_size", "negative_size",
+    "zero_viewport", "boolean_viewport", "native_source",
+])
+async def test_spatial_hint_without_unique_geometry_keeps_visual_fallback(monkeypatch, failure):
+    import json
+    from dataclasses import replace
+
+    import httpx
+    from agent_computer_use.action_admission import ActionAdmissionSelector
+    from agent_computer_use.action_builder import ActionBuilder
+    from agent_computer_use.contracts import Element, Fact, GoalContract
+    from agent_computer_use.visual_selector import VisualFrame
+    from tank_backend.llm.model_data import ModelDataScope
+    from tank_backend.llm.profile import LLMProfile
+    from .test_jev import reply, selection, setup
+
+    async def respond(request):
+        payload = json.loads(request.content)
+        if "questions" in payload:
+            key = next(k for k, value in payload["questions"]["next_action"]["criteria"].items()
+                       if isinstance(value, dict) and value["target_ref"] == "nav-left")
+            return httpx.Response(200, json=reply(request, key))
+        return httpx.Response(200, json={"id": "visual", "object": "chat.completion",
+            "created": 1, "model": "vision", "choices": [{"index": 0, "finish_reason": "stop",
+                "message": {"role": "assistant", "content": '{"choice":"none"}'}}],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10}})
+
+    goal, snapshot, _ = selection()
+    data = {**goal.model_dump(mode="json"),
+        "spatial_hint": {"role": "link", "label": "work_items", "relation": "leftmost"}}
+    if failure == "no_hint":
+        data.pop("spatial_hint")
+    else:
+        data["spatial_hint"].update({
+            "wrong_label": {"label": "other"}, "wrong_role": {"role": "button"},
+            "opposite": {"relation": "rightmost"}}.get(failure, {}))
+    goal = GoalContract.from_input(data)
+    left = Element("nav-left", "link", "work_items", ("click",), source="dom",
+        bounds=(20, 140, 120, 30),
+        click_effect=(Fact(key="status:Page URL", value="https://owned.test/table/"),))
+    right = replace(left, ref="nav-right", bounds=(260, 20, 120, 30))
+    if failure in {"overlap", "same_x", "missing_box", "outside"}:
+        right = replace(right, bounds={"overlap": (100, 140, 120, 30),
+            "same_x": (20, 20, 120, 30), "missing_box": None,
+            "outside": (1200, 20, 120, 30)}[failure])
+    if failure in {"negative_position", "zero_size", "negative_size"}:
+        left = replace(left, bounds={"negative_position": (-1, 140, 120, 30),
+            "zero_size": (20, 140, 0, 30), "negative_size": (20, 140, -1, 30)}[failure])
+    if failure == "native_source":
+        right = replace(right, source="ax")
+    viewport = {"missing_viewport": None, "zero_viewport": (0, 720),
+                "boolean_viewport": (True, 720)}.get(failure, (1280, 720))
+    snapshot = replace(snapshot, elements=(*snapshot.elements, left, right), viewport=viewport)
+    actions = ActionBuilder(visual=True).build("goal", 1, goal, snapshot)
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    object.__setattr__(ctx, "model_data_scope", ModelDataScope(frozenset({"text", "image"})))
+    ctx.runtime.configure_visual_model("task", LLMProfile(
+        "visual", "key", "vision", "https://offline.invalid/v1", max_tokens=128))
+
+    class Source:
+        async def capture(self, snapshot, context):
+            buf = io.BytesIO()
+            Image.new("RGB", (100, 80), "white").save(buf, "PNG")
+            frame, png = Observation.capture(buf.getvalue(), session_id=context.runtime.task_id,
+                                             display_id=1)
+            return VisualFrame(snapshot.observation_id, frame, png, tuple(
+                (element.ref, (5.0 + i * 20, 10.0, 10.0, 10.0))
+                for i, element in enumerate(snapshot.elements)))
+
+    selector = ActionAdmissionSelector(Source())
+    selector.register(ctx)
+    try:
+        decision = await selector.choose(goal, snapshot, actions, ctx)
+        assert decision.choice == "none" and len(sent) == 2
+        native = json.loads(sent[0].content)
+        visual = json.loads(json.loads(sent[1].content)["messages"][1]["content"][0]["text"])
+        assert native["state"] == visual["state"]
+        assert len(visual["image_candidates"]) == 4
+    finally:
+        await ctx.runtime.aclose()
+
+
+def test_spatial_hint_schema_is_optional_bounded_and_roundtrips():
+    from agent_computer_use.contracts import GoalContract
+    from .test_jev import selection
+
+    goal, _, _ = selection()
+    original = goal.model_dump(mode="json")
+    assert "spatial_hint" not in original
+    value = {"role": "link", "label": "work_items", "relation": "leftmost"}
+    declared = GoalContract.from_input({**original, "spatial_hint": value})
+    assert declared.model_dump(mode="json")["spatial_hint"] == value
+    assert GoalContract.from_input(declared.model_dump(mode="json")) == declared
+    for invalid in ({**value, "relation": "somewhere"}, {**value, "label": ""},
+                    {**value, "coordinates": [1, 2]}, {**value, "role": "canvas"}):
+        with pytest.raises(ValueError):
+            GoalContract.from_input({**original, "spatial_hint": invalid})
+
+
+@pytest.mark.parametrize("coordinate", [float("nan"), float("inf"), -float("inf")])
+async def test_spatial_nonfinite_metadata_stops_before_sdk_or_image(monkeypatch, coordinate):
+    from dataclasses import replace
+
+    from agent_computer_use.action_admission import ActionAdmissionSelector
+    from agent_computer_use.action_builder import ActionBuilder
+    from agent_computer_use.contracts import Element, GoalContract
+    from tank_backend.agents.subagent import SubAgentStopped
+    from .test_jev import selection, setup
+
+    async def respond(request):
+        raise AssertionError("nonfinite observation cannot be sent to a model")
+
+    class Source:
+        async def capture(self, snapshot, context):
+            raise AssertionError("invalid data is a hard stop, not an image retry")
+
+    goal, snapshot, _ = selection()
+    goal = GoalContract.from_input({**goal.model_dump(mode="json"),
+        "spatial_hint": {"role": "link", "label": "work_items", "relation": "leftmost"}})
+    left = Element("nav-left", "link", "work_items", ("click",), source="dom",
+                   bounds=(coordinate, 140, 120, 30), click_observable=True)
+    snapshot = replace(snapshot, elements=(*snapshot.elements, left,
+        replace(left, ref="nav-right", bounds=(260, 20, 120, 30))), viewport=(1280, 720))
+    actions = ActionBuilder(visual=True).build("goal", 1, goal, snapshot)
+    ctx, _, sent, _ = setup(monkeypatch, respond)
+    try:
+        with pytest.raises(SubAgentStopped):
+            await ActionAdmissionSelector(Source()).choose(goal, snapshot, actions, ctx)
+        assert sent == [] and ctx.budget.total_tokens == 0
+    finally:
+        await ctx.runtime.aclose()

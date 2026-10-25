@@ -67,6 +67,14 @@ class Outcome(GoalModel):
     depends_on: tuple[str, ...] = Field(default=(), max_length=32)
 
 
+class SpatialHint(GoalModel):
+    """Declared relative position among otherwise equivalent controls, not authority."""
+
+    role: Literal["button", "link", "checkbox"]
+    label: str = Field(min_length=1, max_length=512)
+    relation: Literal["leftmost", "rightmost", "topmost", "bottommost"]
+
+
 class GoalContract(GoalModel):
     """Desired outcomes and input purposes, never an ordered action script.
 
@@ -85,6 +93,7 @@ class GoalContract(GoalModel):
     inputs: tuple[GoalInput, ...] = Field(default=(), max_length=32)
     outcomes: tuple[Outcome, ...] = Field(default=(), max_length=32)
     completion: tuple[Fact, ...] = Field(min_length=1, max_length=32)
+    spatial_hint: SpatialHint | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @field_validator("schema_version", mode="before")
     @classmethod
@@ -159,6 +168,7 @@ class Snapshot:
     complete: bool = True
     ready: bool = True
     window: str | None = None
+    viewport: tuple[int, int] | None = None
 
     def __post_init__(self) -> None:
         if not self.observation_id or not self.scope or self.generation < 0:
@@ -329,6 +339,10 @@ def snapshot_json(snapshot: Snapshot) -> dict[str, object]:
     view = asdict(snapshot)
     # Window identity is host-side baseline bookkeeping, not model evidence.
     view.pop("window")
+    view.pop("viewport")
+    if snapshot.viewport is not None:
+        view["geometry"] = {"coordinate_space": "main_frame_viewport_css_pixels",
+                            "viewport_size": snapshot.viewport}
     return {**view, "elements": elements,
             "facts": [fact.model_dump(mode="json") for fact in snapshot.facts]}
 

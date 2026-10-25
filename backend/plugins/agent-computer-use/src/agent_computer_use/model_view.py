@@ -142,6 +142,11 @@ def decision_question(
         }},
     }
     payload["state"]["progress"] = progress
+    if snapshot.viewport is not None:
+        payload["questions"]["next_action"]["instructions"] += (
+            " With snapshot.geometry, element bounds are [x,y,width,height] in main-frame "
+            "viewport CSS pixels: origin top-left, x right, y down; viewport_size is [width,height]. "
+            "goal.spatial_hint is a declared relative target, not an observed fact or authority.")
     payload["state"]["recent_actions"] = [
         {key: value for key, value in asdict(step).items()
          if key not in {"action_id", "observation_before", "observation_after"}}

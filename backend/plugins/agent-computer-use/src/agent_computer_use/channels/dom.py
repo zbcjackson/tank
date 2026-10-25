@@ -45,6 +45,7 @@ class BrowserConfig(BaseModel):
     url: str = Field(max_length=4096)
     frame_name: str | None = Field(default=None, min_length=1, max_length=256)
     readback_tables: bool = False
+    observe_bounds: bool = False
 
     @field_validator("url")
     @classmethod
@@ -70,6 +71,7 @@ class DOMElement(BaseModel):
     submits: bool = False
     input_type: str = "text"
     control_name: str = ""
+    bounds: tuple[float, float, float, float] | None = None
 
 
 class DOMView(BaseModel):
@@ -77,6 +79,7 @@ class DOMView(BaseModel):
     complete: bool
     revision: int
     tables: tuple[Fact, ...] = ()
+    viewport: tuple[int, int] | None = None
 
 
 # The selector registry stores actual DOM objects, not text/index selectors that
@@ -403,7 +406,26 @@ class ManagedChromiumChannel:
                   .replace("TABLE_READBACK", json.dumps(self.config.readback_tables)))
         data = await frame.locator(f"{self.engine}=*").evaluate_all(script)
         self.check(context)
-        return DOMView.model_validate(data)
+        view = DOMView.model_validate(data)
+        if (not self.config.observe_bounds or self.page is None
+                or frame is not self.page.main_frame or self.page.viewport_size is None):
+            return view
+        from playwright.async_api import Error
+
+        size = self.page.viewport_size
+        elements = []
+        try:
+            for item in view.elements:
+                self.check(context)
+                box = await frame.locator(f"{self.engine}={item.ref}").bounding_box()
+                bounds = (box["x"], box["y"], box["width"], box["height"]) if box else None
+                elements.append(item.model_copy(update={"bounds": bounds}))
+        except Error:
+            self.check(context)
+            return DOMView(elements=[], complete=False, revision=view.revision)
+        self.check(context)
+        return DOMView(elements=elements, complete=view.complete, revision=view.revision,
+                       tables=view.tables, viewport=(size["width"], size["height"]))
 
     def unavailable_snapshot(self, scope: str) -> Snapshot:
         """Discard a read spanning documents; it grants no candidate references."""
@@ -504,7 +526,7 @@ class ManagedChromiumChannel:
             elements.append(Element(item.ref, item.role, label, actions, item.enabled,
                                     "control" if actions else "text_region", "dom",
                                     item.value, item.focused, item.ancestors,
-                                    click_effect=click_effect, submits=item.submits,
+                                    bounds=item.bounds, click_effect=click_effect, submits=item.submits,
                                     input_type=item.input_type))
         facts = (Fact(key="status:Page URL", value=frame.url), *checked_facts) + tuple(
                       Fact(key=key, value=item.value) for item in view.elements
@@ -519,7 +541,7 @@ class ManagedChromiumChannel:
         facts += view.tables
         self.generation += 1
         snapshot = Snapshot(uuid4().hex, scope, self.generation, tuple(elements), facts,
-                            complete=view.complete)
+                            complete=view.complete, viewport=view.viewport)
         self.previous, self.view = snapshot, view
         self.observed_navigation = navigation
         return snapshot

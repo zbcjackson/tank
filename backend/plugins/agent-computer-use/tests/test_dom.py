@@ -107,6 +107,8 @@ async def site(profile_store: dict[str, str],
             profile_store["name"] = parse_qs(path.query)["name"][0]
             profile_store["saves"] = str(int(profile_store["saves"]) + 1)
             body = json.dumps(profile_store).encode()
+        if path.path == "/spatial":
+            body = profile_store["spatial_html"].encode()
         if path.path == "/table-readback":
             profile_store["table_reads"] = str(int(profile_store.get("table_reads", "0")) + 1)
             profile_store["table_methods"] = profile_store.get("table_methods", "") + request.split(b" ", 1)[0].decode() + ","
@@ -2716,7 +2718,7 @@ async def test_calibration_controller_completes_four_record_sql_list(chromium_re
 
 
 async def test_calibration_reconciles_real_sdk_wire_usage(
-    chromium_required, monkeypatch, tmp_path, linkding_root, product_python
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python, legacy_qualification_host
 ):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_audit as audit
@@ -3080,7 +3082,7 @@ async def test_calibration_dispatch_evidence_write_failure_prevents_native_send(
 
 
 async def test_supplemental_native_cancellation_during_cleanup_is_preserved(
-    chromium_required, monkeypatch, tmp_path, product_python, linkding_root
+    chromium_required, monkeypatch, tmp_path, product_python, linkding_root, legacy_qualification_host
 ):
     import asyncio
     import json
@@ -3136,6 +3138,7 @@ async def test_supplemental_native_case_has_zero_model_calls(
     linkding_root,
     product,
     negative,
+    legacy_qualification_host,
 ):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_qualification as qualification
@@ -5033,6 +5036,196 @@ async def test_table_readback_real_product_runner_verifies_saved_rows(
                 assert len(result['details']['receipts']) == 3
                 assert all(m['status'] == 'returned' for k, m in events
                            if k == 'model_call' and m['phase'] == 'finished')
+        finally:
+            if server.returncode is None:
+                server.terminate()
+            try:
+                await asyncio.wait_for(server.wait(), 5)
+            except TimeoutError:
+                server.kill()
+                await server.wait()
+
+
+async def test_dom_spatial_observation_exposes_bound_main_frame_css_geometry(
+    site, profile_store, chromium_required,
+):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
+    from agent_computer_use.contracts import snapshot_json
+
+    profile_store["spatial_html"] = """<!doctype html><a href="/destination"
+      style="position:fixed;left:20px;top:140px;width:120px;height:30px">work_items</a>
+      <a href="/destination"
+      style="position:fixed;left:260px;top:20px;width:120px;height:30px">work_items</a>"""
+    ctx = context()
+    browser = ManagedChromiumChannel(BrowserConfig(
+        scope="spatial", url=site + "spatial", observe_bounds=True))
+    try:
+        snapshot = await browser.observe("spatial", ctx)
+        assert snapshot.ready and snapshot.complete
+        assert snapshot.viewport == (1280, 720)
+        assert [e.bounds for e in snapshot.elements] == [
+            (20, 140, 120, 30), (260, 20, 120, 30)]
+        payload = snapshot_json(snapshot)
+        assert payload["geometry"] == {
+            "coordinate_space": "main_frame_viewport_css_pixels", "viewport_size": (1280, 720)}
+        assert await browser.is_snapshot_current(snapshot, ctx)
+    finally:
+        await browser.aclose()
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("frame_name", [None, "bound"])
+async def test_dom_spatial_bounds_remain_opt_in_and_main_frame_only(
+    site, chromium_required, frame_name,
+):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
+    from agent_computer_use.contracts import snapshot_json
+
+    ctx = context()
+    config = BrowserConfig(scope="spatial", url=site + ("frame" if frame_name else ""),
+                           frame_name=frame_name, observe_bounds=frame_name is not None)
+    browser = ManagedChromiumChannel(config)
+    try:
+        snapshot = await browser.observe("spatial", ctx)
+        assert snapshot.ready and snapshot.complete
+        assert snapshot.viewport is None and all(e.bounds is None for e in snapshot.elements)
+        assert "geometry" not in snapshot_json(snapshot)
+    finally:
+        await browser.aclose()
+        await ctx.runtime.aclose()
+
+
+@pytest.mark.parametrize("change", ["css", "viewport", "scroll"])
+async def test_dom_spatial_layout_change_refuses_old_action_without_dom_mutation(
+    site, profile_store, chromium_required, change,
+):
+    from agent_computer_use.channels.dom import BrowserConfig, ManagedChromiumChannel
+
+    profile_store["spatial_html"] = """<!doctype html><body style="height:2000px">
+      <a href="/destination" style="position:absolute;left:20px;top:140px">work_items</a>
+      <a href="/destination" style="position:absolute;left:260px;top:20px">work_items</a>"""
+    ctx = context()
+    browser = ManagedChromiumChannel(BrowserConfig(
+        scope="spatial", url=site + "spatial", observe_bounds=True))
+    try:
+        snapshot = await browser.observe("spatial", ctx)
+        goal = GoalContract.from_input({"schema_version": 2, "goal_id": "position",
+            "scope": "spatial", "authorization_ref": "current_task", "intent": "Open destination",
+            "objective": "Open destination", "allowed_operations": ["click"],
+            "completion": [{"key": "status:Page URL", "value": site + "destination"}]})
+        actions = ActionBuilder(visual=True).build("position", 1, goal, snapshot)
+        assert len(actions.actions) == 2
+        page = browser.page
+        assert page is not None
+        markup = await page.content()
+        if change == "css":
+            await page.evaluate("""() => {
+                const sheet = new CSSStyleSheet();
+                sheet.replaceSync('a { transform: translateX(400px); }');
+                document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+            }""")
+        elif change == "viewport":
+            await page.set_viewport_size({"width": 1000, "height": 700})
+        else:
+            await page.evaluate("window.scrollTo(0, 60)")
+        assert await page.content() == markup
+        assert not await browser.is_snapshot_current(snapshot, ctx)
+        receipt = await browser.dispatch(actions.binding, actions.actions[0], ctx)
+        assert receipt.status == "not_sent" and receipt.reason == "stale_reference"
+        assert page.url == site + "spatial"
+    finally:
+        await browser.aclose()
+        await ctx.runtime.aclose()
+
+
+async def test_spatial_hint_real_product_runner_navigates_with_jev_without_image(
+    monkeypatch, tmp_path, product_python, chromium_required,
+):
+    import json
+    from unittest.mock import MagicMock
+
+    import httpx
+    from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
+    from tank_backend.agents.definition import parse_agent_file
+    from tank_backend.agents.resources import DesktopResource
+    from tank_backend.agents.runner import AgentRunner
+    from tank_backend.config.app_config import AppConfig
+    from tank_backend.pipeline.bus import Bus
+    from tank_backend.plugin.manifest import read_manifest_from_yaml
+    from tank_backend.plugin.registry import ExtensionRegistry
+
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
+    from benchmarks.computer_use import jev_real_product_route as product
+
+    database = tmp_path / "fixture.db"
+    product.create_database(database, [{"id": 1, "title": "Nora", "notes": "Keep A"},
+                                      {"id": 2, "title": "Tavi", "notes": "Keep B"}])
+    before = product.database_state(database)
+    calls = []
+    selected_refs = []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            packet = json.loads(request.content)
+            assert "questions" in packet, "spatial task must complete without image SDK"
+            calls.append(packet)
+            assert packet["state"]["snapshot"]["geometry"]["coordinate_space"] == "main_frame_viewport_css_pixels"
+            elements = {e["ref"]: e for e in packet["state"]["snapshot"]["elements"]}
+            choices = {k: c for k, c in packet["questions"]["next_action"]["criteria"].items()
+                       if isinstance(c, dict) and c.get("label") == "work_items"}
+            assert len(choices) == 2
+            choice = min(choices, key=lambda k: elements[choices[k]["target_ref"]]["bounds"][0])
+            selected_refs.append(choices[choice]["target_ref"])
+            return httpx.Response(200, json={"model": "jev-1.14.0", "answers": {"next_action": {
+                "type": "choice", "choice": choice, "confidence": 1,
+                "probabilities": {k: int(k == choice) for k in packet["questions"]["next_action"]["criteria"]}}},
+                "usage": {"input_tokens": 12, "output_tokens": 0}})
+
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", HTTP)
+    monkeypatch.setenv("SPATIAL_TEST_KEY", "fixture-only")
+    with (tmp_path / "server.log").open("w") as log:
+        server = await asyncio.create_subprocess_exec(str(product_python), str(Path(product.__file__)),
+            "--serve", "--database", str(database), "--output", str(tmp_path),
+            env={"PATH": os.environ.get("PATH", "")}, stdout=log, stderr=asyncio.subprocess.STDOUT)
+        try:
+            async with asyncio.timeout(10):
+                while not (tmp_path / "ready.json").exists():
+                    assert server.returncode is None
+                    await asyncio.sleep(.05)
+            origin = "http://127.0.0.1:" + str(json.loads((tmp_path / "ready.json").read_text())["port"])
+            goal = {"schema_version": 2, "goal_id": "position", "scope": "spatial",
+                "authorization_ref": "current_task", "allowed_operations": ["click"],
+                "intent": "Use only the left sidebar work_items link to open its structure page.",
+                "objective": "Open the structure using the requested sidebar link; do not modify data.",
+                "spatial_hint": {"role": "link", "label": "work_items", "relation": "leftmost"},
+                "completion": [{"key": "status:Page URL", "value": origin + "/work_items/"}]}
+            path = tmp_path / "agent.md"
+            path.write_text("---\nname: spatial\nextension: agent-computer-use:agent\nmodel: default\ndecision-model: jev\nvisual-model: vision\n---\nUse the goal.\n")
+            definition = parse_agent_file(path)
+            registry = ExtensionRegistry()
+            manifest = read_manifest_from_yaml(Path(__file__).parents[1] / "plugin.yaml")
+            for extension in manifest.extensions:
+                registry.register(manifest.plugin_name, extension)
+            config = AppConfig.from_raw_dict({
+                "llm": {"default": {"api_key": "unused", "model": "unused", "base_url": "https://offline.invalid/v1"},
+                        "vision": {"api_key": "fixture", "model": "vision", "base_url": "https://offline.invalid/v1"}},
+                "decision_models": {"jev": {"url": "https://offline.invalid/v1/systemone", "model": "jev-1.14.0", "credential_env": "SPATIAL_TEST_KEY"}},
+                "subagents": {"agent-computer-use:agent": {"config": {"selector": "jev-action-vision",
+                    "browser": {"scope": "spatial", "url": origin + "/work_items/content/",
+                                "observe_bounds": True, "readback_tables": True}}}}})
+            runner = AgentRunner(MagicMock(), MagicMock(), Bus(), ToolApprovalPolicy(computer_mode="allow"),
+                PendingToolCallStore(), {definition.name: definition}, registry=registry,
+                app_config=config, desktop_resource=DesktopResource())
+            outputs = [o async for o in runner.run_agent(definition, [], task_id="spatial-product",
+                task_input=goal, authorization=SubAgentAuthorization(frozenset({"desktop", "network"})),
+                max_actions=6, max_observations=24)]
+            result = next(o.metadata["task_result"] for o in outputs if "task_result" in o.metadata)
+            assert result["status"] == "completed" and result["reason"] == "goal_verified"
+            assert result["cleanup"] == "confirmed" and not result["details"]["pending_effect"]
+            assert len(calls) == len(result["details"]["receipts"]) == len(selected_refs) == 1
+            assert result["details"]["progress"]["recent_action"]["target_ref"] == selected_refs[0]
+            assert product.database_state(database) == before
+            assert all(json.loads(line)["method"] == "GET" for line in (tmp_path / "http.jsonl").read_text().splitlines())
         finally:
             if server.returncode is None:
                 server.terminate()

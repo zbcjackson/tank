@@ -3,7 +3,7 @@ name = "agent-computer-use"
 version = "0.1.0"
 description = "Host-driven computer-use subagent for Tank"
 requires-python = ">=3.10"
-dependencies = ["tank-backend"]
+dependencies = ["tank-backend", "pydantic>=2.12,<3"]
 
 [project.optional-dependencies]
 browser = ["playwright==1.58.0"]

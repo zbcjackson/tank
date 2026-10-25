@@ -26,11 +26,9 @@ def test_registered_prefix_keeps_fixed_cases_and_original_order(qualification):
 
 
 @pytest.fixture
-def products(qualification):
-    original = qualification.registration()["original"]["apps"]
-    paths = [Path(original["sqlite-web"]["python"]), Path(original["linkding"]["python"])]
-    if not all(p.is_file() for p in paths):
-        pytest.skip("qualified product environments required")
+def products(qualification, legacy_qualification_host):
+    """Unit protocol tests use frozen product fingerprints, not installed apps."""
+    assert set(qualification.registration()["original"]["apps"]) == {"sqlite-web", "linkding"}
 
 
 def test_execution_freezes_bind_new_bank_and_both_scopes(qualification, products, tmp_path):
@@ -710,3 +708,14 @@ def test_fake_http_denies_external_dns_before_resolution(qualification, tmp_path
         with pytest.raises(AssertionError, match="external"):
             socket.getaddrinfo("network-forbidden.invalid", 443)
         assert len(transport["blocked_external"]) == 1
+
+
+def test_current_host_cannot_reuse_legacy_registration(
+    qualification, legacy_qualification_host, tmp_path,
+):
+    # The replay fixture is not an amendment allowing new production code.
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(qualification, "BACKEND", legacy_qualification_host)
+        with pytest.raises(ValueError, match="unregistered runtime change"):
+            qualification.prepare(tmp_path / "must-not-start")
+    assert not (tmp_path / "must-not-start").exists()

@@ -16,7 +16,7 @@ def execution():
 
 
 @pytest.fixture(scope="module")
-def prepared(execution, tmp_path_factory):
+def prepared(execution, tmp_path_factory, legacy_qualification_module_host):
     root = tmp_path_factory.mktemp("prepared") / "execution"
     execution.prepare(root)
     return root
