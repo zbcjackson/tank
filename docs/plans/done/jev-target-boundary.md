@@ -1,10 +1,10 @@
-> 状态：审查中（2026-10-25：单任务实测正确控制退出，Jev需上下文→Gemini none，零动作/写入，证据核对通过。）
+> 状态：已完成（2026-10-25：单任务真实混合链路控制退出，零动作/写入；第1轮独立审查无发现，证据归档通过。）
 
 # 原始DOM目标不成立时的退出边界
 
 ## 目标与范围
 
-承接[两项成功正例](../done/jev-runtime-smoke.md)和[主计划](computer-use-jev-vision.md)。
+承接[两项成功正例](../done/jev-runtime-smoke.md)和[主计划](../active/computer-use-jev-vision.md)。
 依据任务、当前步骤和证据判断适用性，App提供观察/操作/核验能力约束，不按App名称
 划分Jev/视觉。这里只检验目标不成立时的退出，不概括整个App或拒绝泛化。
 
@@ -48,6 +48,11 @@ need_more_context、Gemini返回none、宿主stopped / none；零动作/POST/DB�
 2次SDK / 31,840已知token、清理确认。初始completion为假，全部调用/执行/账本
 与公开DOM、DB、HTML/HTTP独立脚本核对通过。352源码、原77工件及config不变。
 本轮没有证明Jev单独识别缺失或图片必要性，下一目标为自然视觉必要正例。
+
+第1轮独立review-and-refactor无可操作问题，无修复即停止；审查者独立解包/离线
+核验、原始目标/PNG/调用/退出、352源码/652产品/原77工件/config及签名核对通过。
+原始review.md收入归档，413成员；协调者仅闭合计划/链接/状态及加入报告，原411项
+证据文件字节不变。闭合检查为协调者自检，不称为新增独立审查。
 
 ## Verification Checklist（最终步骤）
 

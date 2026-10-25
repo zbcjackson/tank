@@ -91,7 +91,7 @@ live 新实验预算按该计划 §8 逐批授权执行。
   不能据此作拒绝泛化或真实写入认证。生产核验能力的修复应先于该收费实测。
   2026-10-25[显式表格GET读回](plans/done/dom-table-readback.md)已完成并通过最小
   真产品/假HTTP核验；2026-10-25两个正例已移交[真实模型试跑](plans/done/jev-runtime-smoke.md)。
-  单个中性命名目标缺失任务已转入[退出边界计划](plans/active/jev-target-boundary.md)。
+  单个中性命名目标缺失任务已按[退出边界计划](plans/done/jev-target-boundary.md)结案，支持一次混合控制退出。
   本条保留拒绝扩展、歧义/缺参和自然视觉需求；不得用初始已成立的完成条件
   充当模型拒绝。它们需单独资格，不阻塞两个正例，也不机械补齐旧六任务。
 - **来源**：[原始DOM资格研究](research/jev-runtime-acceptance.md)、

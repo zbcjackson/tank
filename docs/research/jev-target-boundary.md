@@ -1,4 +1,4 @@
-> 日期：2026-10-25；结论状态：resolved（单任务混合链路正确停止、零动作/写入；独立审查进行中。）
+> 日期：2026-10-25；结论状态：resolved（单任务混合链路正确停止、零动作/写入；第1轮独立审查无发现，已归档。）
 
 # 原始DOM中性命名目标不成立实测
 
@@ -67,16 +67,24 @@ Jev仍只收到公开合成文字状态/目标/候选/历史，Gemini在自然�
 本片仓库仅docs/变化。生产352文件及原77工件/config SHA保持；未重跑前轮生产
 单元/E2E套件，未把旧检查当成新结果。一个已知真实产品的合成任务不提供统计确认。
 
+## 完成审查
+
+第1轮独立review-and-refactor无可操作问题或遗留，无修复即停止。审查者独立
+解包逐文件验证、目视PNG、核对desired-state语义及真实控制退出、352源码/652产品
+和原77工件/config；文档120项检查、两提交验签通过。原始review.md已收入证据。
+协调者核对报告与完整差异后只闭合状态/计划链接并加入报告，原411项证据字节保持；
+闭合自检不称为新增独立审查。本片docs-only验证，不重跑生产单元/E2E。
+
 ## 证据与后续
 
 [证据归档](artifacts/jev-target-boundary-20261025.tar.xz)包含freeze.json、run.py、audit.py、
 verify_evidence.py、summary.json、sources/及fake/live完整原始证据；manifest逐项SHA。
-当前412个普通文件，SHA256为
-595f89b023ccde45b368ed45d8fd551e70b6d21e76148c83c0007a32de4b0f15。
+413个普通文件，SHA256为
+b3add1305cc22a2812812cbdbe091c1d99c3b26f464e40f68a563722f5556f7d。
 新目录解包并核对manifest后，系统Python可执行
 python3 verify_evidence.py离线复核；不要为复核执行run.py live。
 
 下一目标是一个“结构化信息不足、图片确有必要”的正例，先做原始通道资格，再决定
 一次真实闭环。本轮图片调用只证明自然转交及控制退出，不替代该正例，也不要求扩大
 当前文本任务数。歧义、缺参、拒绝扩展与图片/Box独立能力仍按backlog触发。
-计划见[目标边界](../plans/active/jev-target-boundary.md)。
+计划见[目标边界](../plans/done/jev-target-boundary.md)。
