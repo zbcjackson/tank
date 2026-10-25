@@ -1,4 +1,4 @@
-> 日期：2026-10-25；结论状态：resolved（有界位置证据实现及单次真实Jev直通成功；完整回归通过，独立审查进行中。）
+> 日期：2026-10-25；结论状态：resolved（有界位置证据实现及单次真实Jev直通成功；完整回归通过，第1轮独立审查无发现，签名归档完成。）
 
 # 有界位置证据：Jev直通验证
 
@@ -98,12 +98,22 @@ Runner 120秒/6动作/24观察/10万已记账token、视觉输出4096/retry0；�
 依赖解析器曾提出无关旧Python分支的onnxruntime等变化，已丢弃；最终lock只增加
 Pydantic声明两行、版本图不变，并经uv检查。所有原79工件及默认config SHA保持。
 
+## 独立审查
+
+第1轮review-and-refactor检查完整基线2f88ad5e到a986cfd1，无确认可操作问题，未改
+源或追加模型调用；按规则立即结束。评审者独立执行34项位置测试及2项旧准入测试，
+全部通过，并安全解包核对完整检查、运行/测试源、原始实测、旧工件和配置。
+原始报告review.md与检查日志随归档保存。协调者核对报告和完整diff后仅更新结案
+文档/封包，并自行复核；这些收尾未再做独立审查，不算追加运行源验证。
+[实现计划](../plans/done/jev-spatial-evidence.md)已结案，条件扩展交回backlog。
+
 ## 证据与后续
 
 [证据归档](artifacts/jev-spatial-evidence-20261025.tar.xz)保存源/检查源、TDD/两轮完整
 运行日志、E2E生命周期、冻结/验证收据、独立检查器及interface/fake/live完整原始
-页面/模型/DB/执行/清理证据。当前归档499个普通文件（含manifest），SHA256为
-2c64f8090d77b4be4a3f1aeeecd8a1986faefaf6d3fd529ab411bdeb3df32a92；审查后更新结案收据。
+页面/模型/DB/执行/清理证据。最终归档504个普通文件（含manifest），SHA256为
+c41c55cd9c62603e284a4afcdb0d0cf22ab7d2c088f0935ae94d6b4681664c40。原审查版498项
+内容SHA均保持，只追加原始审查报告、两项定向日志、旧manifest及结案收据。
 新目录解包核对后运行python3 verify_evidence.py离线复核；不要执行run.py live重放。
 
 下一步由[主计划](../plans/active/computer-use-jev-vision.md)按条件选择真实界面特征
