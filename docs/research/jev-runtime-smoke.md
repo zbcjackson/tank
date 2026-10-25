@@ -1,4 +1,4 @@
-> 日期：2026-10-25；结论状态：resolved（两项真实模型单次闭环成功；独立审查与归档进行中。）
+> 日期：2026-10-25；结论状态：resolved（两项真实模型单次闭环成功；第1轮独立审查无发现，归档完成。）
 
 # 原始DOM两项真实模型闭环
 
@@ -75,8 +75,8 @@ prepared/dispatch/finished闭合、全部动作准入与回执、清理。假/�
 
 ## 证据与复核
 
-[证据归档](artifacts/jev-runtime-smoke-20261025.tar.xz)当前499个普通文件，SHA256：
-05fc9d281a13ca5325fd11e9a51dffe56d8dc8c7f3854d0a8216132ae5f665e2。
+[证据归档](artifacts/jev-runtime-smoke-20261025.tar.xz)500个普通文件，SHA256：
+e4a0cb4760e4675996cae9ead50df41ffd66c3dc17b80c8a49ded3f2cfd6f178。
 manifest.json列出其余成员的逐文件SHA；签名提交固定归档本身。
 
 关键入口：freeze.json、run.py、audit.py、verify_evidence.py、summary.json、
@@ -93,6 +93,14 @@ python3 verify_evidence.py
 只重读已存DB与公开证据，不创建SDK、读取凭据或重放动作；如需手工检查，先核对整个
 归档及manifest哈希。不要为复核重新执行run.py live。
 
+## 完成审查
+
+第1轮独立review-and-refactor无确认可操作问题或遗留，无修复即停止。审查者独立
+解包并逐项复核manifest、352基线/当前源码、652产品文件、原76工件/config、
+原始两次保存/调用/用量/清理与离线核验器，文档118项检查及两项实测前后提交验签通过。
+原始报告review.md已归档。协调者核对报告及完整差异后只闭合计划/状态/链接并加入
+该报告；原498项证据字节不变。闭合检查属于协调者自检，不称为新增独立审查。
+
 ## 后续调整
 
 停止扩大正例比较或修改选择策略。下一切片先资格一个中性名称、目标不存在的反例：
@@ -100,5 +108,5 @@ python3 verify_evidence.py
 退出原因，资格后再决定一次真实调用。自然视觉需求与Jev图片/Box仍独立研究，
 不以继续扩大文本样本为前置；不由本轮成功自动打开真实用户写入。
 
-本片计划见[两项试跑](../plans/active/jev-runtime-smoke.md)，其余条件任务见
+本片计划见[两项试跑](../plans/done/jev-runtime-smoke.md)，其余条件任务见
 [backlog](../backlog.md)。
