@@ -483,6 +483,14 @@ used directly. `computer_use_action_admission` records the selected ID, acceptan
 and next route. Hard stops and repeated-state recovery keep their existing limits.
 This mechanical check establishes distinguishability, not action correctness.
 
+When a complete state returns after additional verified actions, this selector may
+retry the same action-admission path within that state's existing single recovery
+allowance. `computer_use_route.recovery: verified_return` identifies that attempt;
+its normal candidate reason is retained. This consumes the original recovery,
+not a new loop or action quota. A control/unacceptable choice still uses the bound
+visual branch; verified actions alone do not establish goal progress. Revisits
+without new verified actions and other selectors retain their recovery behavior.
+
 For an explicit spatial task, `browser.observe_bounds: true` observes renderer
 bounding boxes in the owned main frame. `state.snapshot.geometry` declares
 `main_frame_viewport_css_pixels` and `[width,height]` viewport size; element

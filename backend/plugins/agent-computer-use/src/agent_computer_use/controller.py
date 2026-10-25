@@ -20,6 +20,7 @@ from tank_backend.agents.task_result import TaskResult, TaskStatus
 from tank_backend.agents.task_runtime import TaskOperation
 
 from .action_builder import ActionBuilder
+from .action_admission import ActionAdmissionSelector
 from .contracts import (
     GENERIC_CONDITIONS,
     Action,
@@ -465,7 +466,7 @@ class ComputerUseController:
             return self.result("needs_input", "unsupported_completion_evidence")
         snapshot = await self.observe(goal, context)
         visited: dict[tuple[object, ...], int] = {}
-        visual_recoveries: set[tuple[object, ...]] = set()
+        recovered_states: set[tuple[object, ...]] = set()
         seen_evidence: set[tuple[str, str, str]] = set()
         incomplete_retries = 0
         while True:
@@ -503,6 +504,7 @@ class ComputerUseController:
                       for e in snapshot.elements), snapshot.facts,
             )
             repeated = state in visited
+            verified_return = repeated and visited[state] < len(self.progress.verified_actions)
             visual_recovery = False
             if repeated and not snapshot.complete and incomplete_retries < 20:
                 incomplete_retries += 1
@@ -517,8 +519,8 @@ class ComputerUseController:
                     # unavailable, not merely unchanged; keep the honest reason.
                     return self.result("stopped", "observation_unavailable")
                 if (isinstance(self.selector, VisualSelector) and snapshot.complete
-                        and state not in visual_recoveries):
-                    visual_recoveries.add(state)
+                        and state not in recovered_states):
+                    recovered_states.add(state)
                     visual_recovery = True
                 elif (self.advisor is None
                         or visited[state] == len(self.progress.verified_actions)):
@@ -529,15 +531,21 @@ class ComputerUseController:
             actions = replace(self.builder.build(self.goal_id, self.version, goal, snapshot,
                                                         self.progress),
                               progress=self.progress)
+            # Reuse the same recovery allowance; verified actions do not prove goal progress.
+            retry_admission = (visual_recovery and verified_return
+                               and isinstance(self.selector, ActionAdmissionSelector)
+                               and actions.reason in {"jev_eligible", "visual_required"})
             if repeated:
-                actions = replace(actions, reason="repeated_state")
+                if not retry_admission:
+                    actions = replace(actions, reason="repeated_state")
             elif focus_reason is not None:
                 actions = replace(actions, reason=focus_reason)
             elif (self.progress.unverified_goal_steps >= 3
                     and len(self.progress.verified_actions) - self.last_review_action >= 3):
                 actions = replace(actions, reason="goal_progress_unverified")
             context.observe("computer_use_route", goal_id=self.goal_id, goal_version=self.version,
-                            observation_id=snapshot.observation_id, reason=actions.reason)
+                            observation_id=snapshot.observation_id, reason=actions.reason,
+                            **({"recovery": "verified_return"} if retry_admission else {}))
             action = actions.actions[0] if actions.reason == "rules_unique" else None
             selected_by: SelectionSource = "rules"
             if (self.selector is not None and (

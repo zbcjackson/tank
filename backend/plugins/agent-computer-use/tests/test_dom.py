@@ -109,6 +109,16 @@ async def site(profile_store: dict[str, str],
             body = json.dumps(profile_store).encode()
         if path.path == "/spatial":
             body = profile_store["spatial_html"].encode()
+        if path.path == "/verified-return":
+            profile_store["return_paths"] = profile_store.get("return_paths", "") + path.query + ","
+            if "edit=" in path.query:
+                body = b'<h1>Editor</h1><a href="/verified-return">Cancel</a>'
+            elif "tag=" in path.query:
+                body = b'<h1>Tagged list</h1>'
+            else:
+                keep = ' onclick="event.preventDefault()"' if profile_store.get("return_no_effect") else ""
+                body = ('<a href="?edit=1">Edit</a><a href="?edit=2">Edit</a>'
+                        f'<a href="?tag=keep"{keep}>Keep</a>').encode()
         if path.path == "/table-readback":
             profile_store["table_reads"] = str(int(profile_store.get("table_reads", "0")) + 1)
             profile_store["table_methods"] = profile_store.get("table_methods", "") + request.split(b" ", 1)[0].decode() + ","
@@ -5252,3 +5262,101 @@ async def test_spatial_hint_real_product_runner_navigates_with_jev_without_image
             except TimeoutError:
                 server.kill()
                 await server.wait()
+
+
+@pytest.mark.parametrize("outcome", ["candidate", "control", "unknown", "revoked", "stale", "effect_unknown"])
+async def test_dom_verified_return_rechecks_action_admission_before_image(
+    site, profile_store, chromium_required, monkeypatch, outcome,
+):
+    import json
+    import httpx
+    from agent_computer_use.factory import create_subagent
+    from agent_computer_use.channels.dom import ManagedChromiumChannel
+    from unittest.mock import Mock
+    from tank_backend.llm.model_data import ModelDataScope
+    from tank_backend.llm.profile import LLMProfile
+    from .test_jev import setup, reply
+
+    calls, events = [], []
+    if outcome == "effect_unknown":
+        profile_store["return_no_effect"] = "yes"
+    async def respond(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        native = "questions" in payload
+        packet = payload if native else json.loads(payload["messages"][1]["content"][0]["text"])
+        criteria = packet["questions"]["next_action"]["criteria"]
+        facts = {fact["key"]: fact["value"] for fact in packet["state"]["snapshot"]["facts"]}
+        if "edit=" in facts["status:Page URL"]:
+            chosen = next(k for k, c in criteria.items() if isinstance(c, dict) and c["label"] == "Cancel")
+        elif packet["state"]["recent_actions"]:
+            chosen = ("need_more_context" if native and outcome == "control" else
+                      next(k for k, c in criteria.items() if isinstance(c, dict) and c["label"] == "Keep"))
+            if native:
+                if outcome == "revoked":
+                    ctx.authorization.revoke()
+                elif outcome == "stale":
+                    browser = agent.controller.source
+                    assert isinstance(browser, ManagedChromiumChannel) and browser.page is not None
+                    await browser.page.locator("a").last.evaluate("node => node.replaceWith(node.cloneNode(true))")
+        elif native:
+            chosen = "need_more_context"
+        else:
+            chosen = next(k for k, c in criteria.items() if isinstance(c, dict)
+                          and c["effect"][0]["value"].endswith("?edit=2"))
+        calls.append(("jev" if native else "visual", packet))
+        if native:
+            data = reply(request, chosen)
+            if outcome == "unknown" and packet["state"]["recent_actions"] and "edit=" not in facts["status:Page URL"]:
+                data.pop("usage")
+            return httpx.Response(200, json=data)
+        return httpx.Response(200, json={
+            "id": "visual", "object": "chat.completion", "created": 1, "model": "vision",
+            "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                "role": "assistant", "content": json.dumps({"choice": chosen})}}],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10}})
+
+    ctx, _, _, _ = setup(monkeypatch, respond)
+    object.__setattr__(ctx, "observer", Mock(on_event=lambda kind, metadata: events.append((kind, metadata))))
+    object.__setattr__(ctx, "model_data_scope", ModelDataScope(frozenset({"text", "image"})))
+    ctx.runtime.configure_visual_model("task", LLMProfile(
+        "visual", "key", "vision", "https://offline.invalid/v1", max_tokens=128))
+    task = {"schema_version": 2, "goal_id": "return", "scope": "managed-page",
+            "authorization_ref": "current_task", "allowed_operations": ["click"],
+            "intent": "Inspect the second editor, cancel, then select Keep",
+            "objective": "Inspect then filter", "completion": [
+                {"key": "status:Page URL", "value": site + "verified-return?tag=keep"}]}
+    agent = create_subagent({"selector": "jev-action-vision", "browser": {
+        "scope": "managed-page", "url": site + "verified-return"}})
+    try:
+        outputs = [o async for o in agent.run(SubAgentRequest("Inspect", "", "task", task), ctx)]
+        result = outputs[-1].metadata["task_result"]
+        steps = result["details"]["progress"]["recent_steps"]
+        assert [step["label"] for step in steps[:2]] == ["Edit", "Cancel"]
+        assert "edit=2," in profile_store["return_paths"] and "edit=1," not in profile_store["return_paths"]
+        expected = ["jev", "visual", "jev", "jev"]
+        if outcome == "control":
+            expected.append("visual")
+        assert [kind for kind, _ in calls] == expected
+        assert result["details"]["progress"]["no_progress"] == 1
+        routes = [data for kind, data in events if kind == "computer_use_route"]
+        assert routes[-1]["recovery"] == "verified_return"
+        assert routes[-1]["reason"] == "jev_eligible"
+        assert [sum(isinstance(c, dict) for c in packet["questions"]["next_action"]["criteria"].values())
+                for _, packet in calls] == [3, 3, 1, 3] + ([3] if outcome == "control" else [])
+        if outcome in {"candidate", "control"}:
+            assert result["status"] == "completed" and steps[-1]["label"] == "Keep", result
+            assert all(step["effect_status"] == "verified" for step in steps)
+        else:
+            assert result["status"] != "completed" and "tag=keep," not in profile_store["return_paths"]
+            if outcome == "effect_unknown":
+                assert (result["status"], result["reason"]) == ("unknown", "effect_unknown")
+                assert result["details"]["pending_effect"]
+            elif outcome == "stale":
+                assert result["reason"] == "stale_reference"
+                assert not any(step["label"] == "Keep" and step["dispatch_status"] == "sent" for step in steps)
+            else:
+                assert len(result["details"]["receipts"]) == 2
+                assert bool(ctx.budget.unknown_calls) == (outcome == "unknown")
+    finally:
+        await agent.aclose()
+        await ctx.runtime.aclose()

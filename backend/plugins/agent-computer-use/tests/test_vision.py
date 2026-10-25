@@ -1103,7 +1103,8 @@ def test_development_source_drift_requires_a_new_freeze(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("strategy", ["current", "action_admission"])
-async def test_repeated_state_visual_recovery_stays_bounded_with_advisor(monkeypatch, strategy):
+@pytest.mark.parametrize("with_advisor", [False, True])
+async def test_repeated_state_recovery_stays_bounded(monkeypatch, strategy, with_advisor):
     import json
     import httpx
     from agent_computer_use.contracts import AdvisorResult
@@ -1155,11 +1156,12 @@ async def test_repeated_state_visual_recovery_stays_bounded_with_advisor(monkeyp
     world, advisor = World(), Advisor()
     try:
         result = await ComputerUseController(
-            world, world, selector=selector_type(world), advisor=advisor).run(wandering_request(), ctx)
-        assert result.reason == "advisor_unable", result
-        assert ["jev" if "questions" in p else "visual" for p in requests] == [
-            "jev", "jev", "visual", "visual"]
-        assert len(world.dispatched) == 4 and advisor.calls == 1
+            world, world, selector=selector_type(world), advisor=advisor if with_advisor else None
+        ).run(wandering_request(), ctx)
+        assert result.reason == ("advisor_unable" if with_advisor else "no_progress"), result
+        assert ["jev" if "questions" in p else "visual" for p in requests] == (
+            ["jev"] * 4 if strategy == "action_admission" else ["jev", "jev", "visual", "visual"])
+        assert len(world.dispatched) == 4 and advisor.calls == int(with_advisor)
     finally:
         await ctx.runtime.aclose()
 
@@ -1302,9 +1304,13 @@ async def test_same_task_jev_image_jev_loop(monkeypatch, shared_world, failure, 
             assert len(shared_world.sent) == 3 and ctx.runtime is runtime and ctx.budget is budget
             return
         if failure in {"visual_required", "repeat"}:
-            assert any("messages" in p for p in requests)
-            if failure == "visual_required":
-                assert all("messages" in p for p in requests)
+            if failure == "repeat" and strategy == "action_admission":
+                assert len(requests) == len(shared_world.sent) == 4
+                assert all("questions" in p for p in requests)
+            else:
+                assert any("messages" in p for p in requests)
+                if failure == "visual_required":
+                    assert all("messages" in p for p in requests)
             assert ctx.runtime is runtime and ctx.budget is budget
             return
         assert len(shared_world.sent) == 3

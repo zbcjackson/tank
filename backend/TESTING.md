@@ -1033,6 +1033,16 @@ cases use the production action-admission class; shared contracts run against bo
 the frozen benchmark prototype and production implementation. Neutral/misleading
 labels test admission wiring only. No benchmark record/completion augmentation is
 provided to production observations.
+Verified-return regression uses real Chromium and SDK fake HTTP for list → editor
+→ Cancel → original list → Keep. It checks action-admission reuse of the same
+single recovery, unchanged full candidates and verified original references;
+control output still uses images, while unknown usage, revoked authorization,
+stale nodes and unknown effects prevent further dispatch. Existing native cycle
+cases cover both selectors and with/without Advisor: four dispatched actions keep
+the original stopping bound. No-action repeated observations retain image recovery.
+The managed Chromium Cucumber entry includes these return cases. No paid calls or
+real-model speed claim is part of this check.
+
 Spatial admission tests additionally exercise explicit relative hints with all
 original candidates, four directions and candidate permutations. Missing hints,
 overlap, absent/out-of-viewport/invalid geometry and mixed native sources keep
