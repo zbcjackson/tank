@@ -1,6 +1,9 @@
 """Shared fake provider boundary for workspace and core-only pytest roots."""
 
 from legacy_qualification import (
+    legacy_product_fingerprints as legacy_product_fingerprints,
+)
+from legacy_qualification import (
     legacy_qualification_data as legacy_qualification_data,
 )
 from legacy_qualification import (

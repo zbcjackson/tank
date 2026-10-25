@@ -2547,7 +2547,7 @@ async def test_calibration_sql_initialization_drains_repeated_cancellation(monke
         await asyncio.gather(task, return_exceptions=True)
 
 
-def test_calibration_prepare_freezes_complete_goals_and_96_trials(monkeypatch, tmp_path, linkding_root, product_python):
+def test_calibration_prepare_freezes_complete_goals_and_96_trials(monkeypatch, tmp_path, linkding_root, product_python, legacy_product_fingerprints):
     import json
     import httpx
     import httpx2
@@ -2703,7 +2703,7 @@ def install_product_http(monkeypatch, failure=None):
     return calls, packets
 
 
-async def test_calibration_controller_completes_four_record_sql_list(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
+async def test_calibration_controller_completes_four_record_sql_list(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, legacy_product_fingerprints):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
     calls, _ = install_product_http(monkeypatch)
@@ -2718,7 +2718,8 @@ async def test_calibration_controller_completes_four_record_sql_list(chromium_re
 
 
 async def test_calibration_reconciles_real_sdk_wire_usage(
-    chromium_required, monkeypatch, tmp_path, linkding_root, product_python, legacy_qualification_host
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python, legacy_qualification_host,
+    legacy_product_fingerprints,
 ):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_audit as audit
@@ -2761,7 +2762,8 @@ async def test_calibration_reconciles_real_sdk_wire_usage(
 
 @pytest.mark.parametrize("negative", [False, True])
 async def test_calibration_raw_dispatch_and_cleanup_evidence(
-    chromium_required, monkeypatch, tmp_path, linkding_root, product_python, negative
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python, negative,
+    legacy_product_fingerprints,
 ):
     import json
 
@@ -2817,7 +2819,8 @@ async def test_calibration_raw_dispatch_and_cleanup_evidence(
 
 
 async def test_calibration_independent_audit_recomputes_goal_and_refuses_tamper(
-    chromium_required, monkeypatch, tmp_path, linkding_root, product_python
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python,
+    legacy_product_fingerprints,
 ):
     import json
 
@@ -2891,6 +2894,7 @@ async def test_calibration_independent_audit_covers_product_outcomes(
     product_python,
     product,
     group,
+    legacy_product_fingerprints,
 ):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import (
@@ -2928,7 +2932,8 @@ async def test_calibration_independent_audit_covers_product_outcomes(
 
 
 async def test_calibration_known_goal_failure_is_not_a_safety_incident(
-    chromium_required, monkeypatch, tmp_path, linkding_root, product_python
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python,
+    legacy_product_fingerprints,
 ):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import (
@@ -2963,7 +2968,8 @@ async def test_calibration_known_goal_failure_is_not_a_safety_incident(
 
 
 async def test_calibration_audit_detects_extra_changes_posts_and_wrong_fault(
-    chromium_required, monkeypatch, tmp_path, linkding_root, product_python
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python,
+    legacy_product_fingerprints,
 ):
     import hashlib
     import json
@@ -3034,7 +3040,8 @@ async def test_calibration_audit_detects_extra_changes_posts_and_wrong_fault(
 
 
 async def test_calibration_dispatch_evidence_write_failure_prevents_native_send(
-    chromium_required, monkeypatch, tmp_path, linkding_root, product_python
+    chromium_required, monkeypatch, tmp_path, linkding_root, product_python,
+    legacy_product_fingerprints,
 ):
     import json
 
@@ -3082,7 +3089,8 @@ async def test_calibration_dispatch_evidence_write_failure_prevents_native_send(
 
 
 async def test_supplemental_native_cancellation_during_cleanup_is_preserved(
-    chromium_required, monkeypatch, tmp_path, product_python, linkding_root, legacy_qualification_host
+    chromium_required, monkeypatch, tmp_path, product_python, linkding_root, legacy_qualification_host,
+    legacy_product_fingerprints,
 ):
     import asyncio
     import json
@@ -3139,6 +3147,7 @@ async def test_supplemental_native_case_has_zero_model_calls(
     product,
     negative,
     legacy_qualification_host,
+    legacy_product_fingerprints,
 ):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_qualification as qualification
@@ -3166,7 +3175,7 @@ async def test_supplemental_native_case_has_zero_model_calls(
     assert all(o["capture"] == "accepted" for o in row["observations"])
 
 
-async def test_calibration_controller_recovers_first_sql_list_get(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
+async def test_calibration_controller_recovers_first_sql_list_get(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, legacy_product_fingerprints):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
     calls, _ = install_product_http(monkeypatch)
@@ -3180,7 +3189,7 @@ async def test_calibration_controller_recovers_first_sql_list_get(chromium_requi
     assert len(calls) == 5
 
 
-def test_calibration_cli_freezes_before_credential_access(monkeypatch, tmp_path, linkding_root, product_python, capsys):
+def test_calibration_cli_freezes_before_credential_access(monkeypatch, tmp_path, linkding_root, product_python, capsys, legacy_product_fingerprints):
     import dotenv
     import json
     import sys
@@ -3199,7 +3208,7 @@ def test_calibration_cli_freezes_before_credential_access(monkeypatch, tmp_path,
         pilot.main()
 
 
-async def test_calibration_all_96_trials_through_real_controller(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
+async def test_calibration_all_96_trials_through_real_controller(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, legacy_product_fingerprints):
     import hashlib
     import json
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
@@ -3226,7 +3235,7 @@ async def test_calibration_all_96_trials_through_real_controller(chromium_requir
 
 
 @pytest.mark.parametrize('failure', ['cancel', 'audit', 'cleanup', 'fixture_io'])
-async def test_calibration_operational_stops_keep_all_96_trials(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, failure):
+async def test_calibration_operational_stops_keep_all_96_trials(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, failure, legacy_product_fingerprints):
     import json
     from agent_computer_use.channels.dom import ManagedChromiumChannel
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
@@ -3268,7 +3277,7 @@ async def test_calibration_operational_stops_keep_all_96_trials(chromium_require
         assert not any(h['method'] == 'POST' for h in result['rows'][0]['http'])
 
 
-async def test_calibration_unknown_usage_keeps_all_96_trials(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
+async def test_calibration_unknown_usage_keeps_all_96_trials(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, legacy_product_fingerprints):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
     calls, _ = install_product_http(monkeypatch, 'unknown')
@@ -3282,7 +3291,7 @@ async def test_calibration_unknown_usage_keeps_all_96_trials(chromium_required, 
 
 
 @pytest.mark.parametrize('failure', ['oracle', 'wrong_record', 'invalid'])
-async def test_calibration_private_labels_and_bad_choices_cannot_prove_success(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, failure):
+async def test_calibration_private_labels_and_bad_choices_cannot_prove_success(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, failure, legacy_product_fingerprints):
     import copy
     import json
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
@@ -3306,7 +3315,7 @@ async def test_calibration_private_labels_and_bad_choices_cannot_prove_success(c
 
 
 @pytest.mark.parametrize('product', ['sqlite-web', 'linkding'])
-async def test_calibration_correct_db_requires_current_returned_list(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product):
+async def test_calibration_correct_db_requires_current_returned_list(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product, legacy_product_fingerprints):
     from playwright.async_api import Page
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
@@ -3343,7 +3352,7 @@ async def test_calibration_correct_db_requires_current_returned_list(chromium_re
 
 @pytest.mark.parametrize('product', ['sqlite-web', 'linkding', 'legacy-sqlite-web'])
 @pytest.mark.parametrize('change', ['reload', 'dom'])
-async def test_calibration_projection_cannot_mix_navigation_epochs(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product, change):
+async def test_calibration_projection_cannot_mix_navigation_epochs(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product, change, legacy_product_fingerprints):
     from playwright.async_api import Page
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
@@ -3377,7 +3386,7 @@ async def test_calibration_projection_cannot_mix_navigation_epochs(chromium_requ
     assert len(calls) == (3 if product == 'linkding' else 4)
 
 
-async def test_calibration_missing_record_is_exit_not_completion(chromium_required, monkeypatch, tmp_path, linkding_root, product_python):
+async def test_calibration_missing_record_is_exit_not_completion(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, legacy_product_fingerprints):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
     install_product_http(monkeypatch)
@@ -3393,7 +3402,7 @@ async def test_calibration_missing_record_is_exit_not_completion(chromium_requir
 
 
 @pytest.mark.parametrize('product', ['sqlite-web', 'linkding'])
-async def test_calibration_editor_revocation_blocks_native_dispatch(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product):
+async def test_calibration_editor_revocation_blocks_native_dispatch(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product, legacy_product_fingerprints):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
     install_product_http(monkeypatch)
@@ -3411,7 +3420,7 @@ async def test_calibration_editor_revocation_blocks_native_dispatch(chromium_req
 
 @pytest.mark.parametrize('product', ['sqlite-web', 'linkding'])
 @pytest.mark.parametrize('negative', ['missing', 'revoked'])
-async def test_calibration_negative_requires_full_task_envelope(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product, negative):
+async def test_calibration_negative_requires_full_task_envelope(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product, negative, legacy_product_fingerprints):
     import copy
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
@@ -3437,7 +3446,7 @@ async def test_calibration_negative_requires_full_task_envelope(chromium_require
 
 
 @pytest.mark.parametrize('product', ['sqlite-web', 'linkding'])
-async def test_calibration_prewarm_is_owned_and_in_task_clock(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product):
+async def test_calibration_prewarm_is_owned_and_in_task_clock(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, product, legacy_product_fingerprints):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
     install_product_http(monkeypatch)
@@ -3454,7 +3463,7 @@ async def test_calibration_prewarm_is_owned_and_in_task_clock(chromium_required,
 
 
 @pytest.mark.parametrize('fault_stage', [None, 'list', 'editor'])
-async def test_calibration_controller_four_record_linkding_get_recovery(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, fault_stage):
+async def test_calibration_controller_four_record_linkding_get_recovery(chromium_required, monkeypatch, tmp_path, linkding_root, product_python, fault_stage, legacy_product_fingerprints):
     monkeypatch.syspath_prepend(str(Path(__file__).parents[3]))
     from benchmarks.computer_use import jev_calibration_route as pilot
     calls, _ = install_product_http(monkeypatch)
@@ -4496,6 +4505,7 @@ def test_action_live_prepare_has_balanced_three_arms_without_clients(
     product_python,
     linkding_root,
     monkeypatch,
+    legacy_product_fingerprints,
 ):
     import collections
     import copy
@@ -4563,6 +4573,7 @@ async def test_action_live_all_36_trials_use_real_controller_and_sdk(
     product_python,
     linkding_root,
     channel,
+    legacy_product_fingerprints,
 ):
     import collections
     import json
@@ -4626,7 +4637,8 @@ async def test_action_live_all_36_trials_use_real_controller_and_sdk(
 
 @pytest.mark.parametrize("tamper", ["freeze", "saved_source"])
 def test_action_live_rejects_tampered_freeze(
-    tmp_path, product_python, linkding_root, tamper
+    tmp_path, product_python, linkding_root, tamper,
+    legacy_product_fingerprints,
 ):
     import json
     from benchmarks.computer_use import jev_action_live as pilot
@@ -4655,6 +4667,7 @@ async def test_action_live_without_readiness_never_starts(
     product_python,
     linkding_root,
     monkeypatch,
+    legacy_product_fingerprints,
 ):
     import httpx
     from benchmarks.computer_use import jev_action_live as pilot
@@ -4682,6 +4695,7 @@ async def test_action_live_unknown_usage_stops_and_retains_all_36_slots(
     linkding_root,
     monkeypatch,
     channel,
+    legacy_product_fingerprints,
 ):
     import json
     from agent_computer_use import visual_selector
@@ -4723,6 +4737,7 @@ async def test_action_live_unknown_usage_stops_and_retains_all_36_slots(
 
 async def test_action_live_cancel_restores_partial_receipt(
     tmp_path, product_python, linkding_root, monkeypatch,
+    legacy_product_fingerprints,
 ):
     import json
     from benchmarks.computer_use import jev_action_live as pilot
@@ -4767,7 +4782,8 @@ def test_boundary_goal_verification_requires_unique_target_and_full_state():
 
 
 def test_boundary_prepare_freezes_twelve_new_tasks_and_twentyfour_slots(
-    tmp_path, product_python, linkding_root, monkeypatch
+    tmp_path, product_python, linkding_root, monkeypatch,
+    legacy_product_fingerprints,
 ):
     import collections
     import copy
@@ -4808,7 +4824,8 @@ def test_boundary_prepare_freezes_twelve_new_tasks_and_twentyfour_slots(
 
 
 async def test_boundary_all_twentyfour_trials_use_real_products_and_independent_labels(
-    tmp_path, product_python, linkding_root, channel
+    tmp_path, product_python, linkding_root, channel,
+    legacy_product_fingerprints,
 ):
     from benchmarks.computer_use import jev_action_live as pilot
 
@@ -4857,7 +4874,8 @@ async def test_boundary_all_twentyfour_trials_use_real_products_and_independent_
 
 
 def test_boundary_missing_readiness_and_missing_capture_refuse_before_send(
-    tmp_path, product_python, linkding_root, monkeypatch
+    tmp_path, product_python, linkding_root, monkeypatch,
+    legacy_product_fingerprints,
 ):
     import httpx
     import httpx2

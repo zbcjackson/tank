@@ -80,3 +80,34 @@ def legacy_qualification_host(tmp_path, legacy_qualification_data) -> Iterator[P
 @pytest.fixture(scope="module")
 def legacy_qualification_module_host(tmp_path_factory, legacy_qualification_data) -> Iterator[Path]:
     yield from _host(tmp_path_factory.mktemp("legacy-module") / "host", legacy_qualification_data)
+
+
+@pytest.fixture
+def legacy_product_fingerprints(monkeypatch, product_python):
+    """Keep legacy calibration metadata explicit after rebuilding a test venv.
+
+    Check every installed application/dependency byte except generated installer
+    records and venv bootstrap files. This fixture is not product requalification.
+    """
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[2]))
+    calibration = importlib.import_module("benchmarks.computer_use.jev_calibration_route")
+    recorded = calibration.members(
+        calibration.SQL_PROOF, calibration.SQL_PROOF_SHA, ("live/freeze.json",)
+    )[0]["app"]
+    original = calibration.shared.app_manifest
+
+    def fingerprint(python):
+        actual = original(python)
+        assert actual["versions"] == recorded["versions"]
+
+        def installed_code(files):
+            return {name: value for name, value in files.items()
+                    if name != "pyvenv.cfg" and not name.endswith(".dist-info/RECORD")
+                    and not name.endswith(("site-packages/_virtualenv.pth",
+                                           "site-packages/_virtualenv.py"))}
+
+        assert installed_code(actual["files"]) == installed_code(recorded["files"])
+        return copy.deepcopy(recorded)
+
+    fingerprint(product_python)
+    monkeypatch.setattr(calibration.shared, "app_manifest", fingerprint)
