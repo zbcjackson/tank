@@ -44,6 +44,7 @@
 | [plans/done/jev-confirmation-preparation.md](plans/done/jev-confirmation-preparation.md) | 计划 | 已完成 | 两轮审查通过；24业务/104图通过，候选资格0/24，正式N与收费未准入 |
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
+| [plans/active/jev-verified-return.md](plans/active/jev-verified-return.md) | 计划 | 进行中 | 在既有一次恢复额度内重新Jev准入，先离线TDD/原版产品资格，无真实模型 |
 | [research/jev-pixel-handoff.md](research/jev-pixel-handoff.md) | 调研 | 已结案 | 原版像素需求下自然接管并返回Jev，2Jev/2图片、3正确动作；独立结果核验/归档完成 |
 | [plans/done/jev-pixel-handoff.md](plans/done/jev-pixel-handoff.md) | 计划 | 已完成 | 单次真实像素接管/返回及审查归档完成，额外重复状态图片交backlog |
 | [research/jev-spatial-evidence.md](research/jev-spatial-evidence.md) | 调研 | 已结案 | 显式几何/位置提示下1Jev/0图片正确直通；完整检查、第1轮审查及504文件归档通过 |
