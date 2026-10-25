@@ -1,4 +1,4 @@
-> 状态：进行中（2026-10-25：零模型像素互换及最终假HTTP/独立审计通过；冻结d55afdd64c5e…，真实任务未启动；首轮发现修正及第2轮自检通过。）
+> 状态：审查中（2026-10-25：真实单次completed/goal_verified，2Jev/2图片、3正确点击、零POST/业务表变化；先行审查修复完成，待新增结果收尾审查。）
 
 # 像素语义与视觉后返回Jev
 
@@ -54,6 +54,15 @@ repeated_state门转图片，第二步Cancel已返回Jev；不修改生产规则
 首轮审查修正旧候选数，并复现后补齐图片frame_id/PNG哈希与对应visual proposal、
 观察/候选绑定及回执的一致性审计。旧冻结/假证据原样保留；重新prepare及一次假HTTP
 资格通过。以上修复由审查者自检，真实模型仍未启动。
+
+## 真实执行记录
+
+按先行审查修正后的冻结d55afdd64c5e…运行唯一一次真实任务，2Jev/2Gemini、3正确
+原引用动作，46752已知token，completed/goal_verified；无POST、书签业务表全列/
+schema不变、无未结用量，清理confirmed。视觉Edit后Jev Cancel已实际发生；最终
+Keep由重复状态门再次读图，不能把该额外图片算作像素必要。详见
+[研究与原始证据](../../research/jev-pixel-handoff.md)。三冻结脚本/运行源未变，旧80
+工件/默认保持；剩余重复状态效率问题交backlog，当前不扩样或修改保护。
 
 ## Tests
 

@@ -45,7 +45,7 @@
 | [research/jev-confirmation-preparation.md](research/jev-confirmation-preparation.md) | 调研 | 新列表容量阻塞 | sqlite-web37–38候选超32；linkding聚合值截断/不完整；正式N与收费未准入 |
 | [plans/done/jev-calibration-readiness.md](plans/done/jev-calibration-readiness.md) | 计划 | 已完成 | 两轮审查结束，无遗留问题；真实96项80正例/16负例通过、96清理，独立复算一致 |
 | [research/jev-pixel-handoff.md](research/jev-pixel-handoff.md) | 调研 | 先行审查通过 | 原版预览像素互换及假HTTP接管/返回通过，2项审查修正后自检，真实调用0 |
-| [plans/active/jev-pixel-handoff.md](plans/active/jev-pixel-handoff.md) | 计划 | 进行中 | 原版预览图零模型资格，通过后冻结一次视觉接管及返回Jev任务 |
+| [plans/active/jev-pixel-handoff.md](plans/active/jev-pixel-handoff.md) | 计划 | 审查中 | 单次像素接管/返回实测成功，待新增结果收尾审查 |
 | [research/jev-spatial-evidence.md](research/jev-spatial-evidence.md) | 调研 | 已结案 | 显式几何/位置提示下1Jev/0图片正确直通；完整检查、第1轮审查及504文件归档通过 |
 | [plans/done/jev-spatial-evidence.md](plans/done/jev-spatial-evidence.md) | 计划 | 已完成 | 有界位置证据接线/完整检查/真实直通与独立审查通过，默认不变 |
 | [research/jev-interface-routing.md](research/jev-interface-routing.md) | 调研 | 已审查结案 | Jev原选择正确、重复守卫转图后正确导航；像素必要性未证，第1轮审查无发现 |

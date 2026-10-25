@@ -1,4 +1,4 @@
-> 日期：2026-10-25；结论状态：open（零模型/假HTTP资格通过；先行审查修正及自检通过，真实模型任务尚未启动。）
+> 日期：2026-10-25；结论状态：resolved（唯一真实任务成功：像素接管后返回Jev；2Jev/2图片、3正确动作，待新增结果收尾审查。）
 
 # 原版预览图的像素需求与返回Jev
 
@@ -10,9 +10,10 @@
 但红三角目标从记录2移到记录1；各17合法候选（编辑页6项），绑定1280×720 PNG明确不同。
 这是当前表示缺少所需图片语义的证据，不是证明文字模型绝不可能猜中。
 
-当前仅假HTTP闭环通过：Jev请求上下文→图片选择红三角对应Edit→Jev Cancel→
-现有重复状态恢复转图片选择Keep，3次原引用点击，零POST/书签业务表变化/外网尝试，
-completed/goal_verified、清理confirmed。没有真实模型质量/耗时或采用结论。
+唯一真实任务已成功：Jev返回need_more_context→Gemini按图片选择红三角对应Edit→
+新观察Jev选择Cancel→现有重复状态恢复转Gemini选择Keep。2次Jev、2次图片、3次
+正确原引用点击，completed/goal_verified、零POST/书签业务表变化、清理confirmed。
+这支持一次受控像素需求下的接管与返回，不证明任意界面、模型优劣或默认采用。
 
 ## 真实应用与目标
 
@@ -25,7 +26,7 @@ completed/goal_verified、清理confirmed。没有真实模型质量/耗时或�
 临时回环WSGI边界只补充合成登录会话和原HTTP记录；保留浏览器CSRF cookie，
 不更换应用响应或业务观察。禁用原后台外网抓取，所有任务操作只读。
 
-唯一拟真实任务：从/bookmarks?q=Entry，在预览图中找到红色三角形书签，通过
+唯一真实任务：从/bookmarks?q=Entry，在预览图中找到红色三角形书签，通过
 其Edit查看编辑页，不改字段并Cancel，然后点击右侧Tags下大写Keep标签。
 原公开完成条件为/bookmarks?q=Entry+%23keep，初始为假。独立验收另外要求
 正确来源/实际编辑页、Cancel和Keep的顺序；仅最终URL不能冒充全部任务正确。
@@ -63,6 +64,38 @@ prepare及假HTTP通过；修复由审查者自检，不计真实模型结果。
 宿主已记账token，视觉输出4096/retry0、金额未定价；宿主限额不是provider请求前
 预留硬上界。未知用量/效果、漂移、未结预留、审计或清理失败停批，原始失败保留。
 
+## 唯一真实实测
+
+执行前逐SHA核对审查版6559项内容、354运行源、80历史工件及默认配置，无漂移；
+已通过先行审查/签名11d79feb后才启动live，输出目录不能复用，没有失败后重跑。
+
+- Jev1.14.0：need_more_context，输入13015/输出198；SDK跨度2229.691毫秒。
+- Gemini3.8 Flash：图片选c11，对应红三角记录2的Edit；12784/477 token，8602.091毫秒。
+- Jev1.14.0：新编辑页选c6 / Cancel，6653/101 token，642.921毫秒。
+- Gemini3.8 Flash：重复列表状态选c17 / Tags下Keep，13109/415 token，9042.021毫秒。
+
+合计46752已知token，4次请求均有调用/响应/事件/账本和SDK诊断，全部known、零
+未结预留，无unknown；金额未定价，不等于免费。SDK跨度含本地边界，不是纯服务端
+时间，各模型步骤职责不同不作速度排名。驱动计时24.762秒，从副本/种子初始化后、
+服务启动前开始，含服务/公开采集/Runner/末端读回与清理，不是完整用户端耗时。
+
+原始route事件依次visual_required、jev_eligible、repeated_state；第一次文字准入
+accepted=false，第二次Cancel accepted=true。图片请求完整保留17候选，编辑页6；
+两次图片PNG SHA均为41654f2e514640499538a56f6124c5ba9363a8a9d32f436277850ff6571f6c83，
+与资格variant0原图一致，frame_id不同且分别关联正确proposal/receipt。执行原始引用
+和URL变化确认/bookmarks/2/edit→Cancel回原列表→Keep标签，未进入记录1编辑页。
+全部HTTP为GET、无POST，独立物理DB核对全部bookmarks业务表/列及schema保持。
+这不是整库零SQL写入证明，auth/session不在该业务审计范围内。
+
+第二张图片的出现由返回相同界面的repeated_state门触发；它选择已有唯一文字Keep
+链接，不能据此认定该步需要像素。一次SDK跨度9.042秒只是已观察开销，能否安全省去
+需单独验证。下一优先项是离线区分正常完成子步骤后返回与真正无进展，不扩大本任务
+样本或再找相似App。当前不修改重复状态保护或默认路线。
+
+verify-evidence.py离线重核fake/live、图/proposal/回执/来源、业务DB、诊断与账本均通过；
+其初稿对dict使用Counter时错误统计值，修正为keys后通过，原稿/失败保留，未改模型原始
+证据或三项冻结脚本。80旧工件/默认配置、354运行源及446原产品源仍保持。
+
 ## 验证与证据
 
 本片只改docs与归档，不修改生产代码/测试/协议。check.py核对并明确复用前轮当前
@@ -73,7 +106,7 @@ reload/文档日志均通过；唯一旧skip仍为ToolManager requires full conf
 
 [原始归档](artifacts/jev-pixel-handoff-20261025.tar.xz)保存全部准备失败、像素交换
 PNG/原DOM/模型投影、最终冻结与源、假HTTP请求/原引用轨迹/HTTP/DB/账本/清理、
-审计器与四项反例、前轮已闭合检查日志。逐文件manifest核对；当前6560普通成员，SHA256为
-6790b3441669f8a930c341161aa2acd68398dacfb8909fca245acb1169c551a8。
+审计器与六项反例、前轮已闭合检查日志。逐文件manifest核对；追加真实原始证据与离线复核后封包为7047普通成员，SHA256为
+b454cabb99568467715ca125c1eeedaf06caa5cbc328a8569f98244122d21ed9。
 [子计划](../plans/active/jev-pixel-handoff.md)与[主计划](../plans/active/computer-use-jev-vision.md)
-约束本片范围。当前真实请求0，不把假模拟路线当作真实模型结论。
+约束本片范围。真实仅此一次4请求，不把假模拟路线当作真实模型结论。
